@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <AssemblyName>SimdPaddleOCR.ReferenceExport</AssemblyName>
+    <RootNamespace>SimdPaddleOCR.ReferenceExport</RootNamespace>
+    <ReferenceRepo Condition="'$(ReferenceRepo)' == ''">$(MSBuildThisFileDirectory)../../../SimdPaddleOCR</ReferenceRepo>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(ReferenceRepo)/src/Sdcb.SimdPaddleOCR/Sdcb.SimdPaddleOCR.csproj" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+  </ItemGroup>
+</Project>

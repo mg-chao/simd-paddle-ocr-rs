@@ -1,0 +1,78 @@
+# simd-paddle-ocr-rs
+
+The Rust rewrite starts with a reproducible reference bundle and a Rust parity comparator. OCR inference is still supplied by the adjacent `SimdPaddleOCR` C# checkout.
+
+Requirements: .NET 10 SDK, stable Rust with edition 2024 support, PowerShell, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout needs this workspace's opt-in `RunWithTrace` method and friend assembly entry.
+
+## Export a reference
+
+Run from this repository:
+
+```powershell
+./tools/export-reference.ps1 -Out reference-bundles/tiny-reference-v1
+```
+
+The default corpus freezes `examples/sample.jpg`, its 180-degree rotation, a white 32x32 image, and a single BGR pixel. The sample includes Chinese/English text and variable line widths. Output directories must be new; an existing baseline is never overwritten.
+
+The default `canonical` profile uses CPU only, one effective processor, scalar kernels, NCHW storage, and disabled graph fusions. The launcher sets these controls before .NET starts and restores the caller's environment afterward. It removes inherited graph/kernel debug-dump variables so measured runs are untraced.
+
+For a fixed external corpus, including the existing generated benchmark dataset:
+
+```powershell
+./tools/export-reference.ps1 -InputPath ../SimdPaddleOCR/dataset -Count 20 -Out reference-bundles/corpus-20
+```
+
+Input can be one image or a directory of JPG/JPEG/PNG/BMP/WebP images. Directory inputs are selected in ordinal filename order. Encoded originals and decoded BGR24 buffers are frozen, so subsequent runs can use the saved pixels without relying on fonts or a decoder. Ground-truth scoring from dataset metadata is not implemented in this step.
+
+## Replay the frozen inputs and models
+
+```powershell
+./tools/export-reference.ps1 -ReplayBundle reference-bundles/tiny-reference-v1 -Out reference-bundles/tiny-replay-v1
+cargo run --release --offline -- compare reference-bundles/tiny-reference-v1 reference-bundles/tiny-replay-v1 --atol 0 --rtol 0
+```
+
+Replay validates the input/model hashes, uses the bundle's original case IDs and raw pixel buffers, and inherits its profile and trace settings unless explicitly overridden. The compiled C# implementation comes from the current reference checkout; its provenance is captured again. This makes replay useful for detecting changes to the reference implementation as well as checking reproducibility.
+
+`--offline` works when dependencies are already cached; omit it for the first dependency download on a normally connected machine. Dependency versions are pinned in `Cargo.lock` and the exporter's `packages.lock.json`.
+
+## Capture more detail
+
+```powershell
+# Capture every executed node and every text line. This can produce large bundles.
+./tools/export-reference.ps1 -Nodes all -MaxTracedLines 0 -Out reference-bundles/tiny-all-nodes
+
+# Separate optimized CPU baseline, still one effective processor.
+./tools/export-reference.ps1 -Profile cpu -Out reference-bundles/tiny-cpu
+```
+
+Default checkpoints capture the first, middle, penultimate, and last node indexes, mapped to the execution sink when nodes are fused. Every detected line has its crop pixels saved. Only the first three lines per image have detailed CLS/REC traces by default; `-MaxTracedLines 0` captures all lines. Both modes capture complete public OCR results, including full quadrilateral boxes and CTC alignment.
+
+CPU and canonical bundles have different contracts and cannot be compared directly by the CLI. Compare each implementation with the matching profile and trace configuration. Node IDs refer to the C# loader's canonicalized graph, not raw ONNX node indexes; `graph-inventory.json` records the mapping, node names, operators, inputs, outputs, and opsets.
+
+## Compare a Rust candidate
+
+Write the same bundle schema from the future Rust implementation, using the frozen model and input files. Then run:
+
+```powershell
+cargo run --release --offline -- compare reference-bundles/tiny-reference-v1 reference-bundles/rust-candidate --atol 1e-5 --rtol 1e-4
+```
+
+The comparator validates every model and case artifact against its own recorded hash and length before comparing. It requires matching contracts, model identities, case/artifact order, data types, shapes, and layouts. Source snapshots, assembly metadata, and timing reports are provenance and are not parity requirements.
+
+Float tensors use `abs(candidate - reference) <= atol + rtol * abs(reference)`. Nonfinite values are rejected. Pixel bytes, text, keys, array order, and pairs of JSON integers compare exactly. Floating-point JSON numbers, including an integer paired with a floating-point number, use the numeric tolerance. Preserve integer types for structural fields such as widths, labels, counts, and span boundaries.
+
+The first differing captured stage is reported. Tensor diagnostics include the first differing element, mismatch count, maximum absolute error, and maximum relative error. Use all-node capture to narrow a mismatch to the first executed node. Exit codes are `0` for a match, `1` for a parity difference, and `2` for invalid arguments or an invalid bundle.
+
+See [the bundle schema](docs/reference-bundle.md) for the format and score contracts.
+
+## Validation
+
+```powershell
+cargo test --offline
+cargo clippy --offline --all-targets -- -D warnings
+dotnet test ../SimdPaddleOCR/test/Sdcb.SimdPaddleOCR.UnitTests/Sdcb.SimdPaddleOCR.UnitTests.csproj -c Release --filter FullyQualifiedName~InferenceSessionTraceTests
+```
+
+The exporter uses the C# repository's pinned ImageSharp 3.1.11 decoder to preserve its existing fixture decoding. NuGet reports the existing advisories for that version; use controlled fixture images. The reference checkout documents its deferred upgrade in `docs/imagesharp-3.2-upgrade.md`. Frozen-pixel replay skips decoding.
+
+Generated bundles and build outputs are ignored by Git. Keep any baseline you rely on in durable artifact storage together with its manifest; source code and the small synthetic comparator fixtures remain in Git.
