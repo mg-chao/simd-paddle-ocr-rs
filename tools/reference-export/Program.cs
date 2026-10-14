@@ -20,7 +20,13 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--benchmark-imports") return ImportTools.Benchmark(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-cls") return ClsTools.Benchmark(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-step12") return Step12Tools.Benchmark(args[1..]);
+            if (args.Length > 0 && args[0] == "--benchmark-ocr") return OcrBenchmark.Run(args[1..]);
             if (args.Length > 0 && args[0] == "--export-geometry") return GeometryFixtures.Export(args[1..]);
+            if (args.Length > 0 && args[0] == "--export-rec-fixtures") return RecFixtures.Export(args[1..]);
+            if (args.Length > 0 && args[0] == "--export-rec-ops") return RecFixtures.ExportOperators(args[1..]);
+            if (args.Length == 1 && args[0] == "--verify-rec-contracts")
+                return RecContractTests.Run((dense, compact, contentWidth, tensorWidth, timeSteps, location) =>
+                    VerifyRecognitionStructure(dense, compact, new(contentWidth, tensorWidth, timeSteps), location));
             if (args.Length == 0 || args.Contains("--help"))
             {
                 Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -ReplayBundle <frozen-bundle>] [-CaptureScope ocr|step12] [-DetectorModel tiny|small|medium] [-FixtureSet default|compact|expanded] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
@@ -69,9 +75,15 @@ internal static class Program
         string[] labels = ReadLabels(dictionary);
         PaddleOcrOptions options = Options();
         Stopwatch load = Stopwatch.StartNew();
-        using Model det = Model.Load(File.ReadAllBytes(Path.Combine(writer.RootPath, "models", "det.onnx")));
-        using Model cls = Model.Load(File.ReadAllBytes(Path.Combine(writer.RootPath, "models", "cls.onnx")));
-        using Model rec = Model.Load(File.ReadAllBytes(Path.Combine(writer.RootPath, "models", "rec.onnx")));
+        Dictionary<string, ModelInspectionSnapshot> inspected = [];
+        Model Load(string id)
+        {
+            using FileStream stream = File.OpenRead(Path.Combine(writer.RootPath, "models", $"{id}.onnx"));
+            return Model.Load(stream, snapshot => { if (snapshot.Stage == "normalized") inspected.Add(id, snapshot); });
+        }
+        using Model det = Load("det");
+        using Model cls = Load("cls");
+        using Model rec = Load("rec");
         using PaddleOcrAll pipeline = new(det, cls, rec, dictionary, options);
         load.Stop();
         long loadedWorkingSet = WorkingSet();
@@ -148,11 +160,11 @@ internal static class Program
                     throw new InvalidDataException($"Diagnostic orientation differs for {fixture.Id}/{stage}.");
                 if (rotation == 180) PPOCRCrop.Rotate180(crop, width, height);
                 artifacts.Add(writer.WriteBytes($"{stage}.rec.pixels", $"{directory}/{stage}/rec.bgr.bin", crop, [height, width, 3], "bgr24"));
-                PaddleOcrRecognitionResult dense = CaptureRecognizer(writer, artifacts, directory, stage, crop, width, height, rec, labels, settings);
+                PaddleOcrRecognitionResult dense = CaptureRecognizer(writer, artifacts, directory, stage, crop, width, height, rec, labels, settings, out RecognitionDimensions dimensions);
                 PaddleOcrRecognitionResult compact = recognizer.Recognize(crop, width, height, true);
                 if (compact.Text != result.Lines[line].Text)
                     throw new InvalidDataException($"Diagnostic recognizer differs for {fixture.Id}/{stage}.");
-                VerifyRecognitionStructure(dense, compact, $"{fixture.Id}/{stage}");
+                VerifyRecognitionStructure(dense, compact, dimensions, $"{fixture.Id}/{stage}");
                 artifacts.Add(writer.WriteJson($"{stage}.rec.public", $"{directory}/{stage}/rec-public.json", RecognitionJson(compact)));
             }
             artifacts.Add(writer.WriteJson("result.public", $"{directory}/result.json", new
@@ -169,10 +181,11 @@ internal static class Program
             cases.Add(new CaseEntry(fixture.Id, "ocr", artifacts));
             Console.WriteLine($"captured {fixture.Id}: {artifacts.Count} artifacts; traced {tracedLines}/{boxes.Length} lines");
         }
-        var inventory = new[] { (Id: "det", Value: det), (Id: "cls", Value: cls), (Id: "rec", Value: rec) }
-            .Select(model => new
+        var inventory = new[] { "det", "cls", "rec" }
+            .Select(id => new
             {
-                model.Id, nodes = model.Value.Nodes.Select((node, index) => new
+                id, inputs = inspected[id].Inputs, outputs = inspected[id].Outputs,
+                nodes = inspected[id].Nodes.Select((node, index) => new
                 {
                     index, node.Name, node.OpType, node.Domain, node.Opset, inputs = node.Inputs, outputs = node.Outputs
                 }).ToArray()
@@ -184,7 +197,8 @@ internal static class Program
             schemaVersion = 1,
             contract = new
             {
-                model = "tiny", profile = settings.Profile, backend = "cpu", pixelFormat = "bgr24",
+                model = "tiny", captureScope = "ocr", inputOrigin = "frozen_bgr_pixels",
+                inventorySemantics = "lineage_keys_v1", profile = settings.Profile, backend = "cpu", pixelFormat = "bgr24",
                 options, logicalInputLayout = "nchw", tensorEncoding = "ieee754_f32_little_endian",
                 decoder = "SixLabors.ImageSharp 3.1.11; replay consumes frozen BGR bytes without decoding",
                 nodes = settings.Nodes, settings.MaxTracedLines, returnCtcAlignment = true,
@@ -251,22 +265,27 @@ internal static class Program
     }
 
     private static PaddleOcrRecognitionResult CaptureRecognizer(BundleWriter writer, List<Artifact> artifacts, string directory,
-        string stage, byte[] crop, int width, int height, Model model, string[] labels, Settings settings)
+        string stage, byte[] crop, int width, int height, Model model, string[] labels, Settings settings, out RecognitionDimensions dimensions)
     {
         long natural = ((long)48 * width + height - 1) / height;
         int tensorWidth = checked((int)Math.Max(32, ((natural + 31) / 32) * 32));
         float[] input = new float[checked(3 * 48 * tensorWidth)];
         int contentWidth = PPOCRPreprocess.Rec(crop, width, height, width * 3, tensorWidth, input);
+        if (contentWidth != Math.Min(natural, tensorWidth))
+            throw new InvalidDataException("Recognition content width differs from crop-derived metadata.");
         string name = $"{stage}.rec";
         artifacts.Add(writer.WriteFloats($"{name}.input", $"{directory}/{name}/input.f32.bin", input, [1, 3, 48, tensorWidth], "nchw"));
         using InferenceSession session = new(model, [1, 3, 48, tensorWidth]);
         ReadOnlySpan<float> prediction = RunGraph(writer, artifacts, directory, name, session, input, settings);
         artifacts.Add(writer.WriteFloats($"{name}.probabilities", $"{directory}/{name}/probabilities.f32.bin", prediction, session.OutputShape.Dimensions, Layout(session)));
         int classes = labels.Length + 2;
-        if (prediction.Length % classes != 0 || session.OutputShape.Dimensions[^1] != classes)
+        int[] outputShape = session.OutputShape.Dimensions.ToArray();
+        if (outputShape.Length != 3 || outputShape[0] != 1 || outputShape[1] <= 0 || outputShape[2] != classes || prediction.Length != checked(outputShape[1] * classes))
             throw new InvalidDataException("Unexpected recognition output shape.");
+        dimensions = new(contentWidth, tensorWidth, outputShape[1]);
         PaddleOcrRecognitionResult decoded = PaddleOcrRecognizer.DecodeCtc(labels, labels.Max(label => label.Length), true,
-            prediction, [], [], prediction.Length / classes, contentWidth, tensorWidth, false);
+            prediction, [], [], dimensions.TimeSteps, contentWidth, tensorWidth, false);
+        ValidateRecognitionForm(decoded, dimensions, $"{directory}/{name}/dense");
         artifacts.Add(writer.WriteJson($"{name}.decoded_dense", $"{directory}/{name}/decoded-dense.json", RecognitionJson(decoded)));
         return decoded;
     }
@@ -302,15 +321,38 @@ internal static class Program
         result.TimeSteps, result.CtcSpans
     };
 
-    private static void VerifyRecognitionStructure(PaddleOcrRecognitionResult dense, PaddleOcrRecognitionResult compact, string location)
+    private readonly record struct RecognitionDimensions(int ContentWidth, int TensorWidth, int TimeSteps);
+
+    private static void VerifyRecognitionStructure(PaddleOcrRecognitionResult dense, PaddleOcrRecognitionResult compact, RecognitionDimensions dimensions, string location)
     {
-        bool same = dense.Text == compact.Text && dense.EmittedCount == compact.EmittedCount &&
-            dense.ResizedWidth == compact.ResizedWidth && dense.TensorWidth == compact.TensorWidth && dense.TimeSteps == compact.TimeSteps;
-        var left = dense.CtcSpans ?? [];
-        var right = compact.CtcSpans ?? [];
-        same &= left.Length == right.Length && left.Select(span => (span.Text, span.StartColumn, span.EndColumn))
-            .SequenceEqual(right.Select(span => (span.Text, span.StartColumn, span.EndColumn)));
-        if (!same) throw new InvalidDataException($"Dense and public recognition structure differ at {location}; scores have separate contracts, but text/alignment must agree.");
+        // Bias-first compact projection and separately rounded dense MatMul/Add
+        // can choose different classes. Validate each native form independently.
+        ValidateRecognitionForm(dense, dimensions, location + "/dense");
+        ValidateRecognitionForm(compact, dimensions, location + "/compact");
+    }
+
+    private static void ValidateRecognitionForm(PaddleOcrRecognitionResult result, RecognitionDimensions dimensions, string location)
+    {
+        if (dimensions.ContentWidth <= 0 || dimensions.ContentWidth > dimensions.TensorWidth || dimensions.TensorWidth <= 0 || dimensions.TimeSteps <= 0 ||
+            result.ResizedWidth != dimensions.ContentWidth || result.TensorWidth != dimensions.TensorWidth || result.TimeSteps != dimensions.TimeSteps ||
+            result.Text is null || !float.IsFinite(result.Score) || result.EmittedCount < 0 || result.EmittedCount > dimensions.TimeSteps)
+            throw new InvalidDataException($"Recognition dimensions, count or score are invalid at {location}.");
+        PaddleOcrCtcSpan[] spans = result.CtcSpans ?? throw new InvalidDataException($"Captured recognition spans are missing at {location}.");
+        if (spans.Length != result.EmittedCount || (result.EmittedCount == 0 && (result.Text.Length != 0 || result.Score != 0)))
+            throw new InvalidDataException($"Recognition emission/span structure is invalid at {location}.");
+        int previousEnd = 0;
+        StringBuilder combined = new();
+        foreach (PaddleOcrCtcSpan span in spans)
+        {
+            // Empty dictionary entries are legitimate emitted tokens.
+            if (span.Text is null || !float.IsFinite(span.Score) || span.StartColumn < previousEnd ||
+                span.StartColumn >= span.EndColumn || span.EndColumn > dimensions.TimeSteps)
+                throw new InvalidDataException($"Recognition span bounds or score are invalid at {location}.");
+            combined.Append(span.Text);
+            previousEnd = span.EndColumn;
+        }
+        if (!string.Equals(combined.ToString(), result.Text, StringComparison.Ordinal))
+            throw new InvalidDataException($"Recognition spans do not reconstruct text at {location}.");
     }
 
     internal static object BoxJson(PaddleOcrDetectionBox box) => new

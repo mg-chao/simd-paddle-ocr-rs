@@ -148,6 +148,70 @@
           }
         }
       ]
+    },
+    {
+      "archive": "tiny-rec.zip",
+      "local_only": true,
+      "bytes": 93018535,
+      "sha256": "47e5f183a07ab7437ce4d00af625043e19f45131225a53aa342c0afc261dcdec",
+      "models": [
+        {
+          "path": "models/rec.onnx",
+          "bytes": 4462639,
+          "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+          "source_name": "rec.onnx"
+        },
+        {
+          "path": "models/ppocr_keys.txt",
+          "bytes": 34057,
+          "sha256": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82",
+          "source_name": "ppocr_keys.txt",
+          "download": {
+            "bytes": 27153,
+            "sha256": "46e1b34ef45684cb46d75ac76d355341fe7f0a2c38d6ee02e63ae6b3878019fc",
+            "transform": "lf_to_crlf"
+          }
+        }
+      ],
+      "directory": "tiny-rec"
+    },
+    {
+      "archive": "tiny-ocr.zip",
+      "local_only": true,
+      "bytes": 84186410,
+      "sha256": "280b5d64f54ab4558670f05f51a531ad714033dd72840200ec3b0f635e6fb7b7",
+      "models": [
+        {
+          "path": "models/det.onnx",
+          "bytes": 1780590,
+          "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+          "source_name": "det.onnx"
+        },
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        },
+        {
+          "path": "models/rec.onnx",
+          "bytes": 4462639,
+          "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+          "source_name": "rec.onnx"
+        },
+        {
+          "path": "models/ppocr_keys.txt",
+          "bytes": 34057,
+          "sha256": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82",
+          "source_name": "ppocr_keys.txt",
+          "download": {
+            "bytes": 27153,
+            "sha256": "46e1b34ef45684cb46d75ac76d355341fe7f0a2c38d6ee02e63ae6b3878019fc",
+            "transform": "lf_to_crlf"
+          }
+        }
+      ],
+      "directory": "tiny-ocr"
     }
   ]
 }

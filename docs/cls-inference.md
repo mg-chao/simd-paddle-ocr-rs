@@ -150,7 +150,7 @@ The final all-node reference covers 32 inputs and 3,392 node tensors. All 3,456
 selected classifier artifacts match at `atol=1e-5`, `rtol=1e-4`; all 32 labels
 match exactly. The reference was archived and validated after extraction; its
 identity is in `baselines.json`. The final Rust candidate is available locally
-as `reference-bundles/rust-cls-scalar-v1`. See [the parity report](cls-parity.json).
+as `reference-bundles/rust-cls-scalar-v1`. See the parity report (local `docs/cls-parity.json`).
 
 Formatting, Clippy with warnings denied, all 82 normal tests, the explicit
 seven-model import gate, and the explicit canonical CLS gate passed. Regression
@@ -181,7 +181,7 @@ the preloaded benchmark corpus, and process/runtime overhead. C# recorded
 56,601,600 current-thread managed allocation bytes per measured corpus run;
 this is allocation volume, not retained heap or native memory.
 
-[Machine-readable measurements](cls-performance.json) preserve all raw samples,
+Machine-readable measurements (local `docs/cls-performance.json`) preserve all raw samples,
 process orders, corpus/executable identities, source hashes, and memory counters.
 Original local executables and reports remain in
 `target/measurements/cls-scalar-v1`. Remaining CPU work should be guided by

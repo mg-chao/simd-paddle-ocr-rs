@@ -1,0 +1,37 @@
+# Step 1: tiny scalar recognition performance
+
+On the measured four-crop corpus, the median of six process p50 values was **311.98 ms for Rust owning public recognition and 399.99 ms for C#**. Full diagnostic graph execution remains slower in Rust: **406.15 ms versus 352.52 ms**. These are distinct execution scopes; there is no universal speedup claim. The structured Step 1 report (local `docs/rec-performance.json`) pins models, dictionary, executables, process records and source identities.
+
+All table values are milliseconds. Each engine/mode used six fresh processes, 30 warmups and 100 samples per input; paired engine order alternated by process. Headline p50/p95 values are medians of the six process percentiles. Ranges are their observed extrema. The four-input corpus sums matching sample indexes from separate contiguous input blocks; it is not a wall-clock page sweep or throughput measurement.
+
+| Measured scope | Engine | Median process p50 | p50 range | Median process p95 | p95 range |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Full graph, four frozen tensors | Rust | 406.15 | 285.59–626.04 | 507.43 | 317.53–1071.02 |
+| Full graph, four frozen tensors | C# | 352.52 | 316.97–398.12 | 389.67 | 359.33–464.08 |
+| Public owned, four pixel crops | Rust | 311.98 | 258.60–338.77 | 358.93 | 290.10–375.52 |
+| Public owned, four pixel crops | C# | 399.99 | 297.22–568.08 | 499.61 | 352.53–796.45 |
+| Public borrowed, four pixel crops | Rust | 325.82 | 231.64–340.39 | 386.33 | 251.85–415.44 |
+| 14-call mixed-width sequence | Rust | 460.80 | 383.15–644.25 | 613.37 | 481.53–1058.53 |
+| Four completed-result copies/drop | Rust | 0.00250 | 0.00240–0.00310 | 0.00270 | 0.00250–0.00380 |
+
+The four oriented BGR crops come from the upright 350×140 `image-000` page, with REC tensor widths 352, 288, 576 and 480. Full graphs include normalized-input copying and every dense node through Softmax. Public calls include pixel preprocessing, the compact head and CTC alignment; owned calls additionally copy and drop the result. Borrowed and mixed-width modes are Rust-only. The mixed sequence visits widths 32 through 384 in steps of 32, then 32 and 384 again, after two capacity cycles; its first call is already prepared.
+
+Collection used Windows x64, Rust 1.97.1, a reported Ryzen 9 5950X, 24 process-visible processors and the Balanced power plan. Kernels are serial scalar code with no explicit SIMD or parallel inference. C# hardware intrinsics, fusion, tiered compilation and tiered PGO were disabled, with NCHW and one worker. This was a shared development machine without CPU affinity; a background linker burst was observed. All six runs were retained. The full-graph Rust p50 range of 285.59–626.04 ms and p95 range of 317.53–1,071.02 ms show substantial process variation. Linux supplies correctness/allocation evidence rather than paired latency results.
+
+Separate three-process allocator runs found zero warmed allocation count, allocated bytes, retained growth and peak growth for graphs, borrowed recognition and the prepared mixed-width sequence. Plans, activations, resize scratch, winners, text and span storage must all have adequate capacity; larger shapes or results can allocate. Owned recognition/copy probes allocated 53 times and 2,370 bytes in total across these four results per corpus sample, with zero retained growth after drop. The isolated four-copy/drop probe measured about **2.5 µs**. Separately collected owned and borrowed medians cannot estimate ownership cost.
+
+| Rust storage accounting | Active activation bytes | Retained activation bytes | Workspace bytes |
+| --- | ---: | ---: | ---: |
+| Full graph: peak of one sequentially live session | 5,304,960 | 5,304,960 | 181,536 |
+| Public recognizer: final corpus state | 2,211,840 | 2,654,208 | 207,707 |
+| Prepared mixed sequence: final state | 1,769,472 | 1,769,472 | 201,344 |
+
+These requested-byte counters exclude shared model weights, allocator overhead and process RSS. Diagnostic workspace is already part of total workspace. Result budgets cover active records/text, not spare capacity or later owned copies. Graph RSS ranges were 23.09–23.76 MB for Rust and 81.94–87.12 MB for C#; C# retained all graph sessions while Rust created/dropped one per row, and both RSS figures include runtime and corpus preparation. They are not a paired inference-memory comparison. Cold load/preparation and first calls remain separately recorded and outside warmed latency; their boundaries differ by engine and exclude process startup. First calls can include both storage growth and inference.
+
+The storage probes (local `docs/ocr-storage-performance.json`) isolate common full-session planning: a prepared **992→224→992 pair of reshapes took a six-process median p50 of 0.30825 ms**, including zero-filling regrown ranges, with zero warmed allocations. It is not compact-recognizer inference time. Fresh 224→992 growth took 1.388675 ms, allocated 9,136,320 bytes in four allocations, and left 7,073,280 bytes of retained growth. Old/replacement buffers can coexist transiently; activation limits are per session. The 104-byte synthetic compaction example measured about 0.5 µs with three allocations; this is near clock granularity and does not establish real-model compaction latency.
+
+The final observed node profile (local `docs/measurements/tiny-rec-profile-final-v1.json`) attributes approximately 73.3% of its summed node means to Conv and 16.3% to Erf. This is one instrumented full-graph run, three warmups/ten measured samples over four inputs, not public REC/OCR latency fractions. Compact projection tuning (local `docs/tiny-rec-projection-tuning.json`) retained a 2.59–3.05× isolated p50 improvement; dense MatMul tuning (local `docs/tiny-rec-tuning.json`) retained 1.36–1.38×. Each kept its original accumulation order and exactness gates; these kernel ratios are not pipeline speedups. The remaining scalar evaluation (local `docs/tiny-rec-scalar-evaluation.json`) rejected pixel-local rectangular depthwise traversal and blocked Transpose, and retained existing resize row reuse. The three tested depthwise nodes and Transpose contributed only about 0.493% and 0.014% of the observed diagnostic graph respectively.
+
+The scalar archive catalog (local `docs/tiny-rec-scalar-evidence-archive.json`) records reproduction limits: one historically linked dense-MatMul library payload was overwritten, although its hash, prototype sources/executable and raw results were recorded; historical compact-projection linked-library IDs were not recorded. Retained production binaries and native correctness proofs remain available.
+
+Final parity (local `docs/rec-parity.json`) passed on Windows and Linux: 32 frozen lines, 5,248 REC artifacts and every REC node; ordinary tests total 143 on Windows and 140 on Linux. Comparator/exporter hardening followed official timing collection. The 22 measured inference/API source files remain identical; 45 of the 47 correctness-inventory files are unchanged, with only the REC harness and its tests changed. The final 47-file digest is `e8765aec83e8ae64429464b4567cae4f39a143d9f7096c766a0f593d1a32c6e1`. Hardening evidence (local `docs/rec-harness-hardening.json`) and the final evidence catalog (local `docs/tiny-ocr-evidence-archives.json`) connect those distinct snapshots. These frozen corpora establish compatibility, not labeled OCR accuracy; no remote CI execution is claimed.

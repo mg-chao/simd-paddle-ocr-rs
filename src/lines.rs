@@ -154,6 +154,9 @@ pub struct OrientedLineExtractor {
     slab: Vec<u8>,
 }
 impl OrientedLineExtractor {
+    pub fn detector(&self) -> &Detector {
+        &self.detector
+    }
     pub fn new(
         detector: Detector,
         classifier: Option<Arc<CompiledModel>>,

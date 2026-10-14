@@ -51,7 +51,7 @@ That wall time includes process startup. Both use three warmups and thirty
 fresh-process measurements. The new comparator validates each binary
 descriptor in one traversal without retaining decoded tensor arrays.
 
-[Machine-readable measurements](step12-performance.json) include all model
+Machine-readable measurements (local `docs/step12-performance.json`) include all model
 summaries, phase timings, process-memory observations and comparator samples.
 Raw local import samples remain in `target/step12-measurements`.
 

@@ -1,0 +1,10 @@
+{
+  "actual_width": 32,
+  "adaptive_width": false,
+  "fixed_width": 32,
+  "height": 1,
+  "pixel_format": "rgb24",
+  "stride": 16,
+  "target_width": 32,
+  "width": 1
+}

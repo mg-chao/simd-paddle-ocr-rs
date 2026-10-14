@@ -1,0 +1,16 @@
+{
+  "exact": false,
+  "input_shape": [
+    2,
+    3,
+    5
+  ],
+  "operators": [
+    "Softmax"
+  ],
+  "output_shape": [
+    2,
+    3,
+    5
+  ]
+}

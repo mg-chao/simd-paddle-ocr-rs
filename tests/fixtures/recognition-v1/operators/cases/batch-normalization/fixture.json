@@ -1,0 +1,18 @@
+{
+  "exact": false,
+  "input_shape": [
+    2,
+    2,
+    2,
+    3
+  ],
+  "operators": [
+    "BatchNormalization"
+  ],
+  "output_shape": [
+    2,
+    2,
+    2,
+    3
+  ]
+}

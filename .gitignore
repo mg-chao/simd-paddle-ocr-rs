@@ -1,8 +1,40 @@
-/target
-/reference-bundles/
+# Build outputs
+/target/
 **/bin/
 !/src/bin/
 !/src/bin/**
 **/obj/
+
+# Local reference captures, archives, and generated measurement reports
+/reference-bundles/
+/reference-archives/
+/docs/*.json
+/docs/measurements/
+
+# Python environments and caches
 **/__pycache__/
-tests/fixtures
+*.py[cod]
+/.venv/
+/.pytest_cache/
+
+# Keep the small, authoritative fixtures used by normal tests and CI
+/tests/fixtures/*
+!/tests/fixtures/geometry-v1/
+!/tests/fixtures/math/
+!/tests/fixtures/recognition-v1/
+!/tests/fixtures/step12/
+
+# Large REC/OCR trace archives stay local; retain the compact CI archives
+/tests/fixtures/step12/*.zip
+!/tests/fixtures/step12/tiny.zip
+!/tests/fixtures/step12/small.zip
+!/tests/fixtures/step12/medium.zip
+!/tests/fixtures/step12/cls.zip
+!/tests/fixtures/step12/imports.zip
+
+# Operating-system and editor scratch files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo

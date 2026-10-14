@@ -165,7 +165,10 @@ impl Detector {
         self.session.retained_activation_bytes()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        self.resize.retained_bytes() + self.db.retained_bytes() + self.padded.capacity()
+        self.resize.retained_bytes()
+            + self.db.retained_bytes()
+            + self.padded.capacity()
+            + self.session.retained_planning_bytes()
     }
     /// Replay a frozen map through the same reusable DB workspace, without inference.
     #[allow(clippy::too_many_arguments)]

@@ -304,6 +304,59 @@ pub(super) fn axis(value: i64, rank: usize) -> RuntimeResult<usize> {
         .filter(|&v| v < rank)
         .ok_or_else(|| RuntimeError::new("axis is outside tensor rank"))
 }
+pub(super) fn squeeze(input: Shape, axes: &[i64]) -> RuntimeResult<Shape> {
+    let mut removed = [false; MAX_RANK];
+    if axes.is_empty() {
+        for (axis, &dimension) in input.dimensions().iter().enumerate() {
+            removed[axis] = dimension == 1;
+        }
+    } else {
+        for &value in axes {
+            let axis = axis(value, input.rank())?;
+            if removed[axis] {
+                return Err(RuntimeError::new("Squeeze axis is duplicated"));
+            }
+            if input.dimensions()[axis] != 1 {
+                return Err(RuntimeError::new("Squeeze axis must have dimension one"));
+            }
+            removed[axis] = true;
+        }
+    }
+    let mut dimensions = [0; MAX_RANK];
+    let mut rank = 0;
+    for (axis, &dimension) in input.dimensions().iter().enumerate() {
+        if !removed[axis] {
+            dimensions[rank] = dimension;
+            rank += 1;
+        }
+    }
+    Ok(Shape::new(&dimensions[..rank])?)
+}
+pub(super) fn unsqueeze(input: Shape, axes: &[i64]) -> RuntimeResult<Shape> {
+    let rank = input
+        .rank()
+        .checked_add(axes.len())
+        .filter(|&rank| rank <= MAX_RANK)
+        .ok_or_else(|| RuntimeError::new("Unsqueeze output exceeds rank eight"))?;
+    let mut inserted = [false; MAX_RANK];
+    for &value in axes {
+        let axis = axis(value, rank)?;
+        if inserted[axis] {
+            return Err(RuntimeError::new("Unsqueeze axis is duplicated"));
+        }
+        inserted[axis] = true;
+    }
+    let mut dimensions = [1; MAX_RANK];
+    let mut source = 0;
+    for axis in 0..rank {
+        if !inserted[axis] {
+            dimensions[axis] = input.dimensions()[source];
+            source += 1;
+        }
+    }
+    Ok(Shape::new(&dimensions[..rank])?)
+}
+
 pub(super) fn reshape(input: Shape, target: &[i64], allowzero: bool) -> RuntimeResult<Shape> {
     if target.len() > MAX_RANK {
         return Err(RuntimeError::new("reshape target exceeds rank eight"));

@@ -151,6 +151,278 @@ fn session(model: Arc<Model>, shape: &[usize]) -> Session {
     )
     .unwrap()
 }
+
+fn tiny_rec_tail() -> Arc<Model> {
+    model(
+        vec![
+            tensor("scale", &[2], &[2., 3.]),
+            tensor("bias", &[2], &[0.5, -0.25]),
+            tensor("mean", &[2], &[1., -1.]),
+            tensor("variance", &[2], &[0.75, 3.75]),
+            tensor(
+                "projection",
+                &[2, 5],
+                &[1., 0., -1., 0.5, 2., 0., 1., 1., -2., -0.5],
+            ),
+            tensor("head_bias", &[5], &[0.0625, -0.125, 0.25, -0.5, 1.]),
+            node(
+                "pool",
+                "AveragePool",
+                &["x"],
+                "pool",
+                vec![ints("kernel_shape", &[3, 2]), ints("strides", &[3, 2])],
+            ),
+            node(
+                "squeeze",
+                "Squeeze",
+                &["pool"],
+                "squeezed",
+                vec![ints("axes", &[-2])],
+            ),
+            node(
+                "batch_norm",
+                "BatchNormalization",
+                &["squeezed", "scale", "bias", "mean", "variance"],
+                "normalized",
+                vec![float("epsilon", 0.25)],
+            ),
+            node(
+                "unsqueeze",
+                "Unsqueeze",
+                &["normalized"],
+                "expanded",
+                vec![ints("axes", &[-2])],
+            ),
+            node(
+                "squeeze_again",
+                "Squeeze",
+                &["expanded"],
+                "compressed",
+                vec![ints("axes", &[2])],
+            ),
+            node(
+                "transpose",
+                "Transpose",
+                &["compressed"],
+                "feature",
+                vec![ints("perm", &[0, 2, 1])],
+            ),
+            node(
+                "projection",
+                "MatMul",
+                &["feature", "projection"],
+                "logits",
+                vec![],
+            ),
+            node("bias", "Add", &["logits", "head_bias"], "biased", vec![]),
+            node(
+                "probabilities",
+                "Softmax",
+                &["biased"],
+                "y",
+                vec![int("axis", -1)],
+            ),
+        ],
+        &[-1, 2, 3, -1],
+        &[-1, -1, 5],
+    )
+}
+
+#[test]
+fn tiny_rec_tail_runs_batched_pool_normalization_transpose_and_projection() {
+    let mut request = session(tiny_rec_tail(), &[2, 2, 3, 6]);
+    let input: Vec<_> = (0..72).map(|i| (i % 17) as f32 / 8. - 1.).collect();
+    let mut expected_feature = Vec::new();
+    for batch in 0..2 {
+        for column in 0..3 {
+            for channel in 0..2 {
+                let mut sum = 0.0f32;
+                for y in 0..3 {
+                    for x in 0..2 {
+                        sum += input[((batch * 2 + channel) * 3 + y) * 6 + column * 2 + x];
+                    }
+                }
+                let pooled = sum / 6.;
+                expected_feature.push(if channel == 0 {
+                    (pooled - 1.) * 2. + 0.5
+                } else {
+                    (pooled + 1.) * 1.5 - 0.25
+                });
+            }
+        }
+    }
+    let weights = [1., 0., -1., 0.5, 2., 0., 1., 1., -2., -0.5];
+    let bias = [0.0625, -0.125, 0.25, -0.5, 1.];
+    let mut expected_logits = Vec::new();
+    let mut expected = Vec::new();
+    for feature in expected_feature.chunks_exact(2) {
+        let mut logits = [0.0f32; 5];
+        for column in 0..5 {
+            logits[column] += feature[0] * weights[column];
+            logits[column] += feature[1] * weights[5 + column];
+        }
+        expected_logits.extend_from_slice(&logits);
+        for (value, bias) in logits.iter_mut().zip(bias) {
+            *value += bias;
+        }
+        let maximum = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        let exponentials = logits.map(|value| (value - maximum).exp());
+        let sum: f32 = exponentials.iter().sum();
+        expected.extend(exponentials.map(|value| value / sum));
+    }
+    let mut count = 0;
+    let output = request
+        .run_with_trace(&input, |node| {
+            count += 1;
+            if node.name == "transpose" {
+                assert_eq!(node.values, expected_feature);
+            }
+            if node.name == "projection" {
+                assert_eq!(node.values, expected_logits);
+            }
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(count, 9);
+    assert_eq!(output.shape().dimensions(), &[2, 3, 5]);
+    for (&actual, &expected) in output.data().iter().zip(&expected) {
+        assert!((actual - expected).abs() <= 1e-6);
+    }
+    let actual = output.data().to_vec();
+    assert_eq!(request.run(&input).unwrap().data(), actual);
+    request.reshape(&[1, 2, 3, 10]).unwrap();
+    assert_eq!(request.output_shape().dimensions(), &[1, 5, 5]);
+    request.run(&[0.; 60]).unwrap();
+    assert!(request.reshape(&[1, 2, 3, 1]).is_err());
+    assert_eq!(request.input_shape().dimensions(), &[1, 2, 3, 10]);
+    request.run(&[0.; 60]).unwrap();
+}
+
+#[test]
+fn recognition_axis_and_pool_parameters_are_validated_before_execution() {
+    for (operator, attrs, shape, message) in [
+        (
+            "Squeeze",
+            vec![ints("axes", &[0])],
+            vec![2, 1, 3],
+            "dimension one",
+        ),
+        (
+            "Squeeze",
+            vec![ints("axes", &[1, -2])],
+            vec![2, 1, 3],
+            "duplicated",
+        ),
+        (
+            "Unsqueeze",
+            vec![ints("axes", &[0, -4])],
+            vec![2, 3],
+            "duplicated",
+        ),
+        ("Unsqueeze", vec![ints("axes", &[4])], vec![2, 3], "axis"),
+        (
+            "Transpose",
+            vec![ints("perm", &[0, 0, 2])],
+            vec![2, 3, 4],
+            "duplicated",
+        ),
+        (
+            "Transpose",
+            vec![ints("perm", &[0, 1])],
+            vec![2, 3, 4],
+            "rank mismatch",
+        ),
+        ("Softmax", vec![int("axis", 1)], vec![2, 3, 4], "last-axis"),
+    ] {
+        let dimensions = shape.iter().map(|&value| value as i64).collect::<Vec<_>>();
+        let compiled = Arc::new(
+            CompiledModel::new(model(
+                vec![node("invalid", operator, &["x"], "y", attrs)],
+                &dimensions,
+                &dimensions,
+            ))
+            .unwrap(),
+        );
+        assert!(
+            Session::new(compiled, &shape, ExecutionLimits::default())
+                .unwrap_err()
+                .to_string()
+                .contains(message),
+            "{operator}"
+        );
+    }
+    let unsupported_pool = model(
+        vec![node(
+            "pool",
+            "AveragePool",
+            &["x"],
+            "y",
+            vec![
+                ints("kernel_shape", &[3, 2]),
+                ints("strides", &[3, 2]),
+                int("count_include_pad", 1),
+            ],
+        )],
+        &[1, 1, 3, 4],
+        &[1, 1, 1, 2],
+    );
+    assert!(
+        CompiledModel::new(unsupported_pool)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("AveragePool requires")
+    );
+}
+
+#[test]
+fn batch_normalization_preserves_subtract_multiply_add_and_rejects_bad_parameters() {
+    let normalization = |channels: i64, variance: f32, training: i64| {
+        model(
+            vec![
+                tensor("scale", &[channels], &vec![2.; channels as usize]),
+                tensor("bias", &[channels], &vec![1.; channels as usize]),
+                tensor("mean", &[channels], &vec![1e8; channels as usize]),
+                tensor("variance", &[channels], &vec![variance; channels as usize]),
+                node(
+                    "batch_norm",
+                    "BatchNormalization",
+                    &["x", "scale", "bias", "mean", "variance"],
+                    "y",
+                    vec![float("epsilon", 0.), int("training_mode", training)],
+                ),
+            ],
+            &[1, 2, 2],
+            &[1, 2, 2],
+        )
+    };
+    let mut request = session(normalization(2, 1., 0), &[1, 2, 2]);
+    // Folding to x*2 + (1 - mean*2) would lose the +1 through cancellation.
+    assert_eq!(request.run(&[1e8; 4]).unwrap().data(), &[1.; 4]);
+    assert!(
+        Session::new(
+            Arc::new(CompiledModel::new(normalization(1, 1., 0)).unwrap()),
+            &[1, 2, 2],
+            ExecutionLimits::default()
+        )
+        .is_err()
+    );
+    assert!(
+        CompiledModel::new(normalization(2, 1., 1))
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("inference mode")
+    );
+    assert!(
+        session(normalization(2, -1., 0), &[1, 2, 2])
+            .run(&[0.; 4])
+            .unwrap_err()
+            .to_string()
+            .contains("nonfinite output")
+    );
+}
+
 fn classifier() -> Arc<Model> {
     model(
         vec![

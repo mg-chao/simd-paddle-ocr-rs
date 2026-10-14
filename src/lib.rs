@@ -8,13 +8,18 @@ pub mod crop;
 mod db;
 pub mod det;
 pub mod detector;
+pub mod full_ocr;
 pub mod image;
+pub mod inventory;
 pub mod lines;
 mod math;
 pub mod model;
+pub mod ocr;
 pub mod onnx;
 pub mod orientation;
 pub mod preprocess;
+pub mod rec;
+pub mod recognizer;
 pub mod runtime;
 pub mod step12;
 pub mod tensor;
@@ -104,6 +109,10 @@ pub enum ComparisonScope {
         required_lines: usize,
         required_artifacts: usize,
     },
+    Rec {
+        required_lines: usize,
+        required_artifacts: usize,
+    },
     Det {
         required_cases: usize,
         required_artifacts: usize,
@@ -165,6 +174,13 @@ impl fmt::Display for ComparisonReport {
                 )?;
             }
             match &self.scope {
+                ComparisonScope::Rec {
+                    required_lines,
+                    required_artifacts,
+                } => write!(
+                    f,
+                    "; scope frozen REC tensors: {required_lines} required lines, {required_artifacts} required artifacts; no full OCR parity"
+                )?,
                 ComparisonScope::Det {
                     required_cases,
                     required_artifacts,
@@ -802,7 +818,9 @@ fn compare(
         ComparisonScope::Cls { .. } => {
             compare_classifier(&reference, &candidate, tolerance, &mut report)?
         }
-        ComparisonScope::Det { .. } | ComparisonScope::Step12 { .. } => {
+        ComparisonScope::Det { .. }
+        | ComparisonScope::Step12 { .. }
+        | ComparisonScope::Rec { .. } => {
             compare_pipeline_selection(&reference, &candidate, tolerance, &mut report)?
         }
     }
@@ -854,6 +872,15 @@ fn compare_pipeline_selection(
     type ArtifactPredicate = fn(&str) -> Result<bool>;
     type ScopedSelection = (HashSet<(usize, usize)>, ArtifactPredicate, ComparisonScope);
     let (selected, predicate, scope): ScopedSelection = match report.scope {
+        ComparisonScope::Rec { .. } => {
+            let selection = rec::selection(reference)?;
+            rec::validate_declared_structures(candidate)?;
+            let scope = ComparisonScope::Rec {
+                required_lines: selection.lines.len(),
+                required_artifacts: selection.artifacts.len(),
+            };
+            (selection.artifacts, rec::is_rec_artifact, scope)
+        }
         ComparisonScope::Det { .. } => {
             let selection = det::detector_selection(&reference.manifest)?;
             det::validate_reference_coverage(reference, &selection)?;

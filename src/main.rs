@@ -3,7 +3,9 @@ use simd_paddle_ocr_rs::{
     cls::run_cls,
     compare_bundles, compare_cls, compare_det, compare_stage, compare_step12,
     det::run_det,
+    full_ocr::{compare_ocr, run_ocr},
     model::{self, LoadOptions, Model},
+    rec::{compare_rec, run_rec},
     step12::run_step12,
     validate_bundle,
 };
@@ -20,6 +22,10 @@ Usage:
   simd-paddle-ocr-rs compare-det <reference> <candidate> [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs run-step12 <reference> --out NEW_DIRECTORY [--json]
   simd-paddle-ocr-rs compare-step12 <reference> <candidate> [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs run-rec <reference> --out NEW_DIRECTORY [--json]
+  simd-paddle-ocr-rs compare-rec <reference> <candidate> [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs run-ocr <reference> --out NEW_DIRECTORY [--json]
+  simd-paddle-ocr-rs compare-ocr <reference> <candidate> [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs validate <bundle> [--json]
   simd-paddle-ocr-rs inspect-model <model.onnx> [--out NEW_DIRECTORY] [--json]
   simd-paddle-ocr-rs validate-import <reference-directory> [--json]
@@ -32,6 +38,8 @@ Stage matches cover one selected artifact; every declared file is validated.
 CLS matches cover all frozen classifier inputs/nodes/probabilities; no full OCR parity.
 DET matches cover frozen normalized detector tensors; no pixel preprocessing.
 Step12 matches cover independent pixel-to-oriented-crop inference; no recognition/text.
+REC matches cover frozen tiny recognition tensors and both CTC score contracts; no full OCR parity.
+OCR matches require complete independent tiny pixel-to-public-result inference.
 Import comparison checks raw/normalized graphs and exact weight hashes.
 Exit status: 0 match/valid; 1 parity difference; 2 invalid arguments or data.";
 
@@ -97,10 +105,9 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
     }
     let expected = match parsed.command.as_str() {
         "compare" | "compare-stage" | "compare-cls" | "compare-det" | "compare-step12"
-        | "compare-import" => 2,
-        "validate" | "inspect-model" | "validate-import" | "run-cls" | "run-det" | "run-step12" => {
-            1
-        }
+        | "compare-rec" | "compare-ocr" | "compare-import" => 2,
+        "validate" | "inspect-model" | "validate-import" | "run-cls" | "run-det" | "run-step12"
+        | "run-rec" | "run-ocr" => 1,
         other => return Err(format!("unknown command {other}")),
     };
     if parsed.paths.len() != expected {
@@ -121,14 +128,14 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
     if parsed.out.is_some()
         && !matches!(
             parsed.command.as_str(),
-            "inspect-model" | "run-cls" | "run-det" | "run-step12"
+            "inspect-model" | "run-cls" | "run-det" | "run-step12" | "run-rec" | "run-ocr"
         )
     {
         return Err("--out requires inspect-model or a run command".into());
     }
     if matches!(
         parsed.command.as_str(),
-        "run-cls" | "run-det" | "run-step12"
+        "run-cls" | "run-det" | "run-step12" | "run-rec" | "run-ocr"
     ) && parsed.out.as_deref().is_none_or(str::is_empty)
     {
         return Err(format!("{} requires nonempty --out", parsed.command));
@@ -138,6 +145,8 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
         && parsed.command != "compare-cls"
         && parsed.command != "compare-det"
         && parsed.command != "compare-step12"
+        && parsed.command != "compare-rec"
+        && parsed.command != "compare-ocr"
         && (seen.contains("--atol") || seen.contains("--rtol"))
     {
         return Err("--atol/--rtol require a tensor comparison command".into());
@@ -161,7 +170,8 @@ fn print_report<T: serde::Serialize + std::fmt::Display>(
 fn run(args: Arguments) -> Result<u8, String> {
     let path = PathBuf::from(&args.paths[0]);
     match args.command.as_str() {
-        "compare" | "compare-stage" | "compare-cls" | "compare-det" | "compare-step12" => {
+        "compare" | "compare-stage" | "compare-cls" | "compare-det" | "compare-step12"
+        | "compare-rec" | "compare-ocr" => {
             let other = PathBuf::from(&args.paths[1]);
             let report = if args.command == "compare-stage" {
                 compare_stage(
@@ -177,6 +187,10 @@ fn run(args: Arguments) -> Result<u8, String> {
                 compare_det(&path, &other, args.tolerance)
             } else if args.command == "compare-step12" {
                 compare_step12(&path, &other, args.tolerance)
+            } else if args.command == "compare-rec" {
+                compare_rec(&path, &other, args.tolerance)
+            } else if args.command == "compare-ocr" {
+                compare_ocr(&path, &other, args.tolerance)
             } else {
                 compare_bundles(&path, &other, args.tolerance)
             }
@@ -203,6 +217,22 @@ fn run(args: Arguments) -> Result<u8, String> {
         "run-step12" => {
             print_report(
                 &run_step12(&path, &PathBuf::from(args.out.as_ref().unwrap()))
+                    .map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
+        }
+        "run-rec" => {
+            print_report(
+                &run_rec(&path, &PathBuf::from(args.out.as_ref().unwrap()))
+                    .map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
+        }
+        "run-ocr" => {
+            print_report(
+                &run_ocr(&path, &PathBuf::from(args.out.as_ref().unwrap()))
                     .map_err(|e| e.to_string())?,
                 args.json,
             )?;

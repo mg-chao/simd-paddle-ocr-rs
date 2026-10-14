@@ -1,4 +1,4 @@
-"""Select immutable golden outputs; CI consumes these archives without regenerating them."""
+"""Select immutable goldens for compact CI or larger local-only REC/OCR checks."""
 import argparse
 import hashlib
 import json
@@ -10,6 +10,19 @@ PIN = "33ff8a81672452041d110e8ba52dcd2639e54228"
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def source_asset(asset, content, detector_name):
+    names = {"det": detector_name, "cls": "cls.onnx", "rec": "rec.onnx", "dictionary": "ppocr_keys.txt"}
+    if asset["id"] not in names:
+        raise ValueError("Unknown source asset id: " + asset["id"])
+    record = {"path": asset["path"], "bytes": asset["bytes"], "sha256": asset["sha256"], "source_name": names[asset["id"]]}
+    if asset["id"] == "dictionary" and b"\r\n" in content:
+        raw = content.replace(b"\r\n", b"\n")
+        if b"\r" in raw or raw.replace(b"\n", b"\r\n") != content:
+            raise ValueError("Dictionary cannot be represented by pinned LF transport bytes")
+        record["download"] = {"bytes": len(raw), "sha256": digest(raw), "transform": "lf_to_crlf"}
+    return record
 
 
 def package(source, destination, select, model_name, model_ids=None):
@@ -38,8 +51,7 @@ def package(source, destination, select, model_name, model_ids=None):
         archive.writestr(entry, json.dumps(manifest, indent=2, sort_keys=True).encode() + b"\n", compress_type=zipfile.ZIP_DEFLATED)
     data = destination.read_bytes()
     return {"archive": destination.name, "bytes": len(data), "sha256": digest(data),
-            "models": [{"path": a["path"], "bytes": a["bytes"], "sha256": a["sha256"],
-                        "source_name": model_name if a["id"] == "det" else "cls.onnx"} for a in assets]}
+            "models": [source_asset(a, (source / a["path"]).read_bytes(), model_name) for a in assets]}
 
 
 def package_imports(source, destination):
@@ -100,8 +112,47 @@ def main():
     parser.add_argument("--references", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--imports-only", action="store_true", help="Append the immutable semantic importer fixture to an existing index")
+    parser.add_argument("--ocr-source", type=Path, help="Append immutable tiny REC and complete OCR goldens from this fresh semantic reference")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    if args.ocr_source:
+        index_path = args.out / "index.json"
+        index = json.loads(index_path.read_bytes())
+        if any(entry["directory"] in ("tiny-rec", "tiny-ocr") for entry in index["fixtures"]):
+            raise ValueError("Tiny OCR fixture identity already exists")
+        def recognition_cases(cases):
+            selected = []
+            widths = set()
+            for case in cases:
+                grouped = {}
+                for artifact in case["artifacts"]:
+                    if artifact["id"].startswith("line.") and ".rec." in artifact["id"]:
+                        prefix = artifact["id"].split(".rec.")[0]
+                        grouped.setdefault(prefix, []).append(artifact)
+                chosen = []
+                for prefix, artifacts in grouped.items():
+                    input_artifact = next(a for a in artifacts if a["id"].endswith(".rec.input"))
+                    width = input_artifact["shape"][3]
+                    if width not in widths and len(widths) < 4:
+                        widths.add(width)
+                        chosen.extend(artifacts)
+                if chosen:
+                    selected.append({**case, "artifacts": chosen})
+            if len(widths) < 2:
+                raise ValueError("Recognition oracle must contain at least two distinct widths")
+            return selected
+        # The rotated page remains in the expanded oracle. Keep two real lines,
+        # blank/tiny cases and complete per-node coverage in the local gate.
+        def ocr_cases(cases):
+            return [case for case in cases if case["id"] != "image-001"]
+        for directory, select, ids in (("tiny-rec", recognition_cases, {"rec", "dictionary"}), ("tiny-ocr", ocr_cases, None)):
+            record = package(args.ocr_source, args.out / (directory + ".zip"), select, "det.onnx", ids)
+            record["directory"] = directory
+            record["local_only"] = True
+            index["fixtures"].append(record)
+            print(f"Packed {directory}: {record['bytes']:,} bytes")
+        index_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+        return
     if args.imports_only:
         index_path = args.out / "index.json"
         index = json.loads(index_path.read_bytes())

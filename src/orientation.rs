@@ -262,7 +262,7 @@ impl Classifier {
         self.session.retained_activation_bytes()
     }
     pub(crate) fn retained_workspace_bytes(&self) -> usize {
-        self.resize.retained_bytes()
+        self.resize.retained_bytes() + self.session.retained_planning_bytes()
     }
 }
 

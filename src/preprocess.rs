@@ -147,6 +147,34 @@ pub fn cls(
     resize::<false>(image, window, actual, 80, 160, output, workspace)?;
     Ok(actual)
 }
+/// Height-48 recognition resize. Right padding is normalized zero, rather
+/// than CLS's normalized black; the complete source width is retained.
+pub fn rec(
+    image: ImageView<'_>,
+    tensor_width: usize,
+    output: &mut [f32],
+    workspace: &mut ResizeWorkspace,
+) -> ImageResult<usize> {
+    let elements = tensor_width.checked_mul(3 * 48);
+    if tensor_width == 0 || elements != Some(output.len()) {
+        return Err(ImageError::new("invalid REC output size"));
+    }
+    let natural = (48u64 * image.width() as u64).div_ceil(image.height() as u64);
+    let actual = natural.min(tensor_width as u64) as usize;
+    if actual < tensor_width {
+        output.fill(0.);
+    }
+    resize::<false>(
+        image,
+        image.width(),
+        actual,
+        48,
+        tensor_width,
+        output,
+        workspace,
+    )?;
+    Ok(actual)
+}
 fn horizontal(
     image: ImageView<'_>,
     source_width: usize,

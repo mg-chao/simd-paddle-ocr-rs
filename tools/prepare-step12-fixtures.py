@@ -1,4 +1,4 @@
-"""Restore committed golden outputs and obtain hash-pinned models. Never regenerate goldens."""
+"""Restore committed or explicitly requested local goldens with hash-pinned models."""
 import argparse
 import hashlib
 import json
@@ -74,11 +74,16 @@ def main():
     parser.add_argument("--out", type=Path, default=repository / "target/step12-fixtures")
     parser.add_argument("--cache", type=Path, default=repository / "target/reference-models")
     parser.add_argument("--models", type=Path, help="Offline model/dictionary directory; canonical or pinned LF transport bytes")
+    parser.add_argument("--include-local", action="store_true",
+                        help="Also restore large local-only REC/OCR archives, which must be supplied in --goldens")
     args = parser.parse_args()
     index = json.loads((args.goldens / "index.json").read_bytes())
     if index["schema_version"] != 1:
         raise ValueError("Unknown golden index schema")
     for fixture in index["fixtures"]:
+        if fixture.get("local_only", False) and not args.include_local:
+            print(f"Skipped local-only golden: {fixture['archive']} (use --include-local to restore)")
+            continue
         archive = args.goldens / fixture["archive"]
         if not checked_file(archive, fixture):
             raise ValueError("Golden archive hash/size differs: " + str(archive))

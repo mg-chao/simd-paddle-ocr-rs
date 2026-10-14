@@ -5,7 +5,7 @@ manual SIMD, threading and GPU execution remain separate milestones.
 
 ## Evidence and method
 
-[Parity evidence](step12-parity.json) records twelve expanded gates on Windows
+Parity evidence (local `docs/step12-parity.json`) records twelve expanded gates on Windows
 and Linux. Each platform covers 33 variant-cases, 97 detected lines, 7,832 DET
 node tensors, 10,282 CLS node tensors and 18,797 Step12 artifacts. Dimensions,
 box/line ordering, labels, rotations and pixels are exact; floating tensors,
@@ -44,11 +44,11 @@ tall and padded-stride shapes also pass the expanded parity gates.
 
 ## Measured latency
 
-The [collection index](step12-inference-performance.json) links four independently
-validated reports: [tiny compact](measurements/tiny-compact.json),
-[small compact](measurements/small-compact.json),
-[medium compact](measurements/medium-compact.json), and
-[the rotated page](measurements/tiny-page-rotated.json).
+The collection index (local `docs/step12-inference-performance.json`) links four independently
+validated reports: tiny compact (local `docs/measurements/tiny-compact.json`),
+small compact (local `docs/measurements/small-compact.json`),
+medium compact (local `docs/measurements/medium-compact.json`), and
+the rotated page (local `docs/measurements/tiny-page-rotated.json`).
 These are Windows measurements. Each p50/p95 below is the median of six process
 percentiles in milliseconds; it is not the percentile of pooled samples.
 Compact values sum the four case rows; the page is one image.
@@ -141,7 +141,7 @@ added. Before/after profiles and three fresh-process paired experiments favored
 this change for all three detector variants. Those diagnostic runs used three
 warmups and ten measurements and are separate from the final six-pair protocol.
 
-[Tuning evidence](step12-tuning.json) retains those earlier prototypes. The final
+Tuning evidence (local `docs/step12-tuning.json`) retains those earlier prototypes. The final
 observer-instrumented node profile confirms the ranking: Conv accounts for
 86.6% of the 594.463 ms mean interval sum, Erf 9.0%, and ConvTranspose 1.0%.
 The largest observed node is `det.node.0234` Conv at p50 91.240 ms. Observer timing
@@ -176,8 +176,8 @@ The summarizer rejects missing rounds, changed models/corpora, mismatched input
 rows, nonzero fixed-shape warm allocations and overwritten output identities.
 Raw reports preserve samples, executable/source/model/manifest hashes, timings,
 allocations and memory counters. Large references have immutable local archives.
-The [measurement archive manifest](step12-measurement-archive.json) records the
-verified raw evidence archive; the [baseline catalog](baselines.json) records the
+The measurement archive manifest (local `docs/step12-measurement-archive.json`) records the
+verified raw evidence archive; the baseline catalog (local `docs/baselines.json`) records the
 three fresh all-node reference archives.
 Keep one validated child report per corpus and link their exact SHA-256/size
 identities in a collection index such as `step12-inference-performance.json`.

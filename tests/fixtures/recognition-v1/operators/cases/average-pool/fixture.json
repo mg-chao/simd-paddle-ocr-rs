@@ -1,0 +1,18 @@
+{
+  "exact": false,
+  "input_shape": [
+    2,
+    2,
+    7,
+    5
+  ],
+  "operators": [
+    "AveragePool"
+  ],
+  "output_shape": [
+    2,
+    2,
+    2,
+    2
+  ]
+}

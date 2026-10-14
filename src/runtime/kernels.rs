@@ -26,6 +26,18 @@ pub(super) enum BoundKind {
         height: usize,
         width: usize,
     },
+    AveragePool {
+        height: usize,
+        width: usize,
+        output_height: usize,
+        output_width: usize,
+    },
+    BatchNormalization {
+        channels: usize,
+        plane: usize,
+        epsilon: f32,
+    },
+    Transpose(Transpose),
     Concat(Concat),
     Resize {
         height: usize,
@@ -100,6 +112,28 @@ pub(super) fn execute<'a>(
             out,
         ),
         BoundKind::MaxPool { height, width } => max_pool(a, out, *height, *width),
+        BoundKind::AveragePool {
+            height,
+            width,
+            output_height,
+            output_width,
+        } => average_pool(a, out, *height, *width, *output_height, *output_width),
+        BoundKind::BatchNormalization {
+            channels,
+            plane,
+            epsilon,
+        } => batch_normalization(
+            a,
+            data(inputs[1]),
+            data(inputs[2]),
+            data(inputs[3]),
+            data(inputs[4]),
+            out,
+            *channels,
+            *plane,
+            *epsilon,
+        ),
+        BoundKind::Transpose(plan) => transpose(plan, a, out),
         BoundKind::Concat(plan) => concat(plan, inputs, data, out),
         BoundKind::Resize {
             height,
@@ -112,22 +146,7 @@ pub(super) fn execute<'a>(
             rows,
             inner,
             columns,
-        } => {
-            let b = data(inputs[1]);
-            for row in 0..*rows {
-                let input = &a[row * inner..(row + 1) * inner];
-                for (column, value) in out[row * columns..(row + 1) * columns]
-                    .iter_mut()
-                    .enumerate()
-                {
-                    let mut sum = 0.0f32;
-                    for (k, &x) in input.iter().enumerate() {
-                        sum += x * b[k * columns + column];
-                    }
-                    *value = sum;
-                }
-            }
-        }
+        } => matmul(a, data(inputs[1]), out, *rows, *inner, *columns),
         BoundKind::Softmax { rows, columns } => {
             for row in 0..*rows {
                 let input = &a[row * columns..(row + 1) * columns];
@@ -158,6 +177,256 @@ fn erf(x: f32) -> f32 {
     let polynomial =
         ((((1.0614054 * t - 1.4531521) * t + 1.4214138) * t - 0.28449672) * t + 0.2548296) * t;
     sign * (1.0 - polynomial * exp_f32(-magnitude * magnitude))
+}
+
+// Four independent rows share each contiguous four-column weight load. Each
+// accumulator still adds products in ascending K order, without FMA or packing.
+fn matmul(
+    input: &[f32],
+    weights: &[f32],
+    output: &mut [f32],
+    rows: usize,
+    inner: usize,
+    columns: usize,
+) {
+    let full_rows = rows / 4 * 4;
+    let full_columns = columns / 4 * 4;
+    for row in (0..full_rows).step_by(4) {
+        let f0 = &input[row * inner..(row + 1) * inner];
+        let f1 = &input[(row + 1) * inner..(row + 2) * inner];
+        let f2 = &input[(row + 2) * inner..(row + 3) * inner];
+        let f3 = &input[(row + 3) * inner..(row + 4) * inner];
+        for column in (0..full_columns).step_by(4) {
+            let (mut a00, mut a01, mut a02, mut a03) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            let (mut a10, mut a11, mut a12, mut a13) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            let (mut a20, mut a21, mut a22, mut a23) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            let (mut a30, mut a31, mut a32, mut a33) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            for k in 0..inner {
+                let w = &weights[k * columns + column..k * columns + column + 4];
+                let (w0, w1, w2, w3) = (w[0], w[1], w[2], w[3]);
+                let (v0, v1, v2, v3) = (f0[k], f1[k], f2[k], f3[k]);
+                a00 += v0 * w0;
+                a01 += v0 * w1;
+                a02 += v0 * w2;
+                a03 += v0 * w3;
+                a10 += v1 * w0;
+                a11 += v1 * w1;
+                a12 += v1 * w2;
+                a13 += v1 * w3;
+                a20 += v2 * w0;
+                a21 += v2 * w1;
+                a22 += v2 * w2;
+                a23 += v2 * w3;
+                a30 += v3 * w0;
+                a31 += v3 * w1;
+                a32 += v3 * w2;
+                a33 += v3 * w3;
+            }
+            output[row * columns + column..row * columns + column + 4]
+                .copy_from_slice(&[a00, a01, a02, a03]);
+            output[(row + 1) * columns + column..(row + 1) * columns + column + 4]
+                .copy_from_slice(&[a10, a11, a12, a13]);
+            output[(row + 2) * columns + column..(row + 2) * columns + column + 4]
+                .copy_from_slice(&[a20, a21, a22, a23]);
+            output[(row + 3) * columns + column..(row + 3) * columns + column + 4]
+                .copy_from_slice(&[a30, a31, a32, a33]);
+        }
+        for column in full_columns..columns {
+            let (mut a0, mut a1, mut a2, mut a3) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            for k in 0..inner {
+                let weight = weights[k * columns + column];
+                a0 += f0[k] * weight;
+                a1 += f1[k] * weight;
+                a2 += f2[k] * weight;
+                a3 += f3[k] * weight;
+            }
+            output[row * columns + column] = a0;
+            output[(row + 1) * columns + column] = a1;
+            output[(row + 2) * columns + column] = a2;
+            output[(row + 3) * columns + column] = a3;
+        }
+    }
+    for row in full_rows..rows {
+        let f = &input[row * inner..(row + 1) * inner];
+        for (column, out) in output[row * columns..(row + 1) * columns]
+            .iter_mut()
+            .enumerate()
+        {
+            let mut sum = 0.0f32;
+            for (k, &value) in f.iter().enumerate() {
+                sum += value * weights[k * columns + column];
+            }
+            *out = sum;
+        }
+    }
+}
+
+pub(super) fn bind_average_pool(input: Shape) -> RuntimeResult<(Shape, BoundKind)> {
+    if input.rank() != 4 {
+        return Err(RuntimeError::new(
+            "AveragePool requires rank-four NCHW input",
+        ));
+    }
+    let d = input.dimensions();
+    let height = d[2]
+        .checked_sub(3)
+        .map(|v| v / 3 + 1)
+        .ok_or_else(|| RuntimeError::new("AveragePool kernel exceeds input height"))?;
+    let width = d[3]
+        .checked_sub(2)
+        .map(|v| v / 2 + 1)
+        .ok_or_else(|| RuntimeError::new("AveragePool kernel exceeds input width"))?;
+    Ok((
+        Shape::new(&[d[0], d[1], height, width])?,
+        BoundKind::AveragePool {
+            height: d[2],
+            width: d[3],
+            output_height: height,
+            output_width: width,
+        },
+    ))
+}
+fn average_pool(
+    input: &[f32],
+    output: &mut [f32],
+    height: usize,
+    width: usize,
+    output_height: usize,
+    output_width: usize,
+) {
+    for (source, destination) in input
+        .chunks_exact(height * width)
+        .zip(output.chunks_exact_mut(output_height * output_width))
+    {
+        for (y, row) in destination.chunks_exact_mut(output_width).enumerate() {
+            for (x, value) in row.iter_mut().enumerate() {
+                let mut sum = 0.0f32;
+                for ky in 0..3 {
+                    let start = (y * 3 + ky) * width + x * 2;
+                    sum += source[start];
+                    sum += source[start + 1];
+                }
+                *value = sum / 6.0;
+            }
+        }
+    }
+}
+pub(super) fn bind_batch_normalization(
+    input: Shape,
+    parameters: &[Shape],
+    epsilon: f32,
+) -> RuntimeResult<(Shape, BoundKind)> {
+    if input.rank() < 2
+        || parameters.len() != 4
+        || parameters
+            .iter()
+            .any(|shape| shape.dimensions() != [input.dimensions()[1]])
+    {
+        return Err(RuntimeError::new(
+            "BatchNormalization requires [N,C,...] input and four [C] parameters",
+        ));
+    }
+    let channels = input.dimensions()[1];
+    Ok((
+        input,
+        BoundKind::BatchNormalization {
+            channels,
+            plane: input.element_count() / input.dimensions()[0] / channels,
+            epsilon,
+        },
+    ))
+}
+#[allow(clippy::too_many_arguments)]
+fn batch_normalization(
+    input: &[f32],
+    scale: &[f32],
+    bias: &[f32],
+    mean: &[f32],
+    variance: &[f32],
+    output: &mut [f32],
+    channels: usize,
+    plane: usize,
+    epsilon: f32,
+) {
+    for (block, (source, destination)) in input
+        .chunks_exact(plane)
+        .zip(output.chunks_exact_mut(plane))
+        .enumerate()
+    {
+        let channel = block % channels;
+        let multiplier = scale[channel] / (variance[channel] + epsilon).sqrt();
+        for (&value, out) in source.iter().zip(destination) {
+            *out = (value - mean[channel]) * multiplier + bias[channel];
+        }
+    }
+}
+pub(super) struct Transpose {
+    rank: usize,
+    dimensions: [usize; MAX_RANK],
+    strides: [usize; MAX_RANK],
+}
+pub(super) fn bind_transpose(
+    input: Shape,
+    permutation: &[i64],
+) -> RuntimeResult<(Shape, BoundKind)> {
+    if input.rank() == 0 || permutation.len() != input.rank() {
+        return Err(RuntimeError::new("Transpose permutation rank mismatch"));
+    }
+    let mut input_strides = [0; MAX_RANK];
+    let mut stride = 1usize;
+    for axis in (0..input.rank()).rev() {
+        input_strides[axis] = stride;
+        stride *= input.dimensions()[axis];
+    }
+    let mut seen = [false; MAX_RANK];
+    let mut dimensions = [0; MAX_RANK];
+    let mut strides = [0; MAX_RANK];
+    for (output_axis, &axis) in permutation.iter().enumerate() {
+        let axis = usize::try_from(axis)
+            .ok()
+            .filter(|&axis| axis < input.rank())
+            .ok_or_else(|| RuntimeError::new("Transpose permutation axis is invalid"))?;
+        if seen[axis] {
+            return Err(RuntimeError::new(
+                "Transpose permutation axis is duplicated",
+            ));
+        }
+        seen[axis] = true;
+        dimensions[output_axis] = input.dimensions()[axis];
+        strides[output_axis] = input_strides[axis];
+    }
+    Ok((
+        Shape::new(&dimensions[..input.rank()])?,
+        BoundKind::Transpose(Transpose {
+            rank: input.rank(),
+            dimensions,
+            strides,
+        }),
+    ))
+}
+fn transpose(plan: &Transpose, input: &[f32], output: &mut [f32]) {
+    let inner = plan.dimensions[plan.rank - 1];
+    let inner_stride = plan.strides[plan.rank - 1];
+    let mut counters = [0; MAX_RANK];
+    let mut offset = 0usize;
+    for destination in output.chunks_exact_mut(inner) {
+        if inner_stride == 1 {
+            destination.copy_from_slice(&input[offset..offset + inner]);
+        } else {
+            for (i, value) in destination.iter_mut().enumerate() {
+                *value = input[offset + i * inner_stride];
+            }
+        }
+        for axis in (0..plan.rank - 1).rev() {
+            counters[axis] += 1;
+            if counters[axis] < plan.dimensions[axis] {
+                offset += plan.strides[axis];
+                break;
+            }
+            offset -= (counters[axis] - 1) * plan.strides[axis];
+            counters[axis] = 0;
+        }
+    }
 }
 
 enum BroadcastKind {
@@ -348,7 +617,6 @@ fn binary<const OP: u8>(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32])
 pub(super) struct Concat {
     outer: usize,
     output_chunk: usize,
-    input_chunks: Box<[usize]>,
 }
 
 pub(super) fn bind_concat(
@@ -372,7 +640,6 @@ pub(super) fn bind_concat(
     let mut dimensions = [0; MAX_RANK];
     dimensions[..first.rank()].copy_from_slice(first.dimensions());
     dimensions[axis] = 0;
-    let mut chunks = Vec::with_capacity(inputs.len());
     let mut output_chunk = 0usize;
     for &id in inputs {
         let input =
@@ -398,14 +665,12 @@ pub(super) fn bind_concat(
         output_chunk = output_chunk
             .checked_add(chunk)
             .ok_or_else(|| RuntimeError::new("Concat output chunk overflow"))?;
-        chunks.push(chunk);
     }
     Ok((
         Shape::new(&dimensions[..first.rank()])?,
         BoundKind::Concat(Concat {
             outer,
             output_chunk,
-            input_chunks: chunks.into_boxed_slice(),
         }),
     ))
 }
@@ -418,8 +683,9 @@ fn concat<'a>(
 ) {
     for outer in 0..plan.outer {
         let mut destination = outer * plan.output_chunk;
-        for (&id, &chunk) in inputs.iter().zip(&plan.input_chunks) {
+        for &id in inputs {
             let source = data(id);
+            let chunk = source.len() / plan.outer;
             output[destination..destination + chunk]
                 .copy_from_slice(&source[outer * chunk..(outer + 1) * chunk]);
             destination += chunk;

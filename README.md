@@ -1,8 +1,40 @@
 # simd-paddle-ocr-rs
 
-The Rust rewrite includes checked tensors, streaming ONNX import, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes tiny, small, and medium DET plus the shared CLS network, and accepts interleaved pixels to produce ordered, oriented BGR text crops. Execution uses serial F32/NCHW kernels, reusable workspaces, and synchronous tracing. Recognition preprocessing and REC execution are the next pipeline stages.
+The Rust rewrite includes checked tensors, streaming ONNX import, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes tiny, small, and medium DET, shared CLS, and tiny REC. The complete tiny pipeline accepts interleaved pixels and returns ordered text, quadrilateral boxes, scores, rotations, and optional CTC spans. Execution uses safe serial F32/NCHW kernels, reusable shape/activation/output workspaces, and synchronous tracing. Small/medium recognition and explicit SIMD are later milestones.
 
 The library and Rust commands require the pinned Rust 1.97.1 toolchain. Reference export and paired C# benchmarks additionally require the .NET 10 SDK, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
+
+## Complete tiny OCR and recognition
+
+```powershell
+./tools/export-reference.ps1 -Nodes all -MaxTracedLines 0 -Out reference-bundles/tiny-ocr-new
+cargo run --release --locked --offline -- run-rec reference-bundles/tiny-ocr-new --out reference-bundles/rust-rec-new
+cargo run --release --locked --offline -- compare-rec reference-bundles/tiny-ocr-new reference-bundles/rust-rec-new --json
+cargo run --release --locked --offline -- run-ocr reference-bundles/tiny-ocr-new --out reference-bundles/rust-ocr-new
+cargo run --release --locked --offline -- compare-ocr reference-bundles/tiny-ocr-new reference-bundles/rust-ocr-new --json
+```
+
+[Recognition APIs and numerical/memory contracts](docs/rec-inference.md) document
+the prefix-only compact vocabulary head and separate dense/public score paths.
+[Complete tiny OCR](docs/tiny-ocr.md) documents borrowed/owned results, tracing,
+strict complete comparison and the optional local Windows/Linux gates. Large
+REC/OCR trace archives stay local; supply them and pass `--include-local` to
+`prepare-step12-fixtures.py` for the [full reference checks](tests/fixtures/step12/README.md).
+Normal tests and CI verify the committed independent native preprocessing/operator
+goldens. The core accepts raw pixels; callers retain image-decoding responsibility.
+
+[Step 1 recognition performance](docs/rec-performance.md) and
+[Step 2 complete tiny OCR performance](docs/tiny-ocr-performance.md) report
+separate graph/public/ownership scopes, six-process latency variation, warmed
+allocation and memory conditions, retained scalar tuning, and final native
+Windows/Linux correctness evidence.
+
+Generated JSON reports under `docs/` and `docs/measurements/` are local evidence
+and are ignored by Git. Report paths in the documentation refer to those local
+captures; Markdown summaries, fixture manifests, source snapshots and small
+native goldens remain committed. Build outputs and reference bundles/archives
+are also ignored. Cleanup removes local evidence from Git tracking while
+preserving the files on disk.
 
 ## Detection and oriented crops
 
@@ -19,7 +51,7 @@ from frozen normalized tensors; `run-step12` independently computes all stages
 from frozen pixels. Both commands report explicit partial OCR coverage.
 [The image pipeline API and contracts](docs/step12-inference.md) describe the
 borrowed results, four pixel formats, reusable memory, and public CLS behavior.
-[Windows/Linux parity evidence](docs/step12-parity.json) and
+Windows/Linux parity evidence (local `docs/step12-parity.json`) and
 [the performance protocol and results](docs/step12-inference-performance.md)
 record this milestone separately from historical import and CLS measurements.
 
@@ -66,7 +98,7 @@ cargo run --release --offline -- inspect-model ../SimdPaddleOCR/models/cls.onnx
 
 The archive tool preserves verified ZIPs and SHA-256 sidecars in the adjacent
 `reference-archives` directory, extracts each archive into a fresh verification
-directory, and records identities in [the baseline catalog](docs/baselines.json).
+directory, and records identities in the baseline catalog (local `docs/baselines.json`).
 ZIP entries have deterministic order and timestamps. Bundles and archives are
 never overwritten. Keep those archives when cleaning build outputs.
 
@@ -134,9 +166,9 @@ CPU and canonical bundles have different contracts and cannot be compared direct
 
 ## Compare a Rust candidate
 
-For a future complete Rust OCR pipeline, write the same bundle schema using
-the frozen model and input files. The current CLS implementation uses
-`run-cls` and `compare-cls` above. Full pipeline comparison will use:
+The tiny OCR implementation writes the same schema from frozen pixels/models
+using `run-ocr`. Use `compare-ocr` for strict complete coverage. The generic
+comparator remains available for schema-level comparisons:
 
 ```powershell
 cargo run --release --offline -- compare reference-bundles/tiny-reference-v1 reference-bundles/rust-candidate --atol 1e-5 --rtol 1e-4
