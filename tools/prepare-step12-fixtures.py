@@ -63,9 +63,20 @@ def download(url, destination):
             time.sleep(attempt + 1)
 
 
+def supplied_model(model, args):
+    if args.models is None:
+        return None
+    local = args.models / file_name(model["source_name"])
+    transport = model.get("download")
+    if not checked_file(local, model) and not (transport is not None and checked_file(local, transport)):
+        raise ValueError(f"Local model is absent or differs from the pinned identity: {local}")
+    return local
+
+
 def obtain(model, args, url_root):
     validate_identity(model)
     source_name = file_name(model["source_name"])
+    local = supplied_model(model, args)
     cached = args.cache / model["sha256"] / source_name
     if checked_file(cached, model):
         return cached
@@ -73,11 +84,7 @@ def obtain(model, args, url_root):
     with tempfile.NamedTemporaryFile(dir=cached.parent, delete=False) as output:
         temporary = Path(output.name)
     try:
-        if args.models is not None:
-            local = args.models / source_name
-            transport = model.get("download")
-            if not checked_file(local, model) and not (transport is not None and checked_file(local, transport)):
-                raise ValueError(f"Local model is absent or differs from the pinned identity: {local}")
+        if local is not None:
             shutil.copyfile(local, temporary)
         elif getattr(args, "offline", False):
             raise ValueError("Offline model cache is absent or differs: " + str(cached))
@@ -194,6 +201,9 @@ def restore(fixture, args, url_root):
                     value.update(block)
             if entry.file_size != expected["bytes"] or value.hexdigest() != expected["sha256"]:
                 raise ValueError("Golden archive payload hash/size differs: " + entry.filename)
+        # Explicit supplied model inputs must not be hidden by valid output/cache.
+        for model in fixture["models"]:
+            supplied_model(model, args)
         if verify_prepared(destination, manifest_bytes, payloads):
             print(f"Reused verified golden: {destination} (archive SHA-256 {fixture['sha256']})")
             return

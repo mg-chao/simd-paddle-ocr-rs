@@ -189,6 +189,26 @@ class HostedGoldenTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Offline model cache"):
                 PREPARE.obtain(model, self.args, "https://unused.invalid/")
 
+    def test_invalid_supplied_model_is_not_hidden_by_cache_or_restored_output(self):
+        fixture, data = self.archive()
+        self.args.models = self.root / "supplied-models"
+        self.args.models.mkdir()
+        local = self.args.models / "rec.onnx"
+        local.write_bytes(b"model")
+        model = descriptor(b"model") | {"source_name": "rec.onnx", "path": "models/rec.onnx"}
+        fixture["models"] = [model]
+        (self.goldens / fixture["archive"]).write_bytes(data)
+        self.args.offline = True
+        PREPARE.restore(fixture, self.args, "https://unused.invalid/")
+        original = (self.args.out / fixture["directory"] / "manifest.json").read_bytes()
+        local.write_bytes(b"invalid")
+        with patch("urllib.request.urlopen", side_effect=AssertionError("invalid supplied model used network")):
+            with self.assertRaisesRegex(ValueError, "Local model"):
+                PREPARE.obtain(model, self.args, "https://unused.invalid/")
+            with self.assertRaisesRegex(ValueError, "Local model"):
+                PREPARE.restore(fixture, self.args, "https://unused.invalid/")
+        self.assertEqual((self.args.out / fixture["directory"] / "manifest.json").read_bytes(), original)
+
     def test_payload_failure_preserves_previous_prepared_bundle(self):
         fixture, data = self.archive()
         (self.goldens / fixture["archive"]).write_bytes(data)
