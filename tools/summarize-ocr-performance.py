@@ -13,6 +13,13 @@ PAIRED = {"rec_graph", "rec_public_owned", "ocr_owned"}
 REUSED = {"rec_graph", "rec_public_borrowed", "ocr_borrowed", "mixed_widths", "node_profile"}
 COUNTERS = ("warm_allocation_count", "warm_allocation_bytes",
             "warm_retained_heap_bytes", "warm_peak_heap_growth_bytes")
+PROFILE_STAGES = ("binding_ns", "det_preprocess_ns", "det_inference_ns", "det_postprocess_ns",
+                  "crop_ns", "cls_orientation_ns", "rec_preprocess_ns", "rec_backbone_ns",
+                  "projection_ns", "ctc_ns", "result_storage_ns")
+PROFILE_RECOGNITION_STAGES = ("cls_orientation_ns", "rec_preprocess_ns", "rec_backbone_ns",
+                            "projection_ns", "ctc_ns")
+PROFILE_SOURCE_FILES = {"src/profile.rs", "src/ocr.rs", "src/detector.rs", "src/lines.rs",
+                        "src/recognizer.rs", "src/bin/ocr-benchmark.rs"}
 WIDTHS = [32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 32, 384]
 WIDTHS_V2 = [32, 64, 96, 160, 224, 320, 480, 576, 992, 32, 992]
 CONTROLS = {
@@ -180,6 +187,48 @@ def expected_rows(cases, mode, schema_version=1):
     return result
 
 
+def production_stage_profiles(profiles, rows, samples, line_counts, label):
+    require(isinstance(profiles, list) and len(profiles) == len(rows),
+            f"{label}: missing production stage profiles")
+    summaries = []
+    for profile, row in zip(profiles, rows):
+        require(isinstance(profile, dict) and profile.get("case_id") == row["case_id"]
+                and profile.get("artifact_id") == row["artifact_id"],
+                f"{label}: production profile identity differs")
+        require(integer(profile.get("samples"), label + " profile samples", 1) == samples,
+                f"{label}: production profile sample count differs")
+        totals = profile.get("totals")
+        require(isinstance(totals, dict)
+                and set(totals) == set(PROFILE_STAGES) | {"total_ns", "recognized_lines"},
+                f"{label}: production stage fields differ")
+        for key, value in totals.items():
+            integer(value, f"{label}: stage {key}")
+            require(value <= (1 << 64) - 1, f"{label}: stage {key} exceeds native counter range")
+        require(totals["total_ns"] > 0 and totals["det_inference_ns"] > 0,
+                f"{label}: empty production timings")
+        lines = line_counts[row["case_id"]]
+        require(totals["recognized_lines"] == lines * samples,
+                f"{label}: recognized line totals differ from sampled ordinary OCR calls")
+        stage_sum = sum(totals[key] for key in PROFILE_STAGES)
+        require(stage_sum <= totals["total_ns"], f"{label}: disjoint stages exceed total OCR time")
+        # The enclosing sample also includes ImageView setup, checksum/black_box,
+        # returned profile handling and the outer timer. No equality or epsilon
+        # is appropriate for these deliberately different timer boundaries.
+        outer_ms = math.fsum(row["samples_ms"])
+        require(totals["total_ns"] / 1e6 <= outer_ms,
+                f"{label}: profile total exceeds measured outer sampled calls")
+        if lines == 0:
+            require(all(totals[key] == 0 for key in PROFILE_RECOGNITION_STAGES),
+                    f"{label}: empty ordinary OCR case executed CLS/REC stages")
+        summaries.append({"case_id": row["case_id"], "artifact_id": row["artifact_id"],
+                          "samples": samples, "totals": totals,
+                          "mean_ms": {key.removesuffix("_ns"): totals[key] / (samples * 1e6)
+                                      for key in ("total_ns", *PROFILE_STAGES)},
+                          "unassigned_mean_ms": (totals["total_ns"] - stage_sum) / (samples * 1e6),
+                          "outer_wrapper_mean_ms": (outer_ms - totals["total_ns"] / 1e6) / samples})
+    return summaries
+
+
 def summarize(folder):
     folder = folder.resolve()
     snapshot_path = folder / "snapshot.json"
@@ -221,6 +270,9 @@ def summarize(folder):
     reference_sources = source_inventory(folder, snapshot, "reference-source", "reference_source_files", "reference_source_sha256")
     require({"Cargo.toml", "Cargo.lock"} <= sources.keys() and any(path.endswith(".rs") for path in sources),
             "Missing Rust build/source snapshots")
+    if "public_stage_profile" in requested_modes:
+        require(schema_version == 2, "Production stage profiles require schema 2")
+        require(PROFILE_SOURCE_FILES <= sources.keys(), "Missing production profiling source snapshots")
     require(any(path.endswith(".cs") for path in reference_sources)
             and any(path.endswith(".csproj") for path in reference_sources),
             "Missing native C# build/source snapshots")
@@ -244,6 +296,7 @@ def summarize(folder):
     all_cases = manifest.get("cases")
     require(isinstance(all_cases, list) and bool(all_cases), "Missing reference cases")
     case_ids = set()
+    profile_line_counts = {}
     for case in all_cases:
         require(isinstance(case, dict), "Invalid reference case object")
         identifier = text(case.get("id"), "case id")
@@ -260,6 +313,16 @@ def summarize(folder):
             else:
                 require(math.prod(dimensions) * (4 if dtype == "f32" else 1) == artifact["bytes"],
                         "Artifact shape/length differs")
+        if "public_stage_profile" in requested_modes:
+            require(manifest["contract"].get("capture_scope") == "ocr"
+                    and "result.public" in artifacts and artifacts["result.public"]["dtype"] == "json",
+                    "Production profiling requires ordinary OCR public reference results")
+            public = read_json(reference / artifacts["result.public"]["path"])
+            require(isinstance(public, dict) and isinstance(public.get("lines"), list),
+                    "Invalid ordinary OCR public reference result")
+            count = integer(public.get("detected_count"), identifier + " detected count")
+            require(count == len(public["lines"]), "Ordinary OCR public line count differs")
+            profile_line_counts[identifier] = count
     require(selected_case is None or selected_case in case_ids, "Unknown selected case")
     cases = [case for case in all_cases if selected_case is None or case["id"] == selected_case]
     modes = {}
@@ -321,20 +384,8 @@ def summarize(folder):
                 require(actual == identities, f"{name}: row identities/order differ")
                 profiles = report.get("stage_profile", [])
                 if mode == "public_stage_profile":
-                    require(schema_version == 2 and isinstance(profiles, list) and len(profiles) == len(rows),
-                            f"{name}: missing production stage profiles")
-                    for profile, row in zip(profiles, rows):
-                        require(isinstance(profile, dict) and profile.get("case_id") == row["case_id"]
-                                and profile.get("artifact_id") == row["artifact_id"] and profile.get("samples") == samples,
-                                f"{name}: production profile identity differs")
-                        totals = profile.get("totals")
-                        require(isinstance(totals, dict), f"{name}: missing stage totals")
-                        for key in ("total_ns", "binding_ns", "det_preprocess_ns", "det_inference_ns", "det_postprocess_ns",
-                                    "crop_ns", "cls_orientation_ns", "rec_preprocess_ns", "rec_backbone_ns", "projection_ns",
-                                    "ctc_ns", "result_storage_ns", "recognized_lines"):
-                            integer(totals.get(key), f"{name}: stage {key}")
-                        require(totals["total_ns"] > 0 and totals["det_inference_ns"] > 0,
-                                f"{name}: empty production timings")
+                    require(report.get("node_profile") == [], f"{name}: production profile includes dense node tracing")
+                    profiles = production_stage_profiles(profiles, rows, samples, profile_line_counts, name)
                 else:
                     require(profiles == [], f"{name}: unexpected production profiles")
                 sequence = report.get("shape_sequence", [])
@@ -348,11 +399,14 @@ def summarize(folder):
                 corpus_values = sample_stats(report.get("corpus", {}), samples, name + " corpus")
                 require(all(math.isclose(a, b, rel_tol=1e-10, abs_tol=1e-8) for a, b in zip(total, corpus_values)),
                         f"{name}: aggregate samples differ")
-                reports.append({"path": name, "bytes": path.stat().st_size, "sha256": digest(path),
+                report_summary = {"path": name, "bytes": path.stat().st_size, "sha256": digest(path),
                                 "corpus": report["corpus"], "load_ms": report["load_ms"], "prepare_ms": report["prepare_ms"],
                                 "activation_bytes": report.get("activation_bytes"), "retained_activation_bytes": report.get("retained_activation_bytes"),
                                 "workspace_bytes": report.get("workspace_bytes"), "process_resident_high_water_bytes": report.get("process_resident_high_water_bytes"),
-                                "allocations": [{key: row.get(key) for key in COUNTERS} for row in rows]})
+                                "allocations": [{key: row.get(key) for key in COUNTERS} for row in rows]}
+                if mode == "public_stage_profile":
+                    report_summary["stage_profile"] = profiles
+                reports.append(report_summary)
             if reports:
                 timings = [value for report in reports for value in report["corpus"]["samples_ms"]]
                 groups[engine] = {"reports": reports,
