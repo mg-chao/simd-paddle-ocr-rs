@@ -1,0 +1,20 @@
+{
+  "exact": true,
+  "input_shape": [
+    3,
+    2,
+    3,
+    5,
+    7
+  ],
+  "operators": [
+    "Slice",
+    "Squeeze"
+  ],
+  "output_shape": [
+    2,
+    3,
+    5,
+    7
+  ]
+}

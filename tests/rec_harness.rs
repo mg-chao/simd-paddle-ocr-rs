@@ -662,3 +662,81 @@ fn all_frozen_tiny_rec_lines_match_authoritative_native_reference() {
             .matches()
     );
 }
+
+#[test]
+fn shipped_family_selection_preserves_full_artifact_requirements() {
+    let temp = Temp::new();
+    for family in ["small", "medium"] {
+        let reference = fixture(&temp, family);
+        let manifest_path = reference.join("manifest.json");
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["contract"]["model"] = json!(family);
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let candidate = temp.path(&format!("{family}-candidate"));
+        run_rec(&reference, &candidate).unwrap();
+        assert!(
+            compare_rec(&reference, &candidate, Tolerance::default())
+                .unwrap()
+                .matches()
+        );
+        manifest["contract"]["model"] = json!("unrecognized");
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        assert!(run_rec(&reference, &temp.path(&format!("{family}-invalid"))).is_err());
+    }
+}
+
+#[test]
+fn supplied_rec_options_are_typed_and_never_silently_defaulted() {
+    let temp = Temp::new();
+    for (index, (field, value)) in [
+        ("adaptive_width", json!("true")),
+        ("target_width", json!(32.0)),
+        ("target_width", json!(0)),
+        ("max_image_pixels", json!(-1)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let reference = fixture(&temp, &format!("invalid-option-{index}"));
+        let manifest_path = reference.join("manifest.json");
+        let mut manifest: Value =
+            serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+        manifest["contract"]["options"]["recognizer"][field] = value;
+        fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+        let candidate = temp.path(&format!("invalid-option-candidate-{index}"));
+        let error = run_rec(&reference, &candidate).unwrap_err().to_string();
+        assert!(error.contains(field), "{error}");
+        assert!(!candidate.exists());
+    }
+}
+
+fn verify_frozen_family_rec(family: &str, variable: &str) {
+    let reference = std::env::var_os(variable)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("reference-bundles/{family}-ocr-ci-v1"))
+        });
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(reference.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest["contract"]["model"], family);
+    let temp = Temp::new();
+    let candidate = temp.path("native-candidate");
+    let run = run_rec(&reference, &candidate).unwrap();
+    assert!(run.processed_lines > 0);
+    let report = compare_rec(&reference, &candidate, Tolerance::default()).unwrap();
+    assert!(report.matches(), "{report}");
+}
+
+#[test]
+#[ignore = "requires a supplied local all-node small OCR reference"]
+fn all_frozen_small_rec_lines_match_authoritative_native_reference() {
+    verify_frozen_family_rec("small", "SIMDOCR_SMALL_OCR_REFERENCE");
+}
+
+#[test]
+#[ignore = "requires a supplied local all-node medium OCR reference"]
+fn all_frozen_medium_rec_lines_match_authoritative_native_reference() {
+    verify_frozen_family_rec("medium", "SIMDOCR_MEDIUM_OCR_REFERENCE");
+}

@@ -1,4 +1,4 @@
-//! Complete, independent tiny OCR execution from frozen image pixels.
+//! Complete, independent OCR execution from frozen image pixels for shipped families.
 use crate::{
     Bundle, ComparisonReport, Result, Tolerance, ValidationReport,
     bundle::{BundleWriter, Dtype},
@@ -38,7 +38,7 @@ impl fmt::Display for OcrRunReport {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "OCR CANDIDATE: {} cases, {} lines, {} artifacts; saved {}; complete tiny OCR independently from frozen pixels",
+            "OCR CANDIDATE: {} cases, {} lines, {} artifacts; saved {}; complete OCR independently from frozen pixels",
             self.processed_cases,
             self.processed_lines,
             self.written_artifacts,
@@ -101,7 +101,7 @@ fn selection(bundle: &Bundle) -> Result<Selection> {
         || contract["inventory_semantics"] != "lineage_keys_v1"
     {
         return Err(invalid(
-            "complete tiny OCR requires capture_scope=ocr, frozen_bgr_pixels and lineage_keys_v1 inventory semantics",
+            "complete OCR requires capture_scope=ocr, frozen_bgr_pixels and lineage_keys_v1 inventory semantics",
         ));
     }
     if contract["options"]["use_direction_classification"].as_bool() != Some(true) {
@@ -109,6 +109,59 @@ fn selection(bundle: &Bundle) -> Result<Selection> {
             "canonical complete OCR requires direction classification",
         ));
     }
+    let configured = &contract["options"];
+    if !configured.is_object()
+        || ["detector", "classifier", "recognizer"]
+            .iter()
+            .any(|field| !configured[*field].is_object())
+    {
+        return Err(invalid(
+            "full OCR requires object-valued detector, classifier and recognizer options",
+        ));
+    }
+    for field in [
+        "line_worker_count",
+        "det_intra_op_threads",
+        "preprocess_worker_count",
+        "gpu_ctc_intra_op_threads",
+        "rec_batch_lines",
+    ] {
+        if rec::positive_option(configured, field, 1)? != 1 {
+            return Err(invalid(format!("canonical scalar OCR requires {field}=1")));
+        }
+    }
+    for stage in ["detector", "classifier", "recognizer"] {
+        if rec::positive_option(&configured[stage], "backend", 1)? != 1 {
+            return Err(invalid(format!(
+                "canonical OCR requires {stage} CPU backend"
+            )));
+        }
+        rec::positive_option(&configured[stage], "max_image_pixels", 40_000_000)?;
+    }
+    for (options, field, fallback) in [
+        (configured, "classifier_threshold", 0.),
+        (&configured["detector"], "bitmap_threshold", 0.2),
+        (
+            &configured["detector"],
+            "box_threshold",
+            if contract["model"] == "tiny" {
+                0.4
+            } else {
+                0.45
+            },
+        ),
+    ] {
+        if !(0.0..=1.0).contains(&rec::number_option(options, field, fallback)?) {
+            return Err(invalid(format!("OCR option {field} must be in [0,1]")));
+        }
+    }
+    if rec::number_option(&configured["detector"], "unclip_ratio", 1.4)? <= 0. {
+        return Err(invalid("OCR unclip_ratio must be positive"));
+    }
+    rec::boolean_option(&configured["detector"], "use_dilation", false)?;
+    rec::positive_option(configured, "max_crop_pixels", 16_000_000)?;
+    rec::positive_option(&configured["detector"], "max_candidates", 3000)?;
+    rec::recognizer_options(contract)?;
     if bundle.manifest.cases.is_empty() {
         return Err(invalid(
             "complete OCR requires at least one frozen image case",
@@ -122,7 +175,7 @@ fn selection(bundle: &Bundle) -> Result<Selection> {
         .collect::<HashSet<_>>();
     if model_ids != HashSet::from(["det", "cls", "rec", "dictionary"]) {
         return Err(invalid(
-            "complete tiny OCR requires exactly DET, CLS, REC and dictionary assets",
+            "complete OCR requires exactly DET, CLS, REC and dictionary assets",
         ));
     }
     let detector = det::detector_selection(&bundle.manifest)?;
@@ -235,9 +288,7 @@ fn selection(bundle: &Bundle) -> Result<Selection> {
         let resized = crate::preprocess::compute_det_size(
             metadata.width,
             metadata.height,
-            contract["options"]["detector"]["limit_side_length"]
-                .as_u64()
-                .unwrap_or(960) as usize,
+            rec::positive_option(&contract["options"]["detector"], "limit_side_length", 960)?,
         )
         .map_err(|error| invalid(error.to_string()))?;
         if case.artifacts[det_case.input_index].shape != [1, 3, resized.height, resized.width] {
@@ -300,15 +351,13 @@ fn selection(bundle: &Bundle) -> Result<Selection> {
             let classification_score = finite(line, "classification_score")?;
             let classification_label = exact_integer(line, "classification_label", false)?;
             let applied_rotation = exact_integer(line, "applied_rotation_degrees", false)?;
-            let threshold = contract["options"]["classifier_threshold"]
-                .as_f64()
-                .unwrap_or(0.0);
-            let expected_rotation = if classification_label == 1 && classification_score > threshold
-            {
-                180
-            } else {
-                0
-            };
+            let threshold = rec::number_option(&contract["options"], "classifier_threshold", 0.)?;
+            let expected_rotation =
+                if classification_label == 1 && classification_score as f32 > threshold {
+                    180
+                } else {
+                    0
+                };
             if classification_label > 1
                 || !(0.0..=1.0).contains(&classification_score)
                 || applied_rotation != expected_rotation
@@ -487,26 +536,32 @@ pub(crate) fn build_ocr(reference: &ValidatedReference) -> Result<Ocr> {
     let contract = &reference.bundle.manifest.contract;
     let value = &contract["options"]["detector"];
     let options = DetectorOptions {
-        limit_side_length: value["limit_side_length"].as_u64().unwrap_or(960) as usize,
-        max_candidates: value["max_candidates"].as_u64().unwrap_or(3000) as usize,
-        bitmap_threshold: value["bitmap_threshold"].as_f64().unwrap_or(0.2) as f32,
-        box_threshold: Some(value["box_threshold"].as_f64().unwrap_or(0.4) as f32),
-        unclip_ratio: value["unclip_ratio"].as_f64().unwrap_or(1.4) as f32,
-        use_dilation: value["use_dilation"].as_bool().unwrap_or(false),
-        max_image_pixels: value["max_image_pixels"].as_u64().unwrap_or(40_000_000) as usize,
+        limit_side_length: rec::positive_option(value, "limit_side_length", 960)?,
+        max_candidates: rec::positive_option(value, "max_candidates", 3000)?,
+        bitmap_threshold: rec::number_option(value, "bitmap_threshold", 0.2)?,
+        box_threshold: Some(rec::number_option(
+            value,
+            "box_threshold",
+            if contract["model"] == "tiny" {
+                0.4
+            } else {
+                0.45
+            },
+        )?),
+        unclip_ratio: rec::number_option(value, "unclip_ratio", 1.4)?,
+        use_dilation: rec::boolean_option(value, "use_dilation", false)?,
+        max_image_pixels: rec::positive_option(value, "max_image_pixels", 40_000_000)?,
     };
     let detector = Detector::new(compile("det")?, options, ExecutionLimits::default())
         .map_err(|error| invalid(error.to_string()))?;
     let line_options = LineOptions {
-        classifier_threshold: contract["options"]["classifier_threshold"]
-            .as_f64()
-            .unwrap_or(0.) as f32,
-        max_crop_pixels: contract["options"]["max_crop_pixels"]
-            .as_u64()
-            .unwrap_or(16_000_000) as usize,
-        max_classifier_image_pixels: contract["options"]["classifier"]["max_image_pixels"]
-            .as_u64()
-            .unwrap_or(40_000_000) as usize,
+        classifier_threshold: rec::number_option(&contract["options"], "classifier_threshold", 0.)?,
+        max_crop_pixels: rec::positive_option(&contract["options"], "max_crop_pixels", 16_000_000)?,
+        max_classifier_image_pixels: rec::positive_option(
+            &contract["options"]["classifier"],
+            "max_image_pixels",
+            40_000_000,
+        )?,
         ..Default::default()
     };
     let extractor = OrientedLineExtractor::new(detector, Some(compile("cls")?), line_options)
@@ -662,7 +717,7 @@ pub fn run_ocr(reference_directory: &Path, output_directory: &Path) -> Result<Oc
             "OCR execution line count differs from complete reference",
         ));
     }
-    let output=writer.finish(json!({"provenance":{"implementation":"rust scalar canonical complete tiny OCR","reference_manifest_sha256":reference.manifest_sha256,"coverage":"all tiny OCR stages independently from frozen BGR source pixels; dense diagnostic and native public heads"}}))?;
+    let output=writer.finish(json!({"provenance":{"implementation":"rust scalar canonical complete OCR","reference_manifest_sha256":reference.manifest_sha256,"coverage":"all OCR stages independently from frozen BGR source pixels; dense diagnostic and native public heads"}}))?;
     Ok(OcrRunReport {
         output,
         processed_cases: reference.bundle.manifest.cases.len(),

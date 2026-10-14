@@ -140,6 +140,32 @@ fn pixels(w: usize, h: usize) -> Vec<u8> {
         .collect()
 }
 
+#[cfg(feature = "profiling")]
+#[test]
+fn production_profile_preserves_results_and_never_initializes_dense_storage() {
+    let mut engine = recognizer(RecognizerOptions::default());
+    for width in [32, 320, 64, 992, 32] {
+        let data = pixels(width, 48);
+        let image = ImageView::new(&data, width, 48, 0, PixelFormat::Bgr24).unwrap();
+        for capture in [false, true] {
+            let expected = engine
+                .recognize(image, capture)
+                .unwrap()
+                .try_to_owned()
+                .unwrap();
+            let (result, profile) = engine.recognize_profiled(image, capture).unwrap();
+            assert_eq!(result.try_to_owned().unwrap(), expected);
+            assert_eq!(profile.recognized_lines, 1);
+            assert!(
+                profile.total_ns > 0 && profile.rec_backbone_ns > 0 && profile.projection_ns > 0
+            );
+            assert_eq!(profile.det_inference_ns, 0);
+            assert_eq!(engine.diagnostic_retained_activation_bytes(), 0);
+            assert_eq!(engine.diagnostic_retained_workspace_bytes(), 0);
+        }
+    }
+}
+
 #[test]
 fn strict_dictionary_preserves_native_class_numbering_and_string_tokens() {
     let dictionary = Dictionary::from_utf8("\u{feff}你好\r\n\n👩‍🔬\r\n你好\n\n".as_bytes()).unwrap();

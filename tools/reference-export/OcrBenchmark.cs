@@ -15,12 +15,15 @@ internal static class OcrBenchmark
     public static int Run(string[] args)
     {
         Dictionary<string,string> options=[];
-        for(int i=0;i<args.Length;i+=2) if(i+1==args.Length||args[i] is not("--reference" or "--mode" or "--warmup" or "--samples" or "--case")||!options.TryAdd(args[i],args[i+1]))throw new ArgumentException("Invalid benchmark arguments");
+        for(int i=0;i<args.Length;i+=2) if(i+1==args.Length||args[i] is not("--reference" or "--mode" or "--warmup" or "--samples" or "--case" or "--profile")||!options.TryAdd(args[i],args[i+1]))throw new ArgumentException("Invalid benchmark arguments");
         string root=Path.GetFullPath(options.GetValueOrDefault("--reference")??throw new ArgumentException("Missing --reference")),mode=options.GetValueOrDefault("--mode","rec_graph");
+        string profile=options.GetValueOrDefault("--profile","canonical");
         int warmup=int.Parse(options.GetValueOrDefault("--warmup","30"),CultureInfo.InvariantCulture),samples=int.Parse(options.GetValueOrDefault("--samples","100"),CultureInfo.InvariantCulture);
         if(warmup<0||samples<1||mode is not("rec_graph" or "rec_public_owned" or "ocr_owned"))throw new ArgumentException("Invalid mode/count");
-        Step12Tools.RequireCanonical();byte[] manifestBytes=File.ReadAllBytes(Path.Combine(root,"manifest.json"));using JsonDocument manifest=JsonDocument.Parse(manifestBytes);JsonElement document=manifest.RootElement,contract=document.GetProperty("contract");
-        if(contract.GetProperty("profile").GetString()!="canonical"||contract.GetProperty("model").GetString()!="tiny")throw new InvalidDataException("Tiny canonical reference required");
+        RequireProfile(profile);byte[] manifestBytes=File.ReadAllBytes(Path.Combine(root,"manifest.json"));using JsonDocument manifest=JsonDocument.Parse(manifestBytes);JsonElement document=manifest.RootElement,contract=document.GetProperty("contract");
+        string family=contract.GetProperty("model").GetString()!;_=Program.ModelPreset.For(family);
+        if(contract.GetProperty("profile").GetString()!="canonical"||contract.GetProperty("capture_scope").GetString()!="ocr")throw new InvalidDataException("A canonical full OCR reference is required for frozen benchmark inputs");
+        PaddleOcrOptions effectiveOptions=Program.ReadOptions(contract);
         JsonElement[] assets=document.GetProperty("models").EnumerateArray().ToArray();
         foreach(JsonElement asset in assets)_=Program.ReadBundleFile(root,asset);
         foreach(JsonElement asset in document.GetProperty("auxiliary_files").EnumerateArray())_=Program.ReadBundleFile(root,asset);
@@ -32,13 +35,10 @@ internal static class OcrBenchmark
         using FileStream recStream=File.OpenRead(ModelPath("rec"));using Model rec=Model.Load(recStream);byte[] dictionary=Program.ReadBundleFile(root,Asset("dictionary"));
         Model? det=null,cls=null;if(mode=="ocr_owned"){using FileStream ds=File.OpenRead(ModelPath("det"));using FileStream cs=File.OpenRead(ModelPath("cls"));det=Model.Load(ds);cls=Model.Load(cs);}
         double loadMs=Elapsed(started);long loadAllocationBytes=GC.GetAllocatedBytesForCurrentThread()-loadBaseline,prepareBaseline=GC.GetAllocatedBytesForCurrentThread();started=Stopwatch.GetTimestamp();
-        using PaddleOcrRecognizer recognizer=new(rec,dictionary,new(){Backend=OcrBackend.Cpu,AdaptiveWidth=true,TargetWidth=320,MaxPooledSessions=1});
+        using PaddleOcrRecognizer recognizer=new(rec,dictionary,effectiveOptions.Recognizer);
         PaddleOcrAll? ocr=null;
         if(mode=="ocr_owned") {
-            JsonElement configured=contract.GetProperty("options"),dc=configured.GetProperty("detector");
-            ocr=new(det!,cls,rec,dictionary,new(){LineWorkerCount=1,DetIntraOpThreads=1,PreprocessWorkerCount=1,GpuCtcIntraOpThreads=1,RecBatchLines=1,UseDirectionClassification=true,ClassifierThreshold=configured.GetProperty("classifier_threshold").GetSingle(),
-                Detector=new(){Backend=OcrBackend.Cpu,MaxPooledSessions=1,LimitSideLength=dc.GetProperty("limit_side_length").GetInt32(),MaxCandidates=dc.GetProperty("max_candidates").GetInt32(),BitmapThreshold=dc.GetProperty("bitmap_threshold").GetSingle(),BoxThreshold=dc.GetProperty("box_threshold").GetSingle(),UnclipRatio=dc.GetProperty("unclip_ratio").GetSingle(),UseDilation=dc.GetProperty("use_dilation").GetBoolean(),MaxImagePixels=dc.GetProperty("max_image_pixels").GetInt64()},
-                Classifier=new(){Backend=OcrBackend.Cpu,MaxPooledSessions=1},Recognizer=new(){Backend=OcrBackend.Cpu,MaxPooledSessions=1,AdaptiveWidth=true,TargetWidth=320}});
+            ocr=new(det!,cls,rec,dictionary,effectiveOptions);
         }
         List<IDisposable> sessions=[];List<Row> rows=[];
         try {
@@ -55,11 +55,28 @@ internal static class OcrBenchmark
             if(rows.Count==0)throw new InvalidDataException("No benchmark rows");double prepareMs=Elapsed(started);long prepareAllocationBytes=GC.GetAllocatedBytesForCurrentThread()-prepareBaseline;
             double[] first=new double[rows.Count],corpus=new double[samples];double[][] times=rows.Select(_=>new double[samples]).ToArray();long[] allocated=new long[rows.Count];double checksum=0;
             for(int i=0;i<rows.Count;i++) {started=Stopwatch.GetTimestamp();checksum+=rows[i].Call();first[i]=Elapsed(started);for(int j=0;j<warmup;j++)checksum+=rows[i].Call();long baseline=GC.GetAllocatedBytesForCurrentThread();for(int j=0;j<samples;j++){started=Stopwatch.GetTimestamp();checksum+=rows[i].Call();times[i][j]=Elapsed(started);corpus[j]+=times[i][j];}allocated[i]=GC.GetAllocatedBytesForCurrentThread()-baseline;}
-            Console.WriteLine(Encoding.UTF8.GetString(BundleWriter.SerializeJson(new{schemaVersion=1,kind="tiny_ocr_benchmark",runtime="csharp",profile="canonical",mode,modelSha256=Asset("rec").GetProperty("sha256").GetString(),dictionarySha256=Asset("dictionary").GetProperty("sha256").GetString(),manifestSha256=BundleWriter.Hash(manifestBytes),warmup,samples,loadMs,loadAllocationBytes,prepareMs,prepareAllocationBytes,instrumented=false,checksum,
+            if(!double.IsFinite(checksum))throw new InvalidDataException("Benchmark produced a nonfinite checksum");
+            Console.WriteLine(Encoding.UTF8.GetString(BundleWriter.SerializeJson(new{schemaVersion=2,kind="ocr_benchmark",runtime="csharp",modelFamily=family,profile,referenceProfile="canonical",effectiveOptions,mode,modelSha256=Asset("rec").GetProperty("sha256").GetString(),dictionarySha256=Asset("dictionary").GetProperty("sha256").GetString(),manifestSha256=BundleWriter.Hash(manifestBytes),warmup,samples,loadMs,loadAllocationBytes,prepareMs,prepareAllocationBytes,instrumented=false,checksum,
                 executableSha256=BundleWriter.Hash(File.ReadAllBytes(typeof(OcrBenchmark).Assembly.Location)),csharpNativeSha256=BundleWriter.Hash(File.ReadAllBytes(typeof(Model).Assembly.Location)),detModelSha256=mode=="ocr_owned"?Asset("det").GetProperty("sha256").GetString():null,clsModelSha256=mode=="ocr_owned"?Asset("cls").GetProperty("sha256").GetString():null,
                 measurement="Per-row contiguous blocks; corpus sums matching sample indexes. Frozen graphs copy input through span overload. Public APIs return owned strings/arrays. Managed current-thread allocation volume only; native and retained heap unavailable. Validation excluded. Cold boundaries are engine-specific. Graph sessions are all retained; Rust sequentially creates/drops one, so RSS is not a matched memory scope.",
                 inputs=rows.Select((r,i)=>new{r.CaseId,r.ArtifactId,r.Shape,r.Sha256,r.Stage,firstCallMs=first[i],samplesMs=times[i],p50Ms=Percentile(times[i],.5),p95Ms=Percentile(times[i],.95),meanMs=times[i].Average(),warmAllocationCount=(long?)null,warmAllocationBytes=allocated[i],warmRetainedHeapBytes=(long?)null,warmPeakHeapGrowthBytes=(long?)null}),
                 corpus=new{samplesMs=corpus,p50Ms=Percentile(corpus,.5),p95Ms=Percentile(corpus,.95),meanMs=corpus.Average()}})));return 0;
         }finally{foreach(var session in sessions)session.Dispose();ocr?.Dispose();det?.Dispose();cls?.Dispose();}
+    }
+
+    private static void RequireProfile(string profile)
+    {
+        if(profile is not ("canonical" or "cpu"))throw new ArgumentException("Benchmark profile must be canonical or cpu");
+        if(profile=="canonical")Step12Tools.RequireCanonical();
+        else
+        {
+            foreach((string key,string expected) in new[]{("DOTNET_PROCESSOR_COUNT","1"),("DOTNET_EnableHWIntrinsic","1"),("PPOCR_NHWC","1"),("SIMD_OCR_NOFUSE","0"),("PPOCR_DET_THREADS","1")})
+                if(Environment.GetEnvironmentVariable(key)!=expected)throw new InvalidOperationException($"{key} must be {expected} for optimized single-worker CPU measurements");
+            if(Environment.ProcessorCount!=1)throw new InvalidOperationException("Optimized CPU benchmark requires one visible processor");
+            foreach(string key in new[]{"PPOCR_DUMP_CONV","PPOCR_DUMP_NODES","PPOCR_DUMP_PLAN","PPOCR_DUMP_GRAPH"})
+                if(Environment.GetEnvironmentVariable(key)is not null)throw new InvalidOperationException($"{key} must be absent during timing");
+        }
+        foreach(string key in new[]{"DOTNET_TieredCompilation","DOTNET_TieredPGO"})
+            if(Environment.GetEnvironmentVariable(key)!=(profile=="canonical"?"0":"1"))throw new InvalidOperationException($"{key} must be {(profile=="canonical"?"0":"1")} for the selected benchmark profile");
     }
 }

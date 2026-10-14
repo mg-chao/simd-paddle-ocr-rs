@@ -52,15 +52,30 @@ jobs:
         env:
           SIMDOCR_REC_REFERENCE: target/step12-fixtures/tiny-ocr-ci-v1
           SIMDOCR_OCR_REFERENCE: target/step12-fixtures/tiny-ocr-ci-v1
+          SIMDOCR_SMALL_OCR_REFERENCE: target/step12-fixtures/small-ocr-ci-v1
+          SIMDOCR_MEDIUM_OCR_REFERENCE: target/step12-fixtures/medium-ocr-ci-v1
         run: |
           New-Item -ItemType Directory -Force target/ci-reports | Out-Null
           git rev-parse HEAD | Set-Content target/ci-reports/checkout.txt
           rustc -Vv | Set-Content target/ci-reports/rustc.txt
-          cargo test --release --locked --test rec_harness all_frozen_tiny_rec_lines_match_authoritative_native_reference -- --ignored 2>&1 | Tee-Object target/ci-reports/rec-parity.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          foreach ($test in 'complete_tiny_ocr_matches_every_native_stage_and_public_result', 'complete_ocr_rejects_rehashed_omissions_and_out_of_range_lines', 'complete_ocr_rejects_floating_integer_fields_even_after_rehash') {
-            cargo test --release --locked --test ocr_harness $test -- --ignored --exact 2>&1 | Tee-Object "target/ci-reports/$test.log"
+          $testNames = @{}
+          foreach ($harness in 'rec_harness', 'ocr_harness') {
+            $testNames[$harness] = @(cargo test --release --locked --test $harness -- --list)
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          function Invoke-ParityTest([string]$family, [string]$harness, [string]$test) {
+            if ($testNames[$harness] -notcontains "${test}: test") { throw "Required test is missing: $harness/$test" }
+            cargo test --release --locked --test $harness $test -- --ignored --exact 2>&1 | Tee-Object "target/ci-reports/$family-$test.log"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          foreach ($family in 'tiny', 'small', 'medium') {
+            $reference = "target/step12-fixtures/$family-ocr-ci-v1"
+            $env:SIMDOCR_REC_REFERENCE = $reference
+            $env:SIMDOCR_OCR_REFERENCE = $reference
+            Invoke-ParityTest $family rec_harness "all_frozen_${family}_rec_lines_match_authoritative_native_reference"
+            Invoke-ParityTest $family ocr_harness "complete_${family}_ocr_matches_every_native_stage_and_public_result"
+            Invoke-ParityTest $family ocr_harness complete_ocr_rejects_rehashed_omissions_and_out_of_range_lines
+            Invoke-ParityTest $family ocr_harness complete_ocr_rejects_floating_integer_fields_even_after_rehash
           }
       - name: Instrumented warmed allocation gates
         shell: pwsh
@@ -69,13 +84,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $suffix = if ($IsWindows) { '.exe' } else { '' }
           $executable = Join-Path (Resolve-Path target/release) "ocr-benchmark$suffix"
-          $reference = 'target/step12-fixtures/tiny-ocr-ci-v1'
-          foreach ($mode in 'rec_public_borrowed', 'ocr_borrowed', 'mixed_widths') {
-            $report = "target/ci-reports/$mode.json"
-            & $executable --reference $reference --mode $mode --warmup 3 --samples 3 2> "target/ci-reports/$mode.stderr.log" | Set-Content $report
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            python tools/assert-allocation-smoke.py --report $report --reference $reference --mode $mode --executable $executable --warmup 3 --samples 3
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($family in 'tiny', 'small', 'medium') {
+            $reference = "target/step12-fixtures/$family-ocr-ci-v1"
+            foreach ($mode in 'rec_public_borrowed', 'ocr_borrowed', 'mixed_widths') {
+              $report = "target/ci-reports/$family-$mode.json"
+              & $executable --reference $reference --mode $mode --warmup 3 --samples 3 2> "target/ci-reports/$family-$mode.stderr.log" | Set-Content $report
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              python tools/assert-allocation-smoke.py --report $report --reference $reference --mode $mode --executable $executable --warmup 3 --samples 3
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
           }
       - uses: actions/upload-artifact@v4
         if: always()

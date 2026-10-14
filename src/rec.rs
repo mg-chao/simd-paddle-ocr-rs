@@ -1,4 +1,4 @@
-//! Frozen tiny recognizer graph execution and explicitly partial parity.
+//! Frozen recognizer graph execution and explicitly partial parity for shipped OCR families.
 use crate::{
     Bundle, ComparisonReport, ComparisonScope, Result, Tolerance, ValidationReport,
     bundle::{ArtifactDescriptor, BundleWriter, Dtype},
@@ -32,7 +32,7 @@ impl fmt::Display for RecRunReport {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "REC CANDIDATE: {} lines, {} artifacts, {} cases; saved {}; scope frozen tiny recognition tensors; no pixel preprocessing or full OCR parity",
+            "REC CANDIDATE: {} lines, {} artifacts, {} cases; saved {}; scope frozen recognition tensors; no pixel preprocessing or full OCR parity",
             self.processed_lines,
             self.written_artifacts,
             self.processed_cases,
@@ -54,8 +54,15 @@ pub(crate) struct Selection {
 
 pub(crate) fn require_canonical(bundle: &Bundle) -> Result<()> {
     let contract = &bundle.manifest.contract;
+    if !matches!(
+        contract["model"].as_str(),
+        Some("tiny" | "small" | "medium")
+    ) {
+        return Err(invalid(
+            "recognition requires a shipped tiny, small or medium family",
+        ));
+    }
     for (field, expected) in [
-        ("model", "tiny"),
         ("profile", "canonical"),
         ("backend", "cpu"),
         ("logical_input_layout", "nchw"),
@@ -63,7 +70,7 @@ pub(crate) fn require_canonical(bundle: &Bundle) -> Result<()> {
     ] {
         if contract[field].as_str() != Some(expected) {
             return Err(invalid(format!(
-                "tiny recognition requires {field}={expected:?}"
+                "recognition requires {field}={expected:?}"
             )));
         }
     }
@@ -75,6 +82,57 @@ pub(crate) fn require_canonical(bundle: &Bundle) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+pub(crate) fn positive_option(options: &Value, field: &str, fallback: usize) -> Result<usize> {
+    match options.get(field) {
+        None => Ok(fallback),
+        Some(value) => value
+            .as_u64()
+            .and_then(|value| usize::try_from(value).ok())
+            .filter(|value| *value > 0)
+            .ok_or_else(|| {
+                invalid(format!(
+                    "OCR option {field} must be an exact positive integer"
+                ))
+            }),
+    }
+}
+pub(crate) fn boolean_option(options: &Value, field: &str, fallback: bool) -> Result<bool> {
+    match options.get(field) {
+        None => Ok(fallback),
+        Some(value) => value
+            .as_bool()
+            .ok_or_else(|| invalid(format!("OCR option {field} must be a boolean"))),
+    }
+}
+pub(crate) fn number_option(options: &Value, field: &str, fallback: f32) -> Result<f32> {
+    match options.get(field) {
+        None => Ok(fallback),
+        Some(value) => value
+            .as_f64()
+            .filter(|number| number.is_finite() && (*number as f32).is_finite())
+            .map(|number| number as f32)
+            .ok_or_else(|| invalid(format!("OCR option {field} must be a finite F32 number"))),
+    }
+}
+pub(crate) fn recognizer_options(contract: &Value) -> Result<RecognizerOptions> {
+    if contract
+        .get("options")
+        .is_some_and(|value| !value.is_object())
+        || contract["options"]
+            .get("recognizer")
+            .is_some_and(|value| !value.is_object())
+    {
+        return Err(invalid("recognizer options must be JSON objects"));
+    }
+    let value = &contract["options"]["recognizer"];
+    Ok(RecognizerOptions {
+        target_width: positive_option(value, "target_width", 320)?,
+        adaptive_width: boolean_option(value, "adaptive_width", true)?,
+        max_image_pixels: positive_option(value, "max_image_pixels", 40_000_000)?,
+        ..Default::default()
+    })
 }
 
 pub(crate) fn is_rec_artifact(id: &str) -> Result<bool> {
@@ -263,17 +321,14 @@ pub(crate) fn selection(bundle: &Bundle) -> Result<Selection> {
                 .and_then(|value| value.checked_add(pixels.shape[0] - 1))
                 .ok_or_else(|| invalid("REC content width overflow"))?
                 / pixels.shape[0];
-            let options = &bundle.manifest.contract["options"]["recognizer"];
-            let expected_width = if options["adaptive_width"].as_bool().unwrap_or(true) {
+            let options = recognizer_options(&bundle.manifest.contract)?;
+            let expected_width = if options.adaptive_width {
                 natural
                     .checked_add(31)
                     .map(|width| (width / 32 * 32).max(32))
                     .ok_or_else(|| invalid("REC adaptive width overflow"))?
             } else {
-                options["target_width"]
-                    .as_u64()
-                    .and_then(|width| usize::try_from(width).ok())
-                    .ok_or_else(|| invalid("fixed REC target width must be an exact integer"))?
+                options.target_width
             };
             if input.shape[3] != expected_width {
                 return Err(invalid(
@@ -387,13 +442,7 @@ pub(crate) fn recognizer(reference: &ValidatedReference) -> Result<Recognizer> {
         )
         .map_err(|error| invalid(error.to_string()))?,
     );
-    let options = &reference.bundle.manifest.contract["options"]["recognizer"];
-    let options = RecognizerOptions {
-        target_width: options["target_width"].as_u64().unwrap_or(320) as usize,
-        adaptive_width: options["adaptive_width"].as_bool().unwrap_or(true),
-        max_image_pixels: options["max_image_pixels"].as_u64().unwrap_or(40_000_000) as usize,
-        ..Default::default()
-    };
+    let options = recognizer_options(&reference.bundle.manifest.contract)?;
     Recognizer::new(compiled, dictionary, options, ExecutionLimits::default())
         .map_err(|error| invalid(error.to_string()))
 }
@@ -596,7 +645,7 @@ pub fn run_rec(reference_directory: &Path, output_directory: &Path) -> Result<Re
         written_artifacts += artifacts.len();
         writer.add_case(&case.id, &case.kind, artifacts)?;
     }
-    let output=writer.finish(json!({"provenance":{"implementation":"rust scalar canonical tiny REC","reference_manifest_sha256":reference.manifest_sha256,"coverage":"frozen normalized REC tensors, dense diagnostic and native compatible public head; no image preprocessing or full OCR"}}))?;
+    let output=writer.finish(json!({"provenance":{"implementation":"rust scalar canonical REC","reference_manifest_sha256":reference.manifest_sha256,"coverage":"frozen normalized REC tensors, dense diagnostic and native compatible public head; no image preprocessing or full OCR"}}))?;
     Ok(RecRunReport {
         output,
         processed_cases,

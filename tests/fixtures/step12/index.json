@@ -250,6 +250,82 @@
       ],
       "directory": "tiny-ocr-ci-v1",
       "url": "https://github.com/mg-chao/simd-paddle-ocr-rs/releases/download/fixtures-v1/tiny-ocr-ci-v1.zip"
+    },
+    {
+      "archive": "small-ocr-ci-v1.zip",
+      "bytes": 439183643,
+      "sha256": "441d437006b94e93c3c7dc85e3a4ef61ca2373a6ab77892f547822ffb4769060",
+      "models": [
+        {
+          "path": "models/det.onnx",
+          "bytes": 9880512,
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "source_name": "small_det.onnx"
+        },
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        },
+        {
+          "path": "models/rec.onnx",
+          "bytes": 21159378,
+          "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+          "source_name": "small_rec.onnx"
+        },
+        {
+          "path": "models/rec_keys.txt",
+          "bytes": 93655,
+          "sha256": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6",
+          "source_name": "rec_keys.txt",
+          "download": {
+            "bytes": 74947,
+            "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+            "transform": "lf_to_crlf"
+          }
+        }
+      ],
+      "directory": "small-ocr-ci-v1",
+      "url": "https://github.com/mg-chao/simd-paddle-ocr-rs/releases/download/fixtures-v2/small-ocr-ci-v1.zip"
+    },
+    {
+      "archive": "medium-ocr-ci-v1.zip",
+      "bytes": 790136013,
+      "sha256": "beb4e5a1df34a01d90423667ca085eac22d6dfb1cd3ca7b20e631f2e17c57b13",
+      "models": [
+        {
+          "path": "models/det.onnx",
+          "bytes": 62032837,
+          "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+          "source_name": "medium_det.onnx"
+        },
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        },
+        {
+          "path": "models/rec.onnx",
+          "bytes": 76554979,
+          "sha256": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba",
+          "source_name": "medium_rec.onnx"
+        },
+        {
+          "path": "models/rec_keys.txt",
+          "bytes": 93655,
+          "sha256": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6",
+          "source_name": "rec_keys.txt",
+          "download": {
+            "bytes": 74947,
+            "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+            "transform": "lf_to_crlf"
+          }
+        }
+      ],
+      "directory": "medium-ocr-ci-v1",
+      "url": "https://github.com/mg-chao/simd-paddle-ocr-rs/releases/download/fixtures-v2/medium-ocr-ci-v1.zip"
     }
   ]
 }

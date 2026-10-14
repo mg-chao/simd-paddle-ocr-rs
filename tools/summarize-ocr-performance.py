@@ -1,4 +1,4 @@
-"""Validate frozen tiny REC/OCR identities and independent measurement scopes."""
+"""Validate frozen REC/OCR identities and independent measurement scopes."""
 import argparse
 import hashlib
 import json
@@ -8,12 +8,13 @@ import re
 import statistics
 
 MODES = {"rec_graph", "rec_public_owned", "rec_public_borrowed", "ocr_owned",
-         "ocr_borrowed", "mixed_widths", "owned_copies", "node_profile"}
+         "ocr_borrowed", "mixed_widths", "owned_copies", "node_profile", "public_stage_profile"}
 PAIRED = {"rec_graph", "rec_public_owned", "ocr_owned"}
 REUSED = {"rec_graph", "rec_public_borrowed", "ocr_borrowed", "mixed_widths", "node_profile"}
 COUNTERS = ("warm_allocation_count", "warm_allocation_bytes",
             "warm_retained_heap_bytes", "warm_peak_heap_growth_bytes")
 WIDTHS = [32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 32, 384]
+WIDTHS_V2 = [32, 64, 96, 160, 224, 320, 480, 576, 992, 32, 992]
 CONTROLS = {
     "DOTNET_PROCESSOR_COUNT": "1", "DOTNET_EnableHWIntrinsic": "0",
     "DOTNET_TieredCompilation": "0", "DOTNET_TieredPGO": "0",
@@ -160,10 +161,10 @@ def allocation_counts(value, measured, label, native=False):
             require(value.get(key) is None, f"{label}: uninstrumented allocation counter {key}")
 
 
-def expected_rows(cases, mode):
+def expected_rows(cases, mode, schema_version=1):
     if mode == "mixed_widths":
         hasher = hashlib.sha256()
-        for width in WIDTHS:
+        for width in WIDTHS if schema_version == 1 else WIDTHS_V2:
             hasher.update(bytes((i * 17 + width) % 251 for i in range(width * 48 * 3)))
         return [("mixed-widths", "rec.pixels", [], hasher.hexdigest(), mode)]
     result = []
@@ -184,9 +185,15 @@ def summarize(folder):
     snapshot_path = folder / "snapshot.json"
     snapshot = read_json(snapshot_path)
     require(isinstance(snapshot, dict), "Invalid measurement snapshot object")
-    require(snapshot.get("kind") == "tiny_ocr_measurement_snapshot"
-            and integer(snapshot.get("schema_version"), "snapshot schema", 1) == 1,
+    schema_version = integer(snapshot.get("schema_version"), "snapshot schema", 1)
+    require((schema_version, snapshot.get("kind")) in ((1, "tiny_ocr_measurement_snapshot"), (2, "ocr_measurement_snapshot")),
             "Unknown measurement snapshot")
+    native_profile = snapshot.get("csharp_profile", "canonical")
+    require(native_profile in ("canonical", "cpu"), "Invalid C# execution profile")
+    if schema_version == 1:
+        require(native_profile == "canonical", "Legacy snapshots require canonical execution")
+    else:
+        integer(snapshot.get("processor_affinity_mask"), "processor_affinity_mask", 1)
     rounds = integer(snapshot.get("rounds"), "rounds", 1)
     heap_rounds = integer(snapshot.get("heap_rounds"), "heap_rounds")
     warmup = integer(snapshot.get("warmup"), "warmup")
@@ -194,7 +201,11 @@ def summarize(folder):
     for field in ("os", "architecture"):
         text(snapshot.get(field), field)
     integer(snapshot.get("processor_count"), "processor_count", 1)
-    require(snapshot.get("runtime_controls") == CONTROLS, "Canonical runtime controls differ")
+    expected_controls = dict(CONTROLS)
+    if native_profile == "cpu":
+        expected_controls.update(DOTNET_EnableHWIntrinsic="1", DOTNET_TieredCompilation="1", DOTNET_TieredPGO="1",
+                                 PPOCR_NHWC="1", SIMD_OCR_NOFUSE="0")
+    require(snapshot.get("runtime_controls") == expected_controls, "Execution runtime controls differ")
     selected_case = snapshot.get("case")
     require(selected_case is None or isinstance(selected_case, str), "Invalid selected case")
     selected_case = selected_case or None
@@ -219,12 +230,15 @@ def summarize(folder):
     require(digest(manifest_path) == manifest_hash, "Reference manifest identity changed")
     manifest = read_json(manifest_path)
     require(isinstance(manifest, dict) and isinstance(manifest.get("contract"), dict), "Invalid reference manifest object")
+    family = manifest.get("contract", {}).get("model")
     require(integer(manifest.get("schema_version"), "manifest schema", 1) == 1
             and manifest.get("contract", {}).get("profile") == "canonical"
-            and manifest.get("contract", {}).get("model") == "tiny", "Tiny canonical reference required")
+            and family in (("tiny",) if schema_version == 1 else ("tiny", "small", "medium")), "Shipped-model canonical reference required")
+    if schema_version == 2:
+        require(snapshot.get("model_family") == family, "Snapshot model family differs")
     assets = inventory(reference, manifest.get("models"), "model", "id")
     require({"rec", "dictionary"} <= assets.keys(), "Missing recognition model/dictionary")
-    if any(mode.startswith("ocr_") for mode in requested_modes):
+    if any(mode.startswith("ocr_") or mode == "public_stage_profile" for mode in requested_modes):
         require({"det", "cls"} <= assets.keys(), "Missing OCR detector/classifier models")
     inventory(reference, manifest.get("auxiliary_files", []), "auxiliary", nonempty=False)
     all_cases = manifest.get("cases")
@@ -251,7 +265,7 @@ def summarize(folder):
     modes = {}
     expected_files = {"snapshot.json"}
     for mode in requested_modes:
-        identities = expected_rows(cases, mode)
+        identities = expected_rows(cases, mode, schema_version)
         groups = {}
         for engine, count in (("rust-timing", rounds), ("csharp", rounds if mode in PAIRED else 0), ("rust-heap", heap_rounds)):
             reports = []
@@ -261,7 +275,7 @@ def summarize(folder):
                 path = folder / name
                 report = read_json(path)
                 require(isinstance(report, dict), f"{name}: invalid report object")
-                for key, expected in (("kind", "tiny_ocr_benchmark"), ("schema_version", 1), ("profile", "canonical"),
+                for key, expected in (("kind", "tiny_ocr_benchmark" if schema_version == 1 else "ocr_benchmark"), ("schema_version", schema_version), ("profile", native_profile if engine == "csharp" else "canonical"),
                                       ("mode", mode), ("runtime", "csharp" if engine == "csharp" else "rust"),
                                       ("round", round_id), ("executable_kind", engine), ("warmup", warmup),
                                       ("samples", samples), ("manifest_sha256", manifest_hash),
@@ -269,7 +283,9 @@ def summarize(folder):
                                       ("dictionary_sha256", assets["dictionary"]["sha256"]),
                                       ("instrumented", engine == "rust-heap")):
                     require(type(report.get(key)) is type(expected) and report[key] == expected, f"{name}: {key} differs")
-                if mode.startswith("ocr_"):
+                if schema_version == 2:
+                    require(report.get("model_family") == family, f"{name}: model family differs")
+                if mode.startswith("ocr_") or mode == "public_stage_profile":
                     for key, asset in (("det_model_sha256", "det"), ("cls_model_sha256", "cls")):
                         require(report.get(key) == assets[asset]["sha256"], f"{name}: {key} differs")
                 executable = ("csharp/SimdPaddleOCR.ReferenceExport.dll" if engine == "csharp" else
@@ -303,9 +319,27 @@ def summarize(folder):
                     if engine == "rust-heap" and mode in REUSED:
                         require(all(row[key] == 0 for key in COUNTERS), f"{name}: warmed reuse gate failed")
                 require(actual == identities, f"{name}: row identities/order differ")
+                profiles = report.get("stage_profile", [])
+                if mode == "public_stage_profile":
+                    require(schema_version == 2 and isinstance(profiles, list) and len(profiles) == len(rows),
+                            f"{name}: missing production stage profiles")
+                    for profile, row in zip(profiles, rows):
+                        require(isinstance(profile, dict) and profile.get("case_id") == row["case_id"]
+                                and profile.get("artifact_id") == row["artifact_id"] and profile.get("samples") == samples,
+                                f"{name}: production profile identity differs")
+                        totals = profile.get("totals")
+                        require(isinstance(totals, dict), f"{name}: missing stage totals")
+                        for key in ("total_ns", "binding_ns", "det_preprocess_ns", "det_inference_ns", "det_postprocess_ns",
+                                    "crop_ns", "cls_orientation_ns", "rec_preprocess_ns", "rec_backbone_ns", "projection_ns",
+                                    "ctc_ns", "result_storage_ns", "recognized_lines"):
+                            integer(totals.get(key), f"{name}: stage {key}")
+                        require(totals["total_ns"] > 0 and totals["det_inference_ns"] > 0,
+                                f"{name}: empty production timings")
+                else:
+                    require(profiles == [], f"{name}: unexpected production profiles")
                 sequence = report.get("shape_sequence", [])
                 if mode == "mixed_widths":
-                    require(sequence == [[1, 3, 48, width] for width in WIDTHS]
+                    require(sequence == [[1, 3, 48, width] for width in (WIDTHS if schema_version == 1 else WIDTHS_V2)]
                             and all(all(type(n) is int for n in dims) for dims in sequence),
                             f"{name}: mixed-width sequence differs")
                 else:
@@ -327,13 +361,14 @@ def summarize(folder):
                     "process_p50_range_ms": [min(report["corpus"]["p50_ms"] for report in reports), max(report["corpus"]["p50_ms"] for report in reports)],
                     "pooled_p50_ms": percentile(timings, .5), "pooled_p95_ms": percentile(timings, .95)}
         modes[mode] = {"paired_owned_or_copied_scope": mode in PAIRED,
-                       "observer_instrumented_diagnostic": mode == "node_profile", "groups": groups}
+                       "observer_instrumented_diagnostic": mode in ("node_profile", "public_stage_profile"), "groups": groups}
     require({path.name for path in folder.glob("*.json")} == expected_files, "Unexpected or missing raw report files")
-    return {"schema_version": 1, "kind": "tiny_ocr_performance",
+    return {"schema_version": schema_version, "kind": "tiny_ocr_performance" if schema_version == 1 else "ocr_performance",
+            "model_family": family, "csharp_profile": native_profile,
             "snapshot": {"path": str(snapshot_path), "bytes": snapshot_path.stat().st_size, "sha256": digest(snapshot_path)},
             "source_sha256": snapshot["source_sha256"], "reference_source_sha256": snapshot["reference_source_sha256"],
             "protocol": {key: snapshot[key] for key in ("rounds", "heap_rounds", "warmup", "samples", "case", "os", "architecture", "processor_count")},
-            "scope": "Scalar tiny. Copied full graphs and owning public calls are paired. Borrowed, mixed-width, owned-copy and observed node timings are Rust-only. Heap timings excluded from latency claims. Cold boundaries and RSS differ by engine.",
+            "scope": "Scalar Rust; C# execution profile is recorded separately. Copied full graphs and owning public calls are paired. Borrowed, mixed-width, owned-copy and observed timings are Rust-only. Heap/profiling timings excluded from latency claims. Cold boundaries and RSS differ by engine.",
             "modes": modes}
 
 
@@ -346,7 +381,7 @@ def main():
     with args.out.open("x", encoding="utf-8") as out:
         json.dump(result, out, indent=2, allow_nan=False)
         out.write("\n")
-    print("Saved validated tiny OCR report:", args.out)
+    print("Saved validated OCR report:", args.out)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,16 @@
+{
+  "exact": true,
+  "input_shape": [
+    2,
+    3,
+    7
+  ],
+  "operators": [
+    "ReduceMean"
+  ],
+  "output_shape": [
+    2,
+    3,
+    1
+  ]
+}

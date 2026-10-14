@@ -1,4 +1,5 @@
 //! Reusable serial image detector with borrowed results and synchronous tracing.
+use crate::profile::{StageProfile, Timer};
 use crate::{
     db,
     image::{ImageError, ImageResult, ImageView, resize_vec},
@@ -209,7 +210,14 @@ impl Detector {
         })
     }
     pub fn detect(&mut self, image: ImageView<'_>) -> ImageResult<DetectionView<'_>> {
-        self.detect_impl::<false, _>(image, |_| Ok(()))
+        self.detect_impl::<false, false, _>(image, |_| Ok(()), &mut StageProfile::default())
+    }
+    pub(crate) fn detect_profiled<const PROFILE: bool>(
+        &mut self,
+        image: ImageView<'_>,
+        profile: &mut StageProfile,
+    ) -> ImageResult<DetectionView<'_>> {
+        self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile)
     }
     pub fn detect_with_trace<F>(
         &mut self,
@@ -219,16 +227,18 @@ impl Detector {
     where
         F: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
     {
-        self.detect_impl::<true, F>(image, observer)
+        self.detect_impl::<true, false, F>(image, observer, &mut StageProfile::default())
     }
-    fn detect_impl<const TRACE: bool, F>(
+    fn detect_impl<const TRACE: bool, const PROFILE: bool, F>(
         &mut self,
         image: ImageView<'_>,
         observer: F,
+        profile: &mut StageProfile,
     ) -> ImageResult<DetectionView<'_>>
     where
         F: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
     {
+        let binding_timer = Timer::<PROFILE>::start();
         if image.pixel_count()? > self.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
@@ -265,11 +275,17 @@ impl Detector {
         } else {
             image
         };
+        if PROFILE {
+            profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
+        }
         let observer = RefCell::new(observer);
         let input_shape = self.session.input_shape();
+        let mut preprocessing_ns = 0;
         let fill = |input: &mut [f32]| {
+            let timer = Timer::<PROFILE>::start();
             preprocess::det(source, size.width, size.height, input, &mut self.resize)
                 .map_err(|e| RuntimeError::new(e.to_string()))?;
+            preprocessing_ns = timer.elapsed();
             if TRACE {
                 observer.borrow_mut()(DetectionTrace::Input {
                     shape: input_shape,
@@ -279,6 +295,7 @@ impl Detector {
             }
             Ok(())
         };
+        let inference_timer = Timer::<PROFILE>::start();
         let prediction = if TRACE {
             self.session.run_with_input_and_trace(fill, |node| {
                 observer.borrow_mut()(DetectionTrace::Node(node))
@@ -287,12 +304,19 @@ impl Detector {
         } else {
             self.session.run_with_input(fill)?
         };
+        if PROFILE {
+            profile.det_preprocess_ns = profile.det_preprocess_ns.saturating_add(preprocessing_ns);
+            profile.det_inference_ns = profile
+                .det_inference_ns
+                .saturating_add(inference_timer.elapsed().saturating_sub(preprocessing_ns));
+        }
         if TRACE {
             observer.borrow_mut()(DetectionTrace::Probabilities {
                 shape: prediction.shape(),
                 values: prediction.data(),
             })?;
         }
+        let postprocess_timer = Timer::<PROFILE>::start();
         db::run(
             prediction.data(),
             size.width,
@@ -302,6 +326,11 @@ impl Detector {
             original_height,
             &mut self.db,
         )?;
+        if PROFILE {
+            profile.det_postprocess_ns = profile
+                .det_postprocess_ns
+                .saturating_add(postprocess_timer.elapsed());
+        }
         let view = DetectionView {
             boxes: &self.db.boxes,
             resized_width: size.width,

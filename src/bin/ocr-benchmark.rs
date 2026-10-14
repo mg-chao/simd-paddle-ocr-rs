@@ -1,4 +1,4 @@
-//! Independently scoped tiny scalar REC/OCR timing and allocation measurements.
+//! Independently scoped scalar REC/OCR timing, production profiling and allocation measurements.
 #[path = "support/allocator.rs"]
 mod allocator;
 use serde::{Deserialize, Serialize};
@@ -210,6 +210,17 @@ struct DetConfig {
     unclip_ratio: f32,
     max_image_pixels: usize,
 }
+fn rec_options(m: &Value) -> Result<RecognizerOptions> {
+    let options = &m["contract"]["options"]["recognizer"];
+    Ok(RecognizerOptions {
+        target_width: number(options, "target_width")?,
+        adaptive_width: options["adaptive_width"]
+            .as_bool()
+            .ok_or("adaptive_width")?,
+        max_image_pixels: number(options, "max_image_pixels")?,
+        ..Default::default()
+    })
+}
 fn make_ocr(root: &Path, m: &Value, rec: Arc<CompiledModel>, dict: Arc<Dictionary>) -> Result<Ocr> {
     let asset = |id: &str| {
         m["models"]
@@ -246,24 +257,31 @@ fn make_ocr(root: &Path, m: &Value, rec: Arc<CompiledModel>, dict: Arc<Dictionar
     .map_err(|e| e.to_string())?;
     let extractor = OrientedLineExtractor::new(
         detector,
-        Some(compile("cls")?),
+        if m["contract"]["options"]["use_direction_classification"]
+            .as_bool()
+            .ok_or("use_direction_classification")?
+        {
+            Some(compile("cls")?)
+        } else {
+            None
+        },
         LineOptions {
             classifier_threshold: m["contract"]["options"]["classifier_threshold"]
                 .as_f64()
                 .ok_or("classifier threshold")? as f32,
+            max_crop_pixels: number(&m["contract"]["options"], "max_crop_pixels")?,
+            max_classifier_image_pixels: number(
+                &m["contract"]["options"]["classifier"],
+                "max_image_pixels",
+            )?,
             ..Default::default()
         },
     )
     .map_err(|e| e.to_string())?;
     Ocr::new(
         extractor,
-        Recognizer::new(
-            rec,
-            dict,
-            RecognizerOptions::default(),
-            ExecutionLimits::default(),
-        )
-        .map_err(|e| e.to_string())?,
+        Recognizer::new(rec, dict, rec_options(m)?, ExecutionLimits::default())
+            .map_err(|e| e.to_string())?,
         OcrOptions::default(),
     )
     .map_err(|e| e.to_string())
@@ -295,6 +313,7 @@ fn run() -> Result<()> {
             | "mixed_widths"
             | "node_profile"
             | "owned_copies"
+            | "public_stage_profile"
     ) {
         return Err("invalid mode".into());
     }
@@ -310,8 +329,14 @@ fn run() -> Result<()> {
     validate_bundle(&root).map_err(|e| e.to_string())?;
     let manifest_bytes = fs::read(root.join("manifest.json")).map_err(|e| e.to_string())?;
     let m: Value = serde_json::from_slice(&manifest_bytes).map_err(|e| e.to_string())?;
-    if m["contract"]["profile"] != "canonical" || m["contract"]["model"] != "tiny" {
-        return Err("requires tiny canonical reference".into());
+    let family = m["contract"]["model"]
+        .as_str()
+        .ok_or("missing model family")?;
+    if m["contract"]["profile"] != "canonical" || !matches!(family, "tiny" | "small" | "medium") {
+        return Err("requires a shipped-model canonical reference".into());
+    }
+    if mode == "public_stage_profile" && !cfg!(feature = "profiling") {
+        return Err("public_stage_profile requires --features profiling".into());
     }
     let model_asset = |id: &str| {
         m["models"]
@@ -349,7 +374,7 @@ fn run() -> Result<()> {
             Recognizer::new(
                 compiled.clone(),
                 dictionary.clone(),
-                RecognizerOptions::default(),
+                rec_options(&m)?,
                 ExecutionLimits::default(),
             )
             .map_err(|e| e.to_string())?,
@@ -357,7 +382,7 @@ fn run() -> Result<()> {
     } else {
         None
     };
-    let mut ocr = if mode.starts_with("ocr_") {
+    let mut ocr = if mode.starts_with("ocr_") || mode == "public_stage_profile" {
         Some(make_ocr(&root, &m, compiled.clone(), dictionary)?)
     } else {
         None
@@ -368,15 +393,17 @@ fn run() -> Result<()> {
     let mut session_preparations = Vec::new();
     let mut checksum = 0.;
     let mut node_profile = Vec::new();
+    #[cfg(feature = "profiling")]
+    let mut stage_profile: Vec<Value> = Vec::new();
+    #[cfg(not(feature = "profiling"))]
+    let stage_profile: Vec<Value> = Vec::new();
     let mut shape_sequence = Vec::new();
     let mut graph_activation_peak = 0;
     let mut graph_retained_peak = 0;
     let mut graph_planning_peak = 0;
     if mode == "mixed_widths" {
         let recognizer = recognizer.as_mut().unwrap();
-        let widths = [
-            32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 32, 384,
-        ];
+        let widths = [32, 64, 96, 160, 224, 320, 480, 576, 992, 32, 992];
         let mut sequence = Vec::new();
         let mut hasher = Sha256::new();
         for width in widths {
@@ -466,6 +493,29 @@ fn run() -> Result<()> {
                         Ok(session.run(&data).map_err(|e| e.to_string())?.data()[0] as f64)
                     })?
                 }
+            } else if mode == "public_stage_profile" {
+                #[cfg(feature = "profiling")]
+                {
+                    let engine = ocr.as_mut().unwrap();
+                    let mut totals = simd_paddle_ocr_rs::StageProfile::default();
+                    let mut calls = 0usize;
+                    let measured = measure(input, mode, warmup, samples, false, || {
+                        let (result, profile) = engine
+                            .run_profiled(input.image()?, true)
+                            .map_err(|e| e.to_string())?;
+                        if calls > warmup {
+                            totals += profile;
+                        }
+                        calls += 1;
+                        Ok(result.len() as f64 + result.text.len() as f64)
+                    })?;
+                    stage_profile.push(json!({"case_id":input.case,"artifact_id":input.id,"samples":samples,"totals":totals}));
+                    measured
+                }
+                #[cfg(not(feature = "profiling"))]
+                {
+                    return Err("profiling feature is required".into());
+                }
             } else if mode.starts_with("ocr_") {
                 let engine = ocr.as_mut().unwrap();
                 measure(input, mode, warmup, samples, mode == "ocr_borrowed", || {
@@ -549,7 +599,7 @@ fn run() -> Result<()> {
             fs::read(env::current_exe().map_err(|e| e.to_string())?).map_err(|e| e.to_string())?
         )
     );
-    println!("{}",serde_json::to_string(&json!({"schema_version":1,"kind":"tiny_ocr_benchmark","runtime":"rust","profile":"canonical","mode":mode,"model_sha256":rec_asset["sha256"],"det_model_sha256":if mode.starts_with("ocr_"){Some(model_asset("det")?["sha256"].clone())}else{None},"cls_model_sha256":if mode.starts_with("ocr_"){Some(model_asset("cls")?["sha256"].clone())}else{None},"dictionary_sha256":dict_asset["sha256"],"manifest_sha256":format!("{:x}",Sha256::digest(&manifest_bytes)),"executable_sha256":executable_sha256,"warmup":warmup,"samples":samples,"load_ms":load_ms,"load_allocations":load_allocations,"prepare_ms":prepare_ms,"prepare_allocations":prepare_allocations,"activation_bytes":activation_bytes,"retained_activation_bytes":retained_activation_bytes,"workspace_bytes":workspace_bytes,"session_preparations":session_preparations,"inputs":rows,"shape_sequence":shape_sequence,"node_profile":node_profile,"checksum":checksum,"instrumented":cfg!(feature="heap-profiler"),"measurement":"Per-row contiguous blocks, sum matching sample indexes; graphs include input copy. Public owned includes owned conversion and drop; borrowed and diagnostic modes are separate. Mixed first-row call follows two prewarm cycles. Graph memory counters are peaks of one sequentially live full session, not sums; C# retains all graph sessions and its RSS is not a paired memory scope. Cold loading/preparation boundaries differ by engine.","corpus":{"p50_ms":percentile(&corpus_samples,0.5),"p95_ms":percentile(&corpus_samples,0.95),"mean_ms":corpus_samples.iter().sum::<f64>()/samples as f64,"samples_ms":corpus_samples}})).map_err(|e|e.to_string())?);
+    println!("{}",serde_json::to_string(&json!({"schema_version":2,"kind":"ocr_benchmark","model_family":family,"runtime":"rust","profile":"canonical","mode":mode,"model_sha256":rec_asset["sha256"],"det_model_sha256":if mode.starts_with("ocr_") || mode == "public_stage_profile" {Some(model_asset("det")?["sha256"].clone())}else{None},"cls_model_sha256":if mode.starts_with("ocr_") || mode == "public_stage_profile" {Some(model_asset("cls")?["sha256"].clone())}else{None},"dictionary_sha256":dict_asset["sha256"],"manifest_sha256":format!("{:x}",Sha256::digest(&manifest_bytes)),"executable_sha256":executable_sha256,"warmup":warmup,"samples":samples,"load_ms":load_ms,"load_allocations":load_allocations,"prepare_ms":prepare_ms,"prepare_allocations":prepare_allocations,"activation_bytes":activation_bytes,"retained_activation_bytes":retained_activation_bytes,"workspace_bytes":workspace_bytes,"session_preparations":session_preparations,"inputs":rows,"shape_sequence":shape_sequence,"node_profile":node_profile,"stage_profile":stage_profile,"checksum":checksum,"instrumented":cfg!(feature="heap-profiler"),"measurement":"Per-row contiguous blocks, sum matching sample indexes; graphs include input copy. Public owned includes owned conversion and drop; borrowed and diagnostic modes are separate. Mixed first-row call follows two prewarm cycles. Graph memory counters are peaks of one sequentially live full session, not sums; C# retains all graph sessions and its RSS is not a paired memory scope. Cold loading/preparation boundaries differ by engine.","corpus":{"p50_ms":percentile(&corpus_samples,0.5),"p95_ms":percentile(&corpus_samples,0.95),"mean_ms":corpus_samples.iter().sum::<f64>()/samples as f64,"samples_ms":corpus_samples}})).map_err(|e|e.to_string())?);
     Ok(())
 }
 fn main() -> ExitCode {

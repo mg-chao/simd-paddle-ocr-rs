@@ -67,6 +67,88 @@ internal static class RecFixtures
         return 0;
     }
 
+    /// <summary>Additive all-model scalar fixtures; never rewrites the v1 captures.</summary>
+    public static int ExportScalarOperators(string[] args)
+    {
+        if (args.Length != 2 || args[0] != "--out") throw new ArgumentException("Use --export-scalar-rec-ops --out <new-directory>.");
+        Step12Tools.RequireCanonical();
+        BundleWriter writer = new(args[1]);
+        List<CaseEntry> cases = [];
+        void Capture(string id, int[] inputShape, int[] outputShape, byte[] graph, bool exact, float[]? supplied = null)
+        {
+            byte[] onnx = Join(Number(1, 8), Bytes(8, Number(2, 13)), Bytes(7, graph));
+            using Model model = Model.Load(onnx);
+            using InferenceSession session = new(model, inputShape, 1);
+            int count = inputShape.Aggregate(1, (product, value) => checked(product * value));
+            float[] input = supplied ?? Enumerable.Range(0, count).Select(index => ((index * 37 + 11) % 101 - 50) / 13f).ToArray();
+            if (input.Length != count) throw new InvalidDataException("Operator fixture input length differs: " + id);
+            string directory = "cases/" + id;
+            List<Artifact> artifacts = [writer.WriteJson("fixture", directory + "/fixture.json", new { inputShape, outputShape, exact, operators = model.Nodes.Select(node => node.OpType).ToArray() }),
+                writer.WriteBytes("model", directory + "/model.onnx", onnx, [onnx.Length], "onnx"),
+                writer.WriteFloats("input", directory + "/input.f32", input, inputShape, inputShape.Length == 4 ? "nchw" : "row_major")];
+            ReadOnlySpan<float> output = session.RunWithTrace(input, (index, name, op, shape, nhwc, values) =>
+                artifacts.Add(writer.WriteFloats($"node.{index:D4}", $"{directory}/node-{index:D4}.f32", values, shape.ToArray(), shape.Length == 4 ? "nchw" : "row_major")));
+            if (!session.OutputShape.Dimensions.SequenceEqual(outputShape)) throw new InvalidDataException("Native scalar operator fixture shape differs: " + id);
+            artifacts.Add(writer.WriteFloats("output", directory + "/output.f32", output, outputShape, outputShape.Length == 4 ? "nchw" : "row_major"));
+            cases.Add(new(id, "recognition_operator", artifacts));
+        }
+        byte[] Graph(int[] input, int[] output, byte[] nodes, params byte[][] tensors) =>
+            Join(new[] { nodes }.Concat(tensors).Concat(new[] { Bytes(11, Info("x", input)), Bytes(12, Info("y", output)) }).ToArray());
+        Capture("row-scalar-subtraction", [2, 3, 7], [2, 3, 7],
+            Graph([2, 3, 7], [2, 3, 7], Node("subtract", "Sub", ["x", "mean"], "y"), Tensor("mean", [2, 3, 1], [.1f, -.2f, 1f, 0f, .5f, -1f])), true);
+        Capture("left-row-scalar-division", [2, 3, 7], [2, 3, 7],
+            Graph([2, 3, 7], [2, 3, 7], Node("divide", "Div", ["scale", "x"], "y"), Tensor("scale", [2, 3, 1], [.1f, -.2f, 1f, 0f, .5f, -1f])), true,
+            Enumerable.Range(0, 42).Select(i => (i + 1) / 9f).ToArray());
+        float[] squareInput = [0f, -0f, float.Epsilon, -float.Epsilon, 1e-19f, -1e-19f, 1e-10f, -.3f, .3f, 1f, -1f, 123.45f, -123.45f, 1e10f];
+        Capture("scalar-square", [2, 7], [2, 7], Graph([2, 7], [2, 7], Node("square", "Pow", ["x", "exponent"], "y"), Tensor("exponent", [], [2f])), false, squareInput);
+        Capture("square-root", [2, 7], [2, 7], Graph([2, 7], [2, 7], Node("root", "Sqrt", ["x"], "y")), false,
+            squareInput.Select(MathF.Abs).ToArray());
+        Capture("trailing-axis-mean", [2, 3, 7], [2, 3, 1], Graph([2, 3, 7], [2, 3, 1], Node("mean", "ReduceMean", ["x"], "y", IntsAttribute("axes", [-1]), IntAttribute("keepdims", 1))), true);
+        Capture("dynamic-rank-four-attention-scores", [2, 3, 5, 7], [2, 3, 5, 5],
+            Graph([2, 3, 5, 7], [2, 3, 5, 5], Join(Node("transpose-key", "Transpose", ["x"], "key", IntsAttribute("perm", [0, 1, 3, 2])), Node("scores", "MatMul", ["x", "key"], "y"))), true);
+        Capture("dynamic-rank-four-attention-context", [2, 3, 5, 7], [2, 3, 5, 7],
+            Graph([2, 3, 5, 7], [2, 3, 5, 7], Join(Node("transpose-key", "Transpose", ["x"], "key", IntsAttribute("perm", [0, 1, 3, 2])),
+                Node("scores", "MatMul", ["x", "key"], "scores"), Node("probability", "Softmax", ["scores"], "probability", IntAttribute("axis", 3)),
+                Node("context", "MatMul", ["probability", "x"], "y"))), false);
+        Capture("broadcasted-rank-four-matmul", [2, 3, 5, 7], [2, 3, 5, 9],
+            Graph([2, 3, 5, 7], [2, 3, 5, 9], Node("broadcasted", "MatMul", ["x", "weights"], "y"),
+                Tensor("weights", [1, 3, 7, 9], Enumerable.Range(0, 189).Select(i => (i % 11 - 5) / 16f).ToArray())), true);
+        for (int part = 0; part < 3; part++)
+            Capture("qkv-slice-" + part, [3, 2, 3, 5, 7], [2, 3, 5, 7],
+                Graph([3, 2, 3, 5, 7], [2, 3, 5, 7], Join(Node("slice", "Slice", ["x", "start", "end", "axis", "step"], "slice"), Node("squeeze", "Squeeze", ["slice", "axis"], "y")),
+                    IntegerTensor("start", [part]), IntegerTensor("end", [part + 1]), IntegerTensor("axis", [0]), IntegerTensor("step", [1])), true);
+        Capture("strided-data-slice", [2, 7, 5], [2, 3, 5], Graph([2, 7, 5], [2, 3, 5], Node("slice", "Slice", ["x", "start", "end", "axis", "step"], "y"),
+            IntegerTensor("start", [1]), IntegerTensor("end", [6]), IntegerTensor("axis", [1]), IntegerTensor("step", [2])), true);
+        Capture("negative-step-data-slice", [2, 7, 5], [2, 4, 5], Graph([2, 7, 5], [2, 4, 5], Node("slice", "Slice", ["x", "start", "end", "axis", "step"], "y"),
+            IntegerTensor("start", [6]), IntegerTensor("end", [long.MinValue]), IntegerTensor("axis", [-2]), IntegerTensor("step", [-2])), true);
+        byte[] LayerNormGraph() => Graph([2, 3, 7], [2, 3, 7], Join(
+            Node("mean", "ReduceMean", ["x"], "mean", IntsAttribute("axes", [-1]), IntAttribute("keepdims", 1)),
+            Node("center", "Sub", ["x", "mean"], "center"), Node("square", "Pow", ["center", "exponent"], "square"),
+            Node("variance", "ReduceMean", ["square"], "variance", IntsAttribute("axes", [-1]), IntAttribute("keepdims", 1)),
+            Node("epsilon", "Add", ["variance", "epsilon"], "stabilized"), Node("root", "Sqrt", ["stabilized"], "root"),
+            Node("normalize", "Div", ["center", "root"], "normalized"), Node("scale", "Mul", ["normalized", "gamma"], "scaled"), Node("bias", "Add", ["scaled", "beta"], "y")),
+            Tensor("exponent", [], [2f]), Tensor("epsilon", [], [1e-5f]), Tensor("gamma", [7], [1f, .5f, 2f, -1f, .75f, -.25f, 1.25f]), Tensor("beta", [7], [0f, .1f, -.2f, .3f, -.4f, .5f, -.6f]));
+        Capture("unfused-layer-normalization", [2, 3, 7], [2, 3, 7], LayerNormGraph(), false);
+        Capture("near-constant-layer-normalization", [2, 3, 7], [2, 3, 7], LayerNormGraph(), false,
+            Enumerable.Range(0, 42).Select(i => i < 7 ? 1f : i < 14 ? 10000f + (i % 3 - 1) / 1024f : i < 21 ? 1e-6f + (i % 3 - 1) * 1e-9f : (i % 7 - 3) / 13f).ToArray());
+        byte[] dynamicGraph = Join(Node("shape", "Shape", ["x"], "shape"), Node("shape-alias", "Identity", ["shape"], "alias"),
+            Node("width", "Slice", ["alias", "start", "end", "axis", "step"], "width"), Node("scalar-width", "Squeeze", ["width", "axis"], "scalar"),
+            Node("vector-width", "Unsqueeze", ["scalar", "axis"], "vector"), Node("target", "Concat", ["prefix", "vector"], "target", IntAttribute("axis", 0)),
+            Node("reshape", "Reshape", ["x", "target"], "y"), IntegerTensor("start", [3]), IntegerTensor("end", [4]), IntegerTensor("axis", [0]), IntegerTensor("step", [1]),
+            IntegerTensor("prefix", [1, 3, 48]), Bytes(11, DynamicInfo("x", [1, 3, 48, "width"])), Bytes(12, DynamicInfo("y", [1, 3, 48, "width"])));
+        Capture("dynamic-shape-alias-width32", [1, 3, 48, 32], [1, 3, 48, 32], dynamicGraph, true);
+        Capture("dynamic-shape-alias-width64", [1, 3, 48, 64], [1, 3, 48, 64], dynamicGraph, true);
+        byte[] source = File.ReadAllBytes(Path.Combine(Directory.GetCurrentDirectory(), "tools", "reference-export", "RecFixtures.cs"));
+        Artifact sourceArtifact = writer.WriteBytes("fixture_source", "source/RecFixtures.cs", source, [source.Length], "source_bytes");
+        writer.WriteManifest(new { schemaVersion = 1,
+            contract = new { profile = "canonical", backend = "cpu", logicalInputLayout = "nchw", fixtureKind = "recognition-scalar-operators-v2", arithmetic = "original C# InferenceSession, serial scalar unfused; Pow uses MathF.Pow; each canonical node captured" },
+            models = Array.Empty<ModelAsset>(), cases, auxiliaryFiles = new[] { new { path = sourceArtifact.Path, sha256 = sourceArtifact.Sha256, bytes = sourceArtifact.Bytes, role = "source" } },
+            provenance = new { implementation = "original Sdcb.SimdPaddleOCR all-model scalar operator kernels", framework = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+                assemblySha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(Model).Assembly.Location))).ToLowerInvariant() } });
+        Console.WriteLine($"All-model scalar operator goldens written: {cases.Count} cases -> {writer.RootPath}");
+        return 0;
+    }
+
     private static byte[] Join(params byte[][] chunks) => chunks.SelectMany(chunk => chunk).ToArray();
     private static byte[] Varint(ulong value)
     {
@@ -78,6 +160,7 @@ internal static class RecFixtures
     private static byte[] Bytes(int field, byte[] value) => Join(Varint(((ulong)field << 3) | 2), Varint((ulong)value.Length), value);
     private static byte[] Text(int field, string value) => Bytes(field, System.Text.Encoding.UTF8.GetBytes(value));
     private static byte[] Info(string name, int[] shape) => Join(Text(1, name), Bytes(2, Bytes(1, Join(Number(1, 1), Bytes(2, Join(shape.Select(value => Bytes(1, Number(1, value))).ToArray()))))));
+    private static byte[] DynamicInfo(string name, object[] shape) => Join(Text(1, name), Bytes(2, Bytes(1, Join(Number(1, 1), Bytes(2, Join(shape.Select(value => Bytes(1, value is int dimension ? Number(1, dimension) : Text(2, (string)value))).ToArray()))))));
     private static byte[] Node(string name, string op, string[] inputs, string output, params byte[][] attributes) => Bytes(1, Join(Join(inputs.Select(value => Text(1, value)).ToArray()), Text(2, output), Text(3, name), Text(4, op), Join(attributes.Select(value => Bytes(5, value)).ToArray())));
     private static byte[] IntAttribute(string name, long value) => Join(Text(1, name), Number(3, value), Number(20, 2));
     private static byte[] IntsAttribute(string name, long[] values) => Join(Text(1, name), Join(values.Select(value => Number(8, value)).ToArray()), Number(20, 7));

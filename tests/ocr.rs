@@ -195,6 +195,38 @@ fn image(data: &[u8]) -> ImageView<'_> {
     ImageView::new(data, 128, 96, 0, PixelFormat::Bgr24).unwrap()
 }
 
+#[cfg(feature = "profiling")]
+#[test]
+fn compact_ocr_profile_matches_plain_pipeline_and_empty_reuse() {
+    for classify in [false, true] {
+        let mut engine = engine(classify, false, OcrOptions::default());
+        for data in [page(), vec![0; 128 * 96 * 3], page()] {
+            for capture in [false, true] {
+                let expected = engine
+                    .run(image(&data), capture)
+                    .unwrap()
+                    .try_to_owned()
+                    .unwrap();
+                let (result, profile) = engine.run_profiled(image(&data), capture).unwrap();
+                assert_eq!(result.try_to_owned().unwrap(), expected);
+                assert_eq!(profile.recognized_lines, expected.lines.len());
+                assert!(
+                    profile.total_ns > 0
+                        && profile.det_inference_ns > 0
+                        && profile.det_postprocess_ns > 0
+                );
+                assert_eq!(engine.diagnostic_retained_activation_bytes(), 0);
+                assert_eq!(
+                    engine
+                        .recognizer_mut()
+                        .diagnostic_retained_workspace_bytes(),
+                    0
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn ordered_lines_joined_text_alignment_and_owned_views_survive_empty_reuse() {
     let data = page();

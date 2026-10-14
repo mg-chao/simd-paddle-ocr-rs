@@ -1,4 +1,5 @@
 //! Reusable scalar recognition with distinct dense and compatible public scores.
+use crate::profile::{StageProfile, Timer};
 use crate::{
     image::{ImageError, ImageResult, ImageView, resize_vec},
     model::{EffectiveAttributes, Graph, TensorId},
@@ -756,6 +757,28 @@ impl Recognizer {
         image: ImageView<'_>,
         capture: bool,
     ) -> ImageResult<RecognitionView<'_>> {
+        self.recognize_impl::<false>(image, capture, &mut StageProfile::default())
+    }
+    /// Profile the compact production path without initializing dense diagnostics.
+    #[cfg(feature = "profiling")]
+    pub fn recognize_profiled(
+        &mut self,
+        image: ImageView<'_>,
+        capture: bool,
+    ) -> ImageResult<(RecognitionView<'_>, StageProfile)> {
+        let timer = Timer::<true>::start();
+        let mut profile = StageProfile::default();
+        let result = self.recognize_impl::<true>(image, capture, &mut profile)?;
+        profile.total_ns = timer.elapsed();
+        Ok((result, profile))
+    }
+    pub(crate) fn recognize_impl<const PROFILE: bool>(
+        &mut self,
+        image: ImageView<'_>,
+        capture: bool,
+        profile: &mut StageProfile,
+    ) -> ImageResult<RecognitionView<'_>> {
+        let binding_timer = Timer::<PROFILE>::start();
         if image.pixel_count()? > self.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
@@ -764,18 +787,39 @@ impl Recognizer {
         let steps = Self::check_feature_shape(self.session.output_shape(), self.head.inner)?;
         resize_vec(&mut self.indices, steps)?;
         resize_vec(&mut self.scores, steps)?;
+        if PROFILE {
+            profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
+        }
         let resize = &mut self.resize;
+        let backbone_timer = Timer::<PROFILE>::start();
+        let mut preprocessing_ns = 0;
         let feature = self.session.run_with_input(|input| {
-            preprocess::rec(image, size.tensor_width, input, resize)
+            let timer = Timer::<PROFILE>::start();
+            let result = preprocess::rec(image, size.tensor_width, input, resize)
                 .map(|_| ())
-                .map_err(|e| RuntimeError::new(e.to_string()))
+                .map_err(|e| RuntimeError::new(e.to_string()));
+            preprocessing_ns = timer.elapsed();
+            result
         })?;
+        if PROFILE {
+            profile.rec_preprocess_ns = profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
+            profile.rec_backbone_ns = profile
+                .rec_backbone_ns
+                .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+        }
+        let projection_timer = Timer::<PROFILE>::start();
         self.head.project(
             self.compiled.model().graph(),
             feature.data(),
             &mut self.indices[..steps],
             &mut self.scores[..steps],
         )?;
+        if PROFILE {
+            profile.projection_ns = profile
+                .projection_ns
+                .saturating_add(projection_timer.elapsed());
+        }
+        let ctc_timer = Timer::<PROFILE>::start();
         self.decoded.decode(
             &self.dictionary,
             steps,
@@ -784,6 +828,10 @@ impl Recognizer {
             self.options.max_result_bytes,
             |i| Ok((self.indices[i], self.scores[i])),
         )?;
+        if PROFILE {
+            profile.ctc_ns = profile.ctc_ns.saturating_add(ctc_timer.elapsed());
+            profile.recognized_lines += 1;
+        }
         Ok(self.decoded.view())
     }
     /// Execute the complete original graph in a lazily allocated diagnostic

@@ -1,0 +1,18 @@
+{
+  "exact": true,
+  "input_shape": [
+    1,
+    3,
+    48,
+    32
+  ],
+  "operators": [
+    "Reshape"
+  ],
+  "output_shape": [
+    1,
+    3,
+    48,
+    32
+  ]
+}

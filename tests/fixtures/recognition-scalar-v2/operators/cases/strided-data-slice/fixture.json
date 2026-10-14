@@ -1,0 +1,16 @@
+{
+  "exact": true,
+  "input_shape": [
+    2,
+    7,
+    5
+  ],
+  "operators": [
+    "Slice"
+  ],
+  "output_shape": [
+    2,
+    3,
+    5
+  ]
+}

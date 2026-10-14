@@ -22,6 +22,7 @@
 !/tests/fixtures/geometry-v1/
 !/tests/fixtures/math/
 !/tests/fixtures/recognition-v1/
+!/tests/fixtures/recognition-scalar-v2/
 !/tests/fixtures/step12/
 
 # Large REC/OCR trace archives stay local; retain the compact CI archives

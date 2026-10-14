@@ -18,6 +18,9 @@ pub mod ocr;
 pub mod onnx;
 pub mod orientation;
 pub mod preprocess;
+mod profile;
+#[cfg(feature = "profiling")]
+pub use profile::StageProfile;
 pub mod rec;
 pub mod recognizer;
 pub mod runtime;

@@ -193,6 +193,42 @@ class OcrPerformanceTests(unittest.TestCase):
         timing = result["modes"]["rec_graph"]["groups"]["rust-timing"]
         self.assertNotEqual(timing["median_process_p95_ms"], timing["pooled_p95_ms"])
 
+    def upgrade_v2(self, profile="canonical"):
+        self.manifest["contract"]["model"] = "small"
+        write_json(self.reference / "manifest.json", self.manifest)
+        self.snapshot.update(schema_version=2, kind="ocr_measurement_snapshot", model_family="small",
+                             csharp_profile=profile, processor_affinity_mask=1,
+                             manifest_sha256=sha((self.reference / "manifest.json").read_bytes()))
+        if profile == "cpu":
+            self.snapshot["runtime_controls"].update(DOTNET_EnableHWIntrinsic="1", DOTNET_TieredCompilation="1",
+                DOTNET_TieredPGO="1", PPOCR_NHWC="1", SIMD_OCR_NOFUSE="0")
+        self.build_reports()
+        for path in self.measurements.glob("*-r*.json"):
+            report = json.loads(path.read_bytes())
+            report.update(schema_version=2, kind="ocr_benchmark", model_family="small",
+                          profile=profile if report["runtime"] == "csharp" else "canonical")
+            if report["mode"] == "mixed_widths":
+                report["inputs"][0]["sha256"] = SUMMARY.expected_rows(self.manifest["cases"], "mixed_widths", 2)[0][3]
+                report["shape_sequence"] = [[1, 3, 48, width] for width in SUMMARY.WIDTHS_V2]
+            write_json(path, report)
+
+    def test_v2_all_model_and_optimized_csharp_profiles_remain_separate(self):
+        self.upgrade_v2("cpu")
+        result = SUMMARY.summarize(self.measurements)
+        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["model_family"], "small")
+        self.assertEqual(result["csharp_profile"], "cpu")
+        self.change_report(lambda r: r.update(profile="cpu"))
+        self.rejected()
+
+    def test_v2_rejects_family_control_and_shape_sequence_drift(self):
+        self.upgrade_v2()
+        self.change_report(lambda r: r.update(model_family="medium"))
+        self.rejected()
+        self.upgrade_v2()
+        self.change_report(lambda r: r.update(shape_sequence=[[1, 3, 48, 32]]), mode="mixed_widths")
+        self.rejected()
+
     def test_file_and_source_digest_tampering_rejected(self):
         for base, path in ((self.measurements, "ocr-heap.exe"),
                            (self.measurements / "source", "src/runtime.rs"),

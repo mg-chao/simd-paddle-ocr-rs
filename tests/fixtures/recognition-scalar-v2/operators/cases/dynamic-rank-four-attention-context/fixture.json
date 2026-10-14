@@ -1,0 +1,21 @@
+{
+  "exact": false,
+  "input_shape": [
+    2,
+    3,
+    5,
+    7
+  ],
+  "operators": [
+    "Transpose",
+    "MatMul",
+    "Softmax",
+    "MatMul"
+  ],
+  "output_shape": [
+    2,
+    3,
+    5,
+    7
+  ]
+}

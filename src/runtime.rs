@@ -1,4 +1,4 @@
-//! Safe, serial, unfused scalar execution of the shipped CLS, DET and tiny REC networks.
+//! Safe, serial, unfused scalar execution of the shipped CLS, DET and REC networks.
 //!
 //! Models and compiled instructions are immutable and shareable. Each session
 //! binds concrete shapes and owns reusable activation buffers. This deliberately
@@ -75,6 +75,9 @@ enum Op {
     Add,
     Mul,
     Div,
+    Sub,
+    Square,
+    Sqrt,
     Relu,
     Erf,
     Sigmoid,
@@ -98,6 +101,7 @@ enum Op {
     Transpose {
         permutation: Vec<i64>,
     },
+    Slice(shapes::SliceParameters),
     Concat {
         axis: i64,
     },
@@ -221,6 +225,11 @@ fn node_error(index: usize, node: &Node, message: impl fmt::Display) -> RuntimeE
     ))
 }
 fn integer_values(data: &TensorData) -> RuntimeResult<Vec<i64>> {
+    if data.shape().element_count() > crate::tensor::MAX_RANK {
+        return Err(RuntimeError::new(
+            "integer parameter exceeds rank-eight vector limit",
+        ));
+    }
     match data {
         TensorData::I64(t) => Ok(t.data().to_vec()),
         TensorData::I32(t) => Ok(t.data().iter().map(|&v| i64::from(v)).collect()),
@@ -270,7 +279,8 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
     let kind = match (&*node.op_type, &node.attributes) {
         ("Add", EffectiveAttributes::None)
         | ("Mul", EffectiveAttributes::None)
-        | ("Div", EffectiveAttributes::None) => {
+        | ("Div", EffectiveAttributes::None)
+        | ("Sub", EffectiveAttributes::None) => {
             require_inputs(2)?;
             if graph.tensors[b.unwrap().0].dtype != DType::F32 {
                 return Err(fail("second data input must be F32"));
@@ -278,8 +288,20 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             match node.op_type.as_str() {
                 "Add" => Op::Add,
                 "Mul" => Op::Mul,
-                _ => Op::Div,
+                "Div" => Op::Div,
+                _ => Op::Sub,
             }
+        }
+        ("Pow", EffectiveAttributes::None) => {
+            require_inputs(2)?;
+            match &graph.tensors[b.unwrap().0].constant {
+                Some(TensorData::F32(t)) if t.data() == [2.0] => Op::Square,
+                _ => return Err(fail("Pow supports constant scalar exponent two only")),
+            }
+        }
+        ("Sqrt", EffectiveAttributes::None) => {
+            require_inputs(1)?;
+            Op::Sqrt
         }
         ("Relu", EffectiveAttributes::None) => {
             require_inputs(1)?;
@@ -481,8 +503,37 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
         }
         ("MatMul", EffectiveAttributes::None) => {
             require_inputs(2)?;
-            constant_f32(b)?;
+            if graph.tensors[b.unwrap().0].dtype != DType::F32 {
+                return Err(fail("MatMul second data input must be F32"));
+            }
             Op::MatMul
+        }
+        ("Slice", EffectiveAttributes::Slice(attributes)) => {
+            if !(3..=5).contains(&node.inputs.len()) || !attributes.is_empty() {
+                return Err(fail("Slice requires constant input-form parameters"));
+            }
+            let parameter = |slot: usize| -> RuntimeResult<Option<Vec<i64>>> {
+                node.inputs
+                    .get(slot)
+                    .copied()
+                    .flatten()
+                    .map(|id| {
+                        let data = graph.tensors[id.0].constant.as_ref().ok_or_else(|| {
+                            fail("Slice parameters must be constant integer vectors")
+                        })?;
+                        if data.dimensions().len() != 1 {
+                            return Err(fail("Slice parameters must have rank one"));
+                        }
+                        integer_values(data)
+                    })
+                    .transpose()
+            };
+            Op::Slice(shapes::SliceParameters::new(
+                parameter(1)?.ok_or_else(|| fail("Slice is missing starts"))?,
+                parameter(2)?.ok_or_else(|| fail("Slice is missing ends"))?,
+                parameter(3)?,
+                parameter(4)?,
+            )?)
         }
         ("Softmax", EffectiveAttributes::Axis(axis)) => {
             require_inputs(1)?;
@@ -1053,7 +1104,7 @@ fn bind_into(
         let bias = instruction.inputs.get(2).and_then(|id| resolved[id.0]);
         let result = (|| -> RuntimeResult<(Shape, BoundKind)> {
             match &instruction.kind {
-                Op::Add | Op::Mul | Op::Div => {
+                Op::Add | Op::Mul | Op::Div | Op::Sub => {
                     let b = b.ok_or_else(|| RuntimeError::new("unresolved binary input shape"))?;
                     let output = a.broadcast(b)?;
                     Ok((
@@ -1063,11 +1114,14 @@ fn bind_into(
                             match instruction.kind {
                                 Op::Add => kernels::BinaryOp::Add,
                                 Op::Mul => kernels::BinaryOp::Mul,
-                                _ => kernels::BinaryOp::Div,
+                                Op::Div => kernels::BinaryOp::Div,
+                                _ => kernels::BinaryOp::Sub,
                             },
                         ),
                     ))
                 }
+                Op::Square => Ok((a.broadcast(b.unwrap())?, BoundKind::Square)),
+                Op::Sqrt => Ok((a, BoundKind::Sqrt)),
                 Op::Relu => Ok((a, BoundKind::Relu)),
                 Op::Erf => Ok((a, BoundKind::Erf)),
                 Op::Sigmoid => Ok((a, BoundKind::Sigmoid)),
@@ -1088,6 +1142,7 @@ fn bind_into(
                 Op::Squeeze { axes } => Ok((shapes::squeeze(a, axes)?, BoundKind::Copy)),
                 Op::Unsqueeze { axes } => Ok((shapes::unsqueeze(a, axes)?, BoundKind::Copy)),
                 Op::Transpose { permutation } => kernels::bind_transpose(a, permutation),
+                Op::Slice(parameters) => kernels::bind_slice(a, parameters),
                 Op::Concat { axis } => kernels::bind_concat(&instruction.inputs, resolved, *axis),
                 Op::Resize { factor } => kernels::bind_resize(a, *factor),
                 Op::ReduceMean {
@@ -1109,30 +1164,7 @@ fn bind_into(
                     };
                     Ok((shapes::reshape(a, values, *allowzero)?, BoundKind::Copy))
                 }
-                Op::MatMul => {
-                    let b = b.unwrap();
-                    if a.rank() < 2 || b.rank() != 2 {
-                        return Err(RuntimeError::new(
-                            "MatMul requires rank-at-least-two data and rank-two weights",
-                        ));
-                    }
-                    let ad = a.dimensions();
-                    let bd = b.dimensions();
-                    if ad[a.rank() - 1] != bd[0] {
-                        return Err(RuntimeError::new("MatMul inner dimensions differ"));
-                    }
-                    let mut dimensions = [0; crate::tensor::MAX_RANK];
-                    dimensions[..a.rank()].copy_from_slice(ad);
-                    dimensions[a.rank() - 1] = bd[1];
-                    Ok((
-                        Shape::new(&dimensions[..a.rank()])?,
-                        BoundKind::MatMul {
-                            rows: a.element_count() / bd[0],
-                            inner: bd[0],
-                            columns: bd[1],
-                        },
-                    ))
-                }
+                Op::MatMul => kernels::bind_matmul(a, b.unwrap()),
                 Op::Softmax { axis } => {
                     let axis = shapes::axis(*axis, a.rank())?;
                     if a.rank() < 2 || axis != a.rank() - 1 {

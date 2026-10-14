@@ -1,10 +1,15 @@
 # simd-paddle-ocr-rs
 
-The Rust rewrite includes checked tensors, streaming ONNX import, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes tiny, small, and medium DET, shared CLS, and tiny REC. The complete tiny pipeline accepts interleaved pixels and returns ordered text, quadrilateral boxes, scores, rotations, and optional CTC spans. Execution uses safe serial F32/NCHW kernels, reusable shape/activation/output workspaces, and synchronous tracing. Small/medium recognition and explicit SIMD are later milestones.
+The Rust rewrite includes checked tensors, streaming ONNX import, graph normalization, and a reproducible reference harness. All seven shipped models retain exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes tiny, small, and medium DET/REC and shared CLS. Each complete pipeline accepts interleaved pixels and returns ordered text, quadrilateral boxes, scores, rotations, and optional CTC spans. Execution uses safe serial F32/NCHW kernels, reusable shape/activation/output workspaces, and synchronous tracing. Explicit SIMD, threading and GPU execution remain later milestones.
+
+[All-model inference](docs/all-model-inference.md) describes model selection, replay,
+attention/shape contracts, memory limits and optional production-path profiling.
+Required Windows/Linux CI acquires hash-pinned complete native fixtures from
+versioned releases and checks REC/OCR parity and warmed allocations for every family.
 
 The library and Rust commands require the pinned Rust 1.97.1 toolchain. Reference export and paired C# benchmarks additionally require the .NET 10 SDK, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
 
-## Complete tiny OCR and recognition
+## Complete OCR and recognition
 
 ```powershell
 ./tools/export-reference.ps1 -Nodes all -MaxTracedLines 0 -Out reference-bundles/tiny-ocr-new
@@ -16,9 +21,10 @@ cargo run --release --locked --offline -- compare-ocr reference-bundles/tiny-ocr
 
 [Recognition APIs and numerical/memory contracts](docs/rec-inference.md) document
 the prefix-only compact vocabulary head and separate dense/public score paths.
-[Complete tiny OCR](docs/tiny-ocr.md) documents borrowed/owned results, tracing,
-strict complete comparison and the optional local Windows/Linux gates. Large
-REC/OCR trace archives stay local; supply them and pass `--include-local` to
+[Complete tiny OCR](docs/tiny-ocr.md) records the earlier tiny milestone and its
+borrowed/owned results and tracing contracts. Complete compact REC/OCR checks are
+now mandatory in remote Windows/Linux CI for every family. Expanded REC/OCR
+trace archives stay local; supply them and pass `--include-local` to
 `prepare-step12-fixtures.py` for the [full reference checks](tests/fixtures/step12/README.md).
 Normal tests and CI verify the committed independent native preprocessing/operator
 goldens. The core accepts raw pixels; callers retain image-decoding responsibility.
@@ -166,7 +172,7 @@ CPU and canonical bundles have different contracts and cannot be compared direct
 
 ## Compare a Rust candidate
 
-The tiny OCR implementation writes the same schema from frozen pixels/models
+The OCR implementation writes the same schema from frozen pixels/models
 using `run-ocr`. Use `compare-ocr` for strict complete coverage. The generic
 comparator remains available for schema-level comparisons:
 

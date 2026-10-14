@@ -24,12 +24,14 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--export-geometry") return GeometryFixtures.Export(args[1..]);
             if (args.Length > 0 && args[0] == "--export-rec-fixtures") return RecFixtures.Export(args[1..]);
             if (args.Length > 0 && args[0] == "--export-rec-ops") return RecFixtures.ExportOperators(args[1..]);
+            if (args.Length > 0 && args[0] == "--export-scalar-rec-ops") return RecFixtures.ExportScalarOperators(args[1..]);
             if (args.Length == 1 && args[0] == "--verify-rec-contracts")
                 return RecContractTests.Run((dense, compact, contentWidth, tensorWidth, timeSteps, location) =>
                     VerifyRecognitionStructure(dense, compact, new(contentWidth, tensorWidth, timeSteps), location));
+            if (args.Length == 1 && args[0] == "--verify-export-contracts") return ExportContractTests.Run();
             if (args.Length == 0 || args.Contains("--help"))
             {
-                Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -ReplayBundle <frozen-bundle>] [-CaptureScope ocr|step12] [-DetectorModel tiny|small|medium] [-FixtureSet default|compact|expanded] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
+                Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -InputBundle <verified-frozen-pixels> | -ReplayBundle <same-model-frozen-contract>] [-CaptureScope ocr|step12] [-Model tiny|small|medium] [-DetectorModel tiny|small|medium for step12] [-FixtureSet default|compact|expanded] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
                 return args.Length == 0 ? 2 : 0;
             }
             Settings settings = Settings.Parse(args);
@@ -61,19 +63,21 @@ internal static class Program
 
         List<Fixture> fixtures = LoadFixtures(settings);
         BundleWriter writer = new(settings.Output);
-        string modelsDirectory = Path.Combine(settings.Replay ?? settings.ReferenceRepo, "models");
-        if (settings.Replay is not null) ValidateReplayModels(settings.Replay);
-        ModelAsset[] assets =
-        [
-            writer.CopyModel("det", Path.Combine(modelsDirectory, "det.onnx"), "models/det.onnx"),
-            writer.CopyModel("cls", Path.Combine(modelsDirectory, "cls.onnx"), "models/cls.onnx"),
-            writer.CopyModel("rec", Path.Combine(modelsDirectory, "rec.onnx"), "models/rec.onnx"),
-            writer.CopyModel("dictionary", Path.Combine(modelsDirectory, "ppocr_keys.txt"), "models/ppocr_keys.txt")
-        ];
+        ModelPreset preset = ModelPreset.For(settings.Model);
+        Dictionary<string, string> sources = settings.Replay is not null
+            ? ReplayModels(settings.Replay, settings.Model)
+            : new() { ["det"] = Path.Combine(settings.ReferenceRepo, "models", preset.DetectorFile),
+                ["cls"] = Path.Combine(settings.ReferenceRepo, "models", "cls.onnx"),
+                ["rec"] = Path.Combine(settings.ReferenceRepo, "models", preset.RecognizerFile),
+                ["dictionary"] = Path.Combine(settings.ReferenceRepo, "models", preset.DictionaryFile) };
+        ModelAsset[] assets = [writer.CopyModel("det", sources["det"], "models/det.onnx"),
+            writer.CopyModel("cls", sources["cls"], "models/cls.onnx"),
+            writer.CopyModel("rec", sources["rec"], "models/rec.onnx"),
+            writer.CopyModel("dictionary", sources["dictionary"], "models/" + preset.DictionaryFile)];
         object provenance = Provenance.Capture(settings.ReferenceRepo, settings.ExporterSource, writer.RootPath);
-        byte[] dictionary = File.ReadAllBytes(Path.Combine(writer.RootPath, "models", "ppocr_keys.txt"));
+        byte[] dictionary = File.ReadAllBytes(Path.Combine(writer.RootPath, "models", preset.DictionaryFile));
         string[] labels = ReadLabels(dictionary);
-        PaddleOcrOptions options = Options();
+        PaddleOcrOptions options = settings.EffectiveOptions();
         Stopwatch load = Stopwatch.StartNew();
         Dictionary<string, ModelInspectionSnapshot> inspected = [];
         Model Load(string id)
@@ -84,6 +88,12 @@ internal static class Program
         using Model det = Load("det");
         using Model cls = Load("cls");
         using Model rec = Load("rec");
+        using (InferenceSession shapeProbe = new(rec, [1, 3, 48, options.Recognizer.AdaptiveWidth ? 32 : options.Recognizer.TargetWidth], 1))
+        {
+            int[] dimensions = shapeProbe.OutputShape.Dimensions.ToArray();
+            if (dimensions.Length != 3 || dimensions[0] != 1 || dimensions[2] != labels.Length + 2)
+                throw new InvalidDataException("Selected REC model vocabulary does not match the dictionary.");
+        }
         using PaddleOcrAll pipeline = new(det, cls, rec, dictionary, options);
         load.Stop();
         long loadedWorkingSet = WorkingSet();
@@ -142,7 +152,7 @@ internal static class Program
                 artifacts.Add(writer.WriteBytes("input.encoded", $"{directory}/source{fixture.Extension}", fixture.Encoded, [fixture.Encoded.Length], "encoded_image"));
             artifacts.Add(writer.WriteBytes("input.pixels", $"{directory}/input.bgr.bin", fixture.Pixels, [fixture.Height, fixture.Stride], "bgr24_rows"));
 
-            PaddleOcrDetectionBox[] boxes = CaptureDetector(writer, artifacts, directory, fixture, det, settings);
+            PaddleOcrDetectionBox[] boxes = CaptureDetector(writer, artifacts, directory, fixture, det, settings, options.Detector);
             PaddleOcrResult result = publicResults[i];
             if (boxes.Length != result.Lines.Length || boxes.Where((box, line) => box != result.Lines[line].Box).Any())
                 throw new InvalidDataException($"Diagnostic detector differs from public pipeline for {fixture.Id}; baseline was not completed.");
@@ -197,7 +207,7 @@ internal static class Program
             schemaVersion = 1,
             contract = new
             {
-                model = "tiny", captureScope = "ocr", inputOrigin = "frozen_bgr_pixels",
+                model = settings.Model, captureScope = "ocr", inputOrigin = "frozen_bgr_pixels",
                 inventorySemantics = "lineage_keys_v1", profile = settings.Profile, backend = "cpu", pixelFormat = "bgr24",
                 options, logicalInputLayout = "nchw", tensorEncoding = "ieee754_f32_little_endian",
                 decoder = "SixLabors.ImageSharp 3.1.11; replay consumes frozen BGR bytes without decoding",
@@ -228,7 +238,7 @@ internal static class Program
                 pixels.AsSpan(y * stride, width * 3).CopyTo(padded.AsSpan(y * paddedWidth * 3));
             pixels = padded; width = paddedWidth; height = paddedHeight; stride = width * 3;
         }
-        var options = detectorOptions ?? Options().Detector;
+        var options = detectorOptions ?? settings.EffectiveOptions().Detector;
         var size = PPOCRPreprocess.ComputeDetSize(width, height, options.LimitSideLength);
         float[] input = new float[checked(3 * size.Width * size.Height)];
         PPOCRPreprocess.Det(pixels, width, height, stride, size.Width, size.Height, input);
@@ -268,7 +278,8 @@ internal static class Program
         string stage, byte[] crop, int width, int height, Model model, string[] labels, Settings settings, out RecognitionDimensions dimensions)
     {
         long natural = ((long)48 * width + height - 1) / height;
-        int tensorWidth = checked((int)Math.Max(32, ((natural + 31) / 32) * 32));
+        PaddleOcrRecognizerOptions options = settings.EffectiveOptions().Recognizer;
+        int tensorWidth = options.AdaptiveWidth ? checked((int)Math.Max(32, ((natural + 31) / 32) * 32)) : options.TargetWidth;
         float[] input = new float[checked(3 * 48 * tensorWidth)];
         int contentWidth = PPOCRPreprocess.Rec(crop, width, height, width * 3, tensorWidth, input);
         if (contentWidth != Math.Min(natural, tensorWidth))
@@ -360,11 +371,11 @@ internal static class Program
         points = new[] { new[] { box.X1, box.Y1 }, new[] { box.X2, box.Y2 }, new[] { box.X3, box.Y3 }, new[] { box.X4, box.Y4 } }, box.Score
     };
 
-    private static PaddleOcrOptions Options() => new()
+    internal static PaddleOcrOptions Options(string model = "tiny") => new()
     {
         LineWorkerCount = 1, DetIntraOpThreads = 1, PreprocessWorkerCount = 1,
         GpuCtcIntraOpThreads = 1, RecBatchLines = 1, UseDirectionClassification = true, ClassifierThreshold = 0,
-        Detector = new() { Backend = OcrBackend.Cpu, BoxThreshold = 0.4f, MaxPooledSessions = 1 },
+        Detector = new() { Backend = OcrBackend.Cpu, BoxThreshold = ModelPreset.For(model).BoxThreshold, MaxPooledSessions = 1 },
         Classifier = new() { Backend = OcrBackend.Cpu, MaxPooledSessions = 1 },
         Recognizer = new() { Backend = OcrBackend.Cpu, AdaptiveWidth = true, TargetWidth = 320, MaxPooledSessions = 1 }
     };
@@ -381,6 +392,7 @@ internal static class Program
     internal static List<Fixture> LoadFixtures(Settings settings)
     {
         if (settings.Replay is not null) return ReplayFixtures(settings.Replay);
+        if (settings.InputBundle is not null) return ReplayFixtures(settings.InputBundle, true);
         if (settings.Input is null)
         {
             Fixture sample = Decode(Path.Combine(settings.ReferenceRepo, "examples", "sample.jpg"), "sample");
@@ -404,27 +416,38 @@ internal static class Program
         return files.Select((path, index) => Decode(path, $"image-{index:D3}")).ToList();
     }
 
-    private static List<Fixture> ReplayFixtures(string root)
+    private static List<Fixture> ReplayFixtures(string root, bool requireOcr = false)
     {
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(root, "manifest.json")));
         if (manifest.RootElement.GetProperty("schema_version").GetInt32() != 1)
             throw new InvalidDataException("Unsupported replay bundle schema.");
+        ValidateBundleFiles(root, manifest.RootElement);
+        JsonElement contract = manifest.RootElement.GetProperty("contract");
+        string caseKind = contract.TryGetProperty("capture_scope", out JsonElement scope) && scope.GetString() == "step12" ? "step12" : "ocr";
+        if (requireOcr && caseKind != "ocr") throw new InvalidDataException("InputBundle requires full OCR frozen source pixels.");
+        _ = ModelPreset.For(contract.GetProperty("model").GetString()!);
         List<Fixture> fixtures = [];
         HashSet<string> ids = [];
         foreach (JsonElement item in manifest.RootElement.GetProperty("cases").EnumerateArray())
         {
             string id = item.GetProperty("id").GetString()!;
             BundleWriter.NormalizeRelativePath(id);
-            if (id.Contains('/') || !ids.Add(id) || item.GetProperty("kind").GetString() != "ocr")
-                throw new InvalidDataException("Replay requires unique OCR case IDs.");
+            if (id.Contains('/') || !ids.Add(id) || item.GetProperty("kind").GetString() != caseKind)
+                throw new InvalidDataException("Replay requires unique case IDs matching the capture scope.");
             JsonElement[] artifacts = item.GetProperty("artifacts").EnumerateArray().ToArray();
             JsonElement metadata = artifacts.Single(artifact => artifact.GetProperty("id").GetString() == "input.metadata");
+            if (metadata.GetProperty("dtype").GetString() != "json" || metadata.GetProperty("layout").GetString() != "json" || metadata.GetProperty("shape").GetArrayLength() != 0)
+                throw new InvalidDataException("Replay source metadata must be a scalar JSON artifact.");
             using JsonDocument input = JsonDocument.Parse(ReadBundleFile(root, metadata));
             JsonElement fields = input.RootElement;
             if (fields.GetProperty("pixel_format").GetString() != "bgr24")
                 throw new InvalidDataException("Replay requires BGR24 input.");
             int width = fields.GetProperty("width").GetInt32(), height = fields.GetProperty("height").GetInt32(), stride = fields.GetProperty("stride").GetInt32();
-            byte[] pixels = ReadBundleFile(root, artifacts.Single(artifact => artifact.GetProperty("id").GetString() == "input.pixels"));
+            JsonElement pixelArtifact = artifacts.Single(artifact => artifact.GetProperty("id").GetString() == "input.pixels");
+            if (pixelArtifact.GetProperty("dtype").GetString() != "u8" || pixelArtifact.GetProperty("layout").GetString() != "bgr24_rows" ||
+                !pixelArtifact.GetProperty("shape").EnumerateArray().Select(value => value.GetInt32()).SequenceEqual(new[] { height, stride }))
+                throw new InvalidDataException("Replay source pixel dtype, shape or layout differs from metadata.");
+            byte[] pixels = ReadBundleFile(root, pixelArtifact);
             if (width <= 0 || height <= 0 || stride < checked(width * 3) || pixels.Length != checked(height * stride))
                 throw new InvalidDataException($"Invalid replay pixel buffer for {id}.");
             JsonElement encoded = artifacts.FirstOrDefault(artifact => artifact.GetProperty("id").GetString() == "input.encoded");
@@ -436,16 +459,21 @@ internal static class Program
         return fixtures;
     }
 
-    private static void ValidateReplayModels(string root)
+    private static Dictionary<string, string> ReplayModels(string root, string model)
     {
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(root, "manifest.json")));
         JsonElement[] models = manifest.RootElement.GetProperty("models").EnumerateArray().ToArray();
-        foreach ((string id, string path) in new[] { ("det", "models/det.onnx"), ("cls", "models/cls.onnx"), ("rec", "models/rec.onnx"), ("dictionary", "models/ppocr_keys.txt") })
+        if (manifest.RootElement.GetProperty("contract").GetProperty("model").GetString() != model)
+            throw new InvalidDataException("Replay model conflicts with the frozen contract; use --input-bundle for frozen input reuse.");
+        if (models.Length != 4) throw new InvalidDataException("OCR replay requires exactly DET, CLS, REC and dictionary assets.");
+        Dictionary<string, string> paths = [];
+        foreach (string id in new[] { "det", "cls", "rec", "dictionary" })
         {
             JsonElement asset = models.Single(model => model.GetProperty("id").GetString() == id);
-            if (asset.GetProperty("path").GetString() != path) throw new InvalidDataException($"Unexpected replay model path for {id}.");
             _ = ReadBundleFile(root, asset);
+            paths.Add(id, BundleWriter.DestinationPath(root, asset.GetProperty("path").GetString()!));
         }
+        return paths;
     }
 
     internal static byte[] ReadBundleFile(string root, JsonElement descriptor)
@@ -455,6 +483,41 @@ internal static class Program
         if (bytes.LongLength != descriptor.GetProperty("bytes").GetInt64() || HexHash(bytes) != descriptor.GetProperty("sha256").GetString())
             throw new InvalidDataException($"Corrupted replay input/model: {descriptor.GetProperty("path").GetString()}");
         return bytes;
+    }
+
+    internal static void ValidateBundleFiles(string root, JsonElement manifest)
+    {
+        if (manifest.GetProperty("schema_version").GetInt32() != 1) throw new InvalidDataException("Unsupported bundle schema.");
+        foreach (JsonElement asset in manifest.GetProperty("models").EnumerateArray()) _ = ReadBundleFile(root, asset);
+        if (manifest.TryGetProperty("auxiliary_files", out JsonElement files))
+            foreach (JsonElement file in files.EnumerateArray()) _ = ReadBundleFile(root, file);
+        foreach (JsonElement item in manifest.GetProperty("cases").EnumerateArray())
+            foreach (JsonElement artifact in item.GetProperty("artifacts").EnumerateArray()) _ = ReadBundleFile(root, artifact);
+    }
+
+    internal static PaddleOcrOptions ReadOptions(JsonElement contract)
+    {
+        JsonElement configured = contract.GetProperty("options");
+        foreach (string field in new[] { "use_direction_classification", "classifier_threshold", "line_worker_count", "det_intra_op_threads",
+            "preprocess_worker_count", "gpu_ctc_intra_op_threads", "rec_batch_lines", "max_crop_pixels", "detector", "classifier", "recognizer" })
+            _ = configured.GetProperty(field);
+        foreach (string field in new[] { "backend", "limit_side_length", "max_candidates", "bitmap_threshold", "box_threshold", "unclip_ratio", "use_dilation", "max_image_pixels", "max_pooled_sessions" })
+            _ = configured.GetProperty("detector").GetProperty(field);
+        foreach (string field in new[] { "backend", "max_image_pixels", "max_pooled_sessions" }) _ = configured.GetProperty("classifier").GetProperty(field);
+        foreach (string field in new[] { "backend", "adaptive_width", "target_width", "max_image_pixels", "max_pooled_sessions" }) _ = configured.GetProperty("recognizer").GetProperty(field);
+        PaddleOcrOptions options = configured.Deserialize<PaddleOcrOptions>(BundleWriter.JsonOptions) ?? throw new InvalidDataException("Missing OCR options.");
+        if (options.LineWorkerCount != 1 || options.DetIntraOpThreads != 1 || options.PreprocessWorkerCount != 1 ||
+            options.GpuCtcIntraOpThreads != 1 || options.RecBatchLines != 1 || !options.UseDirectionClassification ||
+            options.Detector.Backend != OcrBackend.Cpu || options.Classifier.Backend != OcrBackend.Cpu || options.Recognizer.Backend != OcrBackend.Cpu ||
+            options.Detector.MaxPooledSessions != 1 || options.Classifier.MaxPooledSessions != 1 || options.Recognizer.MaxPooledSessions != 1 ||
+            options.MaxCropPixels <= 0 || options.Detector.MaxImagePixels <= 0 || options.Classifier.MaxImagePixels <= 0 || options.Recognizer.MaxImagePixels <= 0 ||
+            options.Detector.LimitSideLength <= 0 || options.Detector.MaxCandidates <= 0 || options.Recognizer.TargetWidth <= 0 ||
+            !float.IsFinite(options.ClassifierThreshold) || options.ClassifierThreshold < 0 || options.ClassifierThreshold > 1 ||
+            !float.IsFinite(options.Detector.BitmapThreshold) || options.Detector.BitmapThreshold < 0 || options.Detector.BitmapThreshold > 1 ||
+            !float.IsFinite(options.Detector.BoxThreshold) || options.Detector.BoxThreshold < 0 || options.Detector.BoxThreshold > 1 ||
+            !float.IsFinite(options.Detector.UnclipRatio) || options.Detector.UnclipRatio <= 0)
+            throw new InvalidDataException("Frozen OCR options must describe valid single-worker CPU execution.");
+        return options;
     }
 
     private static Fixture Decode(string path, string id)
@@ -483,14 +546,24 @@ internal static class Program
     }
 
     internal sealed record Fixture(string Id, byte[] Pixels, int Width, int Height, int Stride, string Origin, byte[]? Encoded, string Extension);
+    internal sealed record ModelPreset(string Family, string DetectorFile, string RecognizerFile, string DictionaryFile, float BoxThreshold)
+    {
+        public static ModelPreset For(string family) => family switch
+        {
+            "tiny" => new(family, "det.onnx", "rec.onnx", "ppocr_keys.txt", .4f),
+            "small" or "medium" => new(family, family + "_det.onnx", family + "_rec.onnx", "rec_keys.txt", .45f),
+            _ => throw new ArgumentException("Model must be tiny, small or medium.")
+        };
+    }
     internal sealed record Settings(string ReferenceRepo, string Output, string ExporterSource, string? Input, string? Replay,
         string Profile, string Nodes, int MaxTracedLines, int Count, int Warmup, int Repeat,
-        string CaptureScope, string DetectorModel, string FixtureSet)
+        string CaptureScope, string DetectorModel, string FixtureSet, string Model, string? InputBundle, JsonElement? ReplayContract)
     {
+        public PaddleOcrOptions EffectiveOptions() => ReplayContract is JsonElement contract && CaptureScope == "ocr" ? ReadOptions(contract) : Options(Model);
         public static Settings Parse(string[] args)
         {
             Dictionary<string, string> values = [];
-            HashSet<string> known = ["--reference-repo", "--out", "--exporter-source", "--input", "--replay", "--profile", "--nodes", "--max-traced-lines", "--count", "--warmup", "--repeat", "--capture-scope", "--detector-model", "--fixture-set"];
+            HashSet<string> known = ["--reference-repo", "--out", "--exporter-source", "--input", "--input-bundle", "--replay", "--profile", "--nodes", "--max-traced-lines", "--count", "--warmup", "--repeat", "--capture-scope", "--model", "--detector-model", "--fixture-set"];
             for (int i = 0; i < args.Length; i++)
             {
                 string name = args[i];
@@ -501,20 +574,45 @@ internal static class Program
             int Number(string name, int fallback, int minimum) =>
                 int.TryParse(values.GetValueOrDefault(name, fallback.ToString()), out int value) && value >= minimum
                     ? value : throw new ArgumentException($"{name} must be an integer >= {minimum}");
+            JsonElement? replayContract = null;
+            if (values.TryGetValue("--replay", out string? replayRoot))
+            {
+                using JsonDocument replayDocument = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(replayRoot, "manifest.json")));
+                replayContract = replayDocument.RootElement.GetProperty("contract").Clone();
+                JsonElement frozen = replayContract.Value;
+                foreach ((string arg, string field) in new[] { ("--capture-scope", "capture_scope"), ("--model", "model") })
+                    if (frozen.TryGetProperty(field, out JsonElement value))
+                    {
+                        if (values.TryGetValue(arg, out string? supplied) && supplied != value.GetString()) throw new ArgumentException($"{arg} conflicts with the replay contract; use --input-bundle for input-only reuse.");
+                        values[arg] = value.GetString()!;
+                    }
+                if (frozen.TryGetProperty("capture_scope", out JsonElement scopeField) && scopeField.GetString() == "step12")
+                {
+                    string frozenModel = frozen.GetProperty("model").GetString()!;
+                    if (values.TryGetValue("--detector-model", out string? supplied) && supplied != frozenModel) throw new ArgumentException("--detector-model conflicts with replay contract.");
+                    values["--detector-model"] = frozenModel;
+                }
+                foreach ((string arg, string field) in new[] { ("--profile", "profile"), ("--nodes", "nodes"), ("--max-traced-lines", "max_traced_lines") })
+                    if (!values.ContainsKey(arg) && frozen.TryGetProperty(field, out JsonElement value)) values[arg] = value.ToString();
+            }
             string profile = values.GetValueOrDefault("--profile", "canonical"), nodes = values.GetValueOrDefault("--nodes", "checkpoints");
             if (profile is not ("canonical" or "cpu") || nodes is not ("checkpoints" or "all"))
                 throw new ArgumentException("Invalid --profile or --nodes.");
-            if (values.ContainsKey("--input") && values.ContainsKey("--replay")) throw new ArgumentException("Choose --input or --replay.");
+            if (new[] { "--input", "--input-bundle", "--replay" }.Count(values.ContainsKey) > 1) throw new ArgumentException("Choose --input, --input-bundle or --replay.");
             string scope = values.GetValueOrDefault("--capture-scope", "ocr"), detector = values.GetValueOrDefault("--detector-model", "tiny"), fixtureSet = values.GetValueOrDefault("--fixture-set", "default");
             if (scope is not ("ocr" or "step12") || detector is not ("tiny" or "small" or "medium") || fixtureSet is not ("default" or "compact" or "expanded"))
                 throw new ArgumentException("Invalid capture scope, detector model or fixture set.");
-            if (scope == "ocr" && (detector != "tiny" || fixtureSet != "default")) throw new ArgumentException("Detector model and fixture set selection require step12 scope.");
-            if (fixtureSet != "default" && (values.ContainsKey("--input") || values.ContainsKey("--replay"))) throw new ArgumentException("Fixture set cannot be combined with input/replay.");
+            if (scope == "ocr" && (detector != "tiny" || fixtureSet != "default")) throw new ArgumentException("DetectorModel and FixtureSet require step12 scope; use Model for OCR.");
+            if (scope == "step12" && values.ContainsKey("--input-bundle")) throw new ArgumentException("InputBundle is supported for full OCR captures.");
+            if (fixtureSet != "default" && (values.ContainsKey("--input") || values.ContainsKey("--replay") || values.ContainsKey("--input-bundle"))) throw new ArgumentException("Fixture set cannot be combined with input/replay.");
             if (scope == "step12" && profile != "canonical") throw new ArgumentException("Step12 references require the canonical profile.");
+            string model = values.GetValueOrDefault("--model", "tiny");
+            _ = ModelPreset.For(model);
             return new(Path.GetFullPath(Required("--reference-repo")), Path.GetFullPath(Required("--out")),
                 Path.GetFullPath(Required("--exporter-source")), values.TryGetValue("--input", out string? input) ? Path.GetFullPath(input) : null,
                 values.TryGetValue("--replay", out string? replay) ? Path.GetFullPath(replay) : null,
-                profile, nodes, scope == "step12" ? 0 : Number("--max-traced-lines", 3, 0), Number("--count", 20, 1), Number("--warmup", 1, 0), Number("--repeat", 3, 1), scope, detector, fixtureSet);
+                profile, nodes, scope == "step12" ? 0 : Number("--max-traced-lines", 3, 0), Number("--count", 20, 1), Number("--warmup", 1, 0), Number("--repeat", 3, 1), scope, detector, fixtureSet, model,
+                values.TryGetValue("--input-bundle", out string? inputBundle) ? Path.GetFullPath(inputBundle) : null, replayContract);
         }
     }
 }

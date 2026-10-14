@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory=$true)][string]$Reference,
     [Parameter(Mandatory=$true)][string]$Out,
     [string]$ReferenceRepo=(Join-Path $PSScriptRoot '../../SimdPaddleOCR'),
-    [ValidateSet('rec_graph','rec_public_owned','rec_public_borrowed','ocr_owned','ocr_borrowed','mixed_widths','owned_copies','node_profile')][string[]]$Modes=@('rec_graph','rec_public_owned','rec_public_borrowed','ocr_owned','ocr_borrowed','mixed_widths','owned_copies'),
+    [ValidateSet('rec_graph','rec_public_owned','rec_public_borrowed','ocr_owned','ocr_borrowed','mixed_widths','owned_copies','node_profile','public_stage_profile')][string[]]$Modes=@('rec_graph','rec_public_owned','rec_public_borrowed','ocr_owned','ocr_borrowed','mixed_widths','owned_copies'),
+    [ValidateSet('canonical','cpu')][string]$CSharpProfile='canonical',
+    [ValidateRange(1,2147483647)][long]$ProcessorAffinityMask=1,
     [string]$Case,
     [ValidateRange(1,100)][int]$Rounds=6,
     [ValidateRange(0,100)][int]$HeapRounds=3,
@@ -14,17 +16,21 @@ $ErrorActionPreference='Stop'
 if(@($Modes | Select-Object -Unique).Count -ne $Modes.Count){throw 'Duplicate benchmark modes are not allowed'}
 $rustRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $bundlePath=(Resolve-Path -LiteralPath $Reference).Path
+$bundleManifest=Get-Content -LiteralPath (Join-Path $bundlePath 'manifest.json') -Raw | ConvertFrom-Json
+if($bundleManifest.contract.profile -ne 'canonical' -or $bundleManifest.contract.model -notin @('tiny','small','medium')){throw 'Requires a shipped-model canonical reference'}
 $referencePath=(Resolve-Path -LiteralPath $ReferenceRepo).Path
 $outputPath=[IO.Path]::GetFullPath($Out)
 if(Test-Path -LiteralPath $outputPath){throw 'Measurement directory exists; choose a new identity.'}
 [IO.Directory]::CreateDirectory($outputPath)|Out-Null
 Push-Location $rustRoot
 try {
-    & cargo build --release --locked --offline --bin ocr-benchmark
+    $profilingArguments=if($Modes -contains 'public_stage_profile'){@('--features','profiling')}else{@()}
+    & cargo build --release --locked --offline --bin ocr-benchmark @profilingArguments
     if($LASTEXITCODE -ne 0){throw 'Timing build failed'}
     $timingExe=Join-Path $outputPath 'ocr-timing.exe'
     Copy-Item -LiteralPath (Join-Path $rustRoot 'target/release/ocr-benchmark.exe') -Destination $timingExe
-    & cargo build --release --locked --offline --bin ocr-benchmark --features heap-profiler
+    $heapFeatures=if($Modes -contains 'public_stage_profile'){'heap-profiler,profiling'}else{'heap-profiler'}
+    & cargo build --release --locked --offline --bin ocr-benchmark --features $heapFeatures
     if($LASTEXITCODE -ne 0){throw 'Heap build failed'}
     $heapExe=Join-Path $outputPath 'ocr-heap.exe'
     Copy-Item -LiteralPath (Join-Path $rustRoot 'target/release/ocr-benchmark.exe') -Destination $heapExe
@@ -40,7 +46,7 @@ $snapshot=Join-Path $outputPath 'csharp'
 Get-ChildItem -LiteralPath $exporterPath -File | ForEach-Object {Copy-Item -LiteralPath $_.FullName -Destination $snapshot}
 $dll=Join-Path $snapshot 'SimdPaddleOCR.ReferenceExport.dll'
 $executables=@($timingExe,$heapExe)+@(Get-ChildItem -LiteralPath $snapshot -File | ForEach-Object {$_.FullName}) | ForEach-Object {[ordered]@{path=[IO.Path]::GetRelativePath($outputPath,$_).Replace('\','/');sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $_).Length}}
-$metadata=[ordered]@{schema_version=1;kind='tiny_ocr_measurement_snapshot';reference=$bundlePath;manifest_sha256=(Get-FileHash -LiteralPath (Join-Path $bundlePath 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant();rounds=$Rounds;heap_rounds=$HeapRounds;warmup=$Warmup;samples=$Repeat;case=$Case;modes=$Modes;rust_git_head=(& git -C $rustRoot rev-parse HEAD);reference_git_head=(& git -C $referencePath rev-parse HEAD);rustc=(& rustc --version);os=[System.Runtime.InteropServices.RuntimeInformation]::OSDescription;architecture=[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString();processor_count=[Environment]::ProcessorCount;executables=$executables;source_files=$sourceFiles}
+$metadata=[ordered]@{schema_version=2;kind='ocr_measurement_snapshot';model_family=$bundleManifest.contract.model;csharp_profile=$CSharpProfile;processor_affinity_mask=$ProcessorAffinityMask;power_plan=(& powercfg /getactivescheme);reference=$bundlePath;manifest_sha256=(Get-FileHash -LiteralPath (Join-Path $bundlePath 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant();rounds=$Rounds;heap_rounds=$HeapRounds;warmup=$Warmup;samples=$Repeat;case=$Case;modes=$Modes;rust_git_head=(& git -C $rustRoot rev-parse HEAD);reference_git_head=(& git -C $referencePath rev-parse HEAD);rustc=(& rustc --version);os=[System.Runtime.InteropServices.RuntimeInformation]::OSDescription;architecture=[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString();processor_count=[Environment]::ProcessorCount;executables=$executables;source_files=$sourceFiles}
 $metadata.rustflags=[Environment]::GetEnvironmentVariable('RUSTFLAGS')
 foreach($file in $sourceFiles){
     $saved=Join-Path (Join-Path $outputPath 'source') $file.path
@@ -51,6 +57,7 @@ foreach($file in $sourceFiles){
 $sourceIdentity=[Text.Encoding]::UTF8.GetBytes((@($sourceFiles|ForEach-Object {"$($_.path)`0$($_.sha256)`n"}) -join ''))
 $metadata.source_sha256=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($sourceIdentity)).ToLowerInvariant()
 $controls=@{DOTNET_PROCESSOR_COUNT='1';DOTNET_EnableHWIntrinsic='0';DOTNET_TieredCompilation='0';DOTNET_TieredPGO='0';PPOCR_NHWC='0';SIMD_OCR_NOFUSE='1';PPOCR_DET_THREADS='1';PPOCR_DUMP_CONV=$null;PPOCR_DUMP_NODES=$null;PPOCR_DUMP_PLAN=$null;PPOCR_DUMP_GRAPH=$null}
+if($CSharpProfile -eq 'cpu'){$controls.DOTNET_EnableHWIntrinsic='1';$controls.DOTNET_TieredCompilation='1';$controls.DOTNET_TieredPGO='1';$controls.PPOCR_NHWC='1';$controls.SIMD_OCR_NOFUSE='0'}
 $metadata.runtime_controls=$controls
 $referenceSources=@(& git -C $referencePath ls-files --cached --others --exclude-standard | Where-Object {$_ -match '\.(cs|csproj|props|targets)$' -or $_ -match '(^|/)(packages.lock|global)\.json$'} | Sort-Object -Unique | ForEach-Object {
     $origin=Join-Path $referencePath $_
@@ -70,11 +77,12 @@ function Invoke-OcrRun([string]$mode,[string]$engine,[int]$round) {
     $exe=if($engine -eq 'csharp'){'dotnet'}elseif($engine -eq 'rust-timing'){$timingExe}else{$heapExe}
     $start=[Diagnostics.ProcessStartInfo]::new($exe);$start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
     foreach($key in $controls.Keys){if($null -eq $controls[$key]){$start.Environment.Remove($key)|Out-Null}else{$start.Environment[$key]=$controls[$key]}}
-    if($engine -eq 'csharp'){$start.ArgumentList.Add($dll);$start.ArgumentList.Add('--benchmark-ocr')}
+    if($engine -eq 'csharp'){$start.ArgumentList.Add($dll);$start.ArgumentList.Add('--benchmark-ocr');$start.ArgumentList.Add('--profile');$start.ArgumentList.Add($CSharpProfile)}
     foreach($arg in @('--reference',$bundlePath,'--mode',$mode,'--warmup',"$Warmup",'--samples',"$Repeat")){$start.ArgumentList.Add($arg)}
     if($Case -and $mode -ne 'mixed_widths'){$start.ArgumentList.Add('--case');$start.ArgumentList.Add($Case)}
     $process=[Diagnostics.Process]::new();$process.StartInfo=$start
     if(-not $process.Start()){throw 'Benchmark process failed to start'}
+    try{$process.ProcessorAffinity=[IntPtr]$ProcessorAffinityMask}catch{if(-not $process.HasExited){$process.Kill()};throw}
     $stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync();$resident=0L
     while(-not $process.WaitForExit(1000)){try{$process.Refresh();$resident=[Math]::Max($resident,$process.WorkingSet64)}catch{}}
     $output=$stdout.GetAwaiter().GetResult();$errorText=$stderr.GetAwaiter().GetResult()
@@ -97,4 +105,4 @@ foreach($mode in $Modes) {
     }
     for($round=1;$round -le $HeapRounds;$round++){Invoke-OcrRun $mode 'rust-heap' $round}
 }
-Write-Host "Saved independently scoped tiny OCR measurements: $outputPath"
+Write-Host "Saved independently scoped OCR measurements: $outputPath"

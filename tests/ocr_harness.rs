@@ -74,6 +74,38 @@ fn complete_tiny_ocr_matches_every_native_stage_and_public_result() {
     assert!(report.matches(), "{report}");
     assert!(run_ocr(&reference, &candidate).is_err());
 }
+
+fn verify_frozen_family_ocr(family: &str, variable: &str) {
+    let reference = std::env::var_os(variable)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("reference-bundles/{family}-ocr-ci-v1"))
+        });
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(reference.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest["contract"]["model"], family);
+    let temp = Temp::new();
+    let candidate = temp.path("candidate");
+    let run = run_ocr(&reference, &candidate).unwrap();
+    assert!(run.processed_cases > 0);
+    assert!(run.processed_lines > 0);
+    let report = compare_ocr(&reference, &candidate, Tolerance::default()).unwrap();
+    assert!(report.matches(), "{report}");
+    assert!(run_ocr(&reference, &candidate).is_err());
+}
+
+#[test]
+#[ignore = "requires a supplied local all-node small OCR reference"]
+fn complete_small_ocr_matches_every_native_stage_and_public_result() {
+    verify_frozen_family_ocr("small", "SIMDOCR_SMALL_OCR_REFERENCE");
+}
+
+#[test]
+#[ignore = "requires a supplied local all-node medium OCR reference"]
+fn complete_medium_ocr_matches_every_native_stage_and_public_result() {
+    verify_frozen_family_ocr("medium", "SIMDOCR_MEDIUM_OCR_REFERENCE");
+}
 #[test]
 #[ignore = "requires fresh semantic tiny OCR reference for completeness corruption tests"]
 fn complete_ocr_rejects_rehashed_omissions_and_out_of_range_lines() {

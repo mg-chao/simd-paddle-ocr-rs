@@ -1,0 +1,24 @@
+{
+  "exact": false,
+  "input_shape": [
+    2,
+    3,
+    7
+  ],
+  "operators": [
+    "ReduceMean",
+    "Sub",
+    "Pow",
+    "ReduceMean",
+    "Add",
+    "Sqrt",
+    "Div",
+    "Mul",
+    "Add"
+  ],
+  "output_shape": [
+    2,
+    3,
+    7
+  ]
+}

@@ -140,6 +140,9 @@ pub struct Model {
     graph: Graph,
     shape_recipes: Vec<ShapeRecipe>,
     shape_metadata: ShapeMetadata,
+    // Runtime bindings resolve original Shape sources without altering the
+    // authoritative raw metadata or normalized inspection contract.
+    shape_data_sources: HashMap<String, TensorId>,
     raw_snapshot: Option<ImportSnapshot>,
     timings: Option<ImportTimings>,
 }
@@ -162,6 +165,9 @@ impl Model {
     }
     pub fn shape_metadata(&self) -> &ShapeMetadata {
         &self.shape_metadata
+    }
+    pub(crate) fn shape_data_source(&self, name: &str) -> Option<TensorId> {
+        self.shape_data_sources.get(name).copied()
     }
     pub fn load_path(path: impl AsRef<Path>) -> Result<Self> {
         Self::load_path_with_options(path, &LoadOptions::default())
@@ -1494,6 +1500,15 @@ fn normalize(
             return Err(error(format!("unresolved graph output {name}")));
         }
     }
+    let mut shape_data_sources = HashMap::new();
+    for node in &shape_metadata.nodes {
+        if node.op_type == "Shape" && node.inputs.len() == 1 {
+            let source = resolve(&node.inputs[0], &aliases)?;
+            if let Some(&id) = index.get(&source) {
+                shape_data_sources.insert(node.inputs[0].clone(), id);
+            }
+        }
+    }
     let graph = Graph {
         tensors,
         nodes: frozen_nodes,
@@ -1507,6 +1522,7 @@ fn normalize(
         graph,
         shape_recipes: recipes,
         shape_metadata,
+        shape_data_sources,
         raw_snapshot: snapshot,
         timings: None,
     })

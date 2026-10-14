@@ -194,7 +194,19 @@ impl OrientedLineExtractor {
         self.options
     }
     pub fn extract(&mut self, image: ImageView<'_>) -> ImageResult<OrientedLines<'_>> {
-        self.extract_impl::<false, _, _>(image, &mut |_| Ok(()), &mut |_| Ok(()))
+        self.extract_impl::<false, false, _, _>(
+            image,
+            &mut |_| Ok(()),
+            &mut |_| Ok(()),
+            &mut crate::profile::StageProfile::default(),
+        )
+    }
+    pub(crate) fn extract_profiled<const PROFILE: bool>(
+        &mut self,
+        image: ImageView<'_>,
+        profile: &mut crate::profile::StageProfile,
+    ) -> ImageResult<OrientedLines<'_>> {
+        self.extract_impl::<false, PROFILE, _, _>(image, &mut |_| Ok(()), &mut |_| Ok(()), profile)
     }
     pub fn extract_with_trace<D, L>(
         &mut self,
@@ -206,13 +218,19 @@ impl OrientedLineExtractor {
         D: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
         L: for<'a> FnMut(LineTrace<'a>) -> ImageResult<()>,
     {
-        self.extract_impl::<true, _, _>(image, &mut det_observer, &mut line_observer)
+        self.extract_impl::<true, false, _, _>(
+            image,
+            &mut det_observer,
+            &mut line_observer,
+            &mut crate::profile::StageProfile::default(),
+        )
     }
-    fn extract_impl<const TRACE: bool, D, L>(
+    fn extract_impl<const TRACE: bool, const PROFILE: bool, D, L>(
         &mut self,
         image: ImageView<'_>,
         det_observer: &mut D,
         line_observer: &mut L,
+        profile: &mut crate::profile::StageProfile,
     ) -> ImageResult<OrientedLines<'_>>
     where
         D: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
@@ -221,8 +239,9 @@ impl OrientedLineExtractor {
         let detection = if TRACE {
             self.detector.detect_with_trace(image, det_observer)?
         } else {
-            self.detector.detect(image)?
+            self.detector.detect_profiled::<PROFILE>(image, profile)?
         };
+        let crop_timer = crate::profile::Timer::<PROFILE>::start();
         self.transforms.clear();
         self.metadata.clear();
         self.transforms
@@ -271,9 +290,13 @@ impl OrientedLineExtractor {
             .try_reserve_exact(total.saturating_sub(self.slab.len()))
             .map_err(|e| ImageError::new(format!("crop slab allocation: {e}")))?;
         self.slab.resize(total, 0);
+        if PROFILE {
+            profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
+        }
         for (index, (metadata, transform)) in
             self.metadata.iter_mut().zip(&self.transforms).enumerate()
         {
+            let crop_timer = crate::profile::Timer::<PROFILE>::start();
             let pixels = &mut self.slab[metadata.offset..metadata.offset + metadata.bytes];
             transform.extract_into(image, pixels)?;
             let crop = ImageView::new(
@@ -286,6 +309,10 @@ impl OrientedLineExtractor {
             if TRACE {
                 line_observer(LineTrace::Crop { index, image: crop })?;
             }
+            if PROFILE {
+                profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
+            }
+            let cls_timer = crate::profile::Timer::<PROFILE>::start();
             if let Some(classifier) = &mut self.classifier {
                 let result = if TRACE {
                     classifier.classify_with_trace(crop, |event| {
@@ -316,6 +343,11 @@ impl OrientedLineExtractor {
                     crop::rotate180(pixels, metadata.width, metadata.height)?;
                     metadata.applied_rotation_degrees = 180;
                 }
+            }
+            if PROFILE {
+                profile.cls_orientation_ns = profile
+                    .cls_orientation_ns
+                    .saturating_add(cls_timer.elapsed());
             }
             if TRACE {
                 line_observer(LineTrace::OrientedCrop {

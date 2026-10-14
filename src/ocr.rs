@@ -1,4 +1,5 @@
 //! Serial pixel-to-text composition with borrowed results and reusable output slabs.
+use crate::profile::{StageProfile, Timer};
 use crate::{
     detector::{DetectionBox, DetectionTrace},
     image::{ImageError, ImageResult, ImageView},
@@ -302,7 +303,20 @@ impl Ocr {
     /// Reuse one DET/optional CLS/REC pipeline in detector reading order.
     /// Errors expose no partial result; a later valid call can reuse the engine.
     pub fn run(&mut self, image: ImageView<'_>, capture: bool) -> ImageResult<OcrView<'_>> {
-        self.run_impl::<false, _>(image, capture, |_| Ok(()))
+        self.run_impl::<false, false, _>(image, capture, |_| Ok(()), &mut StageProfile::default())
+    }
+    /// Profile production OCR without dense diagnostic recognition execution.
+    #[cfg(feature = "profiling")]
+    pub fn run_profiled(
+        &mut self,
+        image: ImageView<'_>,
+        capture: bool,
+    ) -> ImageResult<(OcrView<'_>, StageProfile)> {
+        let timer = Timer::<true>::start();
+        let mut profile = StageProfile::default();
+        let result = self.run_impl::<false, true, _>(image, capture, |_| Ok(()), &mut profile)?;
+        profile.total_ns = timer.elapsed();
+        Ok((result, profile))
     }
     pub fn run_with_trace<F>(
         &mut self,
@@ -313,13 +327,14 @@ impl Ocr {
     where
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
-        self.run_impl::<true, F>(image, capture, observer)
+        self.run_impl::<true, false, F>(image, capture, observer, &mut StageProfile::default())
     }
-    fn run_impl<const TRACE: bool, F>(
+    fn run_impl<const TRACE: bool, const PROFILE: bool, F>(
         &mut self,
         image: ImageView<'_>,
         capture: bool,
         observer: F,
+        profile: &mut StageProfile,
     ) -> ImageResult<OcrView<'_>>
     where
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
@@ -332,8 +347,9 @@ impl Ocr {
                 |event| observer.borrow_mut()(OcrTrace::Line(event)),
             )?
         } else {
-            self.extractor.extract(image)?
+            self.extractor.extract_profiled::<PROFILE>(image, profile)?
         };
+        let storage_timer = Timer::<PROFILE>::start();
         let count = oriented.lines.len();
         let metadata_bytes = count
             .checked_mul(size_of::<LineRecord>())
@@ -351,6 +367,11 @@ impl Ocr {
         self.text.clear();
         self.runs.clear();
         self.lines.try_reserve_exact(count).map_err(allocation)?;
+        if PROFILE {
+            profile.result_storage_ns = profile
+                .result_storage_ns
+                .saturating_add(storage_timer.elapsed());
+        }
         for (index, line) in oriented.iter().enumerate() {
             let recognition = if TRACE {
                 self.recognizer
@@ -358,8 +379,10 @@ impl Ocr {
                         observer.borrow_mut()(OcrTrace::Recognition { index, event })
                     })?
             } else {
-                self.recognizer.recognize(line.image, capture)?
+                self.recognizer
+                    .recognize_impl::<PROFILE>(line.image, capture, profile)?
             };
+            let storage_timer = Timer::<PROFILE>::start();
             let text_length = self
                 .text
                 .len()
@@ -418,6 +441,11 @@ impl Ocr {
                 recognition_time_steps: recognition.time_steps,
                 spans,
             });
+            if PROFILE {
+                profile.result_storage_ns = profile
+                    .result_storage_ns
+                    .saturating_add(storage_timer.elapsed());
+            }
         }
         self.detected_count = count;
         self.detector_resized_width = oriented.resized_width;

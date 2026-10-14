@@ -10,6 +10,7 @@ use std::collections::HashMap;
 pub(super) struct Integers {
     data: [i64; MAX_RANK],
     len: usize,
+    scalar: bool,
 }
 impl Integers {
     fn new(values: &[i64]) -> RuntimeResult<Self> {
@@ -21,16 +22,135 @@ impl Integers {
         Ok(Self {
             data,
             len: values.len(),
+            scalar: false,
         })
+    }
+    fn constant(data: &TensorData) -> RuntimeResult<Self> {
+        if data.dimensions().len() > 1 {
+            return Err(RuntimeError::new(
+                "shape constants must have rank zero or one",
+            ));
+        }
+        if data.shape().element_count() > MAX_RANK {
+            return Err(RuntimeError::new(
+                "shape constant exceeds rank-eight vector limit",
+            ));
+        }
+        let mut value = match data {
+            TensorData::I64(t) => Self::new(t.data())?,
+            TensorData::I32(t) => {
+                Self::new(&t.data().iter().map(|&v| i64::from(v)).collect::<Vec<_>>())?
+            }
+            _ => return Err(RuntimeError::new("shape constants must be I32/I64")),
+        };
+        value.scalar = data.dimensions().is_empty();
+        Ok(value)
     }
     pub(super) fn values(&self) -> &[i64] {
         &self.data[..self.len]
     }
+    fn vector(&self) -> RuntimeResult<&[i64]> {
+        if self.scalar {
+            return Err(RuntimeError::new(
+                "shape operand requires a vector, found a scalar",
+            ));
+        }
+        Ok(self.values())
+    }
+    fn shape(self) -> RuntimeResult<Shape> {
+        Ok(if self.scalar {
+            Shape::new(&[])?
+        } else {
+            Shape::new(&[self.len])?
+        })
+    }
+    fn with_shape(mut self, shape: Shape) -> RuntimeResult<Self> {
+        if shape.rank() > 1 || shape.element_count() != self.len {
+            return Err(RuntimeError::new(
+                "shape metadata supports only scalar/vector integer values",
+            ));
+        }
+        self.scalar = shape.rank() == 0;
+        Ok(self)
+    }
 }
+
+/// The shipped Slice subset uses constant bounds and positive unit steps.
+/// Shared by integer metadata and F32 data slicing, without float conversions.
+#[derive(Clone)]
+pub(super) struct SliceParameters {
+    starts: Vec<i64>,
+    ends: Vec<i64>,
+    axes: Vec<i64>,
+}
+impl SliceParameters {
+    pub(super) fn new(
+        starts: Vec<i64>,
+        ends: Vec<i64>,
+        axes: Option<Vec<i64>>,
+        steps: Option<Vec<i64>>,
+    ) -> RuntimeResult<Self> {
+        let count = starts.len();
+        if count == 0 || count > MAX_RANK || ends.len() != count {
+            return Err(RuntimeError::new(
+                "Slice starts/ends must have equal nonempty bounded lengths",
+            ));
+        }
+        let axes = axes.unwrap_or_else(|| (0..count).map(|axis| axis as i64).collect());
+        let steps = steps.unwrap_or_else(|| vec![1; count]);
+        if axes.len() != count || steps.len() != count {
+            return Err(RuntimeError::new(
+                "Slice axes/steps lengths differ from starts",
+            ));
+        }
+        if steps.iter().any(|&step| step != 1) {
+            return Err(RuntimeError::new("Slice supports positive unit steps only"));
+        }
+        Ok(Self { starts, ends, axes })
+    }
+    pub(super) fn bind(&self, input: Shape) -> RuntimeResult<(Shape, [usize; MAX_RANK])> {
+        if input.rank() == 0 || self.starts.len() > input.rank() {
+            return Err(RuntimeError::new(
+                "Slice requires a ranked input and at most one bound per axis",
+            ));
+        }
+        let mut dimensions = [0; MAX_RANK];
+        dimensions[..input.rank()].copy_from_slice(input.dimensions());
+        let mut starts = [0; MAX_RANK];
+        let mut seen = [false; MAX_RANK];
+        for ((&start, &end), &raw_axis) in self.starts.iter().zip(&self.ends).zip(&self.axes) {
+            let axis = axis(raw_axis, input.rank())?;
+            if std::mem::replace(&mut seen[axis], true) {
+                return Err(RuntimeError::new("Slice axis is duplicated"));
+            }
+            let dimension = i64::try_from(input.dimensions()[axis])
+                .map_err(|_| RuntimeError::new("Slice dimension exceeds I64"))?;
+            let normalize = |value: i64| {
+                (if value < 0 { value + dimension } else { value }).clamp(0, dimension) as usize
+            };
+            starts[axis] = normalize(start);
+            dimensions[axis] = normalize(end).saturating_sub(starts[axis]);
+        }
+        Ok((Shape::new(&dimensions[..input.rank()])?, starts))
+    }
+}
+
 enum Value {
     Constant(Integers),
     Shape(usize),
-    Slice { input: usize, start: i64, end: i64 },
+    Identity(usize),
+    Slice {
+        input: usize,
+        parameters: SliceParameters,
+    },
+    Squeeze {
+        input: usize,
+        axes: Vec<i64>,
+    },
+    Unsqueeze {
+        input: usize,
+        axes: Vec<i64>,
+    },
     Concat(Vec<usize>),
 }
 pub(super) struct ShapeProgram {
@@ -42,34 +162,19 @@ impl ShapeProgram {
         let metadata = model.shape_metadata();
         if metadata.nodes.len() > 64 {
             return Err(RuntimeError::new(
-                "CLS shape program exceeds 64-instruction limit",
+                "shape program exceeds 64-instruction limit",
             ));
         }
         let mut values = Vec::new();
         let mut names = HashMap::new();
         for tensor in &metadata.constants {
-            if tensor.data.dimensions().len() != 1 {
-                return Err(RuntimeError::new("shape constants must have rank one"));
-            }
-            let data = match &tensor.data {
-                TensorData::I64(t) => Integers::new(t.data())?,
-                TensorData::I32(t) => {
-                    Integers::new(&t.data().iter().map(|&v| i64::from(v)).collect::<Vec<_>>())?
-                }
-                _ => return Err(RuntimeError::new("shape constants must be I32/I64")),
-            };
+            let value = Integers::constant(&tensor.data)?;
             if names.insert(tensor.name.clone(), values.len()).is_some() {
                 return Err(RuntimeError::new("duplicate shape constant name"));
             }
-            values.push(Value::Constant(data));
+            values.push(Value::Constant(value));
         }
         let graph = model.graph();
-        let data_names: HashMap<_, _> = graph
-            .tensors
-            .iter()
-            .enumerate()
-            .map(|(id, t)| (t.name.as_str(), id))
-            .collect();
         for node in &metadata.nodes {
             let fail = |message: &str| {
                 RuntimeError::new(format!(
@@ -89,42 +194,106 @@ impl ShapeProgram {
                     .copied()
                     .ok_or_else(|| fail("unresolved or non-topological integer input"))
             };
+            let constant = |name: &str| -> RuntimeResult<Vec<i64>> {
+                let mut id = source(name)?;
+                loop {
+                    match &values[id] {
+                        Value::Constant(value) => return Ok(value.vector()?.to_vec()),
+                        Value::Identity(input) => id = *input,
+                        _ => return Err(fail("Slice parameters must be constant integer vectors")),
+                    }
+                }
+            };
             let value = match node.op_type.as_str() {
                 "Shape" => {
                     if node.inputs.len() != 1 || !node.attributes.is_empty() {
-                        return Err(fail("CLS Shape requires one input and no attributes"));
+                        return Err(fail("Shape requires one input and no attributes"));
                     }
                     Value::Shape(
-                        *data_names
-                            .get(node.inputs[0].as_str())
-                            .ok_or_else(|| fail("unresolved Shape data source"))?,
+                        model
+                            .shape_data_source(&node.inputs[0])
+                            .ok_or_else(|| fail("unresolved normalized Shape data source"))?
+                            .0,
                     )
                 }
+                "Identity" => {
+                    if node.inputs.len() != 1 || !node.attributes.is_empty() {
+                        return Err(fail("Identity requires one input and no attributes"));
+                    }
+                    Value::Identity(source(&node.inputs[0])?)
+                }
                 "Slice" => {
-                    if node.inputs.len() != 1
-                        || node
-                            .attributes
-                            .iter()
-                            .any(|a| !matches!(a.name.as_str(), "starts" | "ends" | "axes"))
-                    {
-                        return Err(fail(
-                            "CLS shape Slice supports attribute-form starts/ends/axes with step one",
-                        ));
-                    }
-                    let starts = ints(node, "starts")?.ok_or_else(|| fail("missing starts"))?;
-                    let ends = ints(node, "ends")?.ok_or_else(|| fail("missing ends"))?;
-                    let axes = ints(node, "axes")?.unwrap_or(&[0]);
-                    if starts.len() != 1
-                        || ends.len() != 1
-                        || axes.len() != 1
-                        || !matches!(axes[0], 0 | -1)
-                    {
-                        return Err(fail("shape Slice requires one rank-one axis"));
-                    }
+                    let parameters = if node.inputs.len() == 1 {
+                        if node.attributes.iter().any(|a| {
+                            !matches!(a.name.as_str(), "starts" | "ends" | "axes" | "steps")
+                        }) {
+                            return Err(fail("unsupported Slice attributes"));
+                        }
+                        SliceParameters::new(
+                            ints(node, "starts")?
+                                .ok_or_else(|| fail("missing starts"))?
+                                .to_vec(),
+                            ints(node, "ends")?
+                                .ok_or_else(|| fail("missing ends"))?
+                                .to_vec(),
+                            ints(node, "axes")?.map(<[i64]>::to_vec),
+                            ints(node, "steps")?.map(<[i64]>::to_vec),
+                        )?
+                    } else {
+                        if !(3..=5).contains(&node.inputs.len()) || !node.attributes.is_empty() {
+                            return Err(fail(
+                                "Slice requires data, starts, ends and optional axes/steps",
+                            ));
+                        }
+                        let optional = |slot: usize| -> RuntimeResult<Option<Vec<i64>>> {
+                            node.inputs
+                                .get(slot)
+                                .filter(|name| !name.is_empty())
+                                .map(|name| constant(name))
+                                .transpose()
+                        };
+                        SliceParameters::new(
+                            constant(&node.inputs[1])?,
+                            constant(&node.inputs[2])?,
+                            optional(3)?,
+                            optional(4)?,
+                        )?
+                    };
                     Value::Slice {
                         input: source(&node.inputs[0])?,
-                        start: starts[0],
-                        end: ends[0],
+                        parameters,
+                    }
+                }
+                "Squeeze" | "Unsqueeze" => {
+                    if !(1..=2).contains(&node.inputs.len())
+                        || node.attributes.iter().any(|a| a.name != "axes")
+                    {
+                        return Err(fail(
+                            "Squeeze/Unsqueeze requires attribute or constant-input axes",
+                        ));
+                    }
+                    let attribute_axes = ints(node, "axes")?;
+                    let axes = if node.inputs.len() == 2 {
+                        if attribute_axes.is_some() {
+                            return Err(fail("Squeeze/Unsqueeze cannot mix axes forms"));
+                        }
+                        constant(&node.inputs[1])?
+                    } else {
+                        attribute_axes.unwrap_or(&[]).to_vec()
+                    };
+                    if node.op_type == "Squeeze" {
+                        Value::Squeeze {
+                            input: source(&node.inputs[0])?,
+                            axes,
+                        }
+                    } else {
+                        if axes.is_empty() {
+                            return Err(fail("Unsqueeze requires nonempty axes"));
+                        }
+                        Value::Unsqueeze {
+                            input: source(&node.inputs[0])?,
+                            axes,
+                        }
                     }
                 }
                 "Concat" => {
@@ -142,7 +311,7 @@ impl ShapeProgram {
                             .collect::<RuntimeResult<_>>()?,
                     )
                 }
-                _ => return Err(fail("unsupported metadata operator in CLS shape program")),
+                _ => return Err(fail("unsupported metadata operator in shape program")),
             };
             if names
                 .insert(node.outputs[0].clone(), values.len())
@@ -205,7 +374,9 @@ impl ShapeProgram {
             .targets
             .get(&node)
             .ok_or_else(|| RuntimeError::new("missing shape recipe"))?;
-        self.value(target, shapes, cache)
+        let value = self.value(target, shapes, cache)?;
+        value.vector()?;
+        Ok(value)
     }
     fn value(
         &self,
@@ -218,6 +389,7 @@ impl ShapeProgram {
         }
         let value = match &self.values[id] {
             Value::Constant(value) => *value,
+            Value::Identity(input) => self.value(*input, shapes, cache)?,
             Value::Shape(tensor) => {
                 let shape = shapes[*tensor]
                     .ok_or_else(|| RuntimeError::new("Shape source has not yet been inferred"))?;
@@ -226,36 +398,35 @@ impl ShapeProgram {
                     data[axis] = i64::try_from(dimension)
                         .map_err(|_| RuntimeError::new("shape dimension exceeds I64"))?;
                 }
-                Integers {
-                    data,
-                    len: shape.rank(),
-                }
+                Integers::new(&data[..shape.rank()])?
             }
-            Value::Slice { input, start, end } => {
+            Value::Slice { input, parameters } => {
                 let source = self.value(*input, shapes, cache)?;
-                let normalize = |v: i64| {
-                    let len = source.len as i64;
-                    (if v < 0 { v + len } else { v }).clamp(0, len) as usize
-                };
-                let start = normalize(*start);
-                let end = normalize(*end).max(start);
-                Integers::new(&source.values()[start..end])?
+                source.vector()?;
+                let (output, starts) = parameters.bind(source.shape()?)?;
+                Integers::new(&source.values()[starts[0]..starts[0] + output.element_count()])?
+            }
+            Value::Squeeze { input, axes } => {
+                let source = self.value(*input, shapes, cache)?;
+                source.with_shape(squeeze(source.shape()?, axes)?)?
+            }
+            Value::Unsqueeze { input, axes } => {
+                let source = self.value(*input, shapes, cache)?;
+                source.with_shape(unsqueeze(source.shape()?, axes)?)?
             }
             Value::Concat(inputs) => {
-                let mut output = Integers {
-                    data: [0; MAX_RANK],
-                    len: 0,
-                };
+                let mut output = Integers::new(&[])?;
                 for &input in inputs {
                     let value = self.value(input, shapes, cache)?;
+                    let source = value.vector()?;
                     let end = output
                         .len
-                        .checked_add(value.len)
+                        .checked_add(source.len())
                         .filter(|&len| len <= MAX_RANK)
                         .ok_or_else(|| {
                             RuntimeError::new("shape Concat exceeds rank-eight limit")
                         })?;
-                    output.data[output.len..end].copy_from_slice(value.values());
+                    output.data[output.len..end].copy_from_slice(source);
                     output.len = end;
                 }
                 output

@@ -36,20 +36,25 @@ internal static class Step12Tools
         BundleWriter writer = new(settings.Output);
         string modelRoot = Path.Combine(settings.ReferenceRepo, "models");
         string detFile = settings.DetectorModel == "tiny" ? "det.onnx" : $"{settings.DetectorModel}_det.onnx";
+        string detectorPath = Path.Combine(modelRoot, detFile), classifierPath = Path.Combine(modelRoot, "cls.onnx");
         if (settings.Replay is not null)
         {
             using JsonDocument replay = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(settings.Replay, "manifest.json")));
             string variant = replay.RootElement.GetProperty("contract").GetProperty("model").GetString()!;
-            if (variant == settings.DetectorModel)
+            if (variant != settings.DetectorModel) throw new InvalidDataException("Step12 replay detector conflicts with the frozen contract.");
+            JsonElement[] models = replay.RootElement.GetProperty("models").EnumerateArray().ToArray();
+            if (models.Length != 2) throw new InvalidDataException("Step12 replay requires exactly DET and CLS assets.");
+            string Source(string id)
             {
-                foreach (JsonElement asset in replay.RootElement.GetProperty("models").EnumerateArray())
-                    if (asset.GetProperty("id").GetString() is "det" or "cls") _ = Program.ReadBundleFile(settings.Replay, asset);
-                modelRoot = Path.Combine(settings.Replay, "models"); detFile = "det.onnx";
+                JsonElement asset = models.Single(asset => asset.GetProperty("id").GetString() == id);
+                _ = Program.ReadBundleFile(settings.Replay, asset);
+                return BundleWriter.DestinationPath(settings.Replay, asset.GetProperty("path").GetString()!);
             }
+            detectorPath = Source("det"); classifierPath = Source("cls");
         }
         ModelAsset[] assets = [
-            writer.CopyModel("det", Path.Combine(modelRoot, detFile), "models/det.onnx"),
-            writer.CopyModel("cls", Path.Combine(modelRoot, "cls.onnx"), "models/cls.onnx") ];
+            writer.CopyModel("det", detectorPath, "models/det.onnx"),
+            writer.CopyModel("cls", classifierPath, "models/cls.onnx") ];
         object provenance = Provenance.Capture(settings.ReferenceRepo, settings.ExporterSource, writer.RootPath);
         Dictionary<string, ModelInspectionSnapshot> inspected = [];
         Model Load(string id)

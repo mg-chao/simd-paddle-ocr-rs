@@ -13,9 +13,12 @@ pub(super) enum BinaryOp {
     Add,
     Mul,
     Div,
+    Sub,
 }
 pub(super) enum BoundKind {
     Binary(Broadcast, BinaryOp),
+    Square,
+    Sqrt,
     Relu,
     Erf,
     Sigmoid,
@@ -51,6 +54,7 @@ pub(super) enum BoundKind {
         inner: usize,
         columns: usize,
     },
+    BatchedMatMul(BatchedMatMul),
     Softmax {
         rows: usize,
         columns: usize,
@@ -70,6 +74,20 @@ pub(super) fn execute<'a>(
                 BinaryOp::Add => binary::<0>(plan, a, b, out),
                 BinaryOp::Mul => binary::<1>(plan, a, b, out),
                 BinaryOp::Div => binary::<2>(plan, a, b, out),
+                BinaryOp::Sub => binary::<3>(plan, a, b, out),
+            }
+        }
+        BoundKind::Square => {
+            // Native MathF.Pow(x, 2) differs by occasional rounding/underflow
+            // bits. The shipped subset uses this portable square under the
+            // existing numerical tolerance, with native LayerNorm gates.
+            for (o, &x) in out.iter_mut().zip(a) {
+                *o = x * x;
+            }
+        }
+        BoundKind::Sqrt => {
+            for (o, &x) in out.iter_mut().zip(a) {
+                *o = x.sqrt();
             }
         }
         BoundKind::Relu => {
@@ -147,6 +165,7 @@ pub(super) fn execute<'a>(
             inner,
             columns,
         } => matmul(a, data(inputs[1]), out, *rows, *inner, *columns),
+        BoundKind::BatchedMatMul(plan) => batched_matmul(plan, a, data(inputs[1]), out),
         BoundKind::Softmax { rows, columns } => {
             for row in 0..*rows {
                 let input = &a[row * columns..(row + 1) * columns];
@@ -177,6 +196,148 @@ fn erf(x: f32) -> f32 {
     let polynomial =
         ((((1.0614054 * t - 1.4531521) * t + 1.4214138) * t - 0.28449672) * t + 0.2548296) * t;
     sign * (1.0 - polynomial * exp_f32(-magnitude * magnitude))
+}
+
+pub(super) struct BatchedMatMul {
+    rows: usize,
+    inner: usize,
+    columns: usize,
+    batches: usize,
+    batch_rank: usize,
+    dimensions: [usize; MAX_RANK],
+    a_strides: [usize; MAX_RANK],
+    b_strides: [usize; MAX_RANK],
+    a_matrix: usize,
+    b_matrix: usize,
+    output_matrix: usize,
+    equal_batches: bool,
+}
+pub(super) fn bind_matmul(a: Shape, b: Shape) -> RuntimeResult<(Shape, BoundKind)> {
+    if a.rank() < 2 || b.rank() < 2 {
+        return Err(RuntimeError::new(
+            "MatMul requires rank-at-least-two F32 inputs",
+        ));
+    }
+    let ad = a.dimensions();
+    let bd = b.dimensions();
+    let rows = ad[a.rank() - 2];
+    let inner = ad[a.rank() - 1];
+    let columns = bd[b.rank() - 1];
+    if inner != bd[b.rank() - 2] {
+        return Err(RuntimeError::new("MatMul inner dimensions differ"));
+    }
+    let batch_rank = a.rank().max(b.rank()) - 2;
+    let mut dimensions = [1; MAX_RANK];
+    for (axis, dimension) in dimensions.iter_mut().enumerate().take(batch_rank) {
+        let leading = |shape: Shape| {
+            axis.checked_sub(batch_rank - (shape.rank() - 2))
+                .map_or(1, |axis| shape.dimensions()[axis])
+        };
+        let av = leading(a);
+        let bv = leading(b);
+        if av != bv && av != 1 && bv != 1 {
+            return Err(RuntimeError::new(
+                "MatMul leading dimensions do not broadcast",
+            ));
+        }
+        *dimension = av.max(bv);
+    }
+    dimensions[batch_rank] = rows;
+    dimensions[batch_rank + 1] = columns;
+    let output = Shape::new(&dimensions[..batch_rank + 2])?;
+    let a_matrix = rows
+        .checked_mul(inner)
+        .ok_or_else(|| RuntimeError::new("MatMul left matrix size overflow"))?;
+    let b_matrix = inner
+        .checked_mul(columns)
+        .ok_or_else(|| RuntimeError::new("MatMul right matrix size overflow"))?;
+    let output_matrix = rows
+        .checked_mul(columns)
+        .ok_or_else(|| RuntimeError::new("MatMul output matrix size overflow"))?;
+    if a_matrix == 0 || b_matrix == 0 || output_matrix == 0 {
+        return Err(RuntimeError::new(
+            "MatMul zero-sized inputs are unsupported",
+        ));
+    }
+    // Keep the existing flattened shared-weight path and its accumulation order.
+    // It also handles a reusable rank-two activation RHS.
+    if b.rank() == 2 {
+        return Ok((
+            output,
+            BoundKind::MatMul {
+                rows: a.element_count() / inner,
+                inner,
+                columns,
+            },
+        ));
+    }
+    let strides = |shape: Shape, matrix: usize| -> RuntimeResult<[usize; MAX_RANK]> {
+        let mut strides = [0; MAX_RANK];
+        let mut stride = matrix;
+        let offset = batch_rank - (shape.rank() - 2);
+        for axis in (0..shape.rank() - 2).rev() {
+            let dimension = shape.dimensions()[axis];
+            if dimension != 1 {
+                strides[offset + axis] = stride;
+            }
+            stride = stride
+                .checked_mul(dimension)
+                .ok_or_else(|| RuntimeError::new("MatMul batch stride overflow"))?;
+        }
+        Ok(strides)
+    };
+    Ok((
+        output,
+        BoundKind::BatchedMatMul(BatchedMatMul {
+            rows,
+            inner,
+            columns,
+            batches: output.element_count() / output_matrix,
+            batch_rank,
+            dimensions,
+            a_strides: strides(a, a_matrix)?,
+            b_strides: strides(b, b_matrix)?,
+            a_matrix,
+            b_matrix,
+            output_matrix,
+            equal_batches: ad[..a.rank() - 2] == bd[..b.rank() - 2],
+        }),
+    ))
+}
+fn batched_matmul(plan: &BatchedMatMul, a: &[f32], b: &[f32], out: &mut [f32]) {
+    if plan.equal_batches {
+        for ((left, right), output) in a
+            .chunks_exact(plan.a_matrix)
+            .zip(b.chunks_exact(plan.b_matrix))
+            .zip(out.chunks_exact_mut(plan.output_matrix))
+        {
+            matmul(left, right, output, plan.rows, plan.inner, plan.columns);
+        }
+        return;
+    }
+    let mut counters = [0; MAX_RANK];
+    let (mut ai, mut bi) = (0, 0);
+    for batch in 0..plan.batches {
+        matmul(
+            &a[ai..ai + plan.a_matrix],
+            &b[bi..bi + plan.b_matrix],
+            &mut out[batch * plan.output_matrix..(batch + 1) * plan.output_matrix],
+            plan.rows,
+            plan.inner,
+            plan.columns,
+        );
+        for axis in (0..plan.batch_rank).rev() {
+            counters[axis] += 1;
+            if counters[axis] < plan.dimensions[axis] {
+                ai += plan.a_strides[axis];
+                bi += plan.b_strides[axis];
+                break;
+            }
+            ai -= (counters[axis] - 1) * plan.a_strides[axis];
+            bi -= (counters[axis] - 1) * plan.b_strides[axis];
+            counters[axis] = 0;
+        }
+    }
 }
 
 // Four independent rows share each contiguous four-column weight load. Each
@@ -364,6 +525,7 @@ pub(super) struct Transpose {
     rank: usize,
     dimensions: [usize; MAX_RANK],
     strides: [usize; MAX_RANK],
+    base: usize,
 }
 pub(super) fn bind_transpose(
     input: Shape,
@@ -401,6 +563,7 @@ pub(super) fn bind_transpose(
             rank: input.rank(),
             dimensions,
             strides,
+            base: 0,
         }),
     ))
 }
@@ -408,7 +571,7 @@ fn transpose(plan: &Transpose, input: &[f32], output: &mut [f32]) {
     let inner = plan.dimensions[plan.rank - 1];
     let inner_stride = plan.strides[plan.rank - 1];
     let mut counters = [0; MAX_RANK];
-    let mut offset = 0usize;
+    let mut offset = plan.base;
     for destination in output.chunks_exact_mut(inner) {
         if inner_stride == 1 {
             destination.copy_from_slice(&input[offset..offset + inner]);
@@ -427,6 +590,37 @@ fn transpose(plan: &Transpose, input: &[f32], output: &mut [f32]) {
             counters[axis] = 0;
         }
     }
+}
+
+pub(super) fn bind_slice(
+    input: Shape,
+    parameters: &shapes::SliceParameters,
+) -> RuntimeResult<(Shape, BoundKind)> {
+    let (output, starts) = parameters.bind(input)?;
+    let mut strides = [0; MAX_RANK];
+    let mut stride = 1usize;
+    let mut base = 0usize;
+    for axis in (0..input.rank()).rev() {
+        strides[axis] = stride;
+        base = starts[axis]
+            .checked_mul(stride)
+            .and_then(|offset| base.checked_add(offset))
+            .ok_or_else(|| RuntimeError::new("Slice starting offset overflow"))?;
+        stride = stride
+            .checked_mul(input.dimensions()[axis])
+            .ok_or_else(|| RuntimeError::new("Slice stride overflow"))?;
+    }
+    let mut dimensions = [0; MAX_RANK];
+    dimensions[..output.rank()].copy_from_slice(output.dimensions());
+    Ok((
+        output,
+        BoundKind::Transpose(Transpose {
+            rank: output.rank(),
+            dimensions,
+            strides,
+            base,
+        }),
+    ))
 }
 
 enum BroadcastKind {
@@ -532,7 +726,8 @@ fn arithmetic<const OP: u8>(a: f32, b: f32) -> f32 {
     match OP {
         0 => a + b,
         1 => a * b,
-        _ => a / b,
+        2 => a / b,
+        _ => a - b,
     }
 }
 fn binary<const OP: u8>(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32]) {

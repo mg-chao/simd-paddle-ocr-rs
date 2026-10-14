@@ -1,0 +1,14 @@
+{
+  "exact": false,
+  "input_shape": [
+    2,
+    7
+  ],
+  "operators": [
+    "Sqrt"
+  ],
+  "output_shape": [
+    2,
+    7
+  ]
+}

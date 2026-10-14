@@ -1,4 +1,4 @@
-//! Independent native C# operator captures for the tiny REC runtime subset.
+//! Independent native C# operator captures for the shipped scalar REC subset.
 use serde_json::Value;
 use simd_paddle_ocr_rs::{
     model::Model,
@@ -50,16 +50,13 @@ fn compare(actual: &[f32], expected: &[f32], exact: bool, context: &str) {
     }
 }
 
-#[test]
-fn tiny_rec_subset_matches_independent_native_nodes_and_outputs() {
-    let root =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition-v1/operators");
-    let validation =
-        validate_bundle(&root).expect("committed independent native operator captures");
-    assert_eq!(validation.checked_cases, 8);
+fn compare_native_bundle(root: &Path, expected_cases: usize, rejected: &[&str]) -> (usize, usize) {
+    let validation = validate_bundle(root).expect("committed independent native operator captures");
+    assert_eq!(validation.checked_cases, expected_cases);
     let manifest: Value =
         serde_json::from_slice(&fs::read(root.join("manifest.json")).unwrap()).unwrap();
     let mut checked_nodes = 0;
+    let mut rejected_cases = 0;
     for case in manifest["cases"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();
         let metadata: Value = serde_json::from_slice(
@@ -70,9 +67,23 @@ fn tiny_rec_subset_matches_independent_native_nodes_and_outputs() {
         let model = Arc::new(
             Model::load_path(root.join(artifact(case, "model")["path"].as_str().unwrap())).unwrap(),
         );
+        if rejected.contains(&id) {
+            // The native C# engine supports these broader ONNX cases. Preserve
+            // their independent captures while asserting our explicit shipped
+            // unit-step subset rejects them before planning any activations.
+            let error = CompiledModel::new(model)
+                .err()
+                .expect("unsupported Slice step");
+            assert!(
+                error.to_string().contains("positive unit steps only"),
+                "{id}: {error}"
+            );
+            rejected_cases += 1;
+            continue;
+        }
         let compiled = Arc::new(CompiledModel::new(model).unwrap());
         let input = artifact(case, "input");
-        let values = floats(&root, input);
+        let values = floats(root, input);
         let mut session =
             Session::new(compiled.clone(), &shape(input), ExecutionLimits::default()).unwrap();
         let mut observed = 0;
@@ -85,7 +96,7 @@ fn tiny_rec_subset_matches_independent_native_nodes_and_outputs() {
                     saved["layout"].as_str().unwrap(),
                     "{id}: node layout"
                 );
-                compare(node.values, &floats(&root, saved), exact, id);
+                compare(node.values, &floats(root, saved), exact, id);
                 observed += 1;
                 Ok(())
             })
@@ -101,8 +112,29 @@ fn tiny_rec_subset_matches_independent_native_nodes_and_outputs() {
             shape(saved),
             "{id}: output shape"
         );
-        compare(output.data(), &floats(&root, saved), exact, id);
+        compare(output.data(), &floats(root, saved), exact, id);
         checked_nodes += observed;
     }
-    assert_eq!(checked_nodes, 8);
+    (checked_nodes, rejected_cases)
+}
+
+#[test]
+fn tiny_rec_subset_matches_independent_native_nodes_and_outputs() {
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition-v1/operators");
+    assert_eq!(compare_native_bundle(&root, 8, &[]), (8, 0));
+}
+
+#[test]
+fn attention_shape_and_layernorm_match_independent_native_nodes_and_outputs() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/recognition-scalar-v2/operators");
+    assert_eq!(
+        compare_native_bundle(
+            &root,
+            17,
+            &["strided-data-slice", "negative-step-data-slice"]
+        ),
+        (38, 2)
+    );
 }
