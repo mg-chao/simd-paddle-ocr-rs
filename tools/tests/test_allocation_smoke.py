@@ -86,6 +86,13 @@ class AllocationSmokeTests(unittest.TestCase):
             with self.subTest(sequence=sequence), self.assertRaises(ValueError):
                 self.validate(report, "mixed_widths")
 
+    def test_non_numeric_nonfinite_or_negative_measurements_fail(self):
+        for value in (None, True, "1", float("nan"), float("inf"), -1):
+            report = self.report("ocr_borrowed")
+            report["inputs"][0]["samples_ms"][1] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.validate(report, "ocr_borrowed")
+
 
 if __name__ == "__main__":
     unittest.main()

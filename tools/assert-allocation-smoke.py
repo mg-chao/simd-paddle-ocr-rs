@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 
 COUNTERS = ("warm_allocation_count", "warm_allocation_bytes",
@@ -26,8 +27,10 @@ def validate(report, reference, mode, executable, warmup=3, samples=3):
     require(mode in MODES, "Unsupported allocation smoke mode")
     require(report.get("instrumented") is True and report.get("runtime") == "rust",
             "Allocation smoke requires an instrumented Rust executable")
-    require(report.get("mode") == mode and report.get("warmup") == warmup
-            and report.get("samples") == samples, "Allocation smoke protocol differs")
+    require(type(report.get("warmup")) is int and type(report.get("samples")) is int
+            and report.get("mode") == mode and report["warmup"] == warmup
+            and report["samples"] == samples and warmup > 0 and samples > 0,
+            "Allocation smoke protocol differs")
     manifest_path = reference / "manifest.json"
     require(report.get("manifest_sha256") == sha(manifest_path), "Reference manifest identity differs")
     require(report.get("executable_sha256") == sha(executable), "Executable identity differs")
@@ -37,6 +40,8 @@ def validate(report, reference, mode, executable, warmup=3, samples=3):
         require(row.get("stage") == mode, "Allocation smoke row stage differs")
         require(isinstance(row.get("samples_ms"), list) and len(row["samples_ms"]) == samples,
                 "Allocation smoke sample count differs")
+        require(all(type(value) in (int, float) and math.isfinite(value) and value >= 0
+                    for value in row["samples_ms"]), "Allocation smoke has invalid measurements")
         for counter in COUNTERS:
             require(type(row.get(counter)) is int and row[counter] == 0,
                     f"Allocation gate failed: {mode}/{row.get('case_id')}/{row.get('artifact_id')}/{counter}={row.get(counter)}")
