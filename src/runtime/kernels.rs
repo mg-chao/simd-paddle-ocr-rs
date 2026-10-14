@@ -637,6 +637,10 @@ enum BroadcastKind {
         scalar_left: bool,
         columns: usize,
     },
+    RowScalar {
+        scalar_left: bool,
+        columns: usize,
+    },
     Generic,
 }
 pub(super) struct Broadcast {
@@ -682,6 +686,21 @@ impl Broadcast {
                 None
             }
         };
+        let row = |full: Shape, gate: Shape, scalar_left| {
+            if full == out
+                && full.rank() >= 2
+                && gate.rank() == full.rank()
+                && gate.dimensions()[gate.rank() - 1] == 1
+                && gate.dimensions()[..gate.rank() - 1] == full.dimensions()[..full.rank() - 1]
+            {
+                Some(BroadcastKind::RowScalar {
+                    scalar_left,
+                    columns: full.dimensions()[full.rank() - 1],
+                })
+            } else {
+                None
+            }
+        };
         let kind = if b.element_count() == 1 {
             BroadcastKind::RightScalar
         } else if a.element_count() == 1 {
@@ -694,6 +713,8 @@ impl Broadcast {
             .or_else(|| channel(b, a, true))
             .or_else(|| last(a, b, false))
             .or_else(|| last(b, a, true))
+            .or_else(|| row(a, b, false))
+            .or_else(|| row(b, a, true))
         {
             kind
         } else {
@@ -779,6 +800,25 @@ fn binary<const OP: u8>(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32])
                 .zip(out.chunks_exact_mut(columns))
             {
                 for ((&value, &scalar), output) in input.iter().zip(gate).zip(output) {
+                    *output = if scalar_left {
+                        arithmetic::<OP>(scalar, value)
+                    } else {
+                        arithmetic::<OP>(value, scalar)
+                    };
+                }
+            }
+        }
+        BroadcastKind::RowScalar {
+            scalar_left,
+            columns,
+        } => {
+            let (full, scalars) = if scalar_left { (b, a) } else { (a, b) };
+            for ((input, output), &scalar) in full
+                .chunks_exact(columns)
+                .zip(out.chunks_exact_mut(columns))
+                .zip(scalars)
+            {
+                for (&value, output) in input.iter().zip(output) {
                     *output = if scalar_left {
                         arithmetic::<OP>(scalar, value)
                     } else {
@@ -1288,6 +1328,7 @@ fn valid_taps(
 }
 fn conv1x1(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f32]) {
     let plane = p.height * p.width;
+    let full_pixels = plane / 4 * 4;
     for batch in 0..p.batch {
         for group in 0..p.cout / p.opg {
             let input_base = (batch * p.cin + group * p.cpg) * plane;
@@ -1307,9 +1348,54 @@ fn conv1x1(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut 
                 } else {
                     [bias[co], bias[co + 1], bias[co + 2], bias[co + 3]]
                 };
-                // Four independent scalar chains reuse each input load. Each
-                // chain still starts with bias and visits channels in order.
-                for pixel in 0..plane {
+                // Sixteen independent bias-first chains share four weights
+                // and four adjacent NCHW pixels. Each sum still visits input
+                // channels in ascending order without FMA or packing.
+                for pixel in (0..full_pixels).step_by(4) {
+                    let mut a00 = initial[0];
+                    let mut a01 = initial[0];
+                    let mut a02 = initial[0];
+                    let mut a03 = initial[0];
+                    let mut a10 = initial[1];
+                    let mut a11 = initial[1];
+                    let mut a12 = initial[1];
+                    let mut a13 = initial[1];
+                    let mut a20 = initial[2];
+                    let mut a21 = initial[2];
+                    let mut a22 = initial[2];
+                    let mut a23 = initial[2];
+                    let mut a30 = initial[3];
+                    let mut a31 = initial[3];
+                    let mut a32 = initial[3];
+                    let mut a33 = initial[3];
+                    for ci in 0..p.cpg {
+                        let v = &input
+                            [input_base + ci * plane + pixel..input_base + ci * plane + pixel + 4];
+                        let (v0, v1, v2, v3) = (v[0], v[1], v[2], v[3]);
+                        let (t0, t1, t2, t3) = (w0[ci], w1[ci], w2[ci], w3[ci]);
+                        a00 += v0 * t0;
+                        a01 += v1 * t0;
+                        a02 += v2 * t0;
+                        a03 += v3 * t0;
+                        a10 += v0 * t1;
+                        a11 += v1 * t1;
+                        a12 += v2 * t1;
+                        a13 += v3 * t1;
+                        a20 += v0 * t2;
+                        a21 += v1 * t2;
+                        a22 += v2 * t2;
+                        a23 += v3 * t2;
+                        a30 += v0 * t3;
+                        a31 += v1 * t3;
+                        a32 += v2 * t3;
+                        a33 += v3 * t3;
+                    }
+                    o0[pixel..pixel + 4].copy_from_slice(&[a00, a01, a02, a03]);
+                    o1[pixel..pixel + 4].copy_from_slice(&[a10, a11, a12, a13]);
+                    o2[pixel..pixel + 4].copy_from_slice(&[a20, a21, a22, a23]);
+                    o3[pixel..pixel + 4].copy_from_slice(&[a30, a31, a32, a33]);
+                }
+                for pixel in full_pixels..plane {
                     let [mut s0, mut s1, mut s2, mut s3] = initial;
                     for ci in 0..p.cpg {
                         let value = input[input_base + ci * plane + pixel];
@@ -1385,7 +1471,7 @@ pub(super) struct Reduction {
     input: Shape,
     reduction: usize,
     output_strides: [usize; MAX_RANK],
-    spatial: Option<usize>,
+    contiguous: Option<usize>,
 }
 pub(super) fn bind_reduce(
     input: Shape,
@@ -1432,8 +1518,13 @@ pub(super) fn bind_reduce(
             stride *= input.dimensions()[axis];
         }
     }
-    let spatial = if input.rank() == 4 && reduced[..4] == [false, false, true, true] {
+    let contiguous = if input.rank() == 4 && reduced[..4] == [false, false, true, true] {
         Some(input.dimensions()[2] * input.dimensions()[3])
+    } else if input.rank() > 0
+        && reduced[input.rank() - 1]
+        && reduced[..input.rank() - 1].iter().all(|&axis| !axis)
+    {
+        Some(input.dimensions()[input.rank() - 1])
     } else {
         None
     };
@@ -1443,13 +1534,13 @@ pub(super) fn bind_reduce(
             input,
             reduction,
             output_strides,
-            spatial,
+            contiguous,
         }),
     ))
 }
 fn reduce(plan: &Reduction, input: &[f32], output: &mut [f32]) {
-    if let Some(spatial) = plan.spatial {
-        for (values, output) in input.chunks_exact(spatial).zip(output) {
+    if let Some(contiguous) = plan.contiguous {
+        for (values, output) in input.chunks_exact(contiguous).zip(output) {
             let mut sum = 0.0f32;
             for &value in values {
                 sum += value;
@@ -1475,5 +1566,209 @@ fn reduce(plan: &Reduction, input: &[f32], output: &mut [f32]) {
     }
     for value in output {
         *value /= plan.reduction as f32;
+    }
+}
+
+#[cfg(test)]
+mod scalar_refinement_tests {
+    use super::*;
+
+    fn assert_bits(actual: &[f32], expected: &[f32]) {
+        assert_eq!(actual.len(), expected.len());
+        for (index, (&actual, &expected)) in actual.iter().zip(expected).enumerate() {
+            assert_eq!(
+                actual.to_bits(),
+                expected.to_bits(),
+                "element {index}: {actual} versus {expected}"
+            );
+        }
+    }
+    fn distribution(count: usize) -> Vec<f32> {
+        let values = [
+            1e20f32, -1e20, 3., 1e-20, -0., 1., -1., 2.5, -2.5, 1.0000001, 0.9999999,
+        ];
+        (0..count)
+            .map(|index| values[index % values.len()])
+            .collect()
+    }
+    #[test]
+    fn contiguous_trailing_reduction_matches_the_original_generic_accumulation_bits() {
+        for dimensions in [
+            vec![7],
+            vec![2, 3, 7],
+            vec![2, 5, 120],
+            vec![1, 11, 192],
+            vec![2, 3, 1],
+            vec![2, 2, 3, 5],
+        ] {
+            let input_shape = Shape::new(&dimensions).unwrap();
+            let values = distribution(input_shape.element_count());
+            for keep in [false, true] {
+                let (output_shape, kind) = bind_reduce(input_shape, &[-1], keep, false).unwrap();
+                let BoundKind::Reduce(mut plan) = kind else {
+                    panic!("expected reduction");
+                };
+                assert!(plan.contiguous.is_some());
+                let mut specialized = vec![f32::NAN; output_shape.element_count()];
+                let mut original = specialized.clone();
+                reduce(&plan, &values, &mut specialized);
+                plan.contiguous = None;
+                reduce(&plan, &values, &mut original);
+                assert_bits(&specialized, &original);
+            }
+        }
+    }
+    fn compare_row_scalar<const OP: u8>(a_shape: Shape, b_shape: Shape, a: &[f32], b: &[f32]) {
+        let output_shape = a_shape.broadcast(b_shape).unwrap();
+        let mut plan = Broadcast::new(a_shape, b_shape, output_shape);
+        assert!(matches!(plan.kind, BroadcastKind::RowScalar { .. }));
+        let mut specialized = vec![f32::NAN; output_shape.element_count()];
+        let mut original = specialized.clone();
+        binary::<OP>(&plan, a, b, &mut specialized);
+        plan.kind = BroadcastKind::Generic;
+        binary::<OP>(&plan, a, b, &mut original);
+        assert_bits(&specialized, &original);
+    }
+    #[test]
+    fn row_scalar_paths_preserve_operand_order_and_generic_arithmetic_bits() {
+        for dimensions in [
+            vec![5, 7],
+            vec![2, 3, 7],
+            vec![2, 5, 120],
+            vec![1, 11, 192],
+            vec![2, 3, 4, 5],
+        ] {
+            let full_shape = Shape::new(&dimensions).unwrap();
+            let mut scalar_dimensions = dimensions.clone();
+            *scalar_dimensions.last_mut().unwrap() = 1;
+            let scalar_shape = Shape::new(&scalar_dimensions).unwrap();
+            let full = distribution(full_shape.element_count());
+            let scalars = (0..scalar_shape.element_count())
+                .map(|index| (index as f32 + 1.) / 8.)
+                .collect::<Vec<_>>();
+            for scalar_left in [false, true] {
+                let (a_shape, b_shape, a, b) = if scalar_left {
+                    (
+                        scalar_shape,
+                        full_shape,
+                        scalars.as_slice(),
+                        full.as_slice(),
+                    )
+                } else {
+                    (
+                        full_shape,
+                        scalar_shape,
+                        full.as_slice(),
+                        scalars.as_slice(),
+                    )
+                };
+                compare_row_scalar::<0>(a_shape, b_shape, a, b);
+                compare_row_scalar::<1>(a_shape, b_shape, a, b);
+                compare_row_scalar::<2>(a_shape, b_shape, a, b);
+                compare_row_scalar::<3>(a_shape, b_shape, a, b);
+            }
+        }
+        // Broadcasting a single batch of row scalars is a different contract:
+        // it must remain in the generic planner instead of truncating the zip.
+        let full = Shape::new(&[2, 3, 7]).unwrap();
+        let shared = Shape::new(&[1, 3, 1]).unwrap();
+        assert!(matches!(
+            Broadcast::new(full, shared, full).kind,
+            BroadcastKind::Generic
+        ));
+    }
+    fn reference_conv1x1(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32]) -> Vec<f32> {
+        let plane = p.height * p.width;
+        let mut output = vec![0.0; p.batch * p.cout * plane];
+        for batch in 0..p.batch {
+            for channel in 0..p.cout {
+                let group = channel / p.opg;
+                for pixel in 0..plane {
+                    let mut sum = if bias.is_empty() { 0.0 } else { bias[channel] };
+                    for ci in 0..p.cpg {
+                        sum += input[(batch * p.cin + group * p.cpg + ci) * plane + pixel]
+                            * weights[channel * p.cpg + ci];
+                    }
+                    output[(batch * p.cout + channel) * plane + pixel] = sum;
+                }
+            }
+        }
+        output
+    }
+    fn compare_conv1x1(
+        dimensions: [usize; 4],
+        channels: usize,
+        groups: usize,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+    ) {
+        let (shape, kind) = bind_conv(
+            Shape::new(&dimensions).unwrap(),
+            Shape::new(&[channels, dimensions[1] / groups, 1, 1]).unwrap(),
+            (!bias.is_empty()).then(|| Shape::new(&[channels]).unwrap()),
+            &ConvAttributes {
+                kernel_shape: [1, 1],
+                strides: [1, 1],
+                dilations: [1, 1],
+                pads: [0, 0, 0, 0],
+                group: groups as i64,
+            },
+        )
+        .unwrap();
+        let BoundKind::Conv(plan) = kind else {
+            panic!("expected convolution");
+        };
+        let expected = reference_conv1x1(&plan, input, weights, bias);
+        let mut actual = vec![f32::NAN; shape.element_count()];
+        conv(&plan, input, weights, bias, &mut actual);
+        assert_bits(&actual, &expected);
+    }
+    #[test]
+    fn four_channel_four_pixel_conv_preserves_group_batch_and_tail_bits() {
+        for (batch, groups, input_channels, output_channels) in [
+            (1, 1, 1, 1),
+            (2, 1, 3, 7),
+            (1, 1, 48, 96),
+            (1, 2, 10, 14),
+            (2, 3, 15, 27),
+            (1, 4, 4, 4),
+        ] {
+            for (height, width) in [(1, 1), (1, 3), (1, 4), (1, 5), (2, 7), (3, 11)] {
+                let input = distribution(batch * input_channels * height * width);
+                let weights = (0..output_channels * input_channels / groups)
+                    .map(|index| (index as i32 % 19 - 9) as f32 / 16.0)
+                    .collect::<Vec<_>>();
+                let bias = (0..output_channels)
+                    .map(|index| (index as i32 % 7 - 3) as f32 / 8.0)
+                    .collect::<Vec<_>>();
+                for bias in [bias.as_slice(), &[]] {
+                    compare_conv1x1(
+                        [batch, input_channels, height, width],
+                        output_channels,
+                        groups,
+                        &input,
+                        &weights,
+                        bias,
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn tiled_conv_retains_bias_first_cancellation_and_signed_zero() {
+        let dimensions = [2, 6, 1, 7];
+        let input = (0..dimensions.iter().product::<usize>())
+            .map(|index| [1e20f32, -1e20, 3.0][index / 7 % 3])
+            .collect::<Vec<_>>();
+        compare_conv1x1(dimensions, 10, 2, &input, &[1.0; 30], &[1.0; 10]);
+        compare_conv1x1(
+            dimensions,
+            10,
+            2,
+            &vec![-0.0; input.len()],
+            &[1.0; 30],
+            &[-0.0; 10],
+        );
     }
 }
