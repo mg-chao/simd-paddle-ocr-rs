@@ -1,8 +1,41 @@
 # simd-paddle-ocr-rs
 
-The Rust rewrite starts with a reproducible reference bundle and a Rust parity comparator. OCR inference is still supplied by the adjacent `SimdPaddleOCR` C# checkout.
+The Rust rewrite now includes checked tensors, a streaming ONNX loader, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. OCR inference is still supplied by the adjacent `SimdPaddleOCR` checkout; Rust does not execute networks yet.
 
-Requirements: .NET 10 SDK, stable Rust with edition 2024 support, PowerShell, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout needs this workspace's opt-in `RunWithTrace` method and friend assembly entry.
+Requirements: .NET 10 SDK, the pinned Rust 1.97.1 toolchain, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
+
+## Import references and local archives
+
+```powershell
+./tools/export-model-contracts.ps1 -Out reference-bundles/import-reference-v1
+cargo run --release --offline -- validate-import reference-bundles/import-reference-v1
+cargo run --release --offline -- compare-import reference-bundles/import-reference-v1 medium_rec
+cargo run --release --offline -- inspect-model ../SimdPaddleOCR/models/cls.onnx
+./tools/archive-reference.ps1 -Bundle reference-bundles/import-reference-v1 -BaselineId import-reference-v1
+```
+
+The archive tool preserves verified ZIPs and SHA-256 sidecars in the adjacent
+`reference-archives` directory, extracts each archive into a fresh verification
+directory, and records identities in [the baseline catalog](docs/baselines.json).
+ZIP entries have deterministic order and timestamps. Bundles and archives are
+never overwritten. Keep those archives when cleaning build outputs.
+
+[Model import](docs/model-import.md) documents ownership, supported types,
+normalization, inspection, and the all-model parity gate.
+[Iteration measurements](docs/step12-performance.md) records local latency and
+memory evidence with reproducible commands.
+
+## Validate or compare one implemented stage
+
+```powershell
+cargo run --release --offline -- validate reference-bundles/tiny-reference-v1 --json
+cargo run --release --offline -- compare-stage reference-bundles/tiny-reference-v1 reference-bundles/tiny-replay-v1 --case sample --artifact det.input --atol 0 --rtol 0
+```
+
+Stage comparison explicitly reports partial coverage. A candidate can contain
+only its implemented stages, while every declared model, artifact, and indexed
+auxiliary file is still validated. The typed Rust bundle writer supports staged
+candidate generation without copying unimplemented reference outputs.
 
 ## Export a reference
 

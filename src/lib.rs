@@ -3,6 +3,9 @@
 #![forbid(unsafe_code)]
 
 pub mod bundle;
+pub mod model;
+pub mod onnx;
+pub mod tensor;
 
 use bundle::{ArtifactDescriptor, AuxiliaryFileDescriptor, CaseDescriptor, Dtype, ModelDescriptor};
 use serde::{Deserialize, Serialize};

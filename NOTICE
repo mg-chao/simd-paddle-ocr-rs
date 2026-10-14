@@ -1,0 +1,6 @@
+This project includes a Rust adaptation of the ONNX importer and normalization
+algorithms from Sdcb.SimdPaddleOCR by sdcb and its contributors:
+https://github.com/sdcb/SimdPaddleOCR
+
+The original project is licensed under the Apache License, Version 2.0.
+See LICENSE and the adjacent reference source for original notices.

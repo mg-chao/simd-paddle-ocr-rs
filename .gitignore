@@ -1,4 +1,6 @@
 /target
 /reference-bundles/
 **/bin/
+!/src/bin/
+!/src/bin/**
 **/obj/

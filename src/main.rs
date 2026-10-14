@@ -1,89 +1,253 @@
-use std::{env, path::PathBuf, process::ExitCode};
+use simd_paddle_ocr_rs::{
+    Tolerance, compare_bundles, compare_stage,
+    model::{self, LoadOptions, Model},
+    validate_bundle,
+};
+use std::{collections::HashSet, env, path::PathBuf, process::ExitCode};
 
-use simd_paddle_ocr_rs::{Tolerance, compare_bundles};
-
-const HELP: &str = "Compare frozen OCR reference bundles.
+const HELP: &str = "Frozen references and structural ONNX import; no OCR inference yet.
 
 Usage:
-  simd-paddle-ocr-rs compare <reference-dir> <candidate-dir> [--atol N] [--rtol N]
+  simd-paddle-ocr-rs compare <reference> <candidate> [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs compare-stage <reference> <candidate> --case ID --artifact ID [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs validate <bundle> [--json]
+  simd-paddle-ocr-rs inspect-model <model.onnx> [--out NEW_DIRECTORY] [--json]
+  simd-paddle-ocr-rs validate-import <reference-directory> [--json]
+  simd-paddle-ocr-rs compare-import <reference-directory> <model-id> [--json]
   simd-paddle-ocr-rs --help
 
-Defaults: --atol 1e-5 --rtol 1e-4
-For float tensors and JSON numbers, |candidate-reference| <= atol + rtol*|reference|.
-JSON integer pairs, strings, booleans, keys, and array order compare exactly.
-An integer compared with a floating-point JSON number uses the float tolerance.
-Case/artifact order, dtype, shape, layout, contracts, and model hashes must match.
-Every model/artifact file is checked against its recorded hash and byte length first.
-Exit status: 0 match; 1 parity difference; 2 invalid arguments or bundle.";
+Float defaults: --atol 1e-5 --rtol 1e-4.
+Shape/layout/order, bytes, text and integer structure compare exactly.
+Stage matches cover one selected artifact; every declared file is validated.
+Import comparison checks raw/normalized graphs and exact weight hashes.
+Exit status: 0 match/valid; 1 parity difference; 2 invalid arguments or data.";
 
+struct Arguments {
+    command: String,
+    paths: Vec<String>,
+    case_id: Option<String>,
+    artifact_id: Option<String>,
+    out: Option<String>,
+    tolerance: Tolerance,
+    json: bool,
+}
+fn arguments(args: &[String]) -> Result<Arguments, String> {
+    let Some(command) = args.first() else {
+        return Err("expected a command".into());
+    };
+    let mut parsed = Arguments {
+        command: command.clone(),
+        paths: Vec::new(),
+        case_id: None,
+        artifact_id: None,
+        out: None,
+        tolerance: Tolerance::default(),
+        json: false,
+    };
+    let mut seen = HashSet::new();
+    let mut index = 1;
+    while index < args.len() {
+        let flag = args[index].as_str();
+        if flag.starts_with('-') && !seen.insert(flag) {
+            return Err(format!("duplicate option {flag}"));
+        }
+        match flag {
+            "--json" => parsed.json = true,
+            "--atol" | "--rtol" | "--case" | "--artifact" | "--out" => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| format!("{flag} needs a value"))?;
+                match flag {
+                    "--case" => parsed.case_id = Some(value.clone()),
+                    "--artifact" => parsed.artifact_id = Some(value.clone()),
+                    "--out" => parsed.out = Some(value.clone()),
+                    _ => {
+                        let number: f64 = value
+                            .parse()
+                            .map_err(|_| format!("{flag} needs a number"))?;
+                        if !number.is_finite() || number < 0.0 {
+                            return Err("tolerances must be finite and nonnegative".into());
+                        }
+                        if flag == "--atol" {
+                            parsed.tolerance.atol = number;
+                        } else {
+                            parsed.tolerance.rtol = number;
+                        }
+                    }
+                }
+            }
+            unknown if unknown.starts_with('-') => return Err(format!("unknown option {unknown}")),
+            path => parsed.paths.push(path.into()),
+        }
+        index += 1;
+    }
+    let expected = match parsed.command.as_str() {
+        "compare" | "compare-stage" | "compare-import" => 2,
+        "validate" | "inspect-model" | "validate-import" => 1,
+        other => return Err(format!("unknown command {other}")),
+    };
+    if parsed.paths.len() != expected {
+        return Err(format!(
+            "{} expects {expected} positional arguments",
+            parsed.command
+        ));
+    }
+    if parsed.command == "compare-stage" {
+        if parsed.case_id.as_deref().is_none_or(str::is_empty)
+            || parsed.artifact_id.as_deref().is_none_or(str::is_empty)
+        {
+            return Err("compare-stage requires nonempty --case and --artifact".into());
+        }
+    } else if parsed.case_id.is_some() || parsed.artifact_id.is_some() {
+        return Err("--case/--artifact require compare-stage".into());
+    }
+    if parsed.out.is_some() && parsed.command != "inspect-model" {
+        return Err("--out requires inspect-model".into());
+    }
+    if parsed.command != "compare"
+        && parsed.command != "compare-stage"
+        && (seen.contains("--atol") || seen.contains("--rtol"))
+    {
+        return Err("--atol/--rtol require a tensor comparison command".into());
+    }
+    Ok(parsed)
+}
+fn print_report<T: serde::Serialize + std::fmt::Display>(
+    report: &T,
+    json: bool,
+) -> Result<(), String> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(report).map_err(|e| e.to_string())?
+        );
+    } else {
+        println!("{report}");
+    }
+    Ok(())
+}
+fn run(args: Arguments) -> Result<u8, String> {
+    let path = PathBuf::from(&args.paths[0]);
+    match args.command.as_str() {
+        "compare" | "compare-stage" => {
+            let other = PathBuf::from(&args.paths[1]);
+            let report = if args.command == "compare-stage" {
+                compare_stage(
+                    &path,
+                    &other,
+                    args.case_id.as_deref().unwrap(),
+                    args.artifact_id.as_deref().unwrap(),
+                    args.tolerance,
+                )
+            } else {
+                compare_bundles(&path, &other, args.tolerance)
+            }
+            .map_err(|e| e.to_string())?;
+            print_report(&report, args.json)?;
+            Ok(u8::from(!report.matches()))
+        }
+        "validate" => {
+            print_report(
+                &validate_bundle(&path).map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
+        }
+        "inspect-model" => {
+            let options = LoadOptions {
+                capture_raw_snapshot: true,
+                ..Default::default()
+            };
+            if let Some(directory) = &args.out {
+                print_report(
+                    &model::inspect_model(&path, directory, &options).map_err(|e| e.to_string())?,
+                    args.json,
+                )?;
+            } else {
+                let imported =
+                    Model::load_path_with_options(&path, &options).map_err(|e| e.to_string())?;
+                if args.json {
+                    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
+                        "source_bytes": imported.source_bytes(),
+                        "raw": imported.raw_snapshot(),
+                        "normalized": imported.normalized_snapshot().map_err(|e| e.to_string())?,
+                        "shape_recipes": imported.shape_recipes(),
+                    })).map_err(|e| e.to_string())?);
+                } else {
+                    println!(
+                        "IMPORTED: {} nodes, {} tensors; {} source bytes, {} retained weight bytes",
+                        imported.graph().nodes.len(),
+                        imported.graph().tensors.len(),
+                        imported.source_bytes(),
+                        imported.normalized_weight_bytes()
+                    );
+                }
+            }
+            Ok(0)
+        }
+        "validate-import" => {
+            print_report(
+                &model::validate_import_reference(&path).map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
+        }
+        "compare-import" => {
+            let report = model::compare_import(&path, &args.paths[1], &LoadOptions::default())
+                .map_err(|e| e.to_string())?;
+            print_report(&report, args.json)?;
+            Ok(u8::from(!report.matches()))
+        }
+        _ => unreachable!(),
+    }
+}
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
-    if args.as_slice() == ["--help"] || args.as_slice() == ["-h"] || args.as_slice() == ["help"] {
+    if matches!(args.as_slice(), [help] if help == "--help" || help == "-h" || help == "help") {
         println!("{HELP}");
         return ExitCode::SUCCESS;
     }
-    let (reference, candidate, tolerance) = match parse_args(&args) {
+    let parsed = match arguments(&args) {
         Ok(parsed) => parsed,
         Err(error) => {
             eprintln!("Invalid arguments: {error}\n\n{HELP}");
             return ExitCode::from(2);
         }
     };
-    match compare_bundles(&reference, &candidate, tolerance) {
-        Ok(report) => {
-            println!("{report}");
-            ExitCode::from(u8::from(!report.matches()))
-        }
+    match run(parsed) {
+        Ok(code) => ExitCode::from(code),
         Err(error) => {
-            eprintln!("Invalid bundle: {error}");
+            eprintln!("Invalid data: {error}");
             ExitCode::from(2)
         }
     }
 }
 
-fn parse_args(args: &[String]) -> Result<(PathBuf, PathBuf, Tolerance), String> {
-    if args.first().map(String::as_str) != Some("compare") {
-        return Err("expected the 'compare' command".into());
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn parse(args: &[&str]) -> Result<Arguments, String> {
+        arguments(&args.iter().map(|s| s.to_string()).collect::<Vec<_>>())
     }
-    let mut directories = Vec::new();
-    let mut tolerance = Tolerance::default();
-    let mut index = 1;
-    let mut seen_atol = false;
-    let mut seen_rtol = false;
-    while index < args.len() {
-        match args[index].as_str() {
-            flag @ ("--atol" | "--rtol") => {
-                let seen = if flag == "--atol" {
-                    &mut seen_atol
-                } else {
-                    &mut seen_rtol
-                };
-                if *seen {
-                    return Err(format!("duplicate option {flag}"));
-                }
-                *seen = true;
-                index += 1;
-                let value = args
-                    .get(index)
-                    .ok_or_else(|| format!("{flag} needs a number"))?
-                    .parse::<f64>()
-                    .map_err(|_| format!("{flag} needs a number"))?;
-                if !value.is_finite() || value < 0.0 {
-                    return Err(format!("{flag} must be finite and nonnegative"));
-                }
-                if flag == "--atol" {
-                    tolerance.atol = value;
-                } else {
-                    tolerance.rtol = value;
-                }
-            }
-            flag if flag.starts_with('-') => return Err(format!("unknown option {flag}")),
-            directory => directories.push(PathBuf::from(directory)),
-        }
-        index += 1;
+    #[test]
+    fn new_commands_reject_ambiguous_arguments() {
+        assert!(
+            parse(&[
+                "compare-stage",
+                "a",
+                "b",
+                "--case",
+                "sample",
+                "--artifact",
+                "det.input"
+            ])
+            .is_ok()
+        );
+        assert!(parse(&["compare-stage", "a", "b", "--case", "sample"]).is_err());
+        assert!(parse(&["validate", "a", "--rtol", "1"]).is_err());
+        assert!(parse(&["compare-import", "a", "cls", "--artifact", "x"]).is_err());
+        assert!(parse(&["validate", "a", "--json", "--json"]).is_err());
+        assert!(parse(&["compare", "a", "b", "--atol", "0", "--rtol", "0"]).is_ok());
     }
-    if directories.len() != 2 {
-        return Err("expected exactly two bundle directories".into());
-    }
-    Ok((directories.remove(0), directories.remove(0), tolerance))
 }

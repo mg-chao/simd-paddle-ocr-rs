@@ -7,30 +7,40 @@ param(
     [string]$Catalog = (Join-Path $PSScriptRoot '../docs/baselines.json')
 )
 $ErrorActionPreference = 'Stop'
-$bundlePath = (Resolve-Path -LiteralPath $Bundle).Path
-$binaryPath = (Resolve-Path -LiteralPath $Binary).Path
+function Normalize-FilesystemPath([string]$Path) {
+    if ($Path.StartsWith('\\?\UNC\', [StringComparison]::OrdinalIgnoreCase)) { return '\\' + $Path.Substring(8) }
+    if ($Path.StartsWith('\\?\', [StringComparison]::OrdinalIgnoreCase)) { return $Path.Substring(4) }
+    return $Path
+}
+$bundlePath = Normalize-FilesystemPath ((Resolve-Path -LiteralPath $Bundle).ProviderPath)
+$binaryPath = Normalize-FilesystemPath ((Resolve-Path -LiteralPath $Binary).ProviderPath)
 $manifestPath = Join-Path $bundlePath 'manifest.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $validator = if ($manifest.kind -eq 'model_import_contracts') { 'validate-import' } else { 'validate' }
 & $binaryPath $validator $bundlePath
 if ($LASTEXITCODE -ne 0) { throw 'Bundle validation failed; no archive created.' }
-$archiveRoot = [IO.Path]::GetFullPath($ArchiveDirectory)
-if ($archiveRoot.StartsWith($bundlePath.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+$archiveRoot = Normalize-FilesystemPath ([IO.Path]::GetFullPath($ArchiveDirectory))
+if ($archiveRoot.Equals($bundlePath.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase) -or
+    $archiveRoot.StartsWith($bundlePath.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Archive directory must be outside the source bundle.'
 }
-[IO.Directory]::CreateDirectory($archiveRoot) | Out-Null
 $archivePath = Join-Path $archiveRoot "$BaselineId.zip"
 $sidecarPath = "$archivePath.sha256"
 $restorePath = Join-Path (Join-Path $archiveRoot 'verification') $BaselineId
 foreach ($destination in @($archivePath, $sidecarPath, $restorePath)) {
     if (Test-Path -LiteralPath $destination) { throw "Output already exists: $destination" }
 }
+$catalogPath = Normalize-FilesystemPath ([IO.Path]::GetFullPath($Catalog))
+$catalogRows = @()
+if (Test-Path -LiteralPath $catalogPath) { $catalogRows = @(Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json) }
+if ($catalogRows | Where-Object { $_.id -eq $BaselineId }) { throw "Catalog already contains $BaselineId" }
 $entries = [Collections.Generic.List[string]]::new()
 foreach ($entry in Get-ChildItem -LiteralPath $bundlePath -Recurse -Force) {
     if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Reparse points cannot be archived: $($entry.FullName)" }
     if (-not $entry.PSIsContainer) { $entries.Add([IO.Path]::GetRelativePath($bundlePath, $entry.FullName).Replace('\', '/')) }
 }
 $entries.Sort([StringComparer]::Ordinal)
+[IO.Directory]::CreateDirectory($archiveRoot) | Out-Null
 $stream = [IO.FileStream]::new($archivePath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write)
 try {
     $zip = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create, $true)
@@ -50,10 +60,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Restored archive failed validation; catalog wa
 $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
 "$archiveHash  $BaselineId.zip" | Set-Content -LiteralPath $sidecarPath -Encoding utf8NoBOM
-$catalogPath = [IO.Path]::GetFullPath($Catalog)
-$catalogRows = @()
-if (Test-Path -LiteralPath $catalogPath) { $catalogRows = @(Get-Content -LiteralPath $catalogPath -Raw | ConvertFrom-Json) }
-if ($catalogRows | Where-Object { $_.id -eq $BaselineId }) { throw "Catalog already contains $BaselineId" }
 $assets = @($manifest.models)
 if ($manifest.dictionaries) { $assets += @($manifest.dictionaries) }
 $record = [ordered]@{
