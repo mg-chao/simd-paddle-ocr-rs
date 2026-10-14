@@ -29,6 +29,17 @@ def counters(measured, calls=0, retained=0, peak=0):
 
 
 class SummaryTests(unittest.TestCase):
+    def test_equivalent_unresolved_reference_paths_preserve_containment(self):
+        alias = self.reference / ".." / self.reference.name
+        asset = {"path": "det.onnx", "bytes": 3, "sha256": sha(b"det")}
+        self.assertEqual(SUMMARY.bundle_file(alias, asset, {}), (self.reference / "det.onnx").resolve())
+        dataset, _ = SUMMARY.load_dataset(alias, None, {})
+        self.assertEqual(dataset, self.dataset)
+        outside = self.root / "outside.onnx"
+        outside.write_bytes(b"det")
+        with self.assertRaisesRegex(SUMMARY.InvalidReport, "escapes reference"):
+            SUMMARY.bundle_file(alias, asset | {"path": "../outside.onnx"}, {})
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

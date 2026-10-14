@@ -172,6 +172,7 @@ def resolve_reference(value):
 
 
 def bundle_file(root, asset, identities):
+    root = root.resolve(strict=True)
     relative = Path(asset.get("path", ""))
     require(str(relative) not in ("", ".") and not relative.is_absolute(), "invalid bundle path")
     path = (root / relative).resolve(strict=True)
@@ -186,6 +187,7 @@ def bundle_file(root, asset, identities):
 
 
 def load_dataset(reference, selected, identities):
+    reference = reference.resolve(strict=True)
     manifest_path = reference / "manifest.json"
     manifest_identity = file_identity(manifest_path)
     identities[str(manifest_path)] = manifest_identity
