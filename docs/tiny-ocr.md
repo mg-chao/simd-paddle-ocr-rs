@@ -65,7 +65,8 @@ $env:SIMDOCR_OCR_REFERENCE = 'target/step12-fixtures/tiny-ocr'
 cargo test --release --locked --offline --test ocr_harness -- --ignored
 ```
 
-CI runs normal native preprocessing/operator goldens and the committed compact
-import, DET and shared CLS gates on Windows/Linux. Full REC/OCR parity and
-borrowed/allocation smoke checks require the local archives; their commands are
-documented in [the fixture guide](../tests/fixtures/step12/README.md).
+The local archive commands above preserve the historical tiny selection. Current
+Windows/Linux CI also downloads the immutable complete four-case OCR fixtures
+and requires all-node REC, complete OCR and instrumented borrowed/allocation
+gates for tiny, small and medium. See [the fixture guide](../tests/fixtures/step12/README.md)
+and [all-model inference](all-model-inference.md) for the current required gates.

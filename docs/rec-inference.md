@@ -104,9 +104,10 @@ Every declared source/model/artifact/provenance file is validated. Content width
 comes from frozen crop pixels and preprocessing rules, not expected output JSON.
 
 Committed native preprocessing and operator goldens run in normal tests.
-Compact real-model REC fixtures use the hash-pinned fixture index. Supply the
-ignored `tiny-rec.zip` and `tiny-ocr.zip` archives in `tests/fixtures/step12`, then
-explicitly include the local captures:
+Required Windows/Linux CI runs complete hosted tiny/small/medium OCR fixtures
+through both REC and OCR, using the hash-pinned fixture index. The older
+`tiny-rec.zip` and `tiny-ocr.zip` captures remain optional local references.
+To explicitly include those historical captures:
 
 ```powershell
 python tools/prepare-step12-fixtures.py --include-local --models ../SimdPaddleOCR/models
