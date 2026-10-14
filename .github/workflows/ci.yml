@@ -42,11 +42,28 @@ jobs:
           Copy-Item tests/fixtures/step12/index.json target/ci-reports/fixture-index.json
           python tools/prepare-step12-fixtures.py 2>&1 | Tee-Object target/ci-reports/preparation.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - run: cargo test --release --locked --test model_import all_shipped_models_match_authoritative_imports -- --ignored
+      - name: Required native import, detector, classifier and public API gates
+        shell: pwsh
         env:
           SIMDOCR_IMPORT_REFERENCE: target/step12-fixtures/imports
-      - run: cargo test --release --locked --test step12_harness compact_real_models_match_all_detector_and_pixel_stages -- --ignored
-      - run: cargo test --release --locked --test line_pipeline -- --ignored
+          SIMDOCR_STEP12_FIXTURES: target/step12-fixtures
+        run: |
+          New-Item -ItemType Directory -Force target/ci-reports | Out-Null
+          $required = [ordered]@{
+            model_import = @('all_shipped_models_match_authoritative_imports')
+            step12_harness = @('compact_real_models_match_all_detector_and_pixel_stages')
+            line_pipeline = @('real_prefix_full_public_outputs_and_owned_copies_survive_reuse', 'observer_failures_recover_and_disabled_classifier_returns_original_crops', 'crop_budget_failures_precede_slab_writes_and_empty_requests_can_recover')
+            real_public_api = @('all_shipped_families_public_api_reuse_and_recovery')
+          }
+          foreach ($harness in $required.Keys) {
+            $names = @(cargo test --release --locked --test $harness -- --ignored --list)
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($test in $required[$harness]) {
+              if ($names -notcontains "${test}: test") { throw "Required test is missing: $harness/$test" }
+              cargo test --release --locked --test $harness $test -- --ignored --exact --nocapture 2>&1 | Tee-Object "target/ci-reports/$harness-$test.log"
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
       - name: Complete native REC and OCR parity
         shell: pwsh
         env:
@@ -60,7 +77,7 @@ jobs:
           rustc -Vv | Set-Content target/ci-reports/rustc.txt
           $testNames = @{}
           foreach ($harness in 'rec_harness', 'ocr_harness') {
-            $testNames[$harness] = @(cargo test --release --locked --test $harness -- --list)
+            $testNames[$harness] = @(cargo test --release --locked --test $harness -- --ignored --list)
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           function Invoke-ParityTest([string]$family, [string]$harness, [string]$test) {
