@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Reference,
     [Parameter(Mandatory=$true)][string]$Out,
     [string]$ReferenceRepo=(Join-Path $PSScriptRoot '../../SimdPaddleOCR'),
+    [string]$PreparedBuild,
     [string]$StopFile,
     [string]$IdleProvenanceFile,
     [ValidateSet('rec_graph','rec_public_owned','rec_public_borrowed','ocr_owned','ocr_borrowed','mixed_widths','owned_copies','node_profile','public_stage_profile')][string[]]$Modes=@('rec_graph','rec_public_owned','rec_public_borrowed','ocr_owned','ocr_borrowed','mixed_widths','owned_copies'),
@@ -25,6 +26,7 @@ $outputPath=[IO.Path]::GetFullPath($Out)
 if(Test-Path -LiteralPath $outputPath){throw 'Measurement directory exists; choose a new identity.'}
 [IO.Directory]::CreateDirectory($outputPath)|Out-Null
 . (Join-Path $PSScriptRoot 'benchmark-process.ps1')
+. (Join-Path $PSScriptRoot 'benchmark-build.ps1')
 $rawProcessPath=Join-Path $outputPath 'raw-processes'
 [IO.Directory]::CreateDirectory($rawProcessPath)|Out-Null
 $stopFilePath=if($StopFile){[IO.Path]::GetFullPath($StopFile)}else{$null}
@@ -43,6 +45,7 @@ function Invoke-OcrBuild([string]$executable,[string[]]$arguments,[string]$ident
     if($run.Record.status -eq 'interrupted_before_start'){throw [OperationCanceledException]::new('Stop file observed before build.')}
     if($run.Record.exit_code -ne 0){throw "Build failed; see $($run.RecordPath) and raw stdout/stderr."}
     if($run.Record.stop_requested){throw [OperationCanceledException]::new('Stop file observed during build; completed raw records are preserved.')}
+    return $run
 }
 Save-OcrSeries
 try {
@@ -55,29 +58,43 @@ if($IdleProvenanceFile) {
     $idleProvenance=[ordered]@{path='raw-processes/idle-provenance.json';bytes=(Get-Item -LiteralPath $saved).Length;sha256=(Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash.ToLowerInvariant()}
     $series.idle_provenance_status='provided';$series.idle_provenance=$idleProvenance
 }
+$preparedIdentity=$null
+if($PreparedBuild) {
+    $prepared=Assert-OcrPreparedBuild -ManifestPath $PreparedBuild -RustRoot $rustRoot -ReferenceRoot $referencePath -ReferenceBundle $bundlePath -Profiling:($Modes -contains 'public_stage_profile')
+    Copy-OcrPreparedExecutables $prepared $outputPath
+    $timingExe=Join-Path $outputPath 'ocr-timing.exe'
+    $heapExe=Join-Path $outputPath 'ocr-heap.exe'
+    $saved=Join-Path $rawProcessPath 'prepared-build.json'
+    Copy-Item -LiteralPath $prepared.ManifestPath -Destination $saved
+    if((Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash.ToLowerInvariant() -cne $prepared.ManifestSha256){throw 'Prepared manifest changed while copying'}
+    $preparedIdentity=[ordered]@{path='raw-processes/prepared-build.json';bytes=(Get-Item -LiteralPath $saved).Length;sha256=$prepared.ManifestSha256;origin=$prepared.ManifestPath;status='verified_frozen_bytes_no_relink'}
+    $series.prepared_build=$preparedIdentity;Save-OcrSeries
+    $exporterPath=Join-Path $outputPath 'csharp'
+} else {
 Push-Location $rustRoot
 try {
     $profilingArguments=if($Modes -contains 'public_stage_profile'){@('--features','profiling')}else{@()}
-    Invoke-OcrBuild 'cargo' (@('build','--release','--locked','--offline','--bin','ocr-benchmark')+$profilingArguments) 'build-rust-timing'
+    $timingBuild=Invoke-OcrBuild 'cargo' (@('build','--release','--locked','--offline','--bin','ocr-benchmark','--message-format=json')+$profilingArguments) 'build-rust-timing'
     $timingExe=Join-Path $outputPath 'ocr-timing.exe'
-    Copy-Item -LiteralPath (Join-Path $rustRoot 'target/release/ocr-benchmark.exe') -Destination $timingExe
+    Copy-Item -LiteralPath (Get-OcrCargoExecutable $timingBuild) -Destination $timingExe
     $heapFeatures=if($Modes -contains 'public_stage_profile'){'heap-profiler,profiling'}else{'heap-profiler'}
-    Invoke-OcrBuild 'cargo' @('build','--release','--locked','--offline','--bin','ocr-benchmark','--features',$heapFeatures) 'build-rust-heap'
+    $heapBuild=Invoke-OcrBuild 'cargo' @('build','--release','--locked','--offline','--bin','ocr-benchmark','--features',$heapFeatures,'--message-format=json') 'build-rust-heap'
     $heapExe=Join-Path $outputPath 'ocr-heap.exe'
-    Copy-Item -LiteralPath (Join-Path $rustRoot 'target/release/ocr-benchmark.exe') -Destination $heapExe
-    Invoke-OcrBuild 'dotnet' @('build',(Join-Path $PSScriptRoot 'reference-export/ReferenceExport.csproj'),'-c','Release',"-p:ReferenceRepo=$referencePath",'--nologo') 'build-csharp'
-    $sourceFiles=@(& git ls-files --cached --others --exclude-standard | Where-Object {$_ -match '\.(rs|cs|csproj|props|targets|ps1|py|toml)$' -or $_ -eq 'Cargo.lock' -or $_ -match '(^|/)(packages.lock|global)\.json$'} | Sort-Object -Unique | ForEach-Object {
-        [ordered]@{path=$_;bytes=(Get-Item -LiteralPath $_).Length;sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()}
-    })
+    Copy-Item -LiteralPath (Get-OcrCargoExecutable $heapBuild) -Destination $heapExe
+    $null=Invoke-OcrBuild 'dotnet' @('build',(Join-Path $PSScriptRoot 'reference-export/ReferenceExport.csproj'),'-c','Release',"-p:ReferenceRepo=$referencePath",'--nologo') 'build-csharp'
 } finally {Pop-Location}
 $exporterPath=Join-Path $PSScriptRoot 'reference-export/bin/Release/net10.0'
+}
+$sourceFiles=@(Get-OcrSourceInventory $rustRoot)
 $snapshot=Join-Path $outputPath 'csharp'
 [IO.Directory]::CreateDirectory($snapshot)|Out-Null
-Get-ChildItem -LiteralPath $exporterPath -File | ForEach-Object {Copy-Item -LiteralPath $_.FullName -Destination $snapshot}
+if(-not $PreparedBuild){Get-ChildItem -LiteralPath $exporterPath -File | ForEach-Object {Copy-Item -LiteralPath $_.FullName -Destination $snapshot}}
 $dll=Join-Path $snapshot 'SimdPaddleOCR.ReferenceExport.dll'
 $executables=@($timingExe,$heapExe)+@(Get-ChildItem -LiteralPath $snapshot -File | ForEach-Object {$_.FullName}) | ForEach-Object {[ordered]@{path=[IO.Path]::GetRelativePath($outputPath,$_).Replace('\','/');sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant();bytes=(Get-Item -LiteralPath $_).Length}}
 $metadata=[ordered]@{schema_version=2;kind='ocr_measurement_snapshot';model_family=$bundleManifest.contract.model;csharp_profile=$CSharpProfile;processor_affinity_mask=$ProcessorAffinityMask;power_plan=(& powercfg /getactivescheme);reference=$bundlePath;manifest_sha256=(Get-FileHash -LiteralPath (Join-Path $bundlePath 'manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant();rounds=$Rounds;heap_rounds=$HeapRounds;warmup=$Warmup;samples=$Repeat;case=$Case;modes=$Modes;rust_git_head=(& git -C $rustRoot rev-parse HEAD);reference_git_head=(& git -C $referencePath rev-parse HEAD);rustc=(& rustc --version);os=[System.Runtime.InteropServices.RuntimeInformation]::OSDescription;architecture=[System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString();processor_count=[Environment]::ProcessorCount;executables=$executables;source_files=$sourceFiles}
 $metadata.rustflags=[Environment]::GetEnvironmentVariable('RUSTFLAGS')
+$metadata.effective_build_flags=Get-OcrBuildFlags
+$metadata.prepared_build=$preparedIdentity
 $metadata.idle_provenance=$idleProvenance
 $metadata.stop_file=$stopFilePath
 foreach($file in $sourceFiles){
@@ -86,15 +103,11 @@ foreach($file in $sourceFiles){
     Copy-Item -LiteralPath (Join-Path $rustRoot $file.path) -Destination $saved
     if((Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.sha256){throw 'Source changed during benchmark snapshot'}
 }
-$sourceIdentity=[Text.Encoding]::UTF8.GetBytes((@($sourceFiles|ForEach-Object {"$($_.path)`0$($_.sha256)`n"}) -join ''))
-$metadata.source_sha256=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($sourceIdentity)).ToLowerInvariant()
+$metadata.source_sha256=Get-OcrInventoryHash $sourceFiles
 $controls=@{DOTNET_PROCESSOR_COUNT='1';DOTNET_EnableHWIntrinsic='0';DOTNET_TieredCompilation='0';DOTNET_TieredPGO='0';PPOCR_NHWC='0';SIMD_OCR_NOFUSE='1';PPOCR_DET_THREADS='1';PPOCR_DUMP_CONV=$null;PPOCR_DUMP_NODES=$null;PPOCR_DUMP_PLAN=$null;PPOCR_DUMP_GRAPH=$null}
 if($CSharpProfile -eq 'cpu'){$controls.DOTNET_EnableHWIntrinsic='1';$controls.DOTNET_TieredCompilation='1';$controls.DOTNET_TieredPGO='1';$controls.PPOCR_NHWC='1';$controls.SIMD_OCR_NOFUSE='0'}
 $metadata.runtime_controls=$controls
-$referenceSources=@(& git -C $referencePath ls-files --cached --others --exclude-standard | Where-Object {$_ -match '\.(cs|csproj|props|targets)$' -or $_ -match '(^|/)(packages.lock|global)\.json$'} | Sort-Object -Unique | ForEach-Object {
-    $origin=Join-Path $referencePath $_
-    [ordered]@{path=$_;bytes=(Get-Item -LiteralPath $origin).Length;sha256=(Get-FileHash -LiteralPath $origin -Algorithm SHA256).Hash.ToLowerInvariant()}
-})
+$referenceSources=@(Get-OcrSourceInventory $referencePath -Native)
 foreach($file in $referenceSources){
     $saved=Join-Path (Join-Path $outputPath 'reference-source') $file.path
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($saved))|Out-Null
@@ -102,8 +115,7 @@ foreach($file in $referenceSources){
     if((Get-FileHash -LiteralPath $saved -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.sha256){throw 'Reference source changed during snapshot'}
 }
 $metadata.reference_source_files=$referenceSources
-$referenceIdentity=[Text.Encoding]::UTF8.GetBytes((@($referenceSources|ForEach-Object {"$($_.path)`0$($_.sha256)`n"}) -join ''))
-$metadata.reference_source_sha256=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($referenceIdentity)).ToLowerInvariant()
+$metadata.reference_source_sha256=Get-OcrInventoryHash $referenceSources
 $metadata|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $outputPath 'snapshot.json') -Encoding utf8NoBOM
 function Invoke-OcrRun([string]$mode,[string]$engine,[int]$round) {
     $validation=$engine -eq 'csharp-validation'
