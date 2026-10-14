@@ -16,6 +16,8 @@ internal static class Program
     {
         try
         {
+            if (args.Length > 0 && args[0] == "--export-imports") return ImportTools.Export(args[1..]);
+            if (args.Length > 0 && args[0] == "--benchmark-imports") return ImportTools.Benchmark(args[1..]);
             if (args.Length == 0 || args.Contains("--help"))
             {
                 Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -ReplayBundle <frozen-bundle>] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
@@ -99,7 +101,7 @@ internal static class Program
             });
             Console.WriteLine($"measured {fixture.Id}: first={firstCallMs:F2}ms warm p50={Percentile(samples, 0.5):F2}ms lines={result.Lines.Length}");
         }
-        writer.WriteJson("performance", "performance.json", new
+        Artifact performanceFile = writer.WriteJson("performance", "performance.json", new
         {
             loadMs = load.Elapsed.TotalMilliseconds, loadedWorkingSetBytes = loadedWorkingSet,
             untracedWorkingSetBytes = WorkingSet(), untracedPeakWorkingSetBytes = PeakWorkingSet(),
@@ -170,7 +172,7 @@ internal static class Program
                     index, node.Name, node.OpType, node.Domain, node.Opset, inputs = node.Inputs, outputs = node.Outputs
                 }).ToArray()
             }).ToArray();
-        writer.WriteJson("graph_inventory", "graph-inventory.json", inventory);
+        Artifact inventoryFile = writer.WriteJson("graph_inventory", "graph-inventory.json", inventory);
         string assemblyPath = typeof(Model).Assembly.Location;
         writer.WriteManifest(new
         {
@@ -185,6 +187,8 @@ internal static class Program
                 denseScoreSemantics = "Mean probability at the first frame of each emitted CTC token; final Softmax graph output."
             },
             models = assets, cases, provenance,
+            auxiliaryFiles = ImportTools.ProvenanceFiles((ReferenceProvenance)provenance)
+                .Concat(new[] { ImportTools.Auxiliary(performanceFile), ImportTools.Auxiliary(inventoryFile) }).ToArray(),
             referenceAssembly = new { name = typeof(Model).Assembly.FullName, sha256 = HexHash(File.ReadAllBytes(assemblyPath)) },
             dictionary = new { labels = labels.Length, classCount = labels.Length + 2, blankClass = 0, spaceClass = labels.Length + 1 },
             diagnostics = new { graphInventory = "graph-inventory.json", performance = "performance.json" }

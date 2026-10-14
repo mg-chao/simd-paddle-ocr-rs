@@ -54,7 +54,7 @@ public static class Provenance
         "\"(DOTNET_Enable[A-Za-z0-9_]+|PPOCR_[A-Za-z0-9_]+|SIMD_OCR_[A-Za-z0-9_]+)\"",
         RegexOptions.CultureInvariant);
 
-    public static object Capture(string referenceRepo, string exporterSourceDirectory, string outputRoot)
+    public static object Capture(string referenceRepo, string exporterSourceDirectory, string outputRoot, string launcherName = "export-reference.ps1")
     {
         string repo = Path.GetFullPath(referenceRepo);
         string exporter = Path.GetFullPath(exporterSourceDirectory);
@@ -104,9 +104,10 @@ public static class Provenance
         if (sourceFiles.Count == 0 || exporterFiles.Count == 0)
             throw new InvalidOperationException("The reference and exporter must both have captured build inputs.");
 
-        string launcherPath = Path.Combine(Path.GetDirectoryName(exporter)!, "export-reference.ps1");
+        if (Path.GetFileName(launcherName) != launcherName) throw new ArgumentException("Launcher name must be a filename.", nameof(launcherName));
+        string launcherPath = Path.Combine(Path.GetDirectoryName(exporter)!, launcherName);
         CapturedFile? launcher = File.Exists(launcherPath)
-            ? StoreBytes(output, "tools/export-reference.ps1", "provenance/exporter-launcher/export-reference.ps1",
+            ? StoreBytes(output, "tools/" + launcherName, "provenance/exporter-launcher/" + launcherName,
                 File.ReadAllBytes(launcherPath))
             : null;
 
