@@ -100,6 +100,17 @@ fn float(name: &str, value: f32) -> Vec<u8> {
     ]
     .concat()
 }
+fn floats(name: &str, values: &[f32]) -> Vec<u8> {
+    [
+        string(1, name),
+        number(20, 6),
+        bytes(7, values.iter().flat_map(|v| v.to_le_bytes()).collect()),
+    ]
+    .concat()
+}
+fn text_attribute(name: &str, value: &str) -> Vec<u8> {
+    [string(1, name), number(20, 3), string(4, value)].concat()
+}
 fn node(name: &str, op: &str, inputs: &[&str], output: &str, attrs: Vec<Vec<u8>>) -> Vec<u8> {
     bytes(
         1,
@@ -312,6 +323,116 @@ fn pointwise_tiling_preserves_bias_order_groups_batches_and_tail_channels() {
     assert_eq!(
         session(loaded, &[2, 4, 1, 2]).run(&input).unwrap().data(),
         expected
+    );
+}
+
+#[test]
+fn dense_channel_tiles_preserve_groups_batches_padding_stride_dilation_and_bias_order() {
+    let weights: Vec<_> = (1..=14)
+        .flat_map(|channel| [channel as f32, 0., 0., channel as f32].repeat(2))
+        .collect();
+    let biases: Vec<_> = (1..=14).map(|channel| channel as f32).collect();
+    let loaded = model(
+        vec![
+            tensor("w", &[14, 2, 2, 2], &weights),
+            tensor("b", &[14], &biases),
+            node(
+                "conv",
+                "Conv",
+                &["x", "w", "b"],
+                "y",
+                vec![ints("kernel_shape", &[2, 2]), int("group", 2)],
+            ),
+        ],
+        &[2, 4, 2, 3],
+        &[2, 14, 1, 2],
+    );
+    let values: Vec<_> = [1., 10., 100., 1000.]
+        .into_iter()
+        .flat_map(|scale| (1..=6).map(move |value| value as f32 * scale))
+        .collect();
+    let input = [
+        values.clone(),
+        values.iter().map(|value| value * 2.).collect(),
+    ]
+    .concat();
+    let expected: Vec<_> = (1..=7)
+        .flat_map(|channel| [67. * channel as f32, 89. * channel as f32])
+        .chain((8..=14).flat_map(|channel| [6601. * channel as f32, 8801. * channel as f32]))
+        .chain((1..=7).flat_map(|channel| [133. * channel as f32, 177. * channel as f32]))
+        .chain((8..=14).flat_map(|channel| [13201. * channel as f32, 17601. * channel as f32]))
+        .collect();
+    assert_eq!(
+        session(loaded, &[2, 4, 2, 3]).run(&input).unwrap().data(),
+        expected
+    );
+    let loaded = model(
+        vec![
+            tensor("w", &[5, 2, 2, 2], &[1.; 40]),
+            tensor("b", &[5], &[1e8; 5]),
+            node(
+                "conv",
+                "Conv",
+                &["x", "w", "b"],
+                "y",
+                vec![ints("kernel_shape", &[2, 2]), ints("pads", &[1, 1, 0, 0])],
+            ),
+        ],
+        &[1, 2, 1, 1],
+        &[1, 5, 1, 1],
+    );
+    assert_eq!(
+        session(loaded, &[1, 2, 1, 1])
+            .run(&[-1e8, 1.])
+            .unwrap()
+            .data(),
+        &[1.; 5]
+    );
+    let loaded = model(
+        vec![
+            tensor("w", &[5, 1, 3, 3], &[1.; 45]),
+            node(
+                "conv",
+                "Conv",
+                &["x", "w"],
+                "y",
+                vec![
+                    ints("kernel_shape", &[3, 3]),
+                    ints("strides", &[2, 2]),
+                    ints("pads", &[1, 1, 1, 1]),
+                ],
+            ),
+        ],
+        &[1, 1, 2, 3],
+        &[1, 5, 1, 2],
+    );
+    assert_eq!(
+        session(loaded, &[1, 1, 2, 3])
+            .run(&[1., 2., 3., 4., 5., 6.])
+            .unwrap()
+            .data(),
+        [12., 16.].repeat(5)
+    );
+    let loaded = model(
+        vec![
+            tensor("w", &[5, 1, 2, 2], &[1.; 20]),
+            node(
+                "conv",
+                "Conv",
+                &["x", "w"],
+                "y",
+                vec![ints("kernel_shape", &[2, 2]), ints("dilations", &[2, 2])],
+            ),
+        ],
+        &[1, 1, 3, 3],
+        &[1, 5, 1, 1],
+    );
+    assert_eq!(
+        session(loaded, &[1, 1, 3, 3])
+            .run(&[1., 2., 3., 4., 5., 6., 7., 8., 9.])
+            .unwrap()
+            .data(),
+        &[20.; 5]
     );
 }
 
@@ -594,11 +715,7 @@ fn reshape_checked_zero_copy_dimension_and_bad_targets() {
 
 #[test]
 fn unsupported_ops_nonfinite_constants_and_nonfinite_output_are_errors() {
-    let loaded = model(
-        vec![node("sigmoid", "Sigmoid", &["x"], "y", vec![])],
-        &[1],
-        &[1],
-    );
+    let loaded = model(vec![node("sqrt", "Sqrt", &["x"], "y", vec![])], &[1], &[1]);
     assert!(
         CompiledModel::new(loaded)
             .err()
@@ -666,4 +783,670 @@ fn view_constructor_checks_shape_without_allocating() {
         &[1, 2]
     );
     assert!(TensorView::from_slice(Shape::new(&[3]).unwrap(), &[1, 2]).is_err());
+}
+
+#[test]
+fn variadic_concat_keeps_all_branches_repeated_inputs_and_batch_order() {
+    let loaded = model(
+        vec![
+            tensor(
+                "extra",
+                &[2, 2, 1, 2],
+                &(5..=12).map(|value| value as f32).collect::<Vec<_>>(),
+            ),
+            node("positive", "Relu", &["x"], "positive", vec![]),
+            node(
+                "join",
+                "Concat",
+                &["x", "positive", "x", "extra", "positive"],
+                "y",
+                vec![int("axis", -3)],
+            ),
+        ],
+        &[2, 1, 1, 2],
+        &[2, 6, 1, 2],
+    );
+    let mut request = session(loaded, &[2, 1, 1, 2]);
+    let expected = [
+        -1., 2., 0., 2., -1., 2., 5., 6., 7., 8., 0., 2., 3., -4., 3., 0., 3., -4., 9., 10., 11.,
+        12., 3., 0.,
+    ];
+    let mut observed = 0;
+    assert_eq!(
+        request
+            .run_with_trace(&[-1., 2., 3., -4.], |trace| {
+                if trace.op_type == "Concat" {
+                    assert_eq!(trace.shape.dimensions(), &[2, 6, 1, 2]);
+                    assert_eq!(trace.values, expected);
+                    observed += 1;
+                }
+                Ok(())
+            })
+            .unwrap()
+            .data(),
+        expected
+    );
+    assert_eq!(observed, 1);
+    assert!(
+        request
+            .run_with_trace(&[4., 5., 6., 7.], |_| Err(RuntimeError::new(
+                "trace failed"
+            )))
+            .is_err()
+    );
+    assert_eq!(request.run(&[-1., 2., 3., -4.]).unwrap().data(), expected);
+
+    for axis in [1, 4, -5] {
+        let loaded = model(
+            vec![
+                tensor("bad", &[1, 2, 1, 2], &[1.; 4]),
+                node(
+                    "join",
+                    "Concat",
+                    &["x", "bad"],
+                    "y",
+                    vec![int("axis", axis)],
+                ),
+            ],
+            &[2, 1, 1, 2],
+            &[-1, -1, -1, -1],
+        );
+        assert!(
+            Session::new(
+                Arc::new(CompiledModel::new(loaded).unwrap()),
+                &[2, 1, 1, 2],
+                ExecutionLimits::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+fn pool_model(shape: &[i64]) -> Arc<Model> {
+    model(
+        vec![node(
+            "pool",
+            "MaxPool",
+            &["x"],
+            "y",
+            vec![
+                ints("kernel_shape", &[2, 2]),
+                ints("strides", &[1, 1]),
+                ints("pads", &[0, 0, 1, 1]),
+            ],
+        )],
+        shape,
+        shape,
+    )
+}
+
+#[test]
+fn max_pool_excludes_padding_and_handles_degenerate_rows_and_columns() {
+    let mut request = session(pool_model(&[2, 1, 2, 3]), &[2, 1, 2, 3]);
+    assert_eq!(
+        request
+            .run(&[-5., -2., -9., -1., -8., -3., 1., 7., 3., 5., 2., 4.])
+            .unwrap()
+            .data(),
+        &[-1., -2., -3., -1., -3., -3., 7., 7., 4., 5., 4., 4.]
+    );
+    for (shape, values, expected) in [
+        ([1, 1, 1, 1], vec![-5.], vec![-5.]),
+        ([1, 1, 1, 3], vec![-5., -2., -9.], vec![-2., -2., -9.]),
+        ([1, 1, 3, 1], vec![-5., -2., -9.], vec![-2., -2., -9.]),
+    ] {
+        let signed = shape.map(|dimension| dimension as i64);
+        assert_eq!(
+            session(pool_model(&signed), &shape)
+                .run(&values)
+                .unwrap()
+                .data(),
+            expected
+        );
+    }
+}
+
+fn resize_model(factor: f32, mode: &str, coordinate: &str, nearest: &str) -> Arc<Model> {
+    model(
+        vec![node(
+            "resize",
+            "Resize",
+            &["x"],
+            "y",
+            vec![
+                floats("scales", &[1., 1., factor, factor]),
+                text_attribute("mode", mode),
+                text_attribute("coordinate_transformation_mode", coordinate),
+                text_attribute("nearest_mode", nearest),
+            ],
+        )],
+        &[2, 1, 1, 2],
+        &[2, 1, -1, -1],
+    )
+}
+
+#[test]
+fn nearest_resize_repeats_rectangular_batches_and_rejects_other_contracts() {
+    for factor in [2usize, 4, 8] {
+        let mut request = session(
+            resize_model(factor as f32, "nearest", "asymmetric", "floor"),
+            &[2, 1, 1, 2],
+        );
+        assert_eq!(
+            request.output_shape().dimensions(),
+            &[2, 1, factor, 2 * factor]
+        );
+        let mut expected = Vec::new();
+        for pair in [[1., 2.], [-3., 4.]] {
+            for _ in 0..factor {
+                expected.extend(std::iter::repeat_n(pair[0], factor));
+                expected.extend(std::iter::repeat_n(pair[1], factor));
+            }
+        }
+        assert_eq!(request.run(&[1., 2., -3., 4.]).unwrap().data(), expected);
+        assert!(
+            request
+                .run(&[0.; 4])
+                .unwrap()
+                .data()
+                .iter()
+                .all(|&value| value == 0.)
+        );
+    }
+    for (factor, mode, coordinate, nearest) in [
+        (1.5, "nearest", "asymmetric", "floor"),
+        (2., "linear", "asymmetric", "floor"),
+        (2., "nearest", "half_pixel", "floor"),
+        (2., "nearest", "asymmetric", "round_prefer_floor"),
+    ] {
+        assert!(CompiledModel::new(resize_model(factor, mode, coordinate, nearest)).is_err());
+    }
+}
+
+#[test]
+fn transpose_convolution_rectangular_batches_accumulation_bias_and_overwrite() {
+    let weights = [1., 10., 100., 1000., -1., -10., -100., -1000.];
+    let loaded = model(
+        vec![
+            tensor("w", &[1, 2, 2, 2], &weights),
+            tensor("b", &[2], &[1., -1.]),
+            node(
+                "upsample",
+                "ConvTranspose",
+                &["x", "w", "b"],
+                "y",
+                vec![ints("kernel_shape", &[2, 2]), ints("strides", &[2, 2])],
+            ),
+        ],
+        &[2, 1, 1, 2],
+        &[2, 2, 2, 4],
+    );
+    let mut request = session(loaded, &[2, 1, 1, 2]);
+    let expected = [
+        2., 11., 3., 21., 101., 1001., 201., 2001., -2., -11., -3., -21., -101., -1001., -201.,
+        -2001., 4., 31., 5., 41., 301., 3001., 401., 4001., -4., -31., -5., -41., -301., -3001.,
+        -401., -4001.,
+    ];
+    assert_eq!(request.run(&[1., 2., 3., 4.]).unwrap().data(), expected);
+    let empty = request.run(&[0.; 4]).unwrap();
+    for (channel, plane) in empty.data().chunks_exact(8).enumerate() {
+        assert!(
+            plane
+                .iter()
+                .all(|&value| value == if channel % 2 == 0 { 1. } else { -1. })
+        );
+    }
+    let loaded = model(
+        vec![
+            tensor("w", &[2, 1, 2, 2], &[1.; 8]),
+            tensor("b", &[1], &[1e8]),
+            node(
+                "upsample",
+                "ConvTranspose",
+                &["x", "w", "b"],
+                "y",
+                vec![ints("kernel_shape", &[2, 2]), ints("strides", &[2, 2])],
+            ),
+        ],
+        &[1, 2, 1, 1],
+        &[1, 1, 2, 2],
+    );
+    assert_eq!(
+        session(loaded, &[1, 2, 1, 1])
+            .run(&[-1e8, 1.])
+            .unwrap()
+            .data(),
+        &[1.; 4]
+    );
+}
+
+#[test]
+fn spatial_ops_reject_unsupported_parameters_and_incompatible_weight_shapes() {
+    let loaded = model(
+        vec![node(
+            "pool",
+            "MaxPool",
+            &["x"],
+            "y",
+            vec![
+                ints("kernel_shape", &[2, 2]),
+                ints("strides", &[2, 2]),
+                ints("pads", &[0, 0, 1, 1]),
+            ],
+        )],
+        &[1, 1, 2, 2],
+        &[1, 1, 2, 2],
+    );
+    assert!(
+        CompiledModel::new(loaded)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("MaxPool")
+    );
+    for weight_shape in [&[2, 1, 2, 2][..], &[1, 1, 1, 2][..]] {
+        let count = weight_shape.iter().product::<i64>() as usize;
+        let loaded = model(
+            vec![
+                tensor("w", weight_shape, &vec![1.; count]),
+                node(
+                    "up",
+                    "ConvTranspose",
+                    &["x", "w"],
+                    "y",
+                    vec![ints("kernel_shape", &[2, 2]), ints("strides", &[2, 2])],
+                ),
+            ],
+            &[1, 1, 1, 2],
+            &[1, 1, 2, 4],
+        );
+        let compiled = Arc::new(CompiledModel::new(loaded).unwrap());
+        assert!(
+            Session::new(compiled, &[1, 1, 1, 2], ExecutionLimits::default())
+                .unwrap_err()
+                .to_string()
+                .contains("weights")
+        );
+    }
+    let loaded = model(
+        vec![
+            tensor("w", &[1, 1, 2, 2], &[1.; 4]),
+            node(
+                "up",
+                "ConvTranspose",
+                &["x", "w"],
+                "y",
+                vec![ints("kernel_shape", &[2, 2]), ints("strides", &[1, 1])],
+            ),
+        ],
+        &[1, 1, 1, 2],
+        &[1, 1, 2, 4],
+    );
+    assert!(CompiledModel::new(loaded).is_err());
+}
+
+#[test]
+fn div_preserves_operand_order_and_scalar_division_rounding() {
+    for (inputs, values, expected) in [
+        (["x", "scalar"], [9., -9., 5., -5.], [0.9, -0.9, 0.5, -0.5]),
+        (["scalar", "x"], [2., 4., 5., 10.], [5., 2.5, 2., 1.]),
+    ] {
+        let loaded = model(
+            vec![
+                tensor("scalar", &[], &[10.]),
+                node("divide", "Div", &inputs, "y", vec![]),
+            ],
+            &[4],
+            &[4],
+        );
+        assert_eq!(session(loaded, &[4]).run(&values).unwrap().data(), expected);
+    }
+    let loaded = model(
+        vec![
+            tensor("zero", &[], &[0.]),
+            node("divide", "Div", &["x", "zero"], "y", vec![]),
+        ],
+        &[1],
+        &[1],
+    );
+    assert!(
+        session(loaded, &[1])
+            .run(&[1.])
+            .unwrap_err()
+            .to_string()
+            .contains("nonfinite output")
+    );
+}
+
+#[test]
+fn erf_reference_values_and_sigmoid_saturation() {
+    let input = [
+        -3.,
+        -1.,
+        -0.5,
+        -0.0001,
+        0.,
+        0.0001,
+        0.5,
+        1.,
+        3.,
+        f32::MAX,
+        -f32::MAX,
+    ];
+    // Frozen outputs of the C# scalar polynomial, including its small-input rounding.
+    let bits = [
+        0xbf7ffe8d, 0xbf57bb3c, 0xbf053f7e, 0xb8ecc000, 0, 0x38ecc000, 0x3f053f7e, 0x3f57bb3c,
+        0x3f7ffe8d, 0x3f800000, 0xbf800000,
+    ];
+    let loaded = model(vec![node("erf", "Erf", &["x"], "y", vec![])], &[11], &[11]);
+    let mut request = session(loaded, &[11]);
+    let output = request.run(&input).unwrap();
+    for (index, (&actual, expected)) in output
+        .data()
+        .iter()
+        .zip(bits.map(f32::from_bits))
+        .enumerate()
+    {
+        if (3..=5).contains(&index) {
+            assert_eq!(actual, expected);
+        } else {
+            assert!(
+                (actual - expected).abs() <= 2e-7,
+                "index {index}: {actual} vs {expected}"
+            );
+        }
+    }
+    let loaded = model(
+        vec![node("sigmoid", "Sigmoid", &["x"], "y", vec![])],
+        &[5],
+        &[5],
+    );
+    let actual = session(loaded, &[5])
+        .run(&[-1000., -1., 0., 1., 1000.])
+        .unwrap()
+        .data()
+        .to_vec();
+    for (&actual, expected) in actual.iter().zip([0., 0.26894143, 0.5, 0.7310586, 1.]) {
+        assert!((actual - expected).abs() <= 1e-7);
+    }
+}
+
+#[test]
+fn fill_callback_errors_nonfinite_inputs_and_trace_errors_allow_reuse() {
+    let mut request = session(classifier(), &[1, 1, 2, 2]);
+    let mut calls = 0;
+    assert!(
+        request
+            .run_with_input(|input| {
+                calls += 1;
+                input.fill(0.);
+                Err(RuntimeError::new("preprocess failed"))
+            })
+            .unwrap_err()
+            .to_string()
+            .contains("preprocess failed")
+    );
+    assert_eq!(calls, 1);
+    assert!(
+        request
+            .run_with_input(|input| {
+                input.fill(f32::NAN);
+                Ok(())
+            })
+            .unwrap_err()
+            .to_string()
+            .contains("nonfinite input")
+    );
+    assert!(
+        request
+            .run_with_input_and_trace(
+                |input| {
+                    input.copy_from_slice(&[1., -2., 3., 4.]);
+                    Ok(())
+                },
+                |_| Err(RuntimeError::new("trace failed"))
+            )
+            .is_err()
+    );
+    let mut observed = 0;
+    let output = request
+        .run_with_input_and_trace(
+            |input| {
+                input.copy_from_slice(&[1., -2., 3., 4.]);
+                Ok(())
+            },
+            |trace| {
+                assert_eq!(trace.index, observed);
+                observed += 1;
+                Ok(())
+            },
+        )
+        .unwrap();
+    assert!((output.data()[0] - 0.7310586).abs() < 1e-7);
+    assert_eq!(observed, 9);
+}
+
+#[test]
+fn reshape_reuses_capacities_compacts_under_budget_and_keeps_failed_binding() {
+    let loaded = model(
+        vec![
+            node(
+                "columns",
+                "ReduceMean",
+                &["x"],
+                "columns",
+                vec![ints("axes", &[0])],
+            ),
+            node(
+                "rows",
+                "ReduceMean",
+                &["x"],
+                "rows",
+                vec![ints("axes", &[1])],
+            ),
+            node("join", "Add", &["columns", "rows"], "y", vec![]),
+        ],
+        &[-1, -1],
+        &[-1, -1],
+    );
+    let compiled = Arc::new(CompiledModel::new(loaded).unwrap());
+    let mut request = Session::new(
+        compiled,
+        &[2, 8],
+        ExecutionLimits {
+            max_activation_bytes: 104,
+        },
+    )
+    .unwrap();
+    assert_eq!(request.activation_bytes(), 104);
+    assert_eq!(request.retained_activation_bytes(), 104);
+    request.reshape(&[8, 2]).unwrap();
+    // Keeping both historical axis capacities would require 128 bytes.
+    assert_eq!(request.retained_activation_bytes(), 104);
+    let values = (0..16).map(|value| value as f32).collect::<Vec<_>>();
+    let mut previous_pointer = 0;
+    assert_eq!(
+        request
+            .run_with_input(|input| {
+                previous_pointer = input.as_ptr() as usize;
+                input.copy_from_slice(&values);
+                Ok(())
+            })
+            .unwrap()
+            .data(),
+        &(0..8)
+            .flat_map(|row| [7.5 + 2. * row as f32, 8.5 + 2. * row as f32])
+            .collect::<Vec<_>>()
+    );
+    assert!(request.reshape(&[9, 2]).is_err());
+    assert!(request.reshape(&[usize::MAX, 2]).is_err());
+    assert_eq!(request.input_shape().dimensions(), &[8, 2]);
+    assert_eq!(request.retained_activation_bytes(), 104);
+    request.reshape(&[4, 2]).unwrap();
+    assert_eq!(request.activation_bytes(), 56);
+    assert_eq!(request.retained_activation_bytes(), 104);
+    let mut next_pointer = 0;
+    let output = request
+        .run_with_input(|input| {
+            next_pointer = input.as_ptr() as usize;
+            input.copy_from_slice(&values[..8]);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(previous_pointer, next_pointer);
+    assert_eq!(output.data(), &[3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5]);
+}
+
+#[test]
+#[ignore = "requires SIMDOCR_DET_REFERENCE pointing to an explicit canonical all-node bundle"]
+fn shipped_detector_all_node_parity_from_explicit_reference() {
+    use serde_json::Value;
+    use std::{
+        fs::{self, File},
+        io::Read,
+        path::Path,
+    };
+    let root =
+        std::env::var("SIMDOCR_DET_REFERENCE").expect("SIMDOCR_DET_REFERENCE must be explicit");
+    let root = Path::new(&root);
+    simd_paddle_ocr_rs::validate_bundle(root).unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(root.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest["contract"]["profile"], "canonical");
+    assert_eq!(manifest["contract"]["nodes"], "all");
+    let model = manifest["models"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|asset| asset["id"] == "det")
+        .unwrap();
+    let model = Arc::new(Model::load_path(root.join(model["path"].as_str().unwrap())).unwrap());
+    let inventory: Value =
+        serde_json::from_slice(&fs::read(root.join("graph-inventory.json")).unwrap()).unwrap();
+    let inventory = inventory
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["id"] == "det")
+        .unwrap();
+    assert_eq!(
+        inventory["nodes"].as_array().unwrap().len(),
+        model.graph().nodes.len()
+    );
+    for (saved, node) in inventory["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(&model.graph().nodes)
+    {
+        assert_eq!(saved["name"], node.name);
+        assert_eq!(saved["op_type"], node.op_type);
+    }
+    let compiled = Arc::new(CompiledModel::new(model).unwrap());
+    let shape = |artifact: &Value| {
+        artifact["shape"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|dimension| dimension.as_u64().unwrap() as usize)
+            .collect::<Vec<_>>()
+    };
+    let compare =
+        |actual: &[f32], actual_shape: Shape, artifact: &Value| -> Result<(), RuntimeError> {
+            let expected_shape = shape(artifact);
+            if actual_shape.dimensions() != expected_shape || artifact["layout"] != "nchw" {
+                return Err(RuntimeError::new(format!(
+                    "{} shape/layout differs",
+                    artifact["id"]
+                )));
+            }
+            if artifact["bytes"].as_u64().unwrap() != (actual.len() * 4) as u64 {
+                return Err(RuntimeError::new("reference tensor length differs"));
+            }
+            let mut file = File::open(root.join(artifact["path"].as_str().unwrap())).unwrap();
+            let mut buffer = [0u8; 64 * 1024];
+            let mut position = 0;
+            while position < actual.len() {
+                let count = (actual.len() - position).min(buffer.len() / 4);
+                file.read_exact(&mut buffer[..count * 4]).unwrap();
+                for (offset, bytes) in buffer[..count * 4].chunks_exact(4).enumerate() {
+                    let expected = f32::from_le_bytes(bytes.try_into().unwrap());
+                    let value = actual[position + offset];
+                    if !expected.is_finite()
+                        || !value.is_finite()
+                        || (f64::from(value) - f64::from(expected)).abs()
+                            > 1e-5 + 1e-4 * f64::from(expected).abs()
+                    {
+                        return Err(RuntimeError::new(format!(
+                            "{} element {}: {value} vs {expected}",
+                            artifact["id"],
+                            position + offset
+                        )));
+                    }
+                }
+                position += count;
+            }
+            Ok(())
+        };
+    let mut request: Option<Session> = None;
+    let mut checked = 0;
+    for case in manifest["cases"].as_array().unwrap() {
+        let artifacts = case["artifacts"].as_array().unwrap();
+        let input = artifacts
+            .iter()
+            .find(|artifact| artifact["id"] == "det.input")
+            .unwrap();
+        let dimensions = shape(input);
+        match request.as_mut() {
+            Some(request) => request.reshape(&dimensions).unwrap(),
+            None => {
+                request = Some(
+                    Session::new(compiled.clone(), &dimensions, ExecutionLimits::default())
+                        .unwrap(),
+                )
+            }
+        }
+        let values = fs::read(root.join(input["path"].as_str().unwrap()))
+            .unwrap()
+            .chunks_exact(4)
+            .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+            .collect::<Vec<_>>();
+        let mut nodes = artifacts
+            .iter()
+            .filter_map(|artifact| {
+                artifact["id"]
+                    .as_str()
+                    .unwrap()
+                    .strip_prefix("det.node.")
+                    .map(|ordinal| (ordinal.parse::<usize>().unwrap(), artifact))
+            })
+            .collect::<Vec<_>>();
+        nodes.sort_by_key(|&(ordinal, _)| ordinal);
+        assert_eq!(nodes.len(), compiled.node_count());
+        for (index, &(ordinal, _)) in nodes.iter().enumerate() {
+            assert_eq!(index, ordinal);
+        }
+        let mut observed = 0;
+        let output = request
+            .as_mut()
+            .unwrap()
+            .run_with_trace(&values, |trace| {
+                assert_eq!(trace.index, observed);
+                observed += 1;
+                compare(trace.values, trace.shape, nodes[trace.index].1)
+            })
+            .unwrap_or_else(|error| panic!("case {}: {error}", case["id"]));
+        assert_eq!(observed, compiled.node_count());
+        let probabilities = artifacts
+            .iter()
+            .find(|artifact| artifact["id"] == "det.probabilities")
+            .unwrap();
+        compare(output.data(), output.shape(), probabilities).unwrap();
+        checked += observed + 1;
+        println!(
+            "{}: {observed} nodes + output matched at atol=1e-5/rtol=1e-4",
+            case["id"]
+        );
+    }
+    assert!(checked > 0);
 }

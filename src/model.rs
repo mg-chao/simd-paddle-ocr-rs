@@ -2023,13 +2023,18 @@ pub struct ImportValidationReport {
     pub checked_models: usize,
     pub checked_contracts: usize,
     pub checked_files: usize,
+    /// Distinguishes physical normalized-weight archives from digest-only contracts.
+    pub normalized_weight_evidence: &'static str,
 }
 impl std::fmt::Display for ImportValidationReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "VALID: {} models, {} structural contracts, {} files verified",
-            self.checked_models, self.checked_contracts, self.checked_files
+            "VALID: {} models, {} structural contracts, {} files verified; normalized weights: {}",
+            self.checked_models,
+            self.checked_contracts,
+            self.checked_files,
+            self.normalized_weight_evidence
         )
     }
 }
@@ -2039,6 +2044,7 @@ pub struct ImportComparisonReport {
     pub checked_stages: usize,
     pub checked_weights: usize,
     pub first_difference: Option<String>,
+    pub normalized_weight_evidence: &'static str,
 }
 impl ImportComparisonReport {
     pub fn matches(&self) -> bool {
@@ -2052,8 +2058,11 @@ impl std::fmt::Display for ImportComparisonReport {
         } else {
             write!(
                 f,
-                "MATCH: {} raw/normalized stages, {} normalized weights for {}",
-                self.checked_stages, self.checked_weights, self.model_id
+                "MATCH: {} raw/normalized stages, {} normalized weight digests for {}; evidence {}",
+                self.checked_stages,
+                self.checked_weights,
+                self.model_id,
+                self.normalized_weight_evidence
             )
         }
     }
@@ -2098,9 +2107,15 @@ fn load_reference(directory: &Path) -> Result<(ImportReference, ImportValidation
         File::open(manifest_file).map_err(|e| error(e.to_string()))?,
     ))
     .map_err(|e| error(e.to_string()))?;
-    if manifest.schema_version != 1 || manifest.kind != "model_import_contracts" {
+    if manifest.schema_version != 1
+        || !matches!(
+            manifest.kind.as_str(),
+            "model_import_contracts" | "model_import_hash_contracts"
+        )
+    {
         return Err(error("unsupported model import manifest kind/schema"));
     }
+    let hash_contracts = manifest.kind == "model_import_hash_contracts";
     let mut files = BTreeMap::<String, &FileRecord>::new();
     let mut ids = HashSet::new();
     for record in manifest
@@ -2151,6 +2166,15 @@ fn load_reference(directory: &Path) -> Result<(ImportReference, ImportValidation
         validate_shape_metadata(&r, &n)?;
         for t in &n.tensors {
             if t.constant {
+                if hash_contracts {
+                    if t.data_path.is_some() {
+                        return Err(error(format!(
+                            "{} hash-only normalized constant {} must not declare archived weight bytes",
+                            c.model_id, t.key
+                        )));
+                    }
+                    continue;
+                }
                 let path = t.data_path.as_ref().ok_or_else(|| {
                     error(format!(
                         "{} normalized constant {} lacks archive path",
@@ -2184,6 +2208,11 @@ fn load_reference(directory: &Path) -> Result<(ImportReference, ImportValidation
         checked_models: manifest.models.len(),
         checked_contracts: manifest.contracts.len() * 2,
         checked_files: files.len(),
+        normalized_weight_evidence: if hash_contracts {
+            "sha256_contracts_without_archived_weight_bytes"
+        } else {
+            "archived_bytes_and_sha256_contracts"
+        },
     };
     Ok((
         ImportReference {
@@ -2528,6 +2557,11 @@ fn compare_import_model(
         checked_stages: 0,
         checked_weights: 0,
         first_difference: None,
+        normalized_weight_evidence: if reference.manifest.kind == "model_import_hash_contracts" {
+            "sha256_contracts_without_archived_weight_bytes"
+        } else {
+            "archived_bytes_and_sha256_contracts"
+        },
     };
     let actual_raw = model
         .raw_snapshot()

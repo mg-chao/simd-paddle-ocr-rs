@@ -1,4 +1,4 @@
-//! Safe, serial, unfused scalar execution of the shipped CLS operator subset.
+//! Safe, serial, unfused scalar execution of the shipped CLS and DET networks.
 //!
 //! Models and compiled instructions are immutable and shareable. Each session
 //! binds concrete shapes and owns reusable activation buffers. This deliberately
@@ -37,7 +37,8 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ExecutionLimits {
-    /// Sum of reusable activation slot lengths, excluding shared model weights.
+    /// Bound on active slot lengths and retained capacities, excluding weights.
+    /// Transactional rebinding can temporarily hold old and new allocations.
     pub max_activation_bytes: usize,
 }
 impl Default for ExecutionLimits {
@@ -63,9 +64,9 @@ pub struct NodeTrace<'a> {
 
 #[derive(Clone)]
 struct Instruction {
-    a: TensorId,
-    b: Option<TensorId>,
-    bias: Option<TensorId>,
+    /// Validated F32 operands in semantic input order. Integer reshape operands
+    /// belong to the compiled shape program rather than kernel execution.
+    inputs: Box<[TensorId]>,
     output: TensorId,
     kind: Op,
 }
@@ -73,12 +74,23 @@ struct Instruction {
 enum Op {
     Add,
     Mul,
+    Div,
     Relu,
+    Erf,
+    Sigmoid,
     HardSigmoid {
         alpha: f32,
         beta: f32,
     },
     Conv(crate::model::ConvAttributes),
+    ConvTranspose,
+    MaxPool,
+    Concat {
+        axis: i64,
+    },
+    Resize {
+        factor: usize,
+    },
     ReduceMean {
         axes: Vec<i64>,
         keepdims: bool,
@@ -178,6 +190,15 @@ impl CompiledModel {
     pub fn node_count(&self) -> usize {
         self.instructions.len()
     }
+    /// Bind metadata without reserving activation storage or executing kernels.
+    pub(crate) fn node_output_shapes(&self, input_shape: &[usize]) -> RuntimeResult<Vec<Shape>> {
+        let plan = bind(self, input_shape, ExecutionLimits::default())?;
+        Ok(plan
+            .steps
+            .iter()
+            .map(|step| plan.shapes[step.output.0])
+            .collect())
+    }
 }
 
 fn node_error(index: usize, node: &Node, message: impl fmt::Display) -> RuntimeError {
@@ -234,20 +255,30 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
         }
     };
     let kind = match (&*node.op_type, &node.attributes) {
-        ("Add", EffectiveAttributes::None) | ("Mul", EffectiveAttributes::None) => {
+        ("Add", EffectiveAttributes::None)
+        | ("Mul", EffectiveAttributes::None)
+        | ("Div", EffectiveAttributes::None) => {
             require_inputs(2)?;
             if graph.tensors[b.unwrap().0].dtype != DType::F32 {
                 return Err(fail("second data input must be F32"));
             }
-            if node.op_type == "Add" {
-                Op::Add
-            } else {
-                Op::Mul
+            match node.op_type.as_str() {
+                "Add" => Op::Add,
+                "Mul" => Op::Mul,
+                _ => Op::Div,
             }
         }
         ("Relu", EffectiveAttributes::None) => {
             require_inputs(1)?;
             Op::Relu
+        }
+        ("Erf", EffectiveAttributes::None) | ("Sigmoid", EffectiveAttributes::None) => {
+            require_inputs(1)?;
+            if node.op_type == "Erf" {
+                Op::Erf
+            } else {
+                Op::Sigmoid
+            }
         }
         ("HardSigmoid", EffectiveAttributes::HardSigmoid { alpha, beta }) => {
             require_inputs(1)?;
@@ -268,6 +299,75 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 constant_f32(bias)?;
             }
             Op::Conv(attributes.clone())
+        }
+        ("ConvTranspose", EffectiveAttributes::ConvTranspose(attributes)) => {
+            if !(2..=3).contains(&node.inputs.len()) || b.is_none() {
+                return Err(fail(
+                    "ConvTranspose requires data, weights and optional bias",
+                ));
+            }
+            constant_f32(b)?;
+            if bias.is_some() {
+                constant_f32(bias)?;
+            }
+            if attributes.kernel_shape != [2, 2]
+                || attributes.strides != [2, 2]
+                || attributes.dilations != [1, 1]
+                || attributes.pads != [0; 4]
+                || attributes.group != 1
+            {
+                return Err(fail(
+                    "ConvTranspose requires 2x2 stride-two, group-one, unpadded parameters",
+                ));
+            }
+            Op::ConvTranspose
+        }
+        ("MaxPool", EffectiveAttributes::Pool(attributes)) => {
+            require_inputs(1)?;
+            if attributes.kernel_shape != [2, 2]
+                || attributes.strides != [1, 1]
+                || attributes.pads != [0, 0, 1, 1]
+                || attributes.ceil_mode != 0
+                || attributes.count_include_pad != 0
+            {
+                return Err(fail(
+                    "MaxPool requires 2x2 stride-one with trailing padding",
+                ));
+            }
+            Op::MaxPool
+        }
+        ("Concat", EffectiveAttributes::Axis(axis)) => {
+            if node.inputs.iter().any(Option::is_none)
+                || node
+                    .inputs
+                    .iter()
+                    .flatten()
+                    .any(|id| graph.tensors[id.0].dtype != DType::F32)
+            {
+                return Err(fail("Concat requires nonempty F32 input slots"));
+            }
+            Op::Concat { axis: *axis }
+        }
+        ("Resize", EffectiveAttributes::Resize(attributes)) => {
+            require_inputs(1)?;
+            if attributes.mode != b"nearest"
+                || attributes.coordinate_transformation_mode != b"asymmetric"
+                || attributes.nearest_mode != b"floor"
+                || attributes.scales.len() != 4
+                || attributes.scales[..2] != [1.0, 1.0]
+                || attributes.scales[2] != attributes.scales[3]
+            {
+                return Err(fail(
+                    "Resize requires nearest/asymmetric/floor spatial-only equal scales",
+                ));
+            }
+            let factor = match attributes.scales[2] {
+                2.0 => 2,
+                4.0 => 4,
+                8.0 => 8,
+                _ => return Err(fail("Resize requires spatial scale two, four or eight")),
+            };
+            Op::Resize { factor }
         }
         (
             "ReduceMean",
@@ -319,15 +419,17 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             Op::Softmax { axis: *axis }
         }
         _ => {
-            return Err(fail(
-                "unsupported operator/attributes in scalar CLS runtime",
-            ));
+            return Err(fail("unsupported operator/attributes in scalar runtime"));
         }
     };
     Ok(Instruction {
-        a,
-        b,
-        bias,
+        inputs: node
+            .inputs
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|id| graph.tensors[id.0].dtype == DType::F32)
+            .collect(),
         output,
         kind,
     })
@@ -357,6 +459,10 @@ impl fmt::Debug for Session {
             .field("input_shape", &self.input_shape())
             .field("output_shape", &self.output_shape())
             .field("activation_bytes", &self.activation_bytes())
+            .field(
+                "retained_activation_bytes",
+                &self.retained_activation_bytes(),
+            )
             .finish_non_exhaustive()
     }
 }
@@ -368,6 +474,7 @@ impl Session {
     ) -> RuntimeResult<Self> {
         let plan = bind(&compiled, input_shape, limits)?;
         let buffers = allocate(&plan.lengths)?;
+        check_retained_limit(&buffers, limits)?;
         Ok(Self {
             compiled,
             limits,
@@ -381,7 +488,7 @@ impl Session {
             return Ok(());
         }
         let plan = bind(&self.compiled, input_shape, self.limits)?;
-        let buffers = allocate(&plan.lengths)?;
+        let buffers = rebind_buffers(&mut self.buffers, &plan.lengths, self.limits)?;
         self.plan = plan;
         self.buffers = buffers;
         Ok(())
@@ -395,29 +502,106 @@ impl Session {
     pub fn activation_bytes(&self) -> usize {
         self.plan.activation_bytes
     }
+    /// F32 capacities retained by this session. A smaller binding can reuse
+    /// larger slots, so this can exceed `activation_bytes`, within the limit.
+    pub fn retained_activation_bytes(&self) -> usize {
+        capacity_bytes(&self.buffers).expect("validated activation capacities")
+    }
     pub fn naive_activation_bytes(&self) -> usize {
         self.plan.naive_activation_bytes
     }
     pub fn run(&mut self, input: &[f32]) -> RuntimeResult<TensorView<'_, f32>> {
-        fn ignore(_: NodeTrace<'_>) -> RuntimeResult<()> {
+        self.check_input_length(input)?;
+        self.run_with_input(|destination| {
+            destination.copy_from_slice(input);
             Ok(())
-        }
-        self.execute::<false, _>(input, &mut ignore)?;
-        self.output()
+        })
     }
     pub fn run_with_trace<F>(
         &mut self,
         input: &[f32],
-        mut observer: F,
+        observer: F,
     ) -> RuntimeResult<TensorView<'_, f32>>
     where
         F: for<'a> FnMut(NodeTrace<'a>) -> RuntimeResult<()>,
     {
-        self.execute::<true, _>(input, &mut observer)?;
-        self.output()
+        self.check_input_length(input)?;
+        self.run_with_input_and_trace(
+            |destination| {
+                destination.copy_from_slice(input);
+                Ok(())
+            },
+            observer,
+        )
     }
-    fn output(&self) -> RuntimeResult<TensorView<'_, f32>> {
-        let id = self.compiled.output;
+    /// Fill the active input directly, then execute. The callback must write
+    /// every input element each time: later nodes can reuse the input storage.
+    /// Caller callbacks can allocate; successful execution itself does not.
+    pub fn run_with_input<F>(&mut self, fill: F) -> RuntimeResult<TensorView<'_, f32>>
+    where
+        F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
+    {
+        self.prepare_input(fill)?;
+        self.execute::<false, _>(self.plan.steps.len(), &mut |_| Ok(()))?;
+        self.output_for(self.compiled.output)
+    }
+    /// Fill the input once and synchronously observe each completed node.
+    pub fn run_with_input_and_trace<F, O>(
+        &mut self,
+        fill: F,
+        mut observer: O,
+    ) -> RuntimeResult<TensorView<'_, f32>>
+    where
+        F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
+        O: for<'a> FnMut(NodeTrace<'a>) -> RuntimeResult<()>,
+    {
+        self.prepare_input(fill)?;
+        self.execute::<true, _>(self.plan.steps.len(), &mut observer)?;
+        self.output_for(self.compiled.output)
+    }
+    /// Execute a validated inclusive prefix without evaluating later nodes.
+    /// Its feature view has the same borrowing contract as a complete output.
+    pub(crate) fn run_prefix_with_input<F>(
+        &mut self,
+        last_node_index: usize,
+        fill: F,
+    ) -> RuntimeResult<TensorView<'_, f32>>
+    where
+        F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
+    {
+        let output = self
+            .plan
+            .steps
+            .get(last_node_index)
+            .ok_or_else(|| RuntimeError::new("prefix node index is outside the compiled graph"))?
+            .output;
+        self.prepare_input(fill)?;
+        self.execute::<false, _>(last_node_index + 1, &mut |_| Ok(()))?;
+        self.output_for(output)
+    }
+    fn check_input_length(&self, input: &[f32]) -> RuntimeResult<()> {
+        if input.len() != self.plan.input_shape.element_count() {
+            return Err(RuntimeError::new(
+                "input element count does not match bound shape",
+            ));
+        }
+        Ok(())
+    }
+    fn prepare_input<F>(&mut self, fill: F) -> RuntimeResult<()>
+    where
+        F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
+    {
+        let slot = self.plan.slots[self.compiled.input.0];
+        let input = &mut self.buffers[slot][..self.plan.input_shape.element_count()];
+        fill(input)?;
+        if let Some(index) = input.iter().position(|value| !value.is_finite()) {
+            return Err(RuntimeError::new(format!(
+                "nonfinite input F32 at element {index}"
+            )));
+        }
+        Ok(())
+    }
+    fn output_for(&self, id: TensorId) -> RuntimeResult<TensorView<'_, f32>> {
         TensorView::from_slice(self.plan.shapes[id.0], self.data(id)).map_err(Into::into)
     }
     fn data(&self, id: TensorId) -> &[f32] {
@@ -428,25 +612,13 @@ impl Session {
     }
     fn execute<const TRACE: bool, F>(
         &mut self,
-        input: &[f32],
+        node_count: usize,
         observer: &mut F,
     ) -> RuntimeResult<()>
     where
         F: for<'a> FnMut(NodeTrace<'a>) -> RuntimeResult<()>,
     {
-        if input.len() != self.plan.input_shape.element_count() {
-            return Err(RuntimeError::new(
-                "input element count does not match bound shape",
-            ));
-        }
-        if let Some(index) = input.iter().position(|v| !v.is_finite()) {
-            return Err(RuntimeError::new(format!(
-                "nonfinite input F32 at element {index}"
-            )));
-        }
-        let input_slot = self.plan.slots[self.compiled.input.0];
-        self.buffers[input_slot][..input.len()].copy_from_slice(input);
-        for index in 0..self.plan.steps.len() {
+        for index in 0..node_count {
             let step = &self.plan.steps[index];
             let slot = self.plan.slots[step.output.0];
             // Strict lifetime intervals ensure no current input occupies this
@@ -454,10 +626,9 @@ impl Session {
             let mut output = std::mem::take(&mut self.buffers[slot]);
             let count = self.plan.shapes[step.output.0].element_count();
             kernels::execute(
-                step,
-                self.data(step.a),
-                step.b.map(|id| self.data(id)),
-                step.bias.map(|id| self.data(id)),
+                &step.kind,
+                &self.compiled.instructions[index].inputs,
+                |id| self.data(id),
                 &mut output[..count],
             );
             self.buffers[slot] = output;
@@ -480,11 +651,12 @@ impl Session {
                 })?;
             }
         }
-        if let Some(index) = self
-            .data(self.compiled.output)
-            .iter()
-            .position(|v| !v.is_finite())
-        {
+        let output_id = if node_count == 0 {
+            self.compiled.output
+        } else {
+            self.plan.steps[node_count - 1].output
+        };
+        if let Some(index) = self.data(output_id).iter().position(|v| !v.is_finite()) {
             return Err(RuntimeError::new(format!(
                 "nonfinite output F32 at element {index}"
             )));
@@ -499,14 +671,100 @@ fn allocate(lengths: &[usize]) -> RuntimeResult<Vec<Vec<f32>>> {
         .try_reserve_exact(lengths.len())
         .map_err(|e| RuntimeError::new(format!("activation table allocation failed: {e}")))?;
     for &length in lengths {
-        let mut buffer = Vec::new();
-        buffer
-            .try_reserve_exact(length)
-            .map_err(|e| RuntimeError::new(format!("activation allocation failed: {e}")))?;
-        buffer.resize(length, 0.0);
-        buffers.push(buffer);
+        buffers.push(allocate_buffer(length)?);
     }
     Ok(buffers)
+}
+
+fn allocate_buffer(length: usize) -> RuntimeResult<Vec<f32>> {
+    let mut buffer = Vec::new();
+    buffer
+        .try_reserve_exact(length)
+        .map_err(|e| RuntimeError::new(format!("activation allocation failed: {e}")))?;
+    buffer.resize(length, 0.0);
+    Ok(buffer)
+}
+
+fn byte_total(mut capacities: impl Iterator<Item = usize>) -> RuntimeResult<usize> {
+    capacities
+        .try_fold(0usize, |sum, capacity| {
+            capacity
+                .checked_mul(size_of::<f32>())
+                .and_then(|bytes| sum.checked_add(bytes))
+        })
+        .ok_or_else(|| RuntimeError::new("retained activation capacity overflow"))
+}
+
+fn capacity_bytes(buffers: &[Vec<f32>]) -> RuntimeResult<usize> {
+    byte_total(buffers.iter().map(Vec::capacity))
+}
+
+fn check_retained_limit(buffers: &[Vec<f32>], limits: ExecutionLimits) -> RuntimeResult<()> {
+    let bytes = capacity_bytes(buffers)?;
+    if bytes > limits.max_activation_bytes {
+        return Err(RuntimeError::new(format!(
+            "retained activation capacity needs {bytes} bytes, limit is {}",
+            limits.max_activation_bytes
+        )));
+    }
+    Ok(())
+}
+
+fn rebind_buffers(
+    previous: &mut [Vec<f32>],
+    lengths: &[usize],
+    limits: ExecutionLimits,
+) -> RuntimeResult<Vec<Vec<f32>>> {
+    let proposed = byte_total(lengths.iter().enumerate().map(|(slot, &length)| {
+        previous
+            .get(slot)
+            .map_or(length, |buffer| buffer.capacity().max(length))
+    }))?;
+    if proposed > limits.max_activation_bytes {
+        // A new plan can redistribute volume between slots. Compact rather
+        // than retain a combination of historical capacities over the limit.
+        let buffers = allocate(lengths)?;
+        check_retained_limit(&buffers, limits)?;
+        return Ok(buffers);
+    }
+    let mut prepared = Vec::new();
+    prepared
+        .try_reserve_exact(lengths.len())
+        .map_err(|e| RuntimeError::new(format!("activation table allocation failed: {e}")))?;
+    for (slot, &length) in lengths.iter().enumerate() {
+        prepared.push(
+            if previous
+                .get(slot)
+                .is_some_and(|buffer| buffer.capacity() >= length)
+            {
+                Vec::new()
+            } else {
+                allocate_buffer(length)?
+            },
+        );
+    }
+    let retained = byte_total(prepared.iter().enumerate().map(|(slot, buffer)| {
+        if buffer.is_empty() {
+            previous[slot].capacity()
+        } else {
+            buffer.capacity()
+        }
+    }))?;
+    if retained > limits.max_activation_bytes {
+        drop(prepared);
+        let buffers = allocate(lengths)?;
+        check_retained_limit(&buffers, limits)?;
+        return Ok(buffers);
+    }
+    // Every fallible operation has completed. Capacity-qualified resizes cannot
+    // allocate, so the old binding is untouched on any reservation failure.
+    for (slot, buffer) in prepared.iter_mut().enumerate() {
+        if buffer.is_empty() {
+            *buffer = std::mem::take(&mut previous[slot]);
+            buffer.resize(lengths[slot], 0.0);
+        }
+    }
+    Ok(prepared)
 }
 
 fn bind(
@@ -541,26 +799,36 @@ fn bind(
     let mut steps = Vec::with_capacity(compiled.instructions.len());
     for (index, instruction) in compiled.instructions.iter().enumerate() {
         let node = &graph.nodes[index];
-        let a = resolved[instruction.a.0]
+        let a = resolved[instruction.inputs[0].0]
             .ok_or_else(|| node_error(index, node, "unresolved input shape"))?;
-        let b = instruction.b.and_then(|id| resolved[id.0]);
-        let bias = instruction.bias.and_then(|id| resolved[id.0]);
+        let b = instruction.inputs.get(1).and_then(|id| resolved[id.0]);
+        let bias = instruction.inputs.get(2).and_then(|id| resolved[id.0]);
         let result = (|| -> RuntimeResult<(Shape, BoundKind)> {
             match &instruction.kind {
-                Op::Add | Op::Mul => {
+                Op::Add | Op::Mul | Op::Div => {
                     let b = b.ok_or_else(|| RuntimeError::new("unresolved binary input shape"))?;
                     let output = a.broadcast(b)?;
                     Ok((
                         output,
                         BoundKind::Binary(
                             kernels::Broadcast::new(a, b, output),
-                            matches!(instruction.kind, Op::Mul),
+                            match instruction.kind {
+                                Op::Add => kernels::BinaryOp::Add,
+                                Op::Mul => kernels::BinaryOp::Mul,
+                                _ => kernels::BinaryOp::Div,
+                            },
                         ),
                     ))
                 }
                 Op::Relu => Ok((a, BoundKind::Relu)),
+                Op::Erf => Ok((a, BoundKind::Erf)),
+                Op::Sigmoid => Ok((a, BoundKind::Sigmoid)),
                 Op::HardSigmoid { alpha, beta } => Ok((a, BoundKind::HardSigmoid(*alpha, *beta))),
                 Op::Conv(attrs) => kernels::bind_conv(a, b.unwrap(), bias, attrs),
+                Op::ConvTranspose => kernels::bind_conv_transpose(a, b.unwrap(), bias),
+                Op::MaxPool => kernels::bind_max_pool(a),
+                Op::Concat { axis } => kernels::bind_concat(&instruction.inputs, &resolved, *axis),
+                Op::Resize { factor } => kernels::bind_resize(a, *factor),
                 Op::ReduceMean {
                     axes,
                     keepdims,
@@ -619,11 +887,6 @@ fn bind(
         result.0.byte_count(DType::F32)?;
         resolved[instruction.output.0] = Some(result.0);
         steps.push(BoundStep {
-            a: instruction.a,
-            b: instruction
-                .b
-                .filter(|id| graph.tensors[id.0].dtype == DType::F32),
-            bias: instruction.bias,
             output: instruction.output,
             kind: result.1,
         });
@@ -729,4 +992,191 @@ fn plan_slots(
         )));
     }
     Ok((slots, lengths, bytes, naive))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn varint(mut value: u64) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        loop {
+            let next = (value & 127) as u8;
+            value >>= 7;
+            bytes.push(next | if value == 0 { 0 } else { 128 });
+            if value == 0 {
+                return bytes;
+            }
+        }
+    }
+    fn number(field: u64, value: u64) -> Vec<u8> {
+        [varint(field << 3), varint(value)].concat()
+    }
+    fn bytes(field: u64, value: &[u8]) -> Vec<u8> {
+        [
+            varint(field << 3 | 2),
+            varint(value.len() as u64),
+            value.to_vec(),
+        ]
+        .concat()
+    }
+    fn info(name: &str) -> Vec<u8> {
+        [
+            bytes(1, name.as_bytes()),
+            bytes(
+                2,
+                &bytes(
+                    1,
+                    &[number(1, 1), bytes(2, &bytes(1, &number(1, 2)))].concat(),
+                ),
+            ),
+        ]
+        .concat()
+    }
+    fn node(op: &str, inputs: &[&str], output: &str) -> Vec<u8> {
+        bytes(
+            1,
+            &[
+                inputs
+                    .iter()
+                    .flat_map(|name| bytes(1, name.as_bytes()))
+                    .collect(),
+                bytes(2, output.as_bytes()),
+                bytes(4, op.as_bytes()),
+            ]
+            .concat(),
+        )
+    }
+    fn prefix_session() -> Session {
+        let constant = bytes(
+            5,
+            &[
+                number(1, 1),
+                number(2, 1),
+                bytes(8, b"large"),
+                bytes(9, &f32::MAX.to_le_bytes()),
+            ]
+            .concat(),
+        );
+        let graph = [
+            constant,
+            node("Relu", &["x"], "feature"),
+            node("Mul", &["feature", "large"], "overflow"),
+            node("Relu", &["overflow"], "y"),
+            bytes(11, &info("x")),
+            bytes(12, &info("y")),
+        ]
+        .concat();
+        let source = [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat();
+        let model = Arc::new(Model::load_bytes(&source).unwrap());
+        Session::new(
+            Arc::new(CompiledModel::new(model).unwrap()),
+            &[2],
+            ExecutionLimits::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn inclusive_prefix_stops_before_failing_suffix_and_checks_index_before_fill() {
+        let mut request = prefix_session();
+        let mut called = false;
+        assert!(
+            request
+                .run_prefix_with_input(3, |_| {
+                    called = true;
+                    Ok(())
+                })
+                .is_err()
+        );
+        assert!(!called);
+        let output = request
+            .run_prefix_with_input(0, |input| {
+                input.copy_from_slice(&[-1., 2.]);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(output.shape().dimensions(), &[2]);
+        assert_eq!(output.data(), &[0., 2.]);
+        assert!(
+            request
+                .run_prefix_with_input(1, |input| {
+                    input.copy_from_slice(&[-1., 2.]);
+                    Ok(())
+                })
+                .unwrap_err()
+                .to_string()
+                .contains("nonfinite output")
+        );
+        assert!(
+            request
+                .run_prefix_with_input(0, |_| Err(RuntimeError::new("fill failed")))
+                .is_err()
+        );
+        assert_eq!(
+            request
+                .run_prefix_with_input(0, |input| {
+                    input.copy_from_slice(&[3., -4.]);
+                    Ok(())
+                })
+                .unwrap()
+                .data(),
+            &[3., 0.]
+        );
+        assert!(request.run(&[3., -4.]).is_err());
+        assert_eq!(
+            request
+                .run_prefix_with_input(0, |input| {
+                    input.copy_from_slice(&[1., -2.]);
+                    Ok(())
+                })
+                .unwrap()
+                .data(),
+            &[1., 0.]
+        );
+    }
+
+    #[test]
+    fn failed_buffer_reservation_leaves_previous_storage_owned_and_unchanged() {
+        let mut previous = vec![vec![1.0, 2.0, 3.0]];
+        let pointer = previous[0].as_ptr();
+        // Byte arithmetic fits usize, but Vec's isize allocation bound rejects
+        // this capacity before any actual giant allocation is attempted.
+        let lengths = [usize::MAX / size_of::<f32>()];
+        let error = rebind_buffers(
+            &mut previous,
+            &lengths,
+            ExecutionLimits {
+                max_activation_bytes: usize::MAX,
+            },
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("allocation failed"));
+        assert_eq!(previous[0].as_ptr(), pointer);
+        assert_eq!(previous[0], [1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn metadata_only_node_shapes_agree_with_session_binding_and_traces() {
+        let mut request = prefix_session();
+        let shapes = request.compiled.node_output_shapes(&[2]).unwrap();
+        assert_eq!(shapes, vec![Shape::new(&[2]).unwrap(); 3]);
+        assert!(request.buffers.iter().flatten().all(|&value| value == 0.0));
+        let bound = request
+            .plan
+            .steps
+            .iter()
+            .map(|step| request.plan.shapes[step.output.0])
+            .collect::<Vec<_>>();
+        assert_eq!(shapes, bound);
+        let mut observed = Vec::new();
+        request
+            .run_with_trace(&[0., 0.], |trace| {
+                observed.push(trace.shape);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(shapes, observed);
+        assert!(request.compiled.node_output_shapes(&[3]).is_err());
+    }
 }

@@ -1,8 +1,38 @@
 # simd-paddle-ocr-rs
 
-The Rust rewrite includes checked tensors, a streaming ONNX loader, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes the shared CLS network with scalar NCHW kernels, evaluated shape programs, reusable activation buffers, and synchronous node tracing. The complete OCR pipeline still comes from the adjacent `SimdPaddleOCR` checkout.
+The Rust rewrite includes checked tensors, streaming ONNX import, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes tiny, small, and medium DET plus the shared CLS network, and accepts interleaved pixels to produce ordered, oriented BGR text crops. Execution uses serial F32/NCHW kernels, reusable workspaces, and synchronous tracing. Recognition preprocessing and REC execution are the next pipeline stages.
 
-Requirements: .NET 10 SDK, the pinned Rust 1.97.1 toolchain, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
+The library and Rust commands require the pinned Rust 1.97.1 toolchain. Reference export and paired C# benchmarks additionally require the .NET 10 SDK, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
+
+## Detection and oriented crops
+
+```powershell
+./tools/export-reference.ps1 -CaptureScope step12 -DetectorModel tiny -Nodes all -MaxTracedLines 0 -Out reference-bundles/tiny-step12-new
+cargo run --release --locked --offline -- run-det reference-bundles/tiny-step12-new --out reference-bundles/rust-det-new
+cargo run --release --locked --offline -- compare-det reference-bundles/tiny-step12-new reference-bundles/rust-det-new --json
+cargo run --release --locked --offline -- run-step12 reference-bundles/tiny-step12-new --out reference-bundles/rust-step12-new
+cargo run --release --locked --offline -- compare-step12 reference-bundles/tiny-step12-new reference-bundles/rust-step12-new --json
+```
+
+Choose `small` or `medium` for the other detector variants. `run-det` starts
+from frozen normalized tensors; `run-step12` independently computes all stages
+from frozen pixels. Both commands report explicit partial OCR coverage.
+[The image pipeline API and contracts](docs/step12-inference.md) describe the
+borrowed results, four pixel formats, reusable memory, and public CLS behavior.
+[Windows/Linux parity evidence](docs/step12-parity.json) and
+[the performance protocol and results](docs/step12-inference-performance.md)
+record this milestone separately from historical import and CLS measurements.
+
+Compact real-model goldens are committed. Prepare them from hash-pinned models
+or the adjacent checkout, then run the same explicit gate used in CI:
+
+```powershell
+python tools/prepare-step12-fixtures.py --models ../SimdPaddleOCR/models
+cargo test --release --locked --offline --test step12_harness compact_real_models_match_all_detector_and_pixel_stages -- --ignored
+```
+
+The preparation script uses pinned public model downloads when `--models` is
+omitted. It verifies model and archive hashes and never regenerates the oracle.
 
 ## Scalar CLS inference
 

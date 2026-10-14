@@ -1,0 +1,9 @@
+{
+  "cls_content_width": 120,
+  "det_height": 32,
+  "det_width": 64,
+  "height": 20,
+  "pixel_format": "bgra32",
+  "stride": 133,
+  "width": 30
+}

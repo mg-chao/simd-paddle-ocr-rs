@@ -1,21 +1,37 @@
 use super::{RuntimeError, RuntimeResult, shapes};
 use crate::{
+    math::exp_f32,
     model::{ConvAttributes, TensorId},
     tensor::{MAX_RANK, Shape},
 };
 
 pub(super) struct BoundStep {
-    pub a: TensorId,
-    pub b: Option<TensorId>,
-    pub bias: Option<TensorId>,
     pub output: TensorId,
     pub kind: BoundKind,
 }
+pub(super) enum BinaryOp {
+    Add,
+    Mul,
+    Div,
+}
 pub(super) enum BoundKind {
-    Binary(Broadcast, bool),
+    Binary(Broadcast, BinaryOp),
     Relu,
+    Erf,
+    Sigmoid,
     HardSigmoid(f32, f32),
     Conv(Conv),
+    ConvTranspose(ConvTranspose),
+    MaxPool {
+        height: usize,
+        width: usize,
+    },
+    Concat(Concat),
+    Resize {
+        height: usize,
+        width: usize,
+        factor: usize,
+    },
     Reduce(Reduction),
     Copy,
     MatMul {
@@ -28,15 +44,22 @@ pub(super) enum BoundKind {
         columns: usize,
     },
 }
-pub(super) fn execute(
-    step: &BoundStep,
-    a: &[f32],
-    b: Option<&[f32]>,
-    bias: Option<&[f32]>,
+pub(super) fn execute<'a>(
+    kind: &BoundKind,
+    inputs: &[TensorId],
+    data: impl Fn(TensorId) -> &'a [f32],
     out: &mut [f32],
 ) {
-    match &step.kind {
-        BoundKind::Binary(plan, multiply) => binary(plan, a, b.unwrap(), out, *multiply),
+    let a = data(inputs[0]);
+    match kind {
+        BoundKind::Binary(plan, operation) => {
+            let b = data(inputs[1]);
+            match operation {
+                BinaryOp::Add => binary::<0>(plan, a, b, out),
+                BinaryOp::Mul => binary::<1>(plan, a, b, out),
+                BinaryOp::Div => binary::<2>(plan, a, b, out),
+            }
+        }
         BoundKind::Relu => {
             for (o, &x) in out.iter_mut().zip(a) {
                 *o = if x > 0.0 { x } else { 0.0 };
@@ -47,7 +70,42 @@ pub(super) fn execute(
                 *o = (alpha * x + beta).clamp(0.0, 1.0);
             }
         }
-        BoundKind::Conv(plan) => conv(plan, a, b.unwrap(), bias.unwrap_or(&[]), out),
+        BoundKind::Erf => {
+            for (o, &value) in out.iter_mut().zip(a) {
+                *o = erf(value);
+            }
+        }
+        BoundKind::Sigmoid => {
+            for (o, &value) in out.iter_mut().zip(a) {
+                *o = if value >= 0.0 {
+                    1.0 / (1.0 + exp_f32(-value))
+                } else {
+                    let exponent = exp_f32(value);
+                    exponent / (1.0 + exponent)
+                };
+            }
+        }
+        BoundKind::Conv(plan) => conv(
+            plan,
+            a,
+            data(inputs[1]),
+            inputs.get(2).map_or(&[], |&id| data(id)),
+            out,
+        ),
+        BoundKind::ConvTranspose(plan) => conv_transpose(
+            plan,
+            a,
+            data(inputs[1]),
+            inputs.get(2).map_or(&[], |&id| data(id)),
+            out,
+        ),
+        BoundKind::MaxPool { height, width } => max_pool(a, out, *height, *width),
+        BoundKind::Concat(plan) => concat(plan, inputs, data, out),
+        BoundKind::Resize {
+            height,
+            width,
+            factor,
+        } => resize(a, out, *height, *width, *factor),
         BoundKind::Reduce(plan) => reduce(plan, a, out),
         BoundKind::Copy => out.copy_from_slice(a),
         BoundKind::MatMul {
@@ -55,6 +113,7 @@ pub(super) fn execute(
             inner,
             columns,
         } => {
+            let b = data(inputs[1]);
             for row in 0..*rows {
                 let input = &a[row * inner..(row + 1) * inner];
                 for (column, value) in out[row * columns..(row + 1) * columns]
@@ -63,7 +122,7 @@ pub(super) fn execute(
                 {
                     let mut sum = 0.0f32;
                     for (k, &x) in input.iter().enumerate() {
-                        sum += x * b.unwrap()[k * columns + column];
+                        sum += x * b[k * columns + column];
                     }
                     *value = sum;
                 }
@@ -79,7 +138,7 @@ pub(super) fn execute(
                 }
                 let mut sum = 0.0f32;
                 for (&x, o) in input.iter().zip(output.iter_mut()) {
-                    let value = (x - max).exp();
+                    let value = exp_f32(x - max);
                     *o = value;
                     sum += value;
                 }
@@ -89,6 +148,16 @@ pub(super) fn execute(
             }
         }
     }
+}
+
+fn erf(x: f32) -> f32 {
+    // Identical individual F32 operations to the C# scalar reference.
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let magnitude = x.abs();
+    let t = 1.0 / (1.0 + 0.3275911 * magnitude);
+    let polynomial =
+        ((((1.0614054 * t - 1.4531521) * t + 1.4214138) * t - 0.28449672) * t + 0.2548296) * t;
+    sign * (1.0 - polynomial * exp_f32(-magnitude * magnitude))
 }
 
 enum BroadcastKind {
@@ -190,24 +259,28 @@ fn aligned_strides(shape: Shape, rank: usize) -> [usize; MAX_RANK] {
     strides
 }
 #[inline]
-fn arithmetic(a: f32, b: f32, multiply: bool) -> f32 {
-    if multiply { a * b } else { a + b }
+fn arithmetic<const OP: u8>(a: f32, b: f32) -> f32 {
+    match OP {
+        0 => a + b,
+        1 => a * b,
+        _ => a / b,
+    }
 }
-fn binary(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32], multiply: bool) {
+fn binary<const OP: u8>(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32]) {
     match plan.kind {
         BroadcastKind::Full => {
             for ((o, &a), &b) in out.iter_mut().zip(a).zip(b) {
-                *o = arithmetic(a, b, multiply);
+                *o = arithmetic::<OP>(a, b);
             }
         }
         BroadcastKind::RightScalar => {
             for (o, &a) in out.iter_mut().zip(a) {
-                *o = arithmetic(a, b[0], multiply);
+                *o = arithmetic::<OP>(a, b[0]);
             }
         }
         BroadcastKind::LeftScalar => {
             for (o, &b) in out.iter_mut().zip(b) {
-                *o = arithmetic(a[0], b, multiply);
+                *o = arithmetic::<OP>(a[0], b);
             }
         }
         BroadcastKind::Channel {
@@ -225,9 +298,9 @@ fn binary(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32], multiply: boo
                 let scalar = gate[if batched { block } else { block % channels }];
                 for (&value, output) in input.iter().zip(output) {
                     *output = if scalar_left {
-                        arithmetic(scalar, value, multiply)
+                        arithmetic::<OP>(scalar, value)
                     } else {
-                        arithmetic(value, scalar, multiply)
+                        arithmetic::<OP>(value, scalar)
                     };
                 }
             }
@@ -243,9 +316,9 @@ fn binary(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32], multiply: boo
             {
                 for ((&value, &scalar), output) in input.iter().zip(gate).zip(output) {
                     *output = if scalar_left {
-                        arithmetic(scalar, value, multiply)
+                        arithmetic::<OP>(scalar, value)
                     } else {
-                        arithmetic(value, scalar, multiply)
+                        arithmetic::<OP>(value, scalar)
                     };
                 }
             }
@@ -255,7 +328,7 @@ fn binary(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32], multiply: boo
             let mut ai = 0;
             let mut bi = 0;
             for o in out {
-                *o = arithmetic(a[ai], b[bi], multiply);
+                *o = arithmetic::<OP>(a[ai], b[bi]);
                 for axis in (0..plan.rank).rev() {
                     counters[axis] += 1;
                     if counters[axis] < plan.dimensions[axis] {
@@ -266,6 +339,253 @@ fn binary(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32], multiply: boo
                     ai -= (counters[axis] - 1) * plan.a_strides[axis];
                     bi -= (counters[axis] - 1) * plan.b_strides[axis];
                     counters[axis] = 0;
+                }
+            }
+        }
+    }
+}
+
+pub(super) struct Concat {
+    outer: usize,
+    output_chunk: usize,
+    input_chunks: Box<[usize]>,
+}
+
+pub(super) fn bind_concat(
+    inputs: &[TensorId],
+    shapes_by_id: &[Option<Shape>],
+    value: i64,
+) -> RuntimeResult<(Shape, BoundKind)> {
+    let first = inputs
+        .first()
+        .and_then(|id| shapes_by_id[id.0])
+        .ok_or_else(|| RuntimeError::new("Concat requires resolved input shapes"))?;
+    let axis = shapes::axis(value, first.rank())?;
+    let checked_product = |dimensions: &[usize]| {
+        dimensions
+            .iter()
+            .try_fold(1usize, |product, &dimension| product.checked_mul(dimension))
+            .ok_or_else(|| RuntimeError::new("Concat extent overflow"))
+    };
+    let outer = checked_product(&first.dimensions()[..axis])?;
+    let inner = checked_product(&first.dimensions()[axis + 1..])?;
+    let mut dimensions = [0; MAX_RANK];
+    dimensions[..first.rank()].copy_from_slice(first.dimensions());
+    dimensions[axis] = 0;
+    let mut chunks = Vec::with_capacity(inputs.len());
+    let mut output_chunk = 0usize;
+    for &id in inputs {
+        let input =
+            shapes_by_id[id.0].ok_or_else(|| RuntimeError::new("unresolved Concat input shape"))?;
+        if input.rank() != first.rank()
+            || input
+                .dimensions()
+                .iter()
+                .zip(first.dimensions())
+                .enumerate()
+                .any(|(index, (a, b))| index != axis && a != b)
+        {
+            return Err(RuntimeError::new(
+                "Concat input ranks/non-axis dimensions differ",
+            ));
+        }
+        dimensions[axis] = dimensions[axis]
+            .checked_add(input.dimensions()[axis])
+            .ok_or_else(|| RuntimeError::new("Concat axis sum overflow"))?;
+        let chunk = input.dimensions()[axis]
+            .checked_mul(inner)
+            .ok_or_else(|| RuntimeError::new("Concat input chunk overflow"))?;
+        output_chunk = output_chunk
+            .checked_add(chunk)
+            .ok_or_else(|| RuntimeError::new("Concat output chunk overflow"))?;
+        chunks.push(chunk);
+    }
+    Ok((
+        Shape::new(&dimensions[..first.rank()])?,
+        BoundKind::Concat(Concat {
+            outer,
+            output_chunk,
+            input_chunks: chunks.into_boxed_slice(),
+        }),
+    ))
+}
+
+fn concat<'a>(
+    plan: &Concat,
+    inputs: &[TensorId],
+    data: impl Fn(TensorId) -> &'a [f32],
+    output: &mut [f32],
+) {
+    for outer in 0..plan.outer {
+        let mut destination = outer * plan.output_chunk;
+        for (&id, &chunk) in inputs.iter().zip(&plan.input_chunks) {
+            let source = data(id);
+            output[destination..destination + chunk]
+                .copy_from_slice(&source[outer * chunk..(outer + 1) * chunk]);
+            destination += chunk;
+        }
+    }
+}
+
+pub(super) fn bind_max_pool(input: Shape) -> RuntimeResult<(Shape, BoundKind)> {
+    if input.rank() != 4 {
+        return Err(RuntimeError::new("MaxPool requires rank-four NCHW input"));
+    }
+    Ok((
+        input,
+        BoundKind::MaxPool {
+            height: input.dimensions()[2],
+            width: input.dimensions()[3],
+        },
+    ))
+}
+
+fn max_pool(input: &[f32], output: &mut [f32], height: usize, width: usize) {
+    let plane = height * width;
+    for (source, destination) in input
+        .chunks_exact(plane)
+        .zip(output.chunks_exact_mut(plane))
+    {
+        for y in 0..height - 1 {
+            let row = &source[y * width..(y + 1) * width];
+            let next = &source[(y + 1) * width..(y + 2) * width];
+            let out = &mut destination[y * width..(y + 1) * width];
+            for x in 0..width - 1 {
+                out[x] = row[x].max(row[x + 1]).max(next[x].max(next[x + 1]));
+            }
+            out[width - 1] = row[width - 1].max(next[width - 1]);
+        }
+        let last = (height - 1) * width;
+        for x in 0..width - 1 {
+            destination[last + x] = source[last + x].max(source[last + x + 1]);
+        }
+        destination[last + width - 1] = source[last + width - 1];
+    }
+}
+
+pub(super) fn bind_resize(input: Shape, factor: usize) -> RuntimeResult<(Shape, BoundKind)> {
+    if input.rank() != 4 {
+        return Err(RuntimeError::new("Resize requires rank-four NCHW input"));
+    }
+    let dimensions = input.dimensions();
+    let height = dimensions[2]
+        .checked_mul(factor)
+        .ok_or_else(|| RuntimeError::new("Resize height overflow"))?;
+    let width = dimensions[3]
+        .checked_mul(factor)
+        .ok_or_else(|| RuntimeError::new("Resize width overflow"))?;
+    Ok((
+        Shape::new(&[dimensions[0], dimensions[1], height, width])?,
+        BoundKind::Resize {
+            height: dimensions[2],
+            width: dimensions[3],
+            factor,
+        },
+    ))
+}
+
+fn resize(input: &[f32], output: &mut [f32], height: usize, width: usize, factor: usize) {
+    let output_width = width * factor;
+    let output_plane = height * factor * output_width;
+    for (source, destination) in input
+        .chunks_exact(height * width)
+        .zip(output.chunks_exact_mut(output_plane))
+    {
+        for (row, values) in source.chunks_exact(width).enumerate() {
+            let rows =
+                &mut destination[row * factor * output_width..(row + 1) * factor * output_width];
+            let (first, remaining) = rows.split_at_mut(output_width);
+            for (&value, repeated) in values.iter().zip(first.chunks_exact_mut(factor)) {
+                repeated.fill(value);
+            }
+            for repeated in remaining.chunks_exact_mut(output_width) {
+                repeated.copy_from_slice(first);
+            }
+        }
+    }
+}
+
+pub(super) struct ConvTranspose {
+    batch: usize,
+    cin: usize,
+    cout: usize,
+    height: usize,
+    width: usize,
+}
+
+pub(super) fn bind_conv_transpose(
+    input: Shape,
+    weights: Shape,
+    bias: Option<Shape>,
+) -> RuntimeResult<(Shape, BoundKind)> {
+    if input.rank() != 4 || weights.rank() != 4 {
+        return Err(RuntimeError::new(
+            "ConvTranspose requires rank-four input and weights",
+        ));
+    }
+    let dimensions = input.dimensions();
+    let wd = weights.dimensions();
+    if wd[0] != dimensions[1] || wd[2..] != [2, 2] {
+        return Err(RuntimeError::new(
+            "ConvTranspose weights must have shape [input_channels, output_channels, 2, 2]",
+        ));
+    }
+    if bias.is_some_and(|shape| shape.dimensions() != [wd[1]]) {
+        return Err(RuntimeError::new(
+            "ConvTranspose bias must have shape [output_channels]",
+        ));
+    }
+    let height = dimensions[2]
+        .checked_mul(2)
+        .ok_or_else(|| RuntimeError::new("ConvTranspose height overflow"))?;
+    let width = dimensions[3]
+        .checked_mul(2)
+        .ok_or_else(|| RuntimeError::new("ConvTranspose width overflow"))?;
+    Ok((
+        Shape::new(&[dimensions[0], wd[1], height, width])?,
+        BoundKind::ConvTranspose(ConvTranspose {
+            batch: dimensions[0],
+            cin: dimensions[1],
+            cout: wd[1],
+            height: dimensions[2],
+            width: dimensions[3],
+        }),
+    ))
+}
+
+fn conv_transpose(
+    plan: &ConvTranspose,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    output: &mut [f32],
+) {
+    let input_plane = plan.height * plan.width;
+    let output_width = plan.width * 2;
+    let output_plane = input_plane * 4;
+    for batch in 0..plan.batch {
+        for co in 0..plan.cout {
+            let destination = &mut output[(batch * plan.cout + co) * output_plane
+                ..(batch * plan.cout + co + 1) * output_plane];
+            destination.fill(if bias.is_empty() { 0.0 } else { bias[co] });
+            for ci in 0..plan.cin {
+                let source = &input[(batch * plan.cin + ci) * input_plane
+                    ..(batch * plan.cin + ci + 1) * input_plane];
+                let weight = &weights[(ci * plan.cout + co) * 4..(ci * plan.cout + co + 1) * 4];
+                for (row, values) in source.chunks_exact(plan.width).enumerate() {
+                    let rows =
+                        &mut destination[row * 2 * output_width..(row + 1) * 2 * output_width];
+                    let (top, bottom) = rows.split_at_mut(output_width);
+                    for ((&value, top), bottom) in values
+                        .iter()
+                        .zip(top.chunks_exact_mut(2))
+                        .zip(bottom.chunks_exact_mut(2))
+                    {
+                        top[0] += value * weight[0];
+                        top[1] += value * weight[1];
+                        bottom[0] += value * weight[2];
+                        bottom[1] += value * weight[3];
+                    }
                 }
             }
         }
@@ -405,33 +725,105 @@ fn conv(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f3
     let plane = p.height * p.width;
     let out_plane = p.oh * p.ow;
     for batch in 0..p.batch {
-        for co in 0..p.cout {
-            for y in 0..p.oh {
-                for x in 0..p.ow {
-                    let mut sum = if bias.is_empty() { 0.0 } else { bias[co] };
-                    let group = co / p.opg;
-                    for ci in 0..p.cpg {
-                        for ky in 0..p.kh {
-                            let iy = y * p.sh + ky * p.dh;
-                            if iy < p.pt || iy - p.pt >= p.height {
-                                continue;
-                            }
-                            let input_row = (batch * p.cin + group * p.cpg + ci) * plane
-                                + (iy - p.pt) * p.width;
-                            let weight_row = ((co * p.cpg + ci) * p.kh + ky) * p.kw;
-                            for kx in 0..p.kw {
-                                let ix = x * p.sw + kx * p.dw;
-                                if ix >= p.pl && ix - p.pl < p.width {
-                                    sum += input[input_row + ix - p.pl] * weights[weight_row + kx];
+        for group in 0..p.cout / p.opg {
+            let first_channel = group * p.opg;
+            let tiled_end = first_channel + p.opg / 4 * 4;
+            let input_group = &input[(batch * p.cin + group * p.cpg) * plane
+                ..(batch * p.cin + (group + 1) * p.cpg) * plane];
+            let weight_plane = p.cpg * p.kh * p.kw;
+            for co in (first_channel..tiled_end).step_by(4) {
+                let (w0, rest) =
+                    weights[co * weight_plane..(co + 4) * weight_plane].split_at(weight_plane);
+                let (w1, rest) = rest.split_at(weight_plane);
+                let (w2, w3) = rest.split_at(weight_plane);
+                let base = (batch * p.cout + co) * out_plane;
+                let (o0, rest) = output[base..base + 4 * out_plane].split_at_mut(out_plane);
+                let (o1, rest) = rest.split_at_mut(out_plane);
+                let (o2, o3) = rest.split_at_mut(out_plane);
+                let initial = if bias.is_empty() {
+                    [0.0; 4]
+                } else {
+                    [bias[co], bias[co + 1], bias[co + 2], bias[co + 3]]
+                };
+                for y in 0..p.oh {
+                    let rows = valid_taps(y * p.sh, p.pt, p.height, p.dh, p.kh);
+                    let d0 = &mut o0[y * p.ow..(y + 1) * p.ow];
+                    let d1 = &mut o1[y * p.ow..(y + 1) * p.ow];
+                    let d2 = &mut o2[y * p.ow..(y + 1) * p.ow];
+                    let d3 = &mut o3[y * p.ow..(y + 1) * p.ow];
+                    for x in 0..p.ow {
+                        let columns = valid_taps(x * p.sw, p.pl, p.width, p.dw, p.kw);
+                        let [mut s0, mut s1, mut s2, mut s3] = initial;
+                        // Four independent bias-first chains visit exactly the
+                        // same ci/ky/kx order as the reference. Load each source
+                        // tap once; padding ranges are independent of channels.
+                        for ci in 0..p.cpg {
+                            for ky in rows.clone() {
+                                let source_row = &input_group[ci * plane
+                                    + (y * p.sh + ky * p.dh - p.pt) * p.width
+                                    ..ci * plane + (y * p.sh + ky * p.dh - p.pt + 1) * p.width];
+                                let weight_row = (ci * p.kh + ky) * p.kw;
+                                for kx in columns.clone() {
+                                    let value = source_row[x * p.sw + kx * p.dw - p.pl];
+                                    let tap = weight_row + kx;
+                                    s0 += value * w0[tap];
+                                    s1 += value * w1[tap];
+                                    s2 += value * w2[tap];
+                                    s3 += value * w3[tap];
                                 }
                             }
                         }
+                        d0[x] = s0;
+                        d1[x] = s1;
+                        d2[x] = s2;
+                        d3[x] = s3;
                     }
-                    output[(batch * p.cout + co) * out_plane + y * p.ow + x] = sum;
+                }
+            }
+            for co in tiled_end..first_channel + p.opg {
+                let weight = &weights[co * weight_plane..(co + 1) * weight_plane];
+                let destination = &mut output
+                    [(batch * p.cout + co) * out_plane..(batch * p.cout + co + 1) * out_plane];
+                for y in 0..p.oh {
+                    let rows = valid_taps(y * p.sh, p.pt, p.height, p.dh, p.kh);
+                    for (x, output) in destination[y * p.ow..(y + 1) * p.ow].iter_mut().enumerate()
+                    {
+                        let columns = valid_taps(x * p.sw, p.pl, p.width, p.dw, p.kw);
+                        let mut sum = if bias.is_empty() { 0.0 } else { bias[co] };
+                        for ci in 0..p.cpg {
+                            for ky in rows.clone() {
+                                let row = ci * plane + (y * p.sh + ky * p.dh - p.pt) * p.width;
+                                let weight_row = (ci * p.kh + ky) * p.kw;
+                                for kx in columns.clone() {
+                                    sum += input_group[row + x * p.sw + kx * p.dw - p.pl]
+                                        * weight[weight_row + kx];
+                                }
+                            }
+                        }
+                        *output = sum;
+                    }
                 }
             }
         }
     }
+}
+
+fn valid_taps(
+    origin: usize,
+    padding: usize,
+    input: usize,
+    dilation: usize,
+    kernel: usize,
+) -> std::ops::Range<usize> {
+    let first = padding
+        .saturating_sub(origin)
+        .div_ceil(dilation)
+        .min(kernel);
+    let end = (input + padding)
+        .saturating_sub(origin)
+        .div_ceil(dilation)
+        .min(kernel);
+    first..end
 }
 fn conv1x1(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f32]) {
     let plane = p.height * p.width;

@@ -1,0 +1,13 @@
+{
+  "height": 32,
+  "options": {
+    "bitmap_threshold": 0.2,
+    "box_threshold": 0.4,
+    "max_candidates": 3000,
+    "unclip_ratio": 1.4,
+    "use_dilation": true
+  },
+  "source_height": 32,
+  "source_width": 40,
+  "width": 40
+}

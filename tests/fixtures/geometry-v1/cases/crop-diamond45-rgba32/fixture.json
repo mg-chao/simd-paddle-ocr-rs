@@ -1,0 +1,29 @@
+{
+  "box": {
+    "points": [
+      [
+        18,
+        2
+      ],
+      [
+        31,
+        15
+      ],
+      [
+        18,
+        28
+      ],
+      [
+        5,
+        15
+      ]
+    ],
+    "score": 1
+  },
+  "crop_height": 18,
+  "crop_width": 18,
+  "height": 29,
+  "pixel_format": "rgba32",
+  "stride": 161,
+  "width": 37
+}

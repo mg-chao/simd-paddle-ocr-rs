@@ -6,6 +6,9 @@ param(
     [string]$ReplayBundle,
     [ValidateSet('canonical', 'cpu')][string]$Profile = 'canonical',
     [ValidateSet('checkpoints', 'all')][string]$Nodes = 'checkpoints',
+    [ValidateSet('ocr', 'step12')][string]$CaptureScope = 'ocr',
+    [ValidateSet('tiny', 'small', 'medium')][string]$DetectorModel = 'tiny',
+    [ValidateSet('default', 'compact', 'expanded')][string]$FixtureSet = 'default',
     [ValidateRange(0, 2147483647)][int]$MaxTracedLines = 3,
     [ValidateRange(1, 2147483647)][int]$Count = 20,
     [ValidateRange(0, 2147483647)][int]$Warmup = 1,
@@ -24,11 +27,14 @@ if ($ReplayBundle) {
     if (-not $PSBoundParameters.ContainsKey('Profile')) { $Profile = $replayManifest.contract.profile }
     if (-not $PSBoundParameters.ContainsKey('Nodes')) { $Nodes = $replayManifest.contract.nodes }
     if (-not $PSBoundParameters.ContainsKey('MaxTracedLines')) { $MaxTracedLines = $replayManifest.contract.max_traced_lines }
+    if (-not $PSBoundParameters.ContainsKey('CaptureScope') -and $replayManifest.contract.capture_scope) { $CaptureScope = $replayManifest.contract.capture_scope }
+    if (-not $PSBoundParameters.ContainsKey('DetectorModel') -and $CaptureScope -eq 'step12') { $DetectorModel = $replayManifest.contract.model }
     if ($Profile -notin @('canonical', 'cpu') -or $Nodes -notin @('checkpoints', 'all')) { throw 'Invalid replay profile or nodes.' }
 }
 $arguments = @('--reference-repo', $repoPath, '--exporter-source', $exporterPath, '--out', $outputPath,
     '--profile', $Profile, '--nodes', $Nodes, '--max-traced-lines', "$MaxTracedLines", '--count', "$Count",
-    '--warmup', "$Warmup", '--repeat', "$Repeat")
+    '--warmup', "$Warmup", '--repeat', "$Repeat", '--capture-scope', $CaptureScope,
+    '--detector-model', $DetectorModel, '--fixture-set', $FixtureSet)
 if ($InputPath) { $arguments += @('--input', (Resolve-Path -LiteralPath $InputPath).Path) }
 if ($ReplayBundle) { $arguments += @('--replay', $replayPath) }
 

@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "model_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "model_url_root": "https://raw.githubusercontent.com/mg-chao/SimdPaddleOCR/33ff8a81672452041d110e8ba52dcd2639e54228/models/",
+  "fixtures": [
+    {
+      "archive": "tiny.zip",
+      "bytes": 3468453,
+      "sha256": "b6576c71f431e69dc54a55e6ddbf90abef4f857e2018d89a0680d44cb96f647e",
+      "models": [
+        {
+          "path": "models/det.onnx",
+          "bytes": 1780590,
+          "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+          "source_name": "det.onnx"
+        },
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        }
+      ],
+      "directory": "tiny"
+    },
+    {
+      "archive": "small.zip",
+      "bytes": 5348922,
+      "sha256": "21d0864f2d815539e60045545a2abdd400e1a5d21d44204cbdfa04881695fdc6",
+      "models": [
+        {
+          "path": "models/det.onnx",
+          "bytes": 9880512,
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "source_name": "small_det.onnx"
+        },
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        }
+      ],
+      "directory": "small"
+    },
+    {
+      "archive": "medium.zip",
+      "bytes": 18717465,
+      "sha256": "839cef6af54f551658f61728cc8603e7b9e4eca66ebee4239f2b86fffd0ad9a9",
+      "models": [
+        {
+          "path": "models/det.onnx",
+          "bytes": 62032837,
+          "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+          "source_name": "medium_det.onnx"
+        },
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        }
+      ],
+      "directory": "medium"
+    },
+    {
+      "archive": "cls.zip",
+      "bytes": 14352800,
+      "sha256": "ac2c2c705a3c0cbc523cd5df54783ba07c4df7b275b52cdac5108c4819778204",
+      "models": [
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        }
+      ],
+      "directory": "cls"
+    },
+    {
+      "archive": "imports.zip",
+      "directory": "imports",
+      "bytes": 994922,
+      "sha256": "53680658b73d2fba86a1f279f4ca81e5aaf604afaa068a6f351bc60d49871bf4",
+      "models": [
+        {
+          "path": "models/cls.onnx",
+          "bytes": 1018940,
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "source_name": "cls.onnx"
+        },
+        {
+          "path": "models/det.onnx",
+          "bytes": 1780590,
+          "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+          "source_name": "det.onnx"
+        },
+        {
+          "path": "models/rec.onnx",
+          "bytes": 4462639,
+          "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+          "source_name": "rec.onnx"
+        },
+        {
+          "path": "models/small_det.onnx",
+          "bytes": 9880512,
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "source_name": "small_det.onnx"
+        },
+        {
+          "path": "models/small_rec.onnx",
+          "bytes": 21159378,
+          "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+          "source_name": "small_rec.onnx"
+        },
+        {
+          "path": "models/medium_det.onnx",
+          "bytes": 62032837,
+          "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+          "source_name": "medium_det.onnx"
+        },
+        {
+          "path": "models/medium_rec.onnx",
+          "bytes": 76554979,
+          "sha256": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba",
+          "source_name": "medium_rec.onnx"
+        },
+        {
+          "path": "models/ppocr_keys.txt",
+          "bytes": 34057,
+          "sha256": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82",
+          "source_name": "ppocr_keys.txt",
+          "download": {
+            "bytes": 27153,
+            "sha256": "46e1b34ef45684cb46d75ac76d355341fe7f0a2c38d6ee02e63ae6b3878019fc",
+            "transform": "lf_to_crlf"
+          }
+        },
+        {
+          "path": "models/rec_keys.txt",
+          "bytes": 93655,
+          "sha256": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6",
+          "source_name": "rec_keys.txt",
+          "download": {
+            "bytes": 74947,
+            "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+            "transform": "lf_to_crlf"
+          }
+        }
+      ]
+    }
+  ]
+}

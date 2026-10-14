@@ -1,19 +1,25 @@
 use simd_paddle_ocr_rs::{
     Tolerance,
     cls::run_cls,
-    compare_bundles, compare_cls, compare_stage,
+    compare_bundles, compare_cls, compare_det, compare_stage, compare_step12,
+    det::run_det,
     model::{self, LoadOptions, Model},
+    step12::run_step12,
     validate_bundle,
 };
 use std::{collections::HashSet, env, path::PathBuf, process::ExitCode};
 
-const HELP: &str = "Frozen references, structural ONNX import, and scalar CLS tensor execution.
+const HELP: &str = "Frozen references, structural ONNX import, and scalar detector/classifier image inference.
 
 Usage:
   simd-paddle-ocr-rs compare <reference> <candidate> [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs compare-stage <reference> <candidate> --case ID --artifact ID [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs run-cls <reference> --out NEW_DIRECTORY [--json]
   simd-paddle-ocr-rs compare-cls <reference> <candidate> [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs run-det <reference> --out NEW_DIRECTORY [--json]
+  simd-paddle-ocr-rs compare-det <reference> <candidate> [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs run-step12 <reference> --out NEW_DIRECTORY [--json]
+  simd-paddle-ocr-rs compare-step12 <reference> <candidate> [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs validate <bundle> [--json]
   simd-paddle-ocr-rs inspect-model <model.onnx> [--out NEW_DIRECTORY] [--json]
   simd-paddle-ocr-rs validate-import <reference-directory> [--json]
@@ -24,6 +30,8 @@ Float defaults: --atol 1e-5 --rtol 1e-4.
 Shape/layout/order, bytes, text and integer structure compare exactly.
 Stage matches cover one selected artifact; every declared file is validated.
 CLS matches cover all frozen classifier inputs/nodes/probabilities; no full OCR parity.
+DET matches cover frozen normalized detector tensors; no pixel preprocessing.
+Step12 matches cover independent pixel-to-oriented-crop inference; no recognition/text.
 Import comparison checks raw/normalized graphs and exact weight hashes.
 Exit status: 0 match/valid; 1 parity difference; 2 invalid arguments or data.";
 
@@ -88,8 +96,11 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
         index += 1;
     }
     let expected = match parsed.command.as_str() {
-        "compare" | "compare-stage" | "compare-cls" | "compare-import" => 2,
-        "validate" | "inspect-model" | "validate-import" | "run-cls" => 1,
+        "compare" | "compare-stage" | "compare-cls" | "compare-det" | "compare-step12"
+        | "compare-import" => 2,
+        "validate" | "inspect-model" | "validate-import" | "run-cls" | "run-det" | "run-step12" => {
+            1
+        }
         other => return Err(format!("unknown command {other}")),
     };
     if parsed.paths.len() != expected {
@@ -107,15 +118,26 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
     } else if parsed.case_id.is_some() || parsed.artifact_id.is_some() {
         return Err("--case/--artifact require compare-stage".into());
     }
-    if parsed.out.is_some() && parsed.command != "inspect-model" && parsed.command != "run-cls" {
-        return Err("--out requires inspect-model or run-cls".into());
+    if parsed.out.is_some()
+        && !matches!(
+            parsed.command.as_str(),
+            "inspect-model" | "run-cls" | "run-det" | "run-step12"
+        )
+    {
+        return Err("--out requires inspect-model or a run command".into());
     }
-    if parsed.command == "run-cls" && parsed.out.as_deref().is_none_or(str::is_empty) {
-        return Err("run-cls requires nonempty --out".into());
+    if matches!(
+        parsed.command.as_str(),
+        "run-cls" | "run-det" | "run-step12"
+    ) && parsed.out.as_deref().is_none_or(str::is_empty)
+    {
+        return Err(format!("{} requires nonempty --out", parsed.command));
     }
     if parsed.command != "compare"
         && parsed.command != "compare-stage"
         && parsed.command != "compare-cls"
+        && parsed.command != "compare-det"
+        && parsed.command != "compare-step12"
         && (seen.contains("--atol") || seen.contains("--rtol"))
     {
         return Err("--atol/--rtol require a tensor comparison command".into());
@@ -139,7 +161,7 @@ fn print_report<T: serde::Serialize + std::fmt::Display>(
 fn run(args: Arguments) -> Result<u8, String> {
     let path = PathBuf::from(&args.paths[0]);
     match args.command.as_str() {
-        "compare" | "compare-stage" | "compare-cls" => {
+        "compare" | "compare-stage" | "compare-cls" | "compare-det" | "compare-step12" => {
             let other = PathBuf::from(&args.paths[1]);
             let report = if args.command == "compare-stage" {
                 compare_stage(
@@ -151,6 +173,10 @@ fn run(args: Arguments) -> Result<u8, String> {
                 )
             } else if args.command == "compare-cls" {
                 compare_cls(&path, &other, args.tolerance)
+            } else if args.command == "compare-det" {
+                compare_det(&path, &other, args.tolerance)
+            } else if args.command == "compare-step12" {
+                compare_step12(&path, &other, args.tolerance)
             } else {
                 compare_bundles(&path, &other, args.tolerance)
             }
@@ -161,6 +187,22 @@ fn run(args: Arguments) -> Result<u8, String> {
         "run-cls" => {
             print_report(
                 &run_cls(&path, &PathBuf::from(args.out.as_ref().unwrap()))
+                    .map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
+        }
+        "run-det" => {
+            print_report(
+                &run_det(&path, &PathBuf::from(args.out.as_ref().unwrap()))
+                    .map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
+        }
+        "run-step12" => {
+            print_report(
+                &run_step12(&path, &PathBuf::from(args.out.as_ref().unwrap()))
                     .map_err(|e| e.to_string())?,
                 args.json,
             )?;

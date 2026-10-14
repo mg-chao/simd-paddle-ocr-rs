@@ -1,4 +1,8 @@
-# Steps 1–2 measurements
+# Historical import and normalization measurements
+
+These results belong to the earlier model-import milestone and its three-warmup,
+30-measurement protocol. They are separate from the scalar detection and oriented
+crop measurements documented in `step12-inference-performance.md`.
 
 Measured locally on 2026-10-14 with Windows x86_64, Rust 1.97.1, and .NET 10.0.11.
 Each import case used a fresh process, three warmups and thirty measured calls

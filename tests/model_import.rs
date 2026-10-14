@@ -655,6 +655,21 @@ impl ImportFixture {
         )
         .unwrap();
     }
+    fn hash_contracts(&self) {
+        self.mutate("normalized", |snapshot| {
+            for tensor in snapshot["tensors"].as_array_mut().unwrap() {
+                if tensor["constant"] == true {
+                    tensor["data_path"] = Value::Null;
+                }
+            }
+        });
+        let file = self.root.join("manifest.json");
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+        manifest["kind"] = json!("model_import_hash_contracts");
+        manifest["auxiliary_files"] = json!([]);
+        fs::write(file, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+        fs::remove_file(self.root.join("weights/one.bin")).unwrap();
+    }
 }
 impl Drop for ImportFixture {
     fn drop(&mut self) {
@@ -726,5 +741,96 @@ fn rehashed_shape_metadata_operands_must_match_raw_integer_bits() {
             .unwrap_err()
             .to_string()
             .contains("differs from raw initializer")
+    );
+}
+
+#[test]
+fn hash_contracts_validate_and_compare_without_claiming_archived_weight_bytes() {
+    let fixture = ImportFixture::new();
+    fixture.hash_contracts();
+    let report = validate_import_reference(&fixture.root).unwrap();
+    assert_eq!(
+        report.normalized_weight_evidence,
+        "sha256_contracts_without_archived_weight_bytes"
+    );
+    let compared = compare_import(&fixture.root, "fixture", &LoadOptions::default()).unwrap();
+    assert!(compared.matches(), "{compared}");
+    assert_eq!(compared.checked_weights, 1);
+    assert!(
+        compared
+            .to_string()
+            .contains("without_archived_weight_bytes")
+    );
+    fixture.mutate("normalized", |snapshot| {
+        for tensor in snapshot["tensors"].as_array_mut().unwrap() {
+            if tensor["constant"] == true {
+                tensor["data_sha256"] = json!("0".repeat(64));
+            }
+        }
+    });
+    assert!(validate_import_reference(&fixture.root).is_ok());
+    let compared = compare_import(&fixture.root, "fixture", &LoadOptions::default()).unwrap();
+    assert!(!compared.matches());
+    assert!(compared.first_difference.unwrap().contains("data_sha256"));
+}
+#[test]
+fn hash_contracts_require_digests_schema_and_actual_source_evidence() {
+    for mutation in [
+        "missing_hash",
+        "invalid_hash",
+        "archive_path",
+        "schema",
+        "source_hash",
+    ] {
+        let fixture = ImportFixture::new();
+        fixture.hash_contracts();
+        match mutation {
+            "missing_hash" | "invalid_hash" | "archive_path" => {
+                fixture.mutate("normalized", |snapshot| {
+                    let tensor = snapshot["tensors"]
+                        .as_array_mut()
+                        .unwrap()
+                        .iter_mut()
+                        .find(|tensor| tensor["constant"] == true)
+                        .unwrap();
+                    match mutation {
+                        "missing_hash" => {
+                            tensor.as_object_mut().unwrap().remove("data_sha256");
+                        }
+                        "invalid_hash" => tensor["data_sha256"] = json!("bad"),
+                        _ => tensor["data_path"] = json!("weights/one.bin"),
+                    }
+                })
+            }
+            _ => {
+                let file = fixture.root.join("manifest.json");
+                let mut manifest: Value =
+                    serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+                if mutation == "schema" {
+                    manifest["schema_version"] = json!(2);
+                } else {
+                    manifest["models"][0]["sha256"] = json!("0".repeat(64));
+                }
+                fs::write(file, serde_json::to_vec(&manifest).unwrap()).unwrap();
+            }
+        }
+        assert!(
+            validate_import_reference(&fixture.root).is_err(),
+            "{mutation}"
+        );
+    }
+    let legacy = ImportFixture::new();
+    legacy.mutate("normalized", |snapshot| {
+        for tensor in snapshot["tensors"].as_array_mut().unwrap() {
+            if tensor["constant"] == true {
+                tensor["data_path"] = Value::Null;
+            }
+        }
+    });
+    assert!(
+        validate_import_reference(&legacy.root)
+            .unwrap_err()
+            .to_string()
+            .contains("lacks archive path")
     );
 }

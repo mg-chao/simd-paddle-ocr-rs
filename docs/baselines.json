@@ -331,5 +331,179 @@
     ],
     "restore_command": "Expand-Archive -LiteralPath 'tiny-canonical-allnodes-v1.zip' -DestinationPath 'tiny-canonical-allnodes-v1-restored'; simd-paddle-ocr-rs validate 'tiny-canonical-allnodes-v1-restored'",
     "verification": "archive extracted into a new directory; all declared payloads validated"
+  },
+  {
+    "id": "tiny-step12-canonical-allnodes-20261014-v1",
+    "kind": "ocr",
+    "archive_file": "tiny-step12-canonical-allnodes-20261014-v1.zip",
+    "archive_sha256": "a5dab2cf632172d4b980fbc060c4887cbd2943010b9beee7a497e2a5e6bf1b65",
+    "archive_bytes": 1022889406,
+    "manifest_sha256": "3ed1fe565ec2b82c8607abdf904d80e6f34b728d8bd67ce143f97813ae5e07f2",
+    "source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+    "reference_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+    "contract": {
+      "backend": "cpu",
+      "capture_scope": "step12",
+      "input_origin": "frozen_bgr_pixels",
+      "logical_input_layout": "nchw",
+      "max_traced_lines": 0,
+      "model": "tiny",
+      "nodes": "all",
+      "options": {
+        "classifier_threshold": 0,
+        "detector": {
+          "backend": 1,
+          "bitmap_threshold": 0.2,
+          "box_threshold": 0.4,
+          "limit_side_length": 960,
+          "max_candidates": 3000,
+          "max_image_pixels": 40000000,
+          "max_pooled_sessions": 1,
+          "max_session_cache_entries": 10,
+          "unclip_ratio": 1.4,
+          "use_dilation": false
+        },
+        "max_crop_pixels": 16000000,
+        "max_image_pixels": 40000000,
+        "use_direction_classification": true
+      },
+      "pixel_format": "bgr24",
+      "profile": "canonical",
+      "public_classifier_semantics": "C# Classify: compatible bias-first head/logit argmax, separate from dense Softmax probabilities; strict score > threshold rotation.",
+      "scope": "Detection, ordered boxes, perspective crops, classifier and oriented recognition pixels; no recognition graph or text.",
+      "tensor_encoding": "ieee754_f32_little_endian"
+    },
+    "assets": [
+      {
+        "id": "det",
+        "path": "models/det.onnx",
+        "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+        "bytes": 1780590
+      },
+      {
+        "id": "cls",
+        "path": "models/cls.onnx",
+        "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+        "bytes": 1018940
+      }
+    ],
+    "restore_command": "Expand-Archive -LiteralPath 'tiny-step12-canonical-allnodes-20261014-v1.zip' -DestinationPath 'tiny-step12-canonical-allnodes-20261014-v1-restored'; simd-paddle-ocr-rs validate 'tiny-step12-canonical-allnodes-20261014-v1-restored'",
+    "verification": "archive extracted into a new directory; all declared payloads validated"
+  },
+  {
+    "id": "small-step12-canonical-allnodes-20261014-v1",
+    "kind": "ocr",
+    "archive_file": "small-step12-canonical-allnodes-20261014-v1.zip",
+    "archive_sha256": "a9fb2907c801e3d94b9e1f034fa8a77abfb02894a98fc09b4c1d3f8c40ff9fd1",
+    "archive_bytes": 1564807301,
+    "manifest_sha256": "efae90e6ee38429488073653f94bae80daaa665e13ddee38fb0e4db196ac45fe",
+    "source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+    "reference_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+    "contract": {
+      "backend": "cpu",
+      "capture_scope": "step12",
+      "input_origin": "frozen_bgr_pixels",
+      "logical_input_layout": "nchw",
+      "max_traced_lines": 0,
+      "model": "small",
+      "nodes": "all",
+      "options": {
+        "classifier_threshold": 0,
+        "detector": {
+          "backend": 1,
+          "bitmap_threshold": 0.2,
+          "box_threshold": 0.45,
+          "limit_side_length": 960,
+          "max_candidates": 3000,
+          "max_image_pixels": 40000000,
+          "max_pooled_sessions": 1,
+          "max_session_cache_entries": 10,
+          "unclip_ratio": 1.4,
+          "use_dilation": false
+        },
+        "max_crop_pixels": 16000000,
+        "max_image_pixels": 40000000,
+        "use_direction_classification": true
+      },
+      "pixel_format": "bgr24",
+      "profile": "canonical",
+      "public_classifier_semantics": "C# Classify: compatible bias-first head/logit argmax, separate from dense Softmax probabilities; strict score > threshold rotation.",
+      "scope": "Detection, ordered boxes, perspective crops, classifier and oriented recognition pixels; no recognition graph or text.",
+      "tensor_encoding": "ieee754_f32_little_endian"
+    },
+    "assets": [
+      {
+        "id": "det",
+        "path": "models/det.onnx",
+        "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+        "bytes": 9880512
+      },
+      {
+        "id": "cls",
+        "path": "models/cls.onnx",
+        "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+        "bytes": 1018940
+      }
+    ],
+    "restore_command": "Expand-Archive -LiteralPath 'small-step12-canonical-allnodes-20261014-v1.zip' -DestinationPath 'small-step12-canonical-allnodes-20261014-v1-restored'; simd-paddle-ocr-rs validate 'small-step12-canonical-allnodes-20261014-v1-restored'",
+    "verification": "archive extracted into a new directory; all declared payloads validated"
+  },
+  {
+    "id": "medium-step12-canonical-allnodes-20261014-v1",
+    "kind": "ocr",
+    "archive_file": "medium-step12-canonical-allnodes-20261014-v1.zip",
+    "archive_sha256": "23b4b83431a06ad454a2e8b2e6fe03525048d44491ea0aa0cb62ffb5290268ec",
+    "archive_bytes": 3543112873,
+    "manifest_sha256": "35a4434f2efe3d6114b17fffe87b808050ed503255153156bb34d1a1188fc60d",
+    "source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+    "reference_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+    "contract": {
+      "backend": "cpu",
+      "capture_scope": "step12",
+      "input_origin": "frozen_bgr_pixels",
+      "logical_input_layout": "nchw",
+      "max_traced_lines": 0,
+      "model": "medium",
+      "nodes": "all",
+      "options": {
+        "classifier_threshold": 0,
+        "detector": {
+          "backend": 1,
+          "bitmap_threshold": 0.2,
+          "box_threshold": 0.45,
+          "limit_side_length": 960,
+          "max_candidates": 3000,
+          "max_image_pixels": 40000000,
+          "max_pooled_sessions": 1,
+          "max_session_cache_entries": 10,
+          "unclip_ratio": 1.4,
+          "use_dilation": false
+        },
+        "max_crop_pixels": 16000000,
+        "max_image_pixels": 40000000,
+        "use_direction_classification": true
+      },
+      "pixel_format": "bgr24",
+      "profile": "canonical",
+      "public_classifier_semantics": "C# Classify: compatible bias-first head/logit argmax, separate from dense Softmax probabilities; strict score > threshold rotation.",
+      "scope": "Detection, ordered boxes, perspective crops, classifier and oriented recognition pixels; no recognition graph or text.",
+      "tensor_encoding": "ieee754_f32_little_endian"
+    },
+    "assets": [
+      {
+        "id": "det",
+        "path": "models/det.onnx",
+        "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+        "bytes": 62032837
+      },
+      {
+        "id": "cls",
+        "path": "models/cls.onnx",
+        "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+        "bytes": 1018940
+      }
+    ],
+    "restore_command": "Expand-Archive -LiteralPath 'medium-step12-canonical-allnodes-20261014-v1.zip' -DestinationPath 'medium-step12-canonical-allnodes-20261014-v1-restored'; simd-paddle-ocr-rs validate 'medium-step12-canonical-allnodes-20261014-v1-restored'",
+    "verification": "archive extracted into a new directory; all declared payloads validated"
   }
 ]

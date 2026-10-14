@@ -1,6 +1,17 @@
-This project includes a Rust adaptation of the ONNX importer and normalization
-algorithms from Sdcb.SimdPaddleOCR by sdcb and its contributors:
+This project includes Rust adaptations of the ONNX importer, normalization,
+inference, preprocessing and image geometry algorithms from Sdcb.SimdPaddleOCR
+by sdcb and its contributors:
 https://github.com/sdcb/SimdPaddleOCR
 
 The original project is licensed under the Apache License, Version 2.0.
 See LICENSE and the adjacent reference source for original notices.
+
+The initial reading-order sort adapts ArraySortHelper<T> from dotnet/runtime:
+https://github.com/dotnet/runtime
+Copyright (c) .NET Foundation and Contributors.
+This component is licensed under the MIT license; see licenses/dotnet-runtime-MIT.txt.
+
+The portable scalar F32 exponential adapts expf.asm from AMD win-libm:
+https://github.com/amd/win-libm/blob/master/expf.asm
+Copyright (c) 2002-2019 Advanced Micro Devices, Inc.
+This component is licensed under the MIT license; see licenses/amd-win-libm-MIT.txt.

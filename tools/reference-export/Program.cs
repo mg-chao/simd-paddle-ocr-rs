@@ -19,12 +19,16 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--export-imports") return ImportTools.Export(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-imports") return ImportTools.Benchmark(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-cls") return ClsTools.Benchmark(args[1..]);
+            if (args.Length > 0 && args[0] == "--benchmark-step12") return Step12Tools.Benchmark(args[1..]);
+            if (args.Length > 0 && args[0] == "--export-geometry") return GeometryFixtures.Export(args[1..]);
             if (args.Length == 0 || args.Contains("--help"))
             {
-                Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -ReplayBundle <frozen-bundle>] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
+                Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -ReplayBundle <frozen-bundle>] [-CaptureScope ocr|step12] [-DetectorModel tiny|small|medium] [-FixtureSet default|compact|expanded] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
                 return args.Length == 0 ? 2 : 0;
             }
-            Export(Settings.Parse(args));
+            Settings settings = Settings.Parse(args);
+            if (settings.CaptureScope == "step12") Step12Tools.Export(settings);
+            else Export(settings);
             return 0;
         }
         catch (Exception exception)
@@ -197,8 +201,8 @@ internal static class Program
         Console.WriteLine($"saved complete reference bundle: {writer.RootPath}");
     }
 
-    private static PaddleOcrDetectionBox[] CaptureDetector(BundleWriter writer, List<Artifact> artifacts,
-        string directory, Fixture fixture, Model model, Settings settings)
+    internal static PaddleOcrDetectionBox[] CaptureDetector(BundleWriter writer, List<Artifact> artifacts,
+        string directory, Fixture fixture, Model model, Settings settings, PaddleOcrDetectorOptions? detectorOptions = null)
     {
         byte[] pixels = fixture.Pixels;
         int width = fixture.Width, height = fixture.Height, stride = fixture.Stride;
@@ -210,7 +214,8 @@ internal static class Program
                 pixels.AsSpan(y * stride, width * 3).CopyTo(padded.AsSpan(y * paddedWidth * 3));
             pixels = padded; width = paddedWidth; height = paddedHeight; stride = width * 3;
         }
-        var size = PPOCRPreprocess.ComputeDetSize(width, height, 960);
+        var options = detectorOptions ?? Options().Detector;
+        var size = PPOCRPreprocess.ComputeDetSize(width, height, options.LimitSideLength);
         float[] input = new float[checked(3 * size.Width * size.Height)];
         PPOCRPreprocess.Det(pixels, width, height, stride, size.Width, size.Height, input);
         artifacts.Add(writer.WriteFloats("det.input", $"{directory}/det/input.f32.bin", input, [1, 3, size.Height, size.Width], "nchw"));
@@ -218,7 +223,7 @@ internal static class Program
         ReadOnlySpan<float> prediction = RunGraph(writer, artifacts, directory, "det", session, input, settings);
         artifacts.Add(writer.WriteFloats("det.probabilities", $"{directory}/det/probabilities.f32.bin", prediction, session.OutputShape.Dimensions, Layout(session)));
         DbPostprocess.Workspace workspace = new();
-        PaddleOcrDetectionBox[] boxes = DbPostprocess.Run(prediction, size.Width, size.Height, Options().Detector,
+        PaddleOcrDetectionBox[] boxes = DbPostprocess.Run(prediction, size.Width, size.Height, options,
             fixture.Width, fixture.Height, size.WidthRatio, size.HeightRatio, workspace);
         artifacts.Add(writer.WriteJson("det.boxes", $"{directory}/det/boxes.json", new
         {
@@ -228,7 +233,7 @@ internal static class Program
         return boxes;
     }
 
-    private static void CaptureClassifier(BundleWriter writer, List<Artifact> artifacts, string directory,
+    internal static void CaptureClassifier(BundleWriter writer, List<Artifact> artifacts, string directory,
         string stage, byte[] crop, int width, int height, Model model, Settings settings, PaddleOcrClassificationResult orientation)
     {
         float[] input = new float[3 * 80 * 160];
@@ -266,7 +271,7 @@ internal static class Program
         return decoded;
     }
 
-    private static ReadOnlySpan<float> RunGraph(BundleWriter writer, List<Artifact> artifacts,
+    internal static ReadOnlySpan<float> RunGraph(BundleWriter writer, List<Artifact> artifacts,
         string directory, string stage, InferenceSession session, float[] input, Settings settings)
     {
         Model model = session.Model;
@@ -308,7 +313,7 @@ internal static class Program
         if (!same) throw new InvalidDataException($"Dense and public recognition structure differ at {location}; scores have separate contracts, but text/alignment must agree.");
     }
 
-    private static object BoxJson(PaddleOcrDetectionBox box) => new
+    internal static object BoxJson(PaddleOcrDetectionBox box) => new
     {
         points = new[] { new[] { box.X1, box.Y1 }, new[] { box.X2, box.Y2 }, new[] { box.X3, box.Y3 }, new[] { box.X4, box.Y4 } }, box.Score
     };
@@ -331,7 +336,7 @@ internal static class Program
         return raw.Select(label => label.EndsWith('\r') ? label[..^1] : label).ToArray();
     }
 
-    private static List<Fixture> LoadFixtures(Settings settings)
+    internal static List<Fixture> LoadFixtures(Settings settings)
     {
         if (settings.Replay is not null) return ReplayFixtures(settings.Replay);
         if (settings.Input is null)
@@ -435,14 +440,15 @@ internal static class Program
         return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
     }
 
-    private sealed record Fixture(string Id, byte[] Pixels, int Width, int Height, int Stride, string Origin, byte[]? Encoded, string Extension);
-    private sealed record Settings(string ReferenceRepo, string Output, string ExporterSource, string? Input, string? Replay,
-        string Profile, string Nodes, int MaxTracedLines, int Count, int Warmup, int Repeat)
+    internal sealed record Fixture(string Id, byte[] Pixels, int Width, int Height, int Stride, string Origin, byte[]? Encoded, string Extension);
+    internal sealed record Settings(string ReferenceRepo, string Output, string ExporterSource, string? Input, string? Replay,
+        string Profile, string Nodes, int MaxTracedLines, int Count, int Warmup, int Repeat,
+        string CaptureScope, string DetectorModel, string FixtureSet)
     {
         public static Settings Parse(string[] args)
         {
             Dictionary<string, string> values = [];
-            HashSet<string> known = ["--reference-repo", "--out", "--exporter-source", "--input", "--replay", "--profile", "--nodes", "--max-traced-lines", "--count", "--warmup", "--repeat"];
+            HashSet<string> known = ["--reference-repo", "--out", "--exporter-source", "--input", "--replay", "--profile", "--nodes", "--max-traced-lines", "--count", "--warmup", "--repeat", "--capture-scope", "--detector-model", "--fixture-set"];
             for (int i = 0; i < args.Length; i++)
             {
                 string name = args[i];
@@ -457,10 +463,16 @@ internal static class Program
             if (profile is not ("canonical" or "cpu") || nodes is not ("checkpoints" or "all"))
                 throw new ArgumentException("Invalid --profile or --nodes.");
             if (values.ContainsKey("--input") && values.ContainsKey("--replay")) throw new ArgumentException("Choose --input or --replay.");
+            string scope = values.GetValueOrDefault("--capture-scope", "ocr"), detector = values.GetValueOrDefault("--detector-model", "tiny"), fixtureSet = values.GetValueOrDefault("--fixture-set", "default");
+            if (scope is not ("ocr" or "step12") || detector is not ("tiny" or "small" or "medium") || fixtureSet is not ("default" or "compact" or "expanded"))
+                throw new ArgumentException("Invalid capture scope, detector model or fixture set.");
+            if (scope == "ocr" && (detector != "tiny" || fixtureSet != "default")) throw new ArgumentException("Detector model and fixture set selection require step12 scope.");
+            if (fixtureSet != "default" && (values.ContainsKey("--input") || values.ContainsKey("--replay"))) throw new ArgumentException("Fixture set cannot be combined with input/replay.");
+            if (scope == "step12" && profile != "canonical") throw new ArgumentException("Step12 references require the canonical profile.");
             return new(Path.GetFullPath(Required("--reference-repo")), Path.GetFullPath(Required("--out")),
                 Path.GetFullPath(Required("--exporter-source")), values.TryGetValue("--input", out string? input) ? Path.GetFullPath(input) : null,
                 values.TryGetValue("--replay", out string? replay) ? Path.GetFullPath(replay) : null,
-                profile, nodes, Number("--max-traced-lines", 3, 0), Number("--count", 20, 1), Number("--warmup", 1, 0), Number("--repeat", 3, 1));
+                profile, nodes, scope == "step12" ? 0 : Number("--max-traced-lines", 3, 0), Number("--count", 20, 1), Number("--warmup", 1, 0), Number("--repeat", 3, 1), scope, detector, fixtureSet);
         }
     }
 }

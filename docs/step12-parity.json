@@ -1,0 +1,779 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-14",
+  "timezone": "Asia/Shanghai",
+  "status": "windows_and_linux_all_twelve_expanded_gates_match",
+  "started_at_utc": "2026-10-14T06:29:44.1847175+00:00",
+  "completed_at_utc": "2026-10-14T06:35:12.7181821+00:00",
+  "implementation": "serial unfused safe Rust canonical DET and pixel-to-oriented-crop pipeline",
+  "tolerance": {
+    "atol": 1e-05,
+    "rtol": 0.0001
+  },
+  "exact": [
+    "source/crop/oriented pixel bytes",
+    "public labels, rotations, counts and dimensions",
+    "box/line array order",
+    "all declared SHA-256 identities and lengths"
+  ],
+  "floating": [
+    "all normalized node/probability tensors",
+    "box coordinates and confidence scores within tolerance"
+  ],
+  "production": {
+    "generated_at_utc": "2026-10-14T06:29:43.9318531+00:00",
+    "rust_git_head": "b2f90f0fe01af252e2810bd591d96d3d28f44b44",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+    "binary": {
+      "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\binary\\simd-paddle-ocr-rs.exe",
+      "sha256": "b8bd17a4371f1124f313acead563df74dd92eacd16986121c4902462fcf3b692",
+      "bytes": 2048512
+    },
+    "source": {
+      "scope": "all Rust crate sources, Cargo manifest/lock, and toolchain",
+      "digest_recipe": "sha256(UTF-8 sorted relative_path + NUL + lowercase sha256 + LF)",
+      "sha256": "3cfc2bfdb240a10e08584f3f3718907d8d0a9b645319db18886d9a90234a34b0",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "sha256": "8605d4c5a17d2ea677cf99147c4ee136c9be1d7d14c23d02ba783436ed13a4e0",
+          "bytes": 4895
+        },
+        {
+          "path": "Cargo.toml",
+          "sha256": "1994de6c4b732763944e787b9c9edab074ffc44bc94e8270993e1354c762b3c7",
+          "bytes": 258
+        },
+        {
+          "path": "rust-toolchain.toml",
+          "sha256": "559f488c181e0e9e77cf17c29de663977f036ec7ff2e2060585714bf53c52d62",
+          "bytes": 86
+        },
+        {
+          "path": "src/bin/cls-benchmark.rs",
+          "sha256": "6f4343ecaa30eba3f166171e20ae62882dc17831f22e54dfb758fa52690690de",
+          "bytes": 12837
+        },
+        {
+          "path": "src/bin/import-benchmark.rs",
+          "sha256": "466a0aaf77c62358875a353fcd22e945b4c455c7f97612e91666764b4acbbb21",
+          "bytes": 7442
+        },
+        {
+          "path": "src/bin/step12-benchmark.rs",
+          "sha256": "a69cf4edb0db4a68bb5e8623b5825c7faf5291c1175cb7d6f8df81945669654b",
+          "bytes": 33532
+        },
+        {
+          "path": "src/bin/support/allocator.rs",
+          "sha256": "5aa52b17b7b5c18f3e90d4d0d4ee69c29ec371ad2bcc4937f2d336f280e76d60",
+          "bytes": 2847
+        },
+        {
+          "path": "src/bundle.rs",
+          "sha256": "7b5b99efe963821a6ab32a1f994e948f4aa4a457ec5dfc3883833bb43fca1e37",
+          "bytes": 15417
+        },
+        {
+          "path": "src/cls.rs",
+          "sha256": "078e969183fef5c91de6fd10d1de327552d28093d869cb5830bc865e1675e32a",
+          "bytes": 18546
+        },
+        {
+          "path": "src/crop.rs",
+          "sha256": "e3e5905ca7942798cf845adb34df81260f9802710592c422e9a4ea8a5ffa2d31",
+          "bytes": 7353
+        },
+        {
+          "path": "src/db.rs",
+          "sha256": "e40aeeb18bd0bc308bc5daa12138c32fad203942f51031e0883d0f3451b581b5",
+          "bytes": 32271
+        },
+        {
+          "path": "src/det.rs",
+          "sha256": "aab98ac33a6327b0b611696a79afdfdd3f155961674560779f4250e4cac619e4",
+          "bytes": 21709
+        },
+        {
+          "path": "src/detector.rs",
+          "sha256": "4da76af916eaf0c233ed50c1a10933971acfc70cbfa2dac995b34c9d4aaf10d3",
+          "bytes": 10634
+        },
+        {
+          "path": "src/image.rs",
+          "sha256": "6c93fb87bf4448be0fffb92cd2dc9d1db5fc646fe4391ac2c0f074a64e235de3",
+          "bytes": 4150
+        },
+        {
+          "path": "src/lib.rs",
+          "sha256": "cdf23babd6899d0f8c36dd3276198d5d6a3e438a653aa23435c37a716322e11c",
+          "bytes": 49176
+        },
+        {
+          "path": "src/lines.rs",
+          "sha256": "173ade35ce8f836361f1854c79ec07ee59c2ced415983cd6d7dc831257d0db85",
+          "bytes": 12967
+        },
+        {
+          "path": "src/main.rs",
+          "sha256": "ca1e3af94ec10e52ee85afa43b3386a27b790bce1bc9bb682feee98a3787271e",
+          "bytes": 12485
+        },
+        {
+          "path": "src/math.rs",
+          "sha256": "fabcfac9999ad648ce6401537bc4926f053f573f3a60cfe85b53b5aadb4c97cd",
+          "bytes": 4390
+        },
+        {
+          "path": "src/model.rs",
+          "sha256": "78dad44f7f421479ad3e84f94d7a9852689f6ccfdd513206e5a33c663fa07bd2",
+          "bytes": 93592
+        },
+        {
+          "path": "src/onnx.rs",
+          "sha256": "b5bcb3d0106ccac193641b35ed98b4ec053cff626cd16bf727ef8db83a6d5095",
+          "bytes": 34512
+        },
+        {
+          "path": "src/orientation.rs",
+          "sha256": "704afb4f9049768670f89333a03e50028727e2f8d2824dea84bc98d48d84fd6f",
+          "bytes": 10101
+        },
+        {
+          "path": "src/preprocess.rs",
+          "sha256": "7326f2621c24a07c42de21ea9dcd3ca4dade476f19b067a1267cb3d1926dd2fe",
+          "bytes": 8171
+        },
+        {
+          "path": "src/runtime.rs",
+          "sha256": "97fc2e0859d4aadcecf2c392d5f4a8f6684389ef90cfe56b5570d9f16ba8c8fb",
+          "bytes": 41517
+        },
+        {
+          "path": "src/runtime/kernels.rs",
+          "sha256": "5cf59849b19ba21b9de0f64f68c0d9d422ca90a4638a48b1b911207e8b6d62dc",
+          "bytes": 35386
+        },
+        {
+          "path": "src/runtime/shapes.rs",
+          "sha256": "c0d05829f3e75e3b36c972e0d19c74ba41a85b5a02cc46cc7fc0b1e8b41698a3",
+          "bytes": 13251
+        },
+        {
+          "path": "src/step12.rs",
+          "sha256": "233345cb6225607934898efcae76700565d2be8167930935152b188f728c7ffc",
+          "bytes": 30031
+        },
+        {
+          "path": "src/tensor.rs",
+          "sha256": "9a38f5557748e83a01717aa82a3968648f285d2e0a7365a4d92613712dd5aef0",
+          "bytes": 13484
+        }
+      ]
+    }
+  },
+  "evidence": {
+    "native_geometry_cases": 56,
+    "native_resize_crop_cases": 44,
+    "native_db_cases": 11,
+    "dotnet_sort_tie_cases": 1,
+    "owned_normal_tests": 9,
+    "stateful_real_api_tests": 3,
+    "injected_observer_failure_points": 10,
+    "crop_budget_failure_kinds": 3,
+    "stateful": [
+      "real prefix and full traced CLS public results agree",
+      "owned copies persist through request reuse",
+      "observer errors permit the next valid request",
+      "classification disabled returns original crops",
+      "crop budgets precede slab allocation"
+    ]
+  },
+  "gates": [
+    {
+      "variant": "tiny",
+      "scope": "det",
+      "status": "match",
+      "reference_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\reference-bundles\\tiny-step12-expanded-v1",
+      "reference_manifest_sha256": "3ed1fe565ec2b82c8607abdf904d80e6f34b728d8bd67ce143f97813ae5e07f2",
+      "candidate_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\candidates\\tiny-det",
+      "candidate_manifest_sha256": "25da6c7cd547782af7512e9e5644c8be0d52d2e4f4b9588041dea82136ec0f30",
+      "cases": 11,
+      "lines": 0,
+      "model_node_counts": {
+        "det": 242,
+        "cls": 106
+      },
+      "candidate": {
+        "artifacts": 2684,
+        "det_node_tensors": 2662,
+        "cls_node_tensors": 0,
+        "declared_bytes": 908296160
+      },
+      "compared_artifacts": 2684,
+      "validated_reference_bytes": 1183010480,
+      "validated_candidate_bytes": 911095690,
+      "compare_elapsed_ms": 3258.9480000000003,
+      "models": [
+        {
+          "id": "det",
+          "path": "models/det.onnx",
+          "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+          "bytes": 1780590
+        },
+        {
+          "id": "cls",
+          "path": "models/cls.onnx",
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "bytes": 1018940
+        }
+      ],
+      "native_source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+      "native_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+      "run_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\tiny-det-run.json",
+      "compare_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\tiny-det-compare.json"
+    },
+    {
+      "variant": "tiny",
+      "scope": "step12",
+      "status": "match",
+      "reference_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\reference-bundles\\tiny-step12-expanded-v1",
+      "reference_manifest_sha256": "3ed1fe565ec2b82c8607abdf904d80e6f34b728d8bd67ce143f97813ae5e07f2",
+      "candidate_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\candidates\\tiny-step12",
+      "candidate_manifest_sha256": "c699a6f78e10adc8f9ee03dfcdd1d15c1cdb4f4d6193e86ec2e058ed7f74d93c",
+      "cases": 11,
+      "lines": 32,
+      "model_node_counts": {
+        "det": 242,
+        "cls": 106
+      },
+      "candidate": {
+        "artifacts": 6280,
+        "det_node_tensors": 2662,
+        "cls_node_tensors": 3392,
+        "declared_bytes": 1176829819
+      },
+      "compared_artifacts": 6280,
+      "validated_reference_bytes": 1183010480,
+      "validated_candidate_bytes": 1179629349,
+      "compare_elapsed_ms": 4291.2798,
+      "models": [
+        {
+          "id": "det",
+          "path": "models/det.onnx",
+          "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+          "bytes": 1780590
+        },
+        {
+          "id": "cls",
+          "path": "models/cls.onnx",
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "bytes": 1018940
+        }
+      ],
+      "native_source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+      "native_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+      "run_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\tiny-step12-run.json",
+      "compare_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\tiny-step12-compare.json"
+    },
+    {
+      "variant": "small",
+      "scope": "det",
+      "status": "match",
+      "reference_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\reference-bundles\\small-step12-expanded-v1",
+      "reference_manifest_sha256": "efae90e6ee38429488073653f94bae80daaa665e13ddee38fb0e4db196ac45fe",
+      "candidate_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\candidates\\small-det",
+      "candidate_manifest_sha256": "de1dba828053c30f231e3f150f5a4cb4b9d568b8565c08b8b5b9c3af1383cbc5",
+      "cases": 11,
+      "lines": 0,
+      "model_node_counts": {
+        "det": 242,
+        "cls": 106
+      },
+      "candidate": {
+        "artifacts": 2684,
+        "det_node_tensors": 2662,
+        "cls_node_tensors": 0,
+        "declared_bytes": 1525059680
+      },
+      "compared_artifacts": 2684,
+      "validated_reference_bytes": 1807891193,
+      "validated_candidate_bytes": 1535959132,
+      "compare_elapsed_ms": 4598.3854,
+      "models": [
+        {
+          "id": "det",
+          "path": "models/det.onnx",
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "bytes": 9880512
+        },
+        {
+          "id": "cls",
+          "path": "models/cls.onnx",
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "bytes": 1018940
+        }
+      ],
+      "native_source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+      "native_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+      "run_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\small-det-run.json",
+      "compare_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\small-det-compare.json"
+    },
+    {
+      "variant": "small",
+      "scope": "step12",
+      "status": "match",
+      "reference_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\reference-bundles\\small-step12-expanded-v1",
+      "reference_manifest_sha256": "efae90e6ee38429488073653f94bae80daaa665e13ddee38fb0e4db196ac45fe",
+      "candidate_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\candidates\\small-step12",
+      "candidate_manifest_sha256": "49b1c78cdf1296de511980ca35a57892322eac7af0d2d6ef01113936161f5b6b",
+      "cases": 11,
+      "lines": 32,
+      "model_node_counts": {
+        "det": 242,
+        "cls": 106
+      },
+      "candidate": {
+        "artifacts": 6280,
+        "det_node_tensors": 2662,
+        "cls_node_tensors": 3392,
+        "declared_bytes": 1793610399
+      },
+      "compared_artifacts": 6280,
+      "validated_reference_bytes": 1807891193,
+      "validated_candidate_bytes": 1804509851,
+      "compare_elapsed_ms": 6714.3166,
+      "models": [
+        {
+          "id": "det",
+          "path": "models/det.onnx",
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "bytes": 9880512
+        },
+        {
+          "id": "cls",
+          "path": "models/cls.onnx",
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "bytes": 1018940
+        }
+      ],
+      "native_source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+      "native_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+      "run_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\small-step12-run.json",
+      "compare_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\small-step12-compare.json"
+    },
+    {
+      "variant": "medium",
+      "scope": "det",
+      "status": "match",
+      "reference_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\reference-bundles\\medium-step12-expanded-v1",
+      "reference_manifest_sha256": "35a4434f2efe3d6114b17fffe87b808050ed503255153156bb34d1a1188fc60d",
+      "candidate_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\candidates\\medium-det",
+      "candidate_manifest_sha256": "289645647c6e74605e158e58c8352ca56746b010d45674b781acd30d32cc4bd0",
+      "cases": 11,
+      "lines": 0,
+      "model_node_counts": {
+        "det": 228,
+        "cls": 106
+      },
+      "candidate": {
+        "artifacts": 2530,
+        "det_node_tensors": 2508,
+        "cls_node_tensors": 0,
+        "declared_bytes": 3946011136
+      },
+      "compared_artifacts": 2530,
+      "validated_reference_bytes": 4289186054,
+      "validated_candidate_bytes": 4009062913,
+      "compare_elapsed_ms": 10847.5853,
+      "models": [
+        {
+          "id": "det",
+          "path": "models/det.onnx",
+          "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+          "bytes": 62032837
+        },
+        {
+          "id": "cls",
+          "path": "models/cls.onnx",
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "bytes": 1018940
+        }
+      ],
+      "native_source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+      "native_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+      "run_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\medium-det-run.json",
+      "compare_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\medium-det-compare.json"
+    },
+    {
+      "variant": "medium",
+      "scope": "step12",
+      "status": "match",
+      "reference_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\reference-bundles\\medium-step12-expanded-v1",
+      "reference_manifest_sha256": "35a4434f2efe3d6114b17fffe87b808050ed503255153156bb34d1a1188fc60d",
+      "candidate_path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\candidates\\medium-step12",
+      "candidate_manifest_sha256": "a4d5ac59a2d38a76379d79dc5c15306040739944ba6a228f78a6fbcd3dd02925",
+      "cases": 11,
+      "lines": 33,
+      "model_node_counts": {
+        "det": 228,
+        "cls": 106
+      },
+      "candidate": {
+        "artifacts": 6237,
+        "det_node_tensors": 2508,
+        "cls_node_tensors": 3498,
+        "declared_bytes": 4222756705
+      },
+      "compared_artifacts": 6237,
+      "validated_reference_bytes": 4289186054,
+      "validated_candidate_bytes": 4285808482,
+      "compare_elapsed_ms": 19400.7546,
+      "models": [
+        {
+          "id": "det",
+          "path": "models/det.onnx",
+          "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+          "bytes": 62032837
+        },
+        {
+          "id": "cls",
+          "path": "models/cls.onnx",
+          "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+          "bytes": 1018940
+        }
+      ],
+      "native_source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+      "native_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+      "run_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\medium-step12-run.json",
+      "compare_report": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw\\medium-step12-compare.json"
+    }
+  ],
+  "limitations": [
+    "Recognition graph, CTC decoding and full OCR are outside these scopes.",
+    "Candidate case/artifact records compare by identity; box/line arrays compare in order.",
+    "Latency in comparison reports includes integrity hashing and file I/O and is not an inference benchmark."
+  ],
+  "local_raw_directory": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\step12-final-20261014-v3\\raw",
+  "platforms": {
+    "windows": {
+      "status": "pass",
+      "expanded_gates": 6,
+      "normal_tests": 116,
+      "formatting": "pass",
+      "clippy": "pass",
+      "legacy_seven_model_import": "pass",
+      "compact_seven_model_import": "pass",
+      "legacy_cls_lines": 32,
+      "legacy_cls_artifacts": 3456,
+      "compact_det_step12_cls": "pass",
+      "stateful_pipeline_tests": 3,
+      "logs": [
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\clippy-all.log",
+          "bytes": 163,
+          "sha256": "aa41bc81203c928e56a2dd60f83dff969bb74711f6dacbe0fdbd0b737b3cfe57"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\compact-all-three-det-step12.log",
+          "bytes": 435,
+          "sha256": "f082ca92618507fffe70486f26570b98cfed478c8a91c719504fec3f6212a9f9"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\compact-seven-imports.log",
+          "bytes": 333,
+          "sha256": "f7d5f7e3f8708b2a403a21ec1ca7cff77ffb1e8e23b50fa3bdaca119e7539660"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\fmt-check.log",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\legacy-full-cls.log",
+          "bytes": 594,
+          "sha256": "ce20920a613a0f0134df0c1f9d508f3d538bb51ba640500530667229d06f9f66"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\legacy-seven-imports.log",
+          "bytes": 424,
+          "sha256": "ccff56545eccc140149e2a2cd30373e4efdc83d8bef09c8e11a168958bb4a2c2"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\line-pipeline-stateful.log",
+          "bytes": 612,
+          "sha256": "793bfda6467648a4f2f157354e0bf4b12f2741bd2d60c5a3d79a82519e3da180"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\windows-final-stage-harness-v3\\normal-all-features.log",
+          "bytes": 13413,
+          "sha256": "ce46100d2e901438cdeb027092dc57913a9c34f06750b222f5dd2aceaa552016"
+        }
+      ]
+    },
+    "linux": {
+      "status": "pass",
+      "expanded_gates": [
+        {
+          "variant": "tiny",
+          "scope": "det",
+          "status": "match",
+          "cases": 11,
+          "lines": 0,
+          "compared_artifacts": 2684,
+          "reference_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6280,
+            "checked_auxiliary_files": 247,
+            "checked_bytes": 1183010480,
+            "elapsed_ms": null
+          },
+          "candidate_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 2684,
+            "checked_auxiliary_files": 0,
+            "checked_bytes": 911095690,
+            "elapsed_ms": null
+          },
+          "raw_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-tiny-det-compare-v3.json",
+            "bytes": 615,
+            "sha256": "ffaafe585d18dd82c18f6c3c1ade21577b3f8fc1077d546bf5a852307686fc4f"
+          },
+          "run_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-tiny-det-run-v3.json",
+            "bytes": 485,
+            "sha256": "87d96af55269873d12e05ad04d4e65b340b120501792d71d80417307759824b1"
+          }
+        },
+        {
+          "variant": "tiny",
+          "scope": "step12",
+          "status": "match",
+          "cases": 11,
+          "lines": 32,
+          "compared_artifacts": 6280,
+          "reference_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6280,
+            "checked_auxiliary_files": 247,
+            "checked_bytes": 1183010480,
+            "elapsed_ms": null
+          },
+          "candidate_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6280,
+            "checked_auxiliary_files": 0,
+            "checked_bytes": 1179629349,
+            "elapsed_ms": null
+          },
+          "raw_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-tiny-step12-compare-v3.json",
+            "bytes": 652,
+            "sha256": "242659902ea81bee8b9386c034eb83d0436987440f933630a5dda06015e05ab3"
+          },
+          "run_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-tiny-step12-run-v3.json",
+            "bytes": 513,
+            "sha256": "581537951230c2bc271890af71d63447c147a76e38570b3ce3dd2b56479136cb"
+          }
+        },
+        {
+          "variant": "small",
+          "scope": "det",
+          "status": "match",
+          "cases": 11,
+          "lines": 0,
+          "compared_artifacts": 2684,
+          "reference_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6280,
+            "checked_auxiliary_files": 247,
+            "checked_bytes": 1807891193,
+            "elapsed_ms": null
+          },
+          "candidate_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 2684,
+            "checked_auxiliary_files": 0,
+            "checked_bytes": 1535959132,
+            "elapsed_ms": null
+          },
+          "raw_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-small-det-compare-v3.json",
+            "bytes": 616,
+            "sha256": "05a508f087e1d1abe9a8080af4e86ef21244328f068d76203fe638a21243b818"
+          },
+          "run_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-small-det-run-v3.json",
+            "bytes": 486,
+            "sha256": "50dcb92ae19bac369524d288da2f93edc307e50df0fdf318e64e00b4702b282b"
+          }
+        },
+        {
+          "variant": "small",
+          "scope": "step12",
+          "status": "match",
+          "cases": 11,
+          "lines": 32,
+          "compared_artifacts": 6280,
+          "reference_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6280,
+            "checked_auxiliary_files": 247,
+            "checked_bytes": 1807891193,
+            "elapsed_ms": null
+          },
+          "candidate_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6280,
+            "checked_auxiliary_files": 0,
+            "checked_bytes": 1804509851,
+            "elapsed_ms": null
+          },
+          "raw_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-small-step12-compare-v3.json",
+            "bytes": 645,
+            "sha256": "c434a02b7c7aa39be31aee580c309a2dc88e0e908574f9146d2e1cec2895f899"
+          },
+          "run_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-small-step12-run-v3.json",
+            "bytes": 514,
+            "sha256": "93fd6ee21517616862e61b01f9c80be4270541eb450c44f4381271cb591b6da3"
+          }
+        },
+        {
+          "variant": "medium",
+          "scope": "det",
+          "status": "match",
+          "cases": 11,
+          "lines": 0,
+          "compared_artifacts": 2530,
+          "reference_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6237,
+            "checked_auxiliary_files": 247,
+            "checked_bytes": 4289186054,
+            "elapsed_ms": null
+          },
+          "candidate_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 2530,
+            "checked_auxiliary_files": 0,
+            "checked_bytes": 4009062913,
+            "elapsed_ms": null
+          },
+          "raw_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-medium-det-compare-v3.json",
+            "bytes": 616,
+            "sha256": "6e2b66941cab0942d47703b697fd98a3fa3493a3d5f14d1b9ca353a7c457df2e"
+          },
+          "run_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-medium-det-run-v3.json",
+            "bytes": 487,
+            "sha256": "91e75c17fd18417cfbf0f84b75cb31431947ed379e3cf883bd250d2ec8837226"
+          }
+        },
+        {
+          "variant": "medium",
+          "scope": "step12",
+          "status": "match",
+          "cases": 11,
+          "lines": 33,
+          "compared_artifacts": 6237,
+          "reference_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6237,
+            "checked_auxiliary_files": 247,
+            "checked_bytes": 4289186054,
+            "elapsed_ms": null
+          },
+          "candidate_validation": {
+            "checked_models": 2,
+            "checked_cases": 11,
+            "checked_artifacts": 6237,
+            "checked_auxiliary_files": 0,
+            "checked_bytes": 4285808482,
+            "elapsed_ms": null
+          },
+          "raw_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-medium-step12-compare-v3.json",
+            "bytes": 645,
+            "sha256": "9da55a8a3b6d8dd1c926c6cfdb9ccff185c38bcd4aceaec57e848d0502121e94"
+          },
+          "run_report": {
+            "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-medium-step12-run-v3.json",
+            "bytes": 515,
+            "sha256": "4e2fde44076fe03ec38ff3e102da9266e31d09ad3a0bc9c1851b17fb1161366a"
+          }
+        }
+      ],
+      "normal_tests": 116,
+      "formatting": "pass",
+      "clippy": "pass",
+      "legacy_seven_model_import": "pass",
+      "compact_seven_model_import": "pass",
+      "legacy_cls_lines": 32,
+      "legacy_cls_artifacts": 3456,
+      "compact_det_step12_cls": "pass",
+      "stateful_pipeline_tests": 3,
+      "environment": "Linux main-pc 6.18.33.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun 18 21:54:43 UTC 2026 x86_64 GNU/Linux\nrustc 1.97.1 (8bab26f4f 2026-07-14)\n",
+      "binary_sha256": "94bf3473b7bb27b483ab70139517ae22bbb69c770e64c3c64888cc304f2fb9d1",
+      "logs": [
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-final-20261014-v3.log",
+          "bytes": 16710,
+          "sha256": "868fa3ba037b3c8f659348412adb46cd4667f9eb5412576ba1107b16c38cb293"
+        },
+        {
+          "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-expanded-20261014-v3.log",
+          "bytes": 203,
+          "sha256": "fe44bf1db9464d5ddd9e6d6eb0ea2b5fec0f7b57e516a39b1c6675e82372b036"
+        }
+      ]
+    }
+  },
+  "exponential_compatibility": {
+    "implementation": "Safe scalar AMD win-libm 64-entry table/cubic FMA exponential; F32 arguments/results and outer graph arithmetic.",
+    "primary_algorithm_source": "https://github.com/amd/win-libm/blob/6121d02aef0c775947d5dc655d7fc4ccfe2144ab/expf.asm",
+    "native_probe_arguments": 100010,
+    "native_probe_platforms": [
+      "Windows",
+      "Linux"
+    ],
+    "isolated_erf_tensors": 78,
+    "committed_golden_cases": 1034,
+    "golden": {
+      "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests\\fixtures\\math\\exponential.json",
+      "bytes": 84187,
+      "sha256": "27d3782fe8b83731a60d2ed958fe416d54c4dbb6e107c9e7953802dc56c16e20"
+    },
+    "regression": "Host expf rounding first diverged at Erf node21; widened standard exp fixed a subset but failed broader gates. Reconstructed native table/FMA semantics pass all final gates without tolerance changes.",
+    "local_diagnostics": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\validation\\linux-det-debug-v1",
+    "rejected_candidates_preserved": [
+      "step12-final-20261014-v2",
+      "linux-final-20261014-v1.log",
+      "linux-final-20261014-v2.log"
+    ]
+  },
+  "coverage_per_platform": {
+    "variant_cases": 33,
+    "lines": 97,
+    "det_node_tensors": 7832,
+    "cls_node_tensors": 10282,
+    "step12_artifacts": 18797,
+    "det_scope_artifacts": 7898,
+    "endpoint": "ordered oriented BGR crops; recognition excluded"
+  }
+}

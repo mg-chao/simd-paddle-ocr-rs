@@ -1,0 +1,7 @@
+# Frozen artifacts and published identities must keep identical bytes on all hosts.
+tests/fixtures/** -text whitespace=cr-at-eol
+docs/measurements/*.json -text whitespace=cr-at-eol
+docs/step12-parity.json -text whitespace=cr-at-eol
+docs/step12-inference-performance.json -text whitespace=cr-at-eol
+docs/step12-tuning.json -text whitespace=cr-at-eol
+docs/step12-measurement-archive.json -text whitespace=cr-at-eol

@@ -4,9 +4,19 @@
 
 pub mod bundle;
 pub mod cls;
+pub mod crop;
+mod db;
+pub mod det;
+pub mod detector;
+pub mod image;
+pub mod lines;
+mod math;
 pub mod model;
 pub mod onnx;
+pub mod orientation;
+pub mod preprocess;
 pub mod runtime;
+pub mod step12;
 pub mod tensor;
 
 use bundle::{ArtifactDescriptor, AuxiliaryFileDescriptor, CaseDescriptor, Dtype, ModelDescriptor};
@@ -94,6 +104,15 @@ pub enum ComparisonScope {
         required_lines: usize,
         required_artifacts: usize,
     },
+    Det {
+        required_cases: usize,
+        required_artifacts: usize,
+    },
+    Step12 {
+        required_cases: usize,
+        required_lines: usize,
+        required_artifacts: usize,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -144,6 +163,24 @@ impl fmt::Display for ComparisonReport {
                     f,
                     "; scope CLS: {required_lines} required lines, {required_artifacts} required artifacts; no full OCR parity"
                 )?;
+            }
+            match &self.scope {
+                ComparisonScope::Det {
+                    required_cases,
+                    required_artifacts,
+                } => write!(
+                    f,
+                    "; scope frozen DET tensors: {required_cases} cases, {required_artifacts} required artifacts; no pixel preprocessing or full OCR parity"
+                )?,
+                ComparisonScope::Step12 {
+                    required_cases,
+                    required_lines,
+                    required_artifacts,
+                } => write!(
+                    f,
+                    "; scope frozen image pixels through oriented crops: {required_cases} cases, {required_lines} lines, {required_artifacts} required artifacts; no recognition or full OCR parity"
+                )?,
+                _ => {}
             }
             Ok(())
         }
@@ -645,6 +682,38 @@ pub fn compare_cls(
     )
 }
 
+pub fn compare_det(
+    reference: &Path,
+    candidate: &Path,
+    tolerance: Tolerance,
+) -> Result<ComparisonReport> {
+    compare(
+        reference,
+        candidate,
+        tolerance,
+        ComparisonScope::Det {
+            required_cases: 0,
+            required_artifacts: 0,
+        },
+    )
+}
+pub fn compare_step12(
+    reference: &Path,
+    candidate: &Path,
+    tolerance: Tolerance,
+) -> Result<ComparisonReport> {
+    compare(
+        reference,
+        candidate,
+        tolerance,
+        ComparisonScope::Step12 {
+            required_cases: 0,
+            required_lines: 0,
+            required_artifacts: 0,
+        },
+    )
+}
+
 fn identity_difference(reference: &Manifest, candidate: &Manifest) -> Option<String> {
     if reference.contract != candidate.contract {
         return Some("manifest contract differs".into());
@@ -733,6 +802,9 @@ fn compare(
         ComparisonScope::Cls { .. } => {
             compare_classifier(&reference, &candidate, tolerance, &mut report)?
         }
+        ComparisonScope::Det { .. } | ComparisonScope::Step12 { .. } => {
+            compare_pipeline_selection(&reference, &candidate, tolerance, &mut report)?
+        }
     }
     report.elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
     Ok(report)
@@ -771,6 +843,125 @@ fn compare_or_validate(
         validate_artifact(candidate, other, &mut report.candidate_validation)?;
     }
     validate_artifact(reference, artifact, &mut report.reference_validation)
+}
+
+fn compare_pipeline_selection(
+    reference: &Bundle,
+    candidate: &Bundle,
+    tolerance: Tolerance,
+    report: &mut ComparisonReport,
+) -> Result<()> {
+    type ArtifactPredicate = fn(&str) -> Result<bool>;
+    type ScopedSelection = (HashSet<(usize, usize)>, ArtifactPredicate, ComparisonScope);
+    let (selected, predicate, scope): ScopedSelection = match report.scope {
+        ComparisonScope::Det { .. } => {
+            let selection = det::detector_selection(&reference.manifest)?;
+            det::validate_reference_coverage(reference, &selection)?;
+            let scope = ComparisonScope::Det {
+                required_cases: selection.cases.len(),
+                required_artifacts: selection.artifacts.len(),
+            };
+            (selection.artifacts, det::is_detector_artifact, scope)
+        }
+        ComparisonScope::Step12 { .. } => {
+            let selection = step12::selection(reference)?;
+            step12::validate_declared_structures(candidate)?;
+            let scope = ComparisonScope::Step12 {
+                required_cases: reference.manifest.cases.len(),
+                required_lines: selection.lines,
+                required_artifacts: selection.artifacts.len(),
+            };
+            (selection.artifacts, step12::is_step12_artifact, scope)
+        }
+        _ => unreachable!(),
+    };
+    report.scope = scope;
+    if matches!(report.scope, ComparisonScope::Step12 { .. }) {
+        let reference_cases: HashSet<_> = reference
+            .manifest
+            .cases
+            .iter()
+            .map(|case| case.id.as_str())
+            .collect();
+        for case in &candidate.manifest.cases {
+            if !reference_cases.contains(case.id.as_str()) {
+                retain_difference(
+                    report,
+                    Some(format!("case {}: extra Step12 case in candidate", case.id)),
+                );
+            }
+        }
+    }
+    let candidate_cases: HashMap<_, _> = candidate
+        .manifest
+        .cases
+        .iter()
+        .map(|case| (case.id.as_str(), case))
+        .collect();
+    let candidate_artifacts: HashMap<_, _> = candidate
+        .manifest
+        .cases
+        .iter()
+        .flat_map(|case| {
+            case.artifacts
+                .iter()
+                .map(|a| ((case.id.as_str(), a.id.as_str()), a))
+        })
+        .collect();
+    let mut consumed = HashSet::new();
+    for (ci, case) in reference.manifest.cases.iter().enumerate() {
+        let selected_case = selected.iter().any(|&(case_index, _)| case_index == ci);
+        if selected_case {
+            match candidate_cases.get(case.id.as_str()) {
+                Some(other) if other.kind == case.kind => {}
+                Some(_) => {
+                    retain_difference(report, Some(format!("case {} kind differs", case.id)))
+                }
+                None => retain_difference(
+                    report,
+                    Some(format!("case {} missing from candidate", case.id)),
+                ),
+            }
+        }
+        for (ai, artifact) in case.artifacts.iter().enumerate() {
+            if selected.contains(&(ci, ai)) {
+                let other = candidate_artifacts
+                    .get(&(case.id.as_str(), artifact.id.as_str()))
+                    .copied();
+                let context = format!("case {}, artifact {}", case.id, artifact.id);
+                if other.is_none() {
+                    retain_difference(report, Some(format!("{context}: missing from candidate")))
+                } else {
+                    consumed.insert((case.id.as_str(), artifact.id.as_str()));
+                }
+                compare_or_validate(
+                    reference, candidate, artifact, other, &context, tolerance, report,
+                )?;
+            } else {
+                validate_artifact(reference, artifact, &mut report.reference_validation)?;
+            }
+        }
+        if selected_case && report.first_difference.is_none() {
+            report.checked_cases += 1;
+        }
+    }
+    for case in &candidate.manifest.cases {
+        for artifact in &case.artifacts {
+            if !consumed.contains(&(case.id.as_str(), artifact.id.as_str())) {
+                if predicate(&artifact.id)? {
+                    retain_difference(
+                        report,
+                        Some(format!(
+                            "case {}, artifact {}: extra in-scope artifact in candidate",
+                            case.id, artifact.id
+                        )),
+                    )
+                }
+                validate_artifact(candidate, artifact, &mut report.candidate_validation)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn compare_classifier(

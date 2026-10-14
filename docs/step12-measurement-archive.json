@@ -1,0 +1,2105 @@
+{
+  "schema_version": 1,
+  "id": "step12-measurements-20261014-v1",
+  "archive_path": "D:\\simd-paddle-ocr-workspace\\reference-archives\\step12-measurements-20261014-v1.zip",
+  "archive_sha256": "1f96e3c3af6e067e3995fd19fb7b32eb51cd154ca5cc13ed150577582220a807",
+  "archive_bytes": 11007877,
+  "verification": "every restored member streamed and independently SHA-256 checked",
+  "entries": [
+    {
+      "path": "docs/measurements/medium-compact.json",
+      "sha256": "3de158d1e79c882fc408dcc8c0f9d2c1e24980ac516e00ebce99b1299234d103",
+      "bytes": 138828
+    },
+    {
+      "path": "docs/measurements/small-compact.json",
+      "sha256": "e329613079dc7bf1d2496f1338069fb9be04fa78ab783b51110e30735a2e01ee",
+      "bytes": 119841
+    },
+    {
+      "path": "docs/measurements/tiny-compact.json",
+      "sha256": "2deaf4e412d1c2a05d6d04b40699f8bdc814d5f9e2784ecee3cdb207692c4831",
+      "bytes": 119800
+    },
+    {
+      "path": "docs/measurements/tiny-page-rotated.json",
+      "sha256": "ddde1f855b47f90eec4c3cd65a94c72490950aef5df0d069009c6f5615b17005",
+      "bytes": 378328
+    },
+    {
+      "path": "docs/step12-inference-performance.json",
+      "sha256": "0bbb2435cd172fbd45e3981689398dda08de6e083a304144ddf67483174b590c",
+      "bytes": 98645
+    },
+    {
+      "path": "docs/step12-parity.json",
+      "sha256": "f8687fd7e5b82355dc0582be69d1effafc2ffa7625c21c8d3212ffd18a691187",
+      "bytes": 32351
+    },
+    {
+      "path": "docs/step12-tuning.json",
+      "sha256": "d8a6760030fce9cffe903d468798e367de92249ec22d2e7cdc5e1bdb71f2a45d",
+      "bytes": 11896
+    },
+    {
+      "path": "source/Cargo.lock",
+      "sha256": "8605d4c5a17d2ea677cf99147c4ee136c9be1d7d14c23d02ba783436ed13a4e0",
+      "bytes": 4895
+    },
+    {
+      "path": "source/Cargo.toml",
+      "sha256": "1994de6c4b732763944e787b9c9edab074ffc44bc94e8270993e1354c762b3c7",
+      "bytes": 258
+    },
+    {
+      "path": "source/rust-toolchain.toml",
+      "sha256": "559f488c181e0e9e77cf17c29de663977f036ec7ff2e2060585714bf53c52d62",
+      "bytes": 86
+    },
+    {
+      "path": "source/src/bin/cls-benchmark.rs",
+      "sha256": "6f4343ecaa30eba3f166171e20ae62882dc17831f22e54dfb758fa52690690de",
+      "bytes": 12837
+    },
+    {
+      "path": "source/src/bin/import-benchmark.rs",
+      "sha256": "466a0aaf77c62358875a353fcd22e945b4c455c7f97612e91666764b4acbbb21",
+      "bytes": 7442
+    },
+    {
+      "path": "source/src/bin/step12-benchmark.rs",
+      "sha256": "a69cf4edb0db4a68bb5e8623b5825c7faf5291c1175cb7d6f8df81945669654b",
+      "bytes": 33532
+    },
+    {
+      "path": "source/src/bin/support/allocator.rs",
+      "sha256": "5aa52b17b7b5c18f3e90d4d0d4ee69c29ec371ad2bcc4937f2d336f280e76d60",
+      "bytes": 2847
+    },
+    {
+      "path": "source/src/bundle.rs",
+      "sha256": "7b5b99efe963821a6ab32a1f994e948f4aa4a457ec5dfc3883833bb43fca1e37",
+      "bytes": 15417
+    },
+    {
+      "path": "source/src/cls.rs",
+      "sha256": "078e969183fef5c91de6fd10d1de327552d28093d869cb5830bc865e1675e32a",
+      "bytes": 18546
+    },
+    {
+      "path": "source/src/crop.rs",
+      "sha256": "e3e5905ca7942798cf845adb34df81260f9802710592c422e9a4ea8a5ffa2d31",
+      "bytes": 7353
+    },
+    {
+      "path": "source/src/db.rs",
+      "sha256": "e40aeeb18bd0bc308bc5daa12138c32fad203942f51031e0883d0f3451b581b5",
+      "bytes": 32271
+    },
+    {
+      "path": "source/src/det.rs",
+      "sha256": "aab98ac33a6327b0b611696a79afdfdd3f155961674560779f4250e4cac619e4",
+      "bytes": 21709
+    },
+    {
+      "path": "source/src/detector.rs",
+      "sha256": "4da76af916eaf0c233ed50c1a10933971acfc70cbfa2dac995b34c9d4aaf10d3",
+      "bytes": 10634
+    },
+    {
+      "path": "source/src/image.rs",
+      "sha256": "6c93fb87bf4448be0fffb92cd2dc9d1db5fc646fe4391ac2c0f074a64e235de3",
+      "bytes": 4150
+    },
+    {
+      "path": "source/src/lib.rs",
+      "sha256": "cdf23babd6899d0f8c36dd3276198d5d6a3e438a653aa23435c37a716322e11c",
+      "bytes": 49176
+    },
+    {
+      "path": "source/src/lines.rs",
+      "sha256": "173ade35ce8f836361f1854c79ec07ee59c2ced415983cd6d7dc831257d0db85",
+      "bytes": 12967
+    },
+    {
+      "path": "source/src/main.rs",
+      "sha256": "ca1e3af94ec10e52ee85afa43b3386a27b790bce1bc9bb682feee98a3787271e",
+      "bytes": 12485
+    },
+    {
+      "path": "source/src/math.rs",
+      "sha256": "fabcfac9999ad648ce6401537bc4926f053f573f3a60cfe85b53b5aadb4c97cd",
+      "bytes": 4390
+    },
+    {
+      "path": "source/src/model.rs",
+      "sha256": "78dad44f7f421479ad3e84f94d7a9852689f6ccfdd513206e5a33c663fa07bd2",
+      "bytes": 93592
+    },
+    {
+      "path": "source/src/onnx.rs",
+      "sha256": "b5bcb3d0106ccac193641b35ed98b4ec053cff626cd16bf727ef8db83a6d5095",
+      "bytes": 34512
+    },
+    {
+      "path": "source/src/orientation.rs",
+      "sha256": "704afb4f9049768670f89333a03e50028727e2f8d2824dea84bc98d48d84fd6f",
+      "bytes": 10101
+    },
+    {
+      "path": "source/src/preprocess.rs",
+      "sha256": "7326f2621c24a07c42de21ea9dcd3ca4dade476f19b067a1267cb3d1926dd2fe",
+      "bytes": 8171
+    },
+    {
+      "path": "source/src/runtime.rs",
+      "sha256": "97fc2e0859d4aadcecf2c392d5f4a8f6684389ef90cfe56b5570d9f16ba8c8fb",
+      "bytes": 41517
+    },
+    {
+      "path": "source/src/runtime/kernels.rs",
+      "sha256": "5cf59849b19ba21b9de0f64f68c0d9d422ca90a4638a48b1b911207e8b6d62dc",
+      "bytes": 35386
+    },
+    {
+      "path": "source/src/runtime/shapes.rs",
+      "sha256": "c0d05829f3e75e3b36c972e0d19c74ba41a85b5a02cc46cc7fc0b1e8b41698a3",
+      "bytes": 13251
+    },
+    {
+      "path": "source/src/step12.rs",
+      "sha256": "233345cb6225607934898efcae76700565d2be8167930935152b188f728c7ffc",
+      "bytes": 30031
+    },
+    {
+      "path": "source/src/tensor.rs",
+      "sha256": "9a38f5557748e83a01717aa82a3968648f285d2e0a7365a4d92613712dd5aef0",
+      "bytes": 13484
+    },
+    {
+      "path": "source/tests/archive_reference.rs",
+      "sha256": "bc74227683b511a2ab068d462f52da67f184ef24b7abfcd31f923c76c61f8efc",
+      "bytes": 10218
+    },
+    {
+      "path": "source/tests/bundle_harness.rs",
+      "sha256": "b2aab1949f9ef0034fbe34521838e9cb9d364c557dd964e39876a6e94d591591",
+      "bytes": 21998
+    },
+    {
+      "path": "source/tests/cls_harness.rs",
+      "sha256": "d4fe006b4556ec7d80cc6842601a252ed9949b8f922fc731fbd7ec1a688d51f5",
+      "bytes": 18309
+    },
+    {
+      "path": "source/tests/compare_bundles.rs",
+      "sha256": "3601bbcfa323ae6b6d8c7b7b53bc8016af2322eb38ff50cee0e61a66cf25282d",
+      "bytes": 17897
+    },
+    {
+      "path": "source/tests/fixtures/math/ucrt-exp-oracle.cs",
+      "sha256": "e7fc93c83aeb0cb5d9e353d6069fe1db243032b53030dd7bd38586b60ebdbe66",
+      "bytes": 627
+    },
+    {
+      "path": "source/tests/image_geometry.rs",
+      "sha256": "c40d916077b0db666a90dae855c2b5552d9b5928a97f954ec1871a65f4590c97",
+      "bytes": 15002
+    },
+    {
+      "path": "source/tests/line_pipeline.rs",
+      "sha256": "f06bce1821a9b09c74e1c77277a7f3cccd037eeeb623a9bd347b01bc60794181",
+      "bytes": 12255
+    },
+    {
+      "path": "source/tests/model_import.rs",
+      "sha256": "a3fc9eb8700fc29dd55da5d5e05ea8addb104e629eaf8f15de6804b03415a32f",
+      "bytes": 26878
+    },
+    {
+      "path": "source/tests/runtime.rs",
+      "sha256": "ec4a8d49ffbacd08b16a7aa22f7517924b5b9060baa2f07bcf906ac018631146",
+      "bytes": 44317
+    },
+    {
+      "path": "source/tests/step12_harness.rs",
+      "sha256": "1df13fff40f08c7b3db1a6fae781fa1e091d10522ce7a0aa0ab545870e3b54e3",
+      "bytes": 16654
+    },
+    {
+      "path": "source/tools/archive-reference.ps1",
+      "sha256": "9241ccb5afd7d869bfbf54da4b05eef4e88b0b451d8704fad1ad01efd2e3971f",
+      "bytes": 5221
+    },
+    {
+      "path": "source/tools/benchmark-cls.ps1",
+      "sha256": "ea5a04bd72fb6b34a6ed15a158a68bbf65326f5f34e55b8b0809b325514c7cc4",
+      "bytes": 8863
+    },
+    {
+      "path": "source/tools/benchmark-rust-imports.ps1",
+      "sha256": "e94933c6c99a6840bd89bc25fbb7ed8a32ad22966c6e2adb972ab410f1335b5d",
+      "bytes": 3638
+    },
+    {
+      "path": "source/tools/benchmark-step12.ps1",
+      "sha256": "5f1d7579abdff2fe691a1d72d549639daf45ba3ae8410e78d19cf6b7d4a51bcd",
+      "bytes": 9655
+    },
+    {
+      "path": "source/tools/export-model-contracts.ps1",
+      "sha256": "4d391dd2da2d94bfafa247e955f6809c8a4d0d75478065ae7117f15edb506e96",
+      "bytes": 1560
+    },
+    {
+      "path": "source/tools/export-reference.ps1",
+      "sha256": "c1cbe5018bbf2238c7b8cb953ebf4b5702ac60aae9045d3fb27e7d8ca1d26566",
+      "bytes": 4310
+    },
+    {
+      "path": "source/tools/model-import-benchmark.ps1",
+      "sha256": "66f8845057d3fa00485634f26ed4d65c33e99dcdcf881bced08c2ef4c4f8a806",
+      "bytes": 2143
+    },
+    {
+      "path": "source/tools/reference-export/BundleWriter.cs",
+      "sha256": "2e28964e6d9f25b86f34eefe81ebd2e4c73ea59f2d3e1e202120a43f448ad5c6",
+      "bytes": 9460
+    },
+    {
+      "path": "source/tools/reference-export/ClsTools.cs",
+      "sha256": "9df0a2fb86032c6002de008d93746ca8f4ec8721e320cf3d8fe098902b23903f",
+      "bytes": 14598
+    },
+    {
+      "path": "source/tools/reference-export/GeometryFixtures.cs",
+      "sha256": "4dc4e52e311df811080798a7140f4ba81126135fd1045cae7b274577dbc741b3",
+      "bytes": 9159
+    },
+    {
+      "path": "source/tools/reference-export/ImportTools.cs",
+      "sha256": "a24e1a11ec16d0eef8d2da8556b89065fd2559b3105b3c6cc24302984b203678",
+      "bytes": 12394
+    },
+    {
+      "path": "source/tools/reference-export/Program.cs",
+      "sha256": "b8e0d2b7ebd8963b589f2aca348c4bc5dba84009c1e41d1eb3d7fb671dc25fc1",
+      "bytes": 33003
+    },
+    {
+      "path": "source/tools/reference-export/Provenance.cs",
+      "sha256": "d1fb0696fe4288ae2b670cdeee6fc05d10eb7ae3b2381d32ad30d3ab04ceee92",
+      "bytes": 13398
+    },
+    {
+      "path": "source/tools/reference-export/Step12Benchmark.cs",
+      "sha256": "ea702f1c2ce6522af053a3df59a50b3ca456c8cc3394b803cd1f92974fedf952",
+      "bytes": 16086
+    },
+    {
+      "path": "source/tools/reference-export/Step12Tools.cs",
+      "sha256": "d58c272b2ba26c1f1be862d2521748216b213b56e0797d654e19cb830e0e1678",
+      "bytes": 9774
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-csharp-round-01.json",
+      "sha256": "92a92d895384585228b275746a8198dede093bf9c70f159829e1cd98dbad6da9",
+      "bytes": 13151
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-csharp-round-02.json",
+      "sha256": "a0c2d8ae537d6f7cecf206988936e98b6f906fa67f03f947249e1c2dbdf047b4",
+      "bytes": 13085
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-csharp-round-03.json",
+      "sha256": "791187be8b34295918857171acbf14774a2d62177c3527b1a2eb43f7d1c59ca8",
+      "bytes": 13187
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-csharp-round-04.json",
+      "sha256": "dbc9dfaddeb5e0da84bdad00c9f3fd6b85a548b75aac015f93e38381cdeeef71",
+      "bytes": 13107
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-csharp-round-05.json",
+      "sha256": "66951f1787a1a2e29baadb4d0466e388c2f4cac2d7a260376f33a8a734f86cbe",
+      "bytes": 13232
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-csharp-round-06.json",
+      "sha256": "cf0923d2ae80d22eaeeec65a0d604f449c991ff58b31f04c4a67f889a83d64e5",
+      "bytes": 13200
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-heap-round-01.json",
+      "sha256": "ea19a01b366e51cbbbde1098fb35c2d429f4b66573e3903478421d212f5f1e50",
+      "bytes": 17907
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-heap-round-02.json",
+      "sha256": "9b793e94ab908894ccc17209e576b1a1299104ddc9f1886d417ed34271e27a65",
+      "bytes": 17795
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-heap-round-03.json",
+      "sha256": "fbedc356851cc62227a8c2ad09c81795f86aee8665e364c36d6433edf32d57c5",
+      "bytes": 17696
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-timing-round-01.json",
+      "sha256": "7354b2e3fa01ad7260526f58ac56d03c96f8ae628068c914236a6d7a9b5356df",
+      "bytes": 17831
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-timing-round-02.json",
+      "sha256": "e3df55dff32efe04de3bfc5023e930cdb67591b0970d69a79e0c58080f2f1710",
+      "bytes": 18243
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-timing-round-03.json",
+      "sha256": "99a3c2f1df76ec2cd7bc4d136652462cfec77dead2ca1608a49d8beda7abc2f2",
+      "bytes": 17881
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-timing-round-04.json",
+      "sha256": "f06fc1259080b8bff35fc2c2f20387a8b3cf46e927cfa2ab4b4a15d8d4b6fb33",
+      "bytes": 18048
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-timing-round-05.json",
+      "sha256": "fee3684d4a25abb43cd89a3fa32b7fa752fa7d0f0af99691f2abac2ee280f6cb",
+      "bytes": 18015
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/det_graph-rust-timing-round-06.json",
+      "sha256": "a7fde234b7ad178c119ce066c6fbfd1c286b03729b4f1b3ae97d6245bb4294ff",
+      "bytes": 17880
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-csharp-round-01.json",
+      "sha256": "572c7da7f8e61d1620b7001aaf0f75f98a60997431e9fe2592f564fd6b55979e",
+      "bytes": 8677
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-csharp-round-02.json",
+      "sha256": "26f0e90815e66c5dd65e01deab670cacddcf04a974098631a89545057b0a8308",
+      "bytes": 8547
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-csharp-round-03.json",
+      "sha256": "852019037f7439587dabbdf1fc4fdb773a5cb5f0e1571b9949e5cea7651c7199",
+      "bytes": 8575
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-csharp-round-04.json",
+      "sha256": "6dbc2867572643680a7a2aa77590e223beecd629c4305e0639250ef8c9386151",
+      "bytes": 8578
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-csharp-round-05.json",
+      "sha256": "dea06d167044aafda7903c4ccdddf59df86c941ef64d56aa434849b0e4d5d0ca",
+      "bytes": 8752
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-csharp-round-06.json",
+      "sha256": "758e97fa129abd128e2d5b7034af7974555f886c4dfa987f1641aa35bb189233",
+      "bytes": 8656
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-heap-round-01.json",
+      "sha256": "6892f05cfe2fac0c09ad0c033932dbc43bed786e5d167ea8c4190e888a4a3aac",
+      "bytes": 10139
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-heap-round-02.json",
+      "sha256": "9636d1fb25a7fa4833bd0736cac6207420a483acfa4e85b0688e1cf2090d4ab3",
+      "bytes": 10206
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-heap-round-03.json",
+      "sha256": "8d77678ae5246d20f8df0d66f2f251171e4a98e5aa645ad3dbe7e1e560288514",
+      "bytes": 10189
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-timing-round-01.json",
+      "sha256": "f3f9c2f9686f1bb970c62f36ec7e10c3be958d727c38d99502dedb50768d790f",
+      "bytes": 10048
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-timing-round-02.json",
+      "sha256": "486e999daee5e5596acbaf8e6ef3068ae27fff05c1715cf73d29ab4296229678",
+      "bytes": 10204
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-timing-round-03.json",
+      "sha256": "118ce3541e29a1dbd0e856611541e39227cdf3ac5438004ff429dd009c405d26",
+      "bytes": 10052
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-timing-round-04.json",
+      "sha256": "42b9fa8f4c3f74db3985c2373ec788150b4772de92f7ec82402a31b71224845f",
+      "bytes": 10068
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-timing-round-05.json",
+      "sha256": "2717a555604734642a8d60b5540da3b8305d83723136690b123c12f4bc2d1b71",
+      "bytes": 10005
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/mixed_shapes-rust-timing-round-06.json",
+      "sha256": "0446b392888b306bb9130493b7b3b3daa9a5645d7286dfc49f497b9e5ebb89a7",
+      "bytes": 10231
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-csharp-round-01.json",
+      "sha256": "26be2cbfc0a9e12ad5d54ab858ff75310d4dc245832eb350a3c2e111fd1c9055",
+      "bytes": 13046
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-csharp-round-02.json",
+      "sha256": "83ced022f4269de50a3c406ec91ea8ef8ab98bfdb72816efdab2c2d9c90d4c1e",
+      "bytes": 13069
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-csharp-round-03.json",
+      "sha256": "fe4ec436eac3e96ce0c122a40dc35c9a2c3c5615271a9e0fc7dab1ce18118534",
+      "bytes": 12994
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-csharp-round-04.json",
+      "sha256": "91b6d385322595af05a2a4df0ad29c24c4188d3431488f63f38991a0936be5a4",
+      "bytes": 13038
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-csharp-round-05.json",
+      "sha256": "abf441512ce55aee30ad51b8dbb6cd1218a20f83e9726410e136af03ffcc5a10",
+      "bytes": 13062
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-csharp-round-06.json",
+      "sha256": "1bbbcf982836228870e1f0f7c14fdcad51628cc0b1edc048d853eea3c7ee6206",
+      "bytes": 13152
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-heap-round-01.json",
+      "sha256": "9f2da9b7f523c2c43c8e23c5985f8f032cc91573619a6f4945c937cce085641c",
+      "bytes": 16211
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-heap-round-02.json",
+      "sha256": "092f007567c9522ec32774383e951d3360af029018ad47e05779061f747b1c0f",
+      "bytes": 16578
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-heap-round-03.json",
+      "sha256": "77fa0cdd71a11179f2333ebdc008067b494df55cb075d7b83055fef0420d34ad",
+      "bytes": 16255
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-timing-round-01.json",
+      "sha256": "f2c361d0fc87221d788b6b893ee876ce4a5996ca551b74f5119edd058306b77a",
+      "bytes": 16157
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-timing-round-02.json",
+      "sha256": "eade7e63c34b4f3b3fcc245bbbeab2eb074a32564fd9424869799732919a15fd",
+      "bytes": 16468
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-timing-round-03.json",
+      "sha256": "a7f03e8b741388728e1e88add2bec32639c0636348aac0e292cbbf22c695cbe3",
+      "bytes": 16433
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-timing-round-04.json",
+      "sha256": "0602e6cc9b72d99fa902092f4c8265553982a39007617e008f504112e7111837",
+      "bytes": 16331
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-timing-round-05.json",
+      "sha256": "4031b09675cdfbe0d3cc050eec8bf13177a4079a42b3be9ee3c8117d3467b751",
+      "bytes": 16462
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/pipeline-rust-timing-round-06.json",
+      "sha256": "bf86c63b031a842bb0514d3964ea1e9cf439b45e5be6aa04e95c73c8c910d184",
+      "bytes": 16272
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/source-files.json",
+      "sha256": "366f8475174af89bf5003ae1b8512f0ec9065ee39998479b4544e5e162cda25f",
+      "bytes": 6867
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-csharp-round-01.json",
+      "sha256": "b8a325ea2461657ebf60570cf437cb4c475676e6679890d269c1e39695dbbd8d",
+      "bytes": 32335
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-csharp-round-02.json",
+      "sha256": "faaeb431eb82967afac6ad72fdccacdc26a95c8f1f00f54c0fafe5c6335002ae",
+      "bytes": 32168
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-csharp-round-03.json",
+      "sha256": "0b6f185b4ff6255bf31a3edc78791ceb2e74dbb8b22cd67b0e63c4d0c241eb3c",
+      "bytes": 32171
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-csharp-round-04.json",
+      "sha256": "66ec60e0fe26b369c10a55c62cbe76ccfbc5ba36d9ed6e6ea6298da833ec8da4",
+      "bytes": 32364
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-csharp-round-05.json",
+      "sha256": "877be6f0a3df1700126f8c098e453d3f343dd38ecbebe1fb647a1a04c454cc13",
+      "bytes": 32384
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-csharp-round-06.json",
+      "sha256": "ea22e08a207ddfc02aff0478ee5b169e72e2257e5ef62eb05d025ba0337b9131",
+      "bytes": 32088
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-heap-round-01.json",
+      "sha256": "a5ee78fe9cbb0e7d49fc4907598db5810f2b47c8dc8b2e6d2e1b618be5c55f60",
+      "bytes": 41224
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-heap-round-02.json",
+      "sha256": "ed30e652b88ad05105e23515cc7fe019b0a98c3f053bb34a450838cbfccceb16",
+      "bytes": 41306
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-heap-round-03.json",
+      "sha256": "da521df26e9a5d6fabc16f2628c6c370aa5adf2ab0d1f266d4ab9ae45d3d7194",
+      "bytes": 41399
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-timing-round-01.json",
+      "sha256": "4a4c0fe65b519036b6d14b4c25d77ea5f3d7915797db9474336e87fbb6478bbf",
+      "bytes": 43565
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-timing-round-02.json",
+      "sha256": "006449098cf15aa45bb00a2845640593ef5838003bc8bfa5758ea0e9a1a8a29a",
+      "bytes": 42695
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-timing-round-03.json",
+      "sha256": "cffbe60912515f4d053521440076f18401c7450c9e68d4bad28c70431ce2626b",
+      "bytes": 42643
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-timing-round-04.json",
+      "sha256": "4246aa4c04e1d592693c355217705709a23016da5a763cdbf4aaf1ca3a29efe8",
+      "bytes": 44127
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-timing-round-05.json",
+      "sha256": "67eba1e7f207c0e77621348e01eee1b97361f6cec597f35df645cd9ab78b033b",
+      "bytes": 43551
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/stages-rust-timing-round-06.json",
+      "sha256": "fd7b8ddb2277f4a29b4f4c99d0e1c2ce3e9881453240df16e68abce67fb4edad",
+      "bytes": 42493
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/step12-heap.exe",
+      "sha256": "1df8f6a326c9f8362b0cf460ddcdc98a01543d7b2f2db10adfdc5335172c8076",
+      "bytes": 1192960
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/step12-timing.exe",
+      "sha256": "f9ca55bbd24872b5b0146b76c04b3cc11bbc219eb8004e7c047d5eca0d7b2589",
+      "bytes": 1174016
+    },
+    {
+      "path": "target/measurements/step12-medium-compact-final-v1/summary.json",
+      "sha256": "ce3d74b2d82959f9b3d42d12537cbbe5f4b006921dbc049af2c22ccea9f0528b",
+      "bytes": 30800
+    },
+    {
+      "path": "target/measurements/step12-node-profile-final-v1/identity.json",
+      "sha256": "69f56108f24947bbae0b10fa1ea9b7b5591265ee5887a39bb641d23b10d2e427",
+      "bytes": 1537
+    },
+    {
+      "path": "target/measurements/step12-node-profile-final-v1/node-profile.json",
+      "sha256": "60eea3fc2bff186adec242257bf82efb505b3f08cb86474fbaf78d79a6561dec",
+      "bytes": 654200
+    },
+    {
+      "path": "target/measurements/step12-node-profile-final-v1/step12-node-profile.exe",
+      "sha256": "2a12865bae99a51d3d65a17b4d12f2e1e718fd7189712b0e5c3441dce5f5a539",
+      "bytes": 1174016
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/identity.json",
+      "sha256": "5da72b2a8390ccdbe898b4717f07344409cb99d3a16c04d5fcff40df0b078223",
+      "bytes": 1541
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-heap-round-01.json",
+      "sha256": "d804be6b3d5369919bfd4a82425ad46dedc2d374f4b52a52809fc202a05546d5",
+      "bytes": 6824
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-heap-round-02.json",
+      "sha256": "353b57c03b620ccbab18fe0048bf5d6adebd4916d772795fcf7f29cae25720a8",
+      "bytes": 7355
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-heap-round-03.json",
+      "sha256": "684a660484e4fa3b0546e5072342bc4b24c3fd33f8dda168c8d4237ff7424cb7",
+      "bytes": 7364
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-timing-round-01.json",
+      "sha256": "f37130335b3b76b9df8512a27a4482ec6647b827aeadc3f7e628c0487eabbf50",
+      "bytes": 6534
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-timing-round-02.json",
+      "sha256": "093b8eada69d975edb5bcb2f9659f1c4f8bc0c4f84df646b4786e7a4f088befc",
+      "bytes": 6848
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-timing-round-03.json",
+      "sha256": "af1796006044bc88cf50b0d06b3bfd37cfa9f933a363bc18423087bd50693d8d",
+      "bytes": 6824
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-timing-round-04.json",
+      "sha256": "6414a7219ff6d1f9c517206e816be3d8cbc9b81d528fe357674bb86957f73dfa",
+      "bytes": 6588
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-timing-round-05.json",
+      "sha256": "9f5709930455740208436150f0688679f10b53e278be3cea8ba560991ca02b53",
+      "bytes": 7010
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/owned_copies-rust-timing-round-06.json",
+      "sha256": "1006656de78d45efd439d2999301d0c8e53fc79f7338f0ea17c53e134219c918",
+      "bytes": 7002
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/step12-heap.exe",
+      "sha256": "15260288dc7a55dfe2f127527ea63a2af55fc92327a68457dabd3202a520594b",
+      "bytes": 1192960
+    },
+    {
+      "path": "target/measurements/step12-owned-page-final-v1/step12-timing.exe",
+      "sha256": "2a12865bae99a51d3d65a17b4d12f2e1e718fd7189712b0e5c3441dce5f5a539",
+      "bytes": 1174016
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-csharp-round-01.json",
+      "sha256": "cb45c7dc177f3337bdcf450171ae87f5ee922e369fdef0e978d2515fd8e1a95d",
+      "bytes": 12795
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-csharp-round-02.json",
+      "sha256": "50cd3a3278a74fc18921abeb7278171c05d5e90028631e9baca4c9fb04be4b22",
+      "bytes": 12572
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-csharp-round-03.json",
+      "sha256": "5ee3e6ec8e071ad4e44ef5004f190c8fb3338ade21b46e9b326158e464e441c8",
+      "bytes": 12726
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-csharp-round-04.json",
+      "sha256": "af5f782b725d1d4bc8f14f2853803c4c5a3c8cf56505a7846a4bc01ae7175481",
+      "bytes": 12690
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-csharp-round-05.json",
+      "sha256": "9dd75fc6016ec8ea4b6051d7d6c41795216f2873837f415446186ef534c6f334",
+      "bytes": 12587
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-csharp-round-06.json",
+      "sha256": "5eb937fbd5b3d2072f432a8e225f6bb8bb4a0b1742decc20ec00a7523bd897d8",
+      "bytes": 12555
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-heap-round-01.json",
+      "sha256": "efe6409d230f6d9c4b6a786d7b0c68b373b72889515b39c00ff0502d5e2149a0",
+      "bytes": 17269
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-heap-round-02.json",
+      "sha256": "21d3a700c1c218037d5d090450864525d3e2630c4ed7905eb06c70040415c331",
+      "bytes": 17423
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-heap-round-03.json",
+      "sha256": "861a453c2b23de54e9ac10fd089af131505a29f14d17863efba82b7291b04f18",
+      "bytes": 17543
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-timing-round-01.json",
+      "sha256": "a12b6b9aab338ea262d4315e4f9ff555bf25ee5610ce1e37a7361f6155557ce7",
+      "bytes": 17679
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-timing-round-02.json",
+      "sha256": "c9e93685ffacea597773cbdef65aec1ba85c169d2b3f2fcb98b3e7598dff8126",
+      "bytes": 17444
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-timing-round-03.json",
+      "sha256": "a8d9a0fe43980410d30e336ebb0a4f8dc093b1775e254529c93948236e05381c",
+      "bytes": 17337
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-timing-round-04.json",
+      "sha256": "90b0602697fc5392b8294429fbb2bfa83d0a245f7e911d796b848240d5978d5e",
+      "bytes": 17581
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-timing-round-05.json",
+      "sha256": "bd11d167362793596500bde22bc31fc2e11027e68532d9e6ac990a64204ce370",
+      "bytes": 17371
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/det_graph-rust-timing-round-06.json",
+      "sha256": "a38258e5a481c1909f63586d376fddc233c4b4fbd947aa76f52932db75b45a9b",
+      "bytes": 17415
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-csharp-round-01.json",
+      "sha256": "7ccb661d88c8be62e5a51ddcc9aa835ec8f7c646e5b988757fed65b67995b15b",
+      "bytes": 8540
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-csharp-round-02.json",
+      "sha256": "62917b54419ae9034496609d7e2eb42263a691754d840a515fb587c14b4cf598",
+      "bytes": 8434
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-csharp-round-03.json",
+      "sha256": "7fbe0212b1f6f3056e72173b0ad09915186a379c7d10c2de3b96b68915e3fdf9",
+      "bytes": 8260
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-csharp-round-04.json",
+      "sha256": "689baa3de04a937fa8029a3005ca4fcda8848e01057b7649c7ad17c3df589095",
+      "bytes": 8430
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-csharp-round-05.json",
+      "sha256": "76cd0e10fdf84f729fdc6fde3ad5464b605bbfc1ce4e290ae6cd80487516adb6",
+      "bytes": 8416
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-csharp-round-06.json",
+      "sha256": "f3c0d9244eaaea052c3959b0022f14469a88dd3110968ddb20999763f31aeaa0",
+      "bytes": 8523
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-heap-round-01.json",
+      "sha256": "79749022a7238fbbd7b49b9c4c93a2fce05c148aa024f8feb5e3b7b0935ba3a8",
+      "bytes": 9898
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-heap-round-02.json",
+      "sha256": "9c269a741b804243ba2a8762d647e2d12eaa5be1cc44c3cb03645611b06e26bf",
+      "bytes": 10062
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-heap-round-03.json",
+      "sha256": "f0dc14ecdf95520f1e561a2f7baf122c285003b8b6a232d5ba8c16f27db78b10",
+      "bytes": 9986
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-timing-round-01.json",
+      "sha256": "459c9e9923983aec16826c9e97816441a1a8a31b25c6a3ca5853a90699da15ae",
+      "bytes": 9897
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-timing-round-02.json",
+      "sha256": "d359365a740b14a4f607f4c7a189b68fdaa756bcf21d6402e82c3114601fd1a2",
+      "bytes": 9794
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-timing-round-03.json",
+      "sha256": "697fd3297b19aa94ad6e4bf5354e773ecba734a9193eceddb3fbc405604e7e34",
+      "bytes": 10032
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-timing-round-04.json",
+      "sha256": "2c08291429415b3a5d31e9b18605ee0cc0b576d265811603ca51a4cee4326107",
+      "bytes": 9962
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-timing-round-05.json",
+      "sha256": "6e1d914b5d201e571f54957597d4d58e4ae2014a65eb7e45a3d3f0dc794b5a9b",
+      "bytes": 9961
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/mixed_shapes-rust-timing-round-06.json",
+      "sha256": "b016d5d50306df17fd844b009d7bab6dd9ed86a290f92030cf5d20fbca811af8",
+      "bytes": 9865
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-csharp-round-01.json",
+      "sha256": "8570eb32e398a48562ef2394c85b6cd106ccdf58de162d4a433a8f017d638fb4",
+      "bytes": 12365
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-csharp-round-02.json",
+      "sha256": "7d33b67bbc3a71bdc29facf436e7ff7643b7c23e45441a0fb77879d96a60934a",
+      "bytes": 12434
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-csharp-round-03.json",
+      "sha256": "2eb22e05f191f39aa4a87c70e43e661846d4eb2cb2660ab2e2f6156622028310",
+      "bytes": 12448
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-csharp-round-04.json",
+      "sha256": "b2ec48c84ea34596e1f3bb430efa27e3fb49c45d5e03d310d71e3a2213bd349b",
+      "bytes": 12551
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-csharp-round-05.json",
+      "sha256": "47854981504a5a3ab8d9ec621a897dd30741fba27b41b4fb5323ce3947d6954e",
+      "bytes": 12570
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-csharp-round-06.json",
+      "sha256": "68844d3b5e9d399edc7ab6c9936cf462e0290d93a9624f4e19e62b2af44cdcb3",
+      "bytes": 12378
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-heap-round-01.json",
+      "sha256": "5258b30f29d28374056be06aa7706f6ebf21be816625acb5c63b088766658df2",
+      "bytes": 15867
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-heap-round-02.json",
+      "sha256": "49c9807b7b0a2a87705dd5ae3902209d73e9ee33a81b4132039487ca7c98c7c6",
+      "bytes": 16020
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-heap-round-03.json",
+      "sha256": "450fff738ef5abc5bc62a68558abcfe461e11a87cc5a37c57eb47c10b0ac7100",
+      "bytes": 15712
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-timing-round-01.json",
+      "sha256": "618e5e6c19455a8ec1fab3a813139b6df49c26d7d2000fd3fc874388c310e9d8",
+      "bytes": 15976
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-timing-round-02.json",
+      "sha256": "4842434524b8fc5c71db2c20a2da9f1af729d968dc2fec582365fe82bdf2f1fa",
+      "bytes": 15860
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-timing-round-03.json",
+      "sha256": "3d2a226a822354ee0055283feefa8c99ab824d016e458734629546de1b2af32c",
+      "bytes": 15924
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-timing-round-04.json",
+      "sha256": "d710269e417125d5ebb878f52db9e6faea68aa1fea57fc41eea46d3c52373ad7",
+      "bytes": 15852
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-timing-round-05.json",
+      "sha256": "62539db5aa16b5bc7777d65decd5e8210acd8f8d442ae2af9f1669b0bf3ef9f6",
+      "bytes": 15931
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/pipeline-rust-timing-round-06.json",
+      "sha256": "76ea797684e07dd2287d86a22f27bb8338b411f9d16b4ffa388be8d609a212b4",
+      "bytes": 15845
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/source-files.json",
+      "sha256": "366f8475174af89bf5003ae1b8512f0ec9065ee39998479b4544e5e162cda25f",
+      "bytes": 6867
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-csharp-round-01.json",
+      "sha256": "742c565e1c16d67381469f675d2bf426118602206db787300d23e940afe8cd51",
+      "bytes": 21615
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-csharp-round-02.json",
+      "sha256": "953d91fd338ad0c1ca6a6cade6f7a3b8d5e78a1bedc4d982f47e064ce651c6f6",
+      "bytes": 21456
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-csharp-round-03.json",
+      "sha256": "758a8b02fcd829f13d344ab57d615918d0a630c4a1b298ac329901e1be523e17",
+      "bytes": 21477
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-csharp-round-04.json",
+      "sha256": "a87eb6b9e0b1787032c2c9f250c5a7e3005b97401e58e2eefbf8da5bc0f9b8cc",
+      "bytes": 21463
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-csharp-round-05.json",
+      "sha256": "f9f784de7012ebe687e6edc574c6fcad924563a4c60fada0721195d320d984da",
+      "bytes": 21369
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-csharp-round-06.json",
+      "sha256": "18655163f6a3627746c8bebbdc02f13c6ec45ca56276c21150b4f825070fc6ba",
+      "bytes": 21450
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-heap-round-01.json",
+      "sha256": "609b237f7b923d7fe99717fc33998cea1914684ec6b7393c8ee16dd7213454ab",
+      "bytes": 26634
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-heap-round-02.json",
+      "sha256": "27ae0fc811b872b2462ce3df13f3ff23e1e2a0d59363aaf3694f93275c9d3779",
+      "bytes": 26174
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-heap-round-03.json",
+      "sha256": "919bef4144dcfc2c77908da9ae335856809a9ccb9674c743c0e053eb4278e28e",
+      "bytes": 27729
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-timing-round-01.json",
+      "sha256": "431bf5b8f68d01aecafaee7103e7e55e572f9ea9e5041283e2386304665d7035",
+      "bytes": 28058
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-timing-round-02.json",
+      "sha256": "b98b638d6d4f9fb4058cb9eaeb4121e794bb47b38a0259bb95868892422b0b49",
+      "bytes": 28283
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-timing-round-03.json",
+      "sha256": "68dfd99ba2512df36b4dbb22083ae12e01e8cd52f220e4e24e74f7792a21a296",
+      "bytes": 27773
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-timing-round-04.json",
+      "sha256": "866dc9e2e6d54dd2cc5aa089f5c28ebaf915fcff67bc1d23d5ec6df35b491329",
+      "bytes": 28125
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-timing-round-05.json",
+      "sha256": "028669571d4d602145001e4c29182353c579e268db35aa6beefc34fe1a81c469",
+      "bytes": 28161
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/stages-rust-timing-round-06.json",
+      "sha256": "0cb5ac5e936e0471dc0f0cabe5e12d88610df5d2d15b337d1d3fa924fe5fe2f2",
+      "bytes": 28524
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/step12-heap.exe",
+      "sha256": "df7f14e7a08b1fd8b702b7e2844a2ccf55bd65e196282a1dac6cf1a6c7456975",
+      "bytes": 1192960
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/step12-timing.exe",
+      "sha256": "8649ed1fb2cdd2c7677b7bfe7fde67e784bf201ff670460236c904b7b7aa6e6e",
+      "bytes": 1174016
+    },
+    {
+      "path": "target/measurements/step12-small-compact-final-v1/summary.json",
+      "sha256": "f92e654ea7bc8ebb910a28677acdf17bf6b66067fb061d2061ac95eb496ac9c1",
+      "bytes": 30606
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-csharp-round-01.json",
+      "sha256": "cacd965df251cddb65f8c7f70d339b38c0c59833c262147a0541159c7488a07e",
+      "bytes": 12657
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-csharp-round-02.json",
+      "sha256": "ecb873297f51b2fb9ce88eba75ae3e38823d6825353b8123f2225f936eeb41e8",
+      "bytes": 12587
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-csharp-round-03.json",
+      "sha256": "3088d4fd3fba84a38a3d93ddacb343d2ce25cf58132a0262f49b2a3a9bc262a9",
+      "bytes": 12526
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-csharp-round-04.json",
+      "sha256": "488117acd3dbb2a5df54d7f48986adfedd812aacf62703e32fb7afddb195d715",
+      "bytes": 12471
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-csharp-round-05.json",
+      "sha256": "e50b27a6144ed3ef414dea9c7245f7517ec2ed845b889840c50cd3415891f37a",
+      "bytes": 12613
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-csharp-round-06.json",
+      "sha256": "d84e34fb8b7219607721b3d88cea49a6c0c32db7939623abc9c7cf2f6b4057ce",
+      "bytes": 12547
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-heap-round-01.json",
+      "sha256": "07f59b92d89367cb97ea4091a54b1fa8f945078cc4255d77d8293516d928bc29",
+      "bytes": 17599
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-heap-round-02.json",
+      "sha256": "7005a16961b00e199c93927ae5745a5869c88f14b170b75c8c9aba34887341d4",
+      "bytes": 17556
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-heap-round-03.json",
+      "sha256": "f8a8b8725fbfed27b3a2ebf376eaf668f325ee7edec679ed9b606ed84ec59a3d",
+      "bytes": 17458
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-timing-round-01.json",
+      "sha256": "e74cce8540ba61f605deb7041065bf4d047813fe8d7be1c1b6aae9db55d9eeb4",
+      "bytes": 17680
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-timing-round-02.json",
+      "sha256": "3729ca8da53830fc3cdbb4089c5586f86b74b897a28d61f28b59b60991af8bbe",
+      "bytes": 17646
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-timing-round-03.json",
+      "sha256": "d0fe1ebc2218a5b14ebd6b901e31685431091443a8484b5a3051d757f012c983",
+      "bytes": 17547
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-timing-round-04.json",
+      "sha256": "912af141644e1b0992b2140920cd6319ecedb9b53b5529434ba9d5e4c4fbbb8f",
+      "bytes": 17520
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-timing-round-05.json",
+      "sha256": "14576a5a72c2190960caab523efd6e3da50158cad4272ae25893758d7c14203c",
+      "bytes": 17577
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/det_graph-rust-timing-round-06.json",
+      "sha256": "2360a06ddd0781a947a778cfd4d2edbbc5376749c468c093877a43eb52e6d77d",
+      "bytes": 17501
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-csharp-round-01.json",
+      "sha256": "fb27ae4cc7907faaa05a05959a1eae0fb56722c00766477f38e7e09737e5a3a7",
+      "bytes": 8504
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-csharp-round-02.json",
+      "sha256": "b8ad0c9b7921f16b8bfcb15df8b1e80c8212460fa3baf29bec0f821d2789bc03",
+      "bytes": 8435
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-csharp-round-03.json",
+      "sha256": "655e9bd8dfdb1f44badc153cf62af55e65e23b5a06eac23a084ad2dbf6f3cfbd",
+      "bytes": 8467
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-csharp-round-04.json",
+      "sha256": "c11c65aad6712b8e4e4c229aec3335f75557b77d37c28bb5293f8b927917fae0",
+      "bytes": 8389
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-csharp-round-05.json",
+      "sha256": "7ce0a4c893235c55df905cd74b7e1034d4313bf44d8a713723bc3829a91806eb",
+      "bytes": 8400
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-csharp-round-06.json",
+      "sha256": "f79116ba3312513ae4170c4db3b2e35f8eabca94952b99c2414f9ad94f5f052d",
+      "bytes": 8513
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-heap-round-01.json",
+      "sha256": "3003da48f3d7f54dd75784b78f5fb2aadf0f85356b4bc2d2cdb62f5a7a9ab69d",
+      "bytes": 9822
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-heap-round-02.json",
+      "sha256": "0689a629ece4734729fb429bb9375ce84139108eedb88fd4ca3ced26d8981e08",
+      "bytes": 9932
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-heap-round-03.json",
+      "sha256": "458580c5e3691c30700c27430158b9ac8c6257b8ae8df5f84dcbc1fd3049d838",
+      "bytes": 9835
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-timing-round-01.json",
+      "sha256": "e0b1a2df3db39e09f43611d716c5e816539a341131c685a719052d24b4060ef0",
+      "bytes": 9804
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-timing-round-02.json",
+      "sha256": "6b9b940a026c85a694246c11e4f8b1eb9747f1598df03b8bd3d03c7116def27f",
+      "bytes": 9905
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-timing-round-03.json",
+      "sha256": "b86baf38675f9df98cccc08ff4b710d5bd8aa37136f6f9a6f62f9f90feca2b9c",
+      "bytes": 9930
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-timing-round-04.json",
+      "sha256": "5da6ce5fa97bbdfe7a5389ff83855435c01b21068236e0dde01659849a33d9c4",
+      "bytes": 9993
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-timing-round-05.json",
+      "sha256": "6626cd2331cbcc790d56a794a49d8c953f0ffa8f79e692acdbc5086e6b238a5b",
+      "bytes": 9987
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/mixed_shapes-rust-timing-round-06.json",
+      "sha256": "2d6bfbce1cee464571e9831b212e3c3308503c37b724bf4b835537a703c72c36",
+      "bytes": 9877
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-csharp-round-01.json",
+      "sha256": "68d677d34bcf303de00853fc314c1fb2e349fe6fb9e42982269305b2e87ca086",
+      "bytes": 12520
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-csharp-round-02.json",
+      "sha256": "0b92f378a1f77c0a58f924b125fb5b46dd4d5f4b5ec812eb7701567fce2ab544",
+      "bytes": 12368
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-csharp-round-03.json",
+      "sha256": "8d326335c2639712c6306d1c66142100f133cbea0fac135e7444039a5e8c5d51",
+      "bytes": 12506
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-csharp-round-04.json",
+      "sha256": "f525c6dce355c12367ae202a88f27bd94c9df2280d88cab8056b798ac118a939",
+      "bytes": 12443
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-csharp-round-05.json",
+      "sha256": "c29c76be7009d98b474e295293e61cd95a7b695aceff1132554c825f030b7027",
+      "bytes": 12465
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-csharp-round-06.json",
+      "sha256": "0c3c3e08fd270cdbee2a251e2514184b59762f1ba7ec8a375c5f433aada3623e",
+      "bytes": 12585
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-heap-round-01.json",
+      "sha256": "68f86641e47ab1c546d418c9ad6fec47997314707db1926ed565abf06d1dc604",
+      "bytes": 16015
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-heap-round-02.json",
+      "sha256": "6f4b991e0aa66c071df2b8b1073290fee3176b47599e995e2a59d4e7cd0cf1cc",
+      "bytes": 15893
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-heap-round-03.json",
+      "sha256": "7656435cba731db9c0e35cd3a38de3bce2d852af7e585d2604ae9cbb8f22f9dc",
+      "bytes": 15991
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-timing-round-01.json",
+      "sha256": "71f696dca6521f929073c0d889ba5bec74dd844864bef80c8f2820059017a37c",
+      "bytes": 16170
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-timing-round-02.json",
+      "sha256": "c7615e8bf4ba4a436a71249a6da7c19bc98449d0baa127025ac184e1425e0e4a",
+      "bytes": 16012
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-timing-round-03.json",
+      "sha256": "8ea152d220544012fc49a55698fbc8cc95b4eaa5c3de9c3e9f86b6fe23224f7c",
+      "bytes": 15779
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-timing-round-04.json",
+      "sha256": "6e44a0cffc641425d169cbff2488813a35dc7b69e8261ad12d88a532194715aa",
+      "bytes": 15777
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-timing-round-05.json",
+      "sha256": "da6a3d954b462155e5fa24b788cd5bc375a218a9456ff499df8cb80da765588e",
+      "bytes": 16018
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/pipeline-rust-timing-round-06.json",
+      "sha256": "90b2decbe26111aa0e6b96006b2401d0fc92147ae6144cf9f2f12f5a5696796d",
+      "bytes": 15635
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/source-files.json",
+      "sha256": "366f8475174af89bf5003ae1b8512f0ec9065ee39998479b4544e5e162cda25f",
+      "bytes": 6867
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-csharp-round-01.json",
+      "sha256": "155307df2be5c7f961df206fbfb1d3c43c9319c70da38a9e4c11e9599a7d486f",
+      "bytes": 21471
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-csharp-round-02.json",
+      "sha256": "fa4c9533e17e97e95ba0a30f5faaf8268c3bbe02e82fce7dc6300faef11b5803",
+      "bytes": 21470
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-csharp-round-03.json",
+      "sha256": "85219982a30120b0799aed1fb5382ca0f122ab109ad727829ef4fd65f10e943e",
+      "bytes": 21631
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-csharp-round-04.json",
+      "sha256": "017522cf0c3b56b55b4c5e94dd50067143ef2d0a821300add7ba793b69f98342",
+      "bytes": 21533
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-csharp-round-05.json",
+      "sha256": "48c00b3b712175a41d38172f96044f0d148399793fcedd8fa389410ce38d9f36",
+      "bytes": 21406
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-csharp-round-06.json",
+      "sha256": "5ccb8c1386e2ab0982ff6f5196bc26a21671f809b9e241bd7a0c142d26e1c599",
+      "bytes": 21600
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-heap-round-01.json",
+      "sha256": "3802753a075daf2ab74b2f22bc63ca7fe3b635ba5b5d0aa41a80af3c1904674b",
+      "bytes": 27245
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-heap-round-02.json",
+      "sha256": "f6745c6c6ec0341f7e008f4fdfe554be060423f58246796ccb23b091eb0b6244",
+      "bytes": 29247
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-heap-round-03.json",
+      "sha256": "f2fb16bff14813f767196ff9708241a9a4813a1be54534d3e54eafb91429b3ef",
+      "bytes": 25883
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-timing-round-01.json",
+      "sha256": "9b6839926eea0b0d2206017b164158c9107bc51456d1ca7749204ea923bd8086",
+      "bytes": 27135
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-timing-round-02.json",
+      "sha256": "ee1bb3fb6faea1073c3a8807a38bd8f4ca2bf156389768a664c85e723f921b3e",
+      "bytes": 27009
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-timing-round-03.json",
+      "sha256": "d634bf5f2fe2e086597c0bd2f91b68871e8b39e561fcb405251974d1f1ee77c6",
+      "bytes": 27962
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-timing-round-04.json",
+      "sha256": "a7dc2e32b1cde4d6546a2c7fa5fc10b1b211aba4bad7bfebbbc872b2847e9a28",
+      "bytes": 27773
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-timing-round-05.json",
+      "sha256": "fea9103738920a69a14e0f17b25275480546f07042f427bc3de6f6a9745a3df2",
+      "bytes": 27791
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/stages-rust-timing-round-06.json",
+      "sha256": "7d351d80a0583a5fb68b767e878caf096b169e4ecb4fab87ff39bc9de6d0bf97",
+      "bytes": 26694
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/step12-heap.exe",
+      "sha256": "7d69cc161d3120f8f4ab8724fd210e76324a4305be771dd55fe5993631bf945e",
+      "bytes": 1192960
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/step12-timing.exe",
+      "sha256": "f7c174e13587f1a56af9d1652b00a70b7fb0135aab73444356a6c59ee55d74b8",
+      "bytes": 1174016
+    },
+    {
+      "path": "target/measurements/step12-tiny-compact-final-v1/summary.json",
+      "sha256": "4342838d5a57d1b727d06ee24c578862c059e574a1bf3454c8a9e4b02d92a474",
+      "bytes": 30483
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-csharp-round-01.json",
+      "sha256": "de09650a35f19bf7a2e0a913b391e7c13a9204a16f46bd9f471dd2000ebe159d",
+      "bytes": 6052
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-csharp-round-02.json",
+      "sha256": "8fe4f21907c42a67cdcc96fe7e78d345c82bb6aec67e740429303df533de53f9",
+      "bytes": 6065
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-csharp-round-03.json",
+      "sha256": "cc24d99281e647f3bb70d9701dd3073c665dabb84a78ae1bed81e0007ebc8ddd",
+      "bytes": 6064
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-csharp-round-04.json",
+      "sha256": "145a3b1c90095ed85164c251232a5ee91f789ce3bcff4abe691e832b8a26b60d",
+      "bytes": 6063
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-csharp-round-05.json",
+      "sha256": "a1db9eae5af30d55ab5b2c546988b7bfbced0bf5f56ed5a974f30e620d6b9271",
+      "bytes": 6096
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-csharp-round-06.json",
+      "sha256": "294f529553077ace504a94421766a63495246aff0ba62c710130d80c0ba88283",
+      "bytes": 6070
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-heap-round-01.json",
+      "sha256": "0dfb3cbcea5c7df7963f1530d8c3cd8bbb14b4f492910ce312efa756011d4e6b",
+      "bytes": 8056
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-heap-round-02.json",
+      "sha256": "5b34256dc2803df4d7b8cb4d2f9be165c6da15e7158cf23d6e129a5f2aefb24c",
+      "bytes": 8219
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-heap-round-03.json",
+      "sha256": "f07aee5a2bbb5d9bd28de5de904f61e010084300c60dcd896c2b42485766290e",
+      "bytes": 8111
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-timing-round-01.json",
+      "sha256": "a77b0a106f5d72f4e4f105f1f984a6eec0dae0619e5a5db5e01c3d35ccee4466",
+      "bytes": 8175
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-timing-round-02.json",
+      "sha256": "b355c25759a6e48a4d3a8515cdfe9ade5e0601a1a42225ed6f20e2373f24e3b5",
+      "bytes": 8156
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-timing-round-03.json",
+      "sha256": "708bdd6e4a489260adb67cf0e124164b2ac8dc92075c1d7cffe9914e25ca499a",
+      "bytes": 8084
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-timing-round-04.json",
+      "sha256": "ef04c399d74e35e4990fcd69f5656e7b1099b2064360fe72acd7dd89007b4f42",
+      "bytes": 8247
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-timing-round-05.json",
+      "sha256": "861442ee1124200f74d19e266b38b9b9ccf2655e4c175cb5098613d8563e4e81",
+      "bytes": 8206
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/det_graph-rust-timing-round-06.json",
+      "sha256": "053d504d54582bdb102bec28ad0e1cd73315ff652c692530bfd3ecf7eec77a58",
+      "bytes": 8223
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-csharp-round-01.json",
+      "sha256": "3e5a612df5164ce46b4214dc9b21f662bfd5f5f76b9fc8d1412314f5f36edb36",
+      "bytes": 8364
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-csharp-round-02.json",
+      "sha256": "023b8195ef23018f0aab60bb0ae742cc71de5c62d6811855ca5f57d2f6dd9cd4",
+      "bytes": 8392
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-csharp-round-03.json",
+      "sha256": "f37e0a0ce133951cd0a031358cc0706a77c6d97de1a9016089283ade842c9f28",
+      "bytes": 8258
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-csharp-round-04.json",
+      "sha256": "8f157d5eef797ba3f8ec39bd49ae2273bc34acf141585732b1080e449b5515ff",
+      "bytes": 8478
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-csharp-round-05.json",
+      "sha256": "1fbf472b25e1365dc8e8a986236d495bfe4ef1bf4f753dae87a17589bacc12ae",
+      "bytes": 8386
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-csharp-round-06.json",
+      "sha256": "d1aa2d04e34f81373c843d7eff05d897f540c7ce6eed7b0b36b76f5aa6f3842d",
+      "bytes": 8569
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-heap-round-01.json",
+      "sha256": "62a69a266818c441bc9c83ce81589bd23b209203e2e6e536f160703f20a5afc3",
+      "bytes": 10020
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-heap-round-02.json",
+      "sha256": "29d0355614cd3fcd7032fe5de384f19a3b1bd1f8566eff18e8f46d3bb46c2c51",
+      "bytes": 9884
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-heap-round-03.json",
+      "sha256": "377bfb411f37d8da802debe88d827d97d46f770ec2b9f77d8aa741c517f5771e",
+      "bytes": 10019
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-timing-round-01.json",
+      "sha256": "1f6ce91220223380cb0f71b00ebcb209e5537ea33e6dffdc897aca47a8b6b0b8",
+      "bytes": 9982
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-timing-round-02.json",
+      "sha256": "92e6e9205b3f177cf109843cdd9c9ae8438f66e0e348c5480642bbffe186d2f1",
+      "bytes": 9810
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-timing-round-03.json",
+      "sha256": "14bbf638453a16dd7134fdc5a1f6dcbcd49ed472e145e7aeef2dc214ae787fcb",
+      "bytes": 9730
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-timing-round-04.json",
+      "sha256": "749fde21a6e28d7814e8a0e4de892f4cbd333ab786365f49913346982dbed5cb",
+      "bytes": 9717
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-timing-round-05.json",
+      "sha256": "dc903f339dcffd751e2979b9d357b45a15b6c8480bee13ded4a9efc1da6644a2",
+      "bytes": 9796
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/mixed_shapes-rust-timing-round-06.json",
+      "sha256": "028a32c380bf30f480bf80034bf513944df9ca5c9e9b3f01938764f6f48dae67",
+      "bytes": 9987
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-csharp-round-01.json",
+      "sha256": "9f5444ebe5c2ec50d3e23181e42579d9d5216651f69b9a5f25fdb90a76b4b207",
+      "bytes": 6051
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-csharp-round-02.json",
+      "sha256": "e1353d3c5bb10349314fb01fca9f0520588118bc4f91cf8512e3a2a3c5dc2fa3",
+      "bytes": 6123
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-csharp-round-03.json",
+      "sha256": "d1e1db9ccd05c9d77464cd0c43e5e19d5dd5a670dc5faba1c2397f3aa3a3a196",
+      "bytes": 6125
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-csharp-round-04.json",
+      "sha256": "be67353b96121888914f9d7aa30e91bf1610b02d04df5111f51a6dc882efac0d",
+      "bytes": 6051
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-csharp-round-05.json",
+      "sha256": "0afd8d476f10fe820a89be4e898cd7b8bd342c23018df4d73fd70b6aa259447b",
+      "bytes": 6045
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-csharp-round-06.json",
+      "sha256": "a74816dd6d629ab9270a9dc81fd8b7ae3250e532f3064d81e817d7bf91999d5b",
+      "bytes": 6044
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-heap-round-01.json",
+      "sha256": "9a985301d420c976d278bc8439e4d2bac772e47c300f1e1eccf4713a27f2710a",
+      "bytes": 7902
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-heap-round-02.json",
+      "sha256": "256c304783d330d2085c319bcf39dc173932d5e08a0bc7c6603008187af7966f",
+      "bytes": 7806
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-heap-round-03.json",
+      "sha256": "65594b51b2ab5ac38f27e5a7a3f87321aa39e307b64fa4714fb3314d1c7df32a",
+      "bytes": 7701
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-timing-round-01.json",
+      "sha256": "11addbc19af18305b94496be01d5f1653fc5dc231f07caf5c7c3c88bfef4aa4f",
+      "bytes": 7914
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-timing-round-02.json",
+      "sha256": "277eb586d1bf3f764a69ad014a4d735df0c7bf4b7d3c32ddf77cb97ce7b4dbfb",
+      "bytes": 7800
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-timing-round-03.json",
+      "sha256": "f579265b4ba2672cd2ddc41956f8dd3a28d63ebb01564f2beb53510105e95c50",
+      "bytes": 7805
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-timing-round-04.json",
+      "sha256": "fa40862b51db38a94dcd4363943e532e841fe75401a7cca37d86a5064ee5b850",
+      "bytes": 7623
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-timing-round-05.json",
+      "sha256": "a812ae3fdbd5a694eaf9e9fc0b0a96e20a78b331583e57050da325595402b8e5",
+      "bytes": 7627
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/pipeline-rust-timing-round-06.json",
+      "sha256": "92faa25be09c065459829f8a5884535ed7678ee100ca4545d999a9fa573bab26",
+      "bytes": 7715
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/source-files.json",
+      "sha256": "d0cbe1a13beab1789a3265e3dbf3457e8b760c10e466ffe1be453690c12719fe",
+      "bytes": 6719
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-csharp-round-01.json",
+      "sha256": "ae28cae195da2296900d6c40b94edb4a054052aa1588080f13f449d3648e33bd",
+      "bytes": 183325
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-csharp-round-02.json",
+      "sha256": "4d215bf79f3ee51cc5a6a8882322c94aa93d7e8b45b911ef4261074db965466b",
+      "bytes": 181938
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-csharp-round-03.json",
+      "sha256": "6fd8f49eebdada8df748ab8fc638e2f90f500b91682509bb383088def033ee46",
+      "bytes": 181827
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-csharp-round-04.json",
+      "sha256": "1fa9be988cc0b1516d976311d9f1828cd5783dd48bbc5de82e3340d7613d0b35",
+      "bytes": 183468
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-csharp-round-05.json",
+      "sha256": "bf755e327c05646e95b4e85cd54ef5178e6eaf72b0dcb4acb3e649719894d68f",
+      "bytes": 183504
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-csharp-round-06.json",
+      "sha256": "0f75634c59923ef053548783352d1c8b7ddb2261bd52371d9616fb0a6d85fbb9",
+      "bytes": 183367
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-heap-round-01.json",
+      "sha256": "9a68fab339917236b54c25b19d283a0cd918025cbd2df36cc5d3191fe3335319",
+      "bytes": 246524
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-heap-round-02.json",
+      "sha256": "6eba7698d9b01459e10c54550e2181615ab87105cf181d896728b1a917f69abc",
+      "bytes": 244475
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-heap-round-03.json",
+      "sha256": "3257b9a2c3e86435e5e61bdb96ba285430686e8990bd3055d0f80eae80e6eeb3",
+      "bytes": 245881
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-timing-round-01.json",
+      "sha256": "3cb51a6f0b115b8a331727fcfcf2c4fcbab190dabcf21911d77247b233945957",
+      "bytes": 246812
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-timing-round-02.json",
+      "sha256": "d9ffb18dd588587bbe259d7b0e1ff11783d983dd59da55ab30c273297209acc1",
+      "bytes": 247045
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-timing-round-03.json",
+      "sha256": "8d57b60308c03b105cb933e6e14ec316367eba1df8acf5f61c2702f3dd4df0ac",
+      "bytes": 247738
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-timing-round-04.json",
+      "sha256": "1eb4c9936312b4b9dba62e7b370b44002c7a130d320d40e53091c7a040892409",
+      "bytes": 247616
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-timing-round-05.json",
+      "sha256": "c01305bb66fb0586e7ab961de47c83906e97efaabdaaa52d41032585aa3b6264",
+      "bytes": 245160
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/stages-rust-timing-round-06.json",
+      "sha256": "49bd6cb13bc3f69686ebd6603bf01c341aec4326dd0a5366d0cdf2ae09b7f140",
+      "bytes": 248277
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/step12-heap.exe",
+      "sha256": "15260288dc7a55dfe2f127527ea63a2af55fc92327a68457dabd3202a520594b",
+      "bytes": 1192960
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/step12-timing.exe",
+      "sha256": "2a12865bae99a51d3d65a17b4d12f2e1e718fd7189712b0e5c3441dce5f5a539",
+      "bytes": 1174016
+    },
+    {
+      "path": "target/measurements/step12-tiny-page-rotated-final-v1/summary.json",
+      "sha256": "ceea45a01328b6b072585ec25a9d00486b8b4fc344df132cdc078ce49605ab7e",
+      "bytes": 30783
+    },
+    {
+      "path": "target/runtime-tuning/medium-expanded-node-parity.txt",
+      "sha256": "e5eea9ed01375822b5a18a44e5de998dd3da2e72c1a9cf066671bf2c9b3d50c2",
+      "bytes": 1241
+    },
+    {
+      "path": "target/runtime-tuning/medium-graph-after-r1.json",
+      "sha256": "c16c56719171403e48d3fab47cc9ef0e1360c7dff3eda4eabddc34cebe9f8265",
+      "bytes": 2964
+    },
+    {
+      "path": "target/runtime-tuning/medium-graph-after-r2.json",
+      "sha256": "b0d1dcc3c858e1092b0b9d0299b09361cd99ea4304909a1524373e51abd07bda",
+      "bytes": 2915
+    },
+    {
+      "path": "target/runtime-tuning/medium-graph-after-r3.json",
+      "sha256": "b07ecefd67952027e73933e0e08e40199f9f3ad47586c679033de978073c5dc5",
+      "bytes": 2897
+    },
+    {
+      "path": "target/runtime-tuning/medium-graph-before-r1.json",
+      "sha256": "cc0fa9569ecd0059b8ffd61a8bb8de2d94ea2eccfc2d9ce5aaeac2517757185d",
+      "bytes": 2915
+    },
+    {
+      "path": "target/runtime-tuning/medium-graph-before-r2.json",
+      "sha256": "379d41ec4815a9cdae24500898cbb28680404eaaa5ac16c7966a36d7d75b0844",
+      "bytes": 2973
+    },
+    {
+      "path": "target/runtime-tuning/medium-graph-before-r3.json",
+      "sha256": "85e55948c9f8e31c0f365af6844d848f5b7333696cab66c1c3f1002a14311b66",
+      "bytes": 2911
+    },
+    {
+      "path": "target/runtime-tuning/medium-nodes-after.json",
+      "sha256": "2f4b6abeca402a239b5d41534dbca7f9c0ffb2e1e14645cdbeeff7f85688c498",
+      "bytes": 164876
+    },
+    {
+      "path": "target/runtime-tuning/medium-nodes-before.json",
+      "sha256": "e4fb03559c7db23ed11e133d24f52205efc05ddd9bfe619231bc345de3708428",
+      "bytes": 164906
+    },
+    {
+      "path": "target/runtime-tuning/small-expanded-node-parity.txt",
+      "sha256": "52d03a25759c062296add338a111cc3dd35bb47c07b8b2e3d8e33b084e30e81b",
+      "bytes": 1149
+    },
+    {
+      "path": "target/runtime-tuning/small-graph-after-r1.json",
+      "sha256": "b9aadb940872d7977e67069b3834d993e53bf87bfbff2a68fc73a6551ca9fcaf",
+      "bytes": 2904
+    },
+    {
+      "path": "target/runtime-tuning/small-graph-after-r2.json",
+      "sha256": "33e82ce6b3b0c2549674f1b9586275fc8642829a8532edba2b532a01424ba04e",
+      "bytes": 2890
+    },
+    {
+      "path": "target/runtime-tuning/small-graph-after-r3.json",
+      "sha256": "84e78bf6d3339cee11bbd4b5e87478b8271df886e4b49b3b51e9365ba6b335bf",
+      "bytes": 2852
+    },
+    {
+      "path": "target/runtime-tuning/small-graph-before-r1.json",
+      "sha256": "a9ccd8e768b961283c65fa6080a9301e51a64f7f3f1118c66c5cf4e96f0fc74f",
+      "bytes": 2859
+    },
+    {
+      "path": "target/runtime-tuning/small-graph-before-r2.json",
+      "sha256": "37e545668a1674745adc3a92c3a4ed0fd4d9f0e92f19690a20b31e6920a45c47",
+      "bytes": 2910
+    },
+    {
+      "path": "target/runtime-tuning/small-graph-before-r3.json",
+      "sha256": "e2dec2b7b1121e35a3317ec30b31b6cd113127436bb7449fe9ccfe41277fe439",
+      "bytes": 2938
+    },
+    {
+      "path": "target/runtime-tuning/small-nodes-after.json",
+      "sha256": "9510f3a94d4055be1af61a6bea667391d1e81a9dc4874242a9a7ba7dd2342d44",
+      "bytes": 175005
+    },
+    {
+      "path": "target/runtime-tuning/small-nodes-before.json",
+      "sha256": "253ffd9f1fe8b3b350b707036f60f09ec1738f69fe3ef04bd94b568230ffcd46",
+      "bytes": 175012
+    },
+    {
+      "path": "target/runtime-tuning/step12-after.exe",
+      "sha256": "050f073dfdd17d238b7abd0493121643e66f813d0bd442525a9a1cf6c3826a24",
+      "bytes": 1126400
+    },
+    {
+      "path": "target/runtime-tuning/step12-before.exe",
+      "sha256": "a4225c9df73bba8907fdd67b621fd2b8a43c4630bc1938bcd933b00262097f13",
+      "bytes": 1125376
+    },
+    {
+      "path": "target/runtime-tuning/tiny-expanded-node-parity.txt",
+      "sha256": "1badd509f214954b44021949d84bb33461cb8bc8001396a0a3870bcf8fa1b234",
+      "bytes": 1139
+    },
+    {
+      "path": "target/runtime-tuning/tiny-graph-after-r1.json",
+      "sha256": "6f595ea76a9333d96153cddeb6184f0347b24d71865da25f767ac15654e3590e",
+      "bytes": 2931
+    },
+    {
+      "path": "target/runtime-tuning/tiny-graph-after-r2.json",
+      "sha256": "f36798baea1f92777d49d948bd21073dda7e4521fb3a399d335fc3635f8b15dd",
+      "bytes": 2902
+    },
+    {
+      "path": "target/runtime-tuning/tiny-graph-after-r3.json",
+      "sha256": "390a4266ca88b1c03abe9b54a488d23906df54c2ceebc4d6146f2609b0851893",
+      "bytes": 2903
+    },
+    {
+      "path": "target/runtime-tuning/tiny-graph-before-r1.json",
+      "sha256": "f6de7230fd49964e07d0e1eb50b17020d8d684b9721632f368d3103b6609fcef",
+      "bytes": 2936
+    },
+    {
+      "path": "target/runtime-tuning/tiny-graph-before-r2.json",
+      "sha256": "fe374756f3d7d7c75698e499b653f072a2c5aab656362f168f4dce9e9a7c2ace",
+      "bytes": 2963
+    },
+    {
+      "path": "target/runtime-tuning/tiny-graph-before-r3.json",
+      "sha256": "eed3a7f680434d4ce7d80168e0adeb191c1e5b844728a2d034c1c2c1c8f206ae",
+      "bytes": 2974
+    },
+    {
+      "path": "target/runtime-tuning/tiny-nodes-after.json",
+      "sha256": "2af1284e0a7849bfc0230abd7e5e008b2ffdd3f6df28e89a4c1d40ec3b217788",
+      "bytes": 174299
+    },
+    {
+      "path": "target/runtime-tuning/tiny-nodes-before.json",
+      "sha256": "b29dc57685a443b81df51321e755e52c7128f74aa4cf38de0e4b73853edcc30b",
+      "bytes": 174323
+    },
+    {
+      "path": "target/validation/archive-performance-v1.py",
+      "sha256": "44f519217c96c9364cf64e4502b052e49bc20ec9218866badee97f89dff001d2",
+      "bytes": 4684
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/amd-exp-table.asm",
+      "sha256": "4f976db10ef772f2b06d80ac906e7503ecc951db96c42f39ae0f2a507a7ac4b7",
+      "bytes": 7366
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/amd-windows-exp.asm",
+      "sha256": "be54e46e6cf16d3840f6ad88d3ce7987c77a9ba8ca436b686848f6111d6db1ac",
+      "bytes": 14548
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/amd-windows-expf.asm",
+      "sha256": "a4be0b06a1b8726d0ff1059ccf43a8b589dd360965946e884fac520674236c8d",
+      "bytes": 7716
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/build.log",
+      "sha256": "c9ef3b68d69664e1d157e575848e4f6146e26ad39b9aa75897123cb92d2ce4bd",
+      "bytes": 62
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/compare-det.json",
+      "sha256": "fb6e639c3262800691a8afb37651cf230d806a6b50bd43ed6a205f8b08b843f1",
+      "bytes": 780
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/csharp-windows-exp-probe.log",
+      "sha256": "56ffffc5467c8bac9ac11bd56d2aa290a55c3013d7597e228e500a04aae6de0e",
+      "bytes": 84
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/csharp-windows-medium-exp-probe.log",
+      "sha256": "9d6ef9e2011e45ffb60afd231fa5a7f5a79c309cc8e05c80e6410f09c68cfc04",
+      "bytes": 84
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/diagnosis.json",
+      "sha256": "267a849c069a813f8ce3b71206f1fd65a7526aafefe099d3118313a42e8c7cc5",
+      "bytes": 4051
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-probe.cs",
+      "sha256": "3c8187b53f233888266070e39ffd588b24e8caf5616bc2908fdc998bb31f266f",
+      "bytes": 1025
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-probe.csproj",
+      "sha256": "eecb3566c22ff824aefc06fee9fc68fb3f9a781967193b0476ed368655b18ebc",
+      "bytes": 263
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-probe.rs",
+      "sha256": "3d0a90d31acaafa7a6e1d4a85f1f5037a9d512671898989d277eccdacbc58cac",
+      "bytes": 1468
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-production-probe.rs",
+      "sha256": "8e30a2c753affb8c21b6f1ea30864bf3a0282016ffce971ce7bd3a442917ff95",
+      "bytes": 634
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-table-probe.rs",
+      "sha256": "96c162c832d4a25c7615327d065034728da70386bde53ddbabc657720f45b690",
+      "bytes": 2767
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-wide-input.f32.bin",
+      "sha256": "62d422a73d8c3c0865f4f470cb9b46cc7a6641851e37cca5e62b1580eb47764b",
+      "bytes": 400040
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/exp-wide-native.f32.bin",
+      "sha256": "325465583ebdb93e062d7d6971799b4c33ae6ccbdceaf2a4be00a0540169ffa6",
+      "bytes": 400040
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/high-precision-exp-check.json",
+      "sha256": "70cff46dffb23d07d54863a4d1e97bfa8afb73d63a9c9931ff9f71ed8144891b",
+      "bytes": 4150
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/import-det.json",
+      "sha256": "2958e3c0c4e529ec720e1107ceaf5311398719d1c7fc07c0f1ac9e615cc51e8c",
+      "bytes": 183
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/import-seven.log",
+      "sha256": "bf9565d1406db60917ad2a7d2f429714969ff85851ebe3da9c7dfedcee1fa826",
+      "bytes": 567
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/node-differences.json",
+      "sha256": "1bd6a9f841214569796e0fb4c0e0dddcf646d91afc8146a8ba82731f6731616e",
+      "bytes": 307818
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/portable-table-linux-wide-probe.log",
+      "sha256": "a47c65e5f5dac38b41fe0cc25657f62872de6f85cec2b53b6854e0b8141cf3af",
+      "bytes": 29
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/portable-table-windows-all-erf-probes.json",
+      "sha256": "174f039d931149587facc507637bc44d0fea0d3db46b1e56c318cfb7931fe865",
+      "bytes": 23944
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/portable-table-windows-wide-probe.log",
+      "sha256": "a47c65e5f5dac38b41fe0cc25657f62872de6f85cec2b53b6854e0b8141cf3af",
+      "bytes": 29
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/production-windows-wide-probe.log",
+      "sha256": "70371ecff7f4f2e2528efb7deeb9a853577447c8df378bb73856eb856cae387a",
+      "bytes": 40
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/run-det.log",
+      "sha256": "b70ea1cea0ba1dbf829d71a0b1f888174f7b241d7e12fff503bedbd613dabe38",
+      "bytes": 185
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/ucrt-exp-oracle.cs",
+      "sha256": "e7fc93c83aeb0cb5d9e353d6069fe1db243032b53030dd7bd38586b60ebdbe66",
+      "bytes": 627
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/ucrt-exp-oracle.csproj",
+      "sha256": "7cca117bdb70baf903140c13a3d6adb3b3c61c42c89d11db68ecb9a439ea8b0c",
+      "bytes": 269
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/ucrt-expf-constants.json",
+      "sha256": "6df355adaf75f3940a24503ebdf55adf92fe86f728bf97360ee2155402025f4f",
+      "bytes": 7556
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/ucrt-runtime-probe.cs",
+      "sha256": "5c5c5adac77c4d13c420497bf463ed5f656b2551e3fe416f0551e43986aa994f",
+      "bytes": 840
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/ucrt-runtime-probe.csproj",
+      "sha256": "5c2c00daca6b828fa45ce913ea8ccbfe3e0891532b7dba2fa0ee3562caa9520b",
+      "bytes": 272
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/ucrt-runtime-probe.log",
+      "sha256": "f21a3efec29f4f4e049d4ea8caf6ecc9b8051fdf12196e403b2835894d79ad65",
+      "bytes": 295
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/windows-medium-post-exp-differences.json",
+      "sha256": "204f9e24225cc317f8b4969b596b652684e79e29e12f1eb438792475e4620aaa",
+      "bytes": 275447
+    },
+    {
+      "path": "target/validation/linux-det-debug-v1/windows-medium-post-exp-run.log",
+      "sha256": "84cbed1d052f768805ae90681acd0f55450e1b87030fa65a31dbbe8cfb97073e",
+      "bytes": 205
+    },
+    {
+      "path": "target/validation/linux-expanded-20261014-v3.log",
+      "sha256": "fe44bf1db9464d5ddd9e6d6eb0ea2b5fec0f7b57e516a39b1c6675e82372b036",
+      "bytes": 203
+    },
+    {
+      "path": "target/validation/linux-final-20261014-v3.log",
+      "sha256": "868fa3ba037b3c8f659348412adb46cd4667f9eb5412576ba1107b16c38cb293",
+      "bytes": 16710
+    },
+    {
+      "path": "target/validation/linux-medium-det-compare-v3.json",
+      "sha256": "6e2b66941cab0942d47703b697fd98a3fa3493a3d5f14d1b9ca353a7c457df2e",
+      "bytes": 616
+    },
+    {
+      "path": "target/validation/linux-medium-det-run-v3.json",
+      "sha256": "91e75c17fd18417cfbf0f84b75cb31431947ed379e3cf883bd250d2ec8837226",
+      "bytes": 487
+    },
+    {
+      "path": "target/validation/linux-medium-step12-compare-v3.json",
+      "sha256": "9da55a8a3b6d8dd1c926c6cfdb9ccff185c38bcd4aceaec57e848d0502121e94",
+      "bytes": 645
+    },
+    {
+      "path": "target/validation/linux-medium-step12-run-v3.json",
+      "sha256": "4e2fde44076fe03ec38ff3e102da9266e31d09ad3a0bc9c1851b17fb1161366a",
+      "bytes": 515
+    },
+    {
+      "path": "target/validation/linux-small-det-compare-v3.json",
+      "sha256": "05a508f087e1d1abe9a8080af4e86ef21244328f068d76203fe638a21243b818",
+      "bytes": 616
+    },
+    {
+      "path": "target/validation/linux-small-det-run-v3.json",
+      "sha256": "50dcb92ae19bac369524d288da2f93edc307e50df0fdf318e64e00b4702b282b",
+      "bytes": 486
+    },
+    {
+      "path": "target/validation/linux-small-step12-compare-v3.json",
+      "sha256": "c434a02b7c7aa39be31aee580c309a2dc88e0e908574f9146d2e1cec2895f899",
+      "bytes": 645
+    },
+    {
+      "path": "target/validation/linux-small-step12-run-v3.json",
+      "sha256": "93fd6ee21517616862e61b01f9c80be4270541eb450c44f4381271cb591b6da3",
+      "bytes": 514
+    },
+    {
+      "path": "target/validation/linux-tiny-det-compare-v3.json",
+      "sha256": "ffaafe585d18dd82c18f6c3c1ade21577b3f8fc1077d546bf5a852307686fc4f",
+      "bytes": 615
+    },
+    {
+      "path": "target/validation/linux-tiny-det-run-v3.json",
+      "sha256": "87d96af55269873d12e05ad04d4e65b340b120501792d71d80417307759824b1",
+      "bytes": 485
+    },
+    {
+      "path": "target/validation/linux-tiny-step12-compare-v3.json",
+      "sha256": "242659902ea81bee8b9386c034eb83d0436987440f933630a5dda06015e05ab3",
+      "bytes": 652
+    },
+    {
+      "path": "target/validation/linux-tiny-step12-run-v3.json",
+      "sha256": "581537951230c2bc271890af71d63447c147a76e38570b3ce3dd2b56479136cb",
+      "bytes": 513
+    },
+    {
+      "path": "target/validation/measure-owned-final-v1.ps1",
+      "sha256": "5abf04ace415f05d77e96e6d715b72e062ebd8173ee0a5dc841aa365a8da1459",
+      "bytes": 1908
+    },
+    {
+      "path": "target/validation/summarize-tuning-final-v1.py",
+      "sha256": "6075e64830cf67b09f52d31d5ef0432226d63ef96f605c0518e1d64c9ae16bc0",
+      "bytes": 2859
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/Sdcb.SimdPaddleOCR.ModelProvider.dll",
+      "sha256": "e97f0886b36294ba33e7af44266dff8f3c35f21aad58c35866c9d60082c26f90",
+      "bytes": 7680
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/Sdcb.SimdPaddleOCR.ModelProvider.pdb",
+      "sha256": "651706cee24de3a2e3e7b97aa6b78ceb942fbef4ec263eb8c9987f634d63d2af",
+      "bytes": 8940
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/Sdcb.SimdPaddleOCR.dll",
+      "sha256": "766d6fc6a83d856a931bc4894ce91fb7b41e07f745fba4ea048e86f22b944cd0",
+      "bytes": 2285568
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/Sdcb.SimdPaddleOCR.pdb",
+      "sha256": "a3447bd0805de1f904dd163920a0bcb9924cfdd72f281093013a2e1e6e8a75e0",
+      "bytes": 468144
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/SimdPaddleOCR.ReferenceExport.deps.json",
+      "sha256": "b37edf063507397e55903ea25dca1e4bf8b9524f4250543b6498565374a9dbfd",
+      "bytes": 1958
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/SimdPaddleOCR.ReferenceExport.dll",
+      "sha256": "3b703c505006b8b4186939ead3e808b19852564247015d2aa8db678872a4a6cb",
+      "bytes": 235008
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/SimdPaddleOCR.ReferenceExport.exe",
+      "sha256": "9596445d147f792c654bc2fbeee59218e74098023bac701c5e7dae0a08c30b35",
+      "bytes": 162816
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/SimdPaddleOCR.ReferenceExport.pdb",
+      "sha256": "7e5c85d9327caa93fc77e7f923f631b73de9412b8c4c6f857e19c36eddc5104c",
+      "bytes": 40412
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/SimdPaddleOCR.ReferenceExport.runtimeconfig.json",
+      "sha256": "c230a317a54dd960bcbeb5f347f52e18dc665a26f7efda2159fced9a5ac7e097",
+      "bytes": 342
+    },
+    {
+      "path": "tools/reference-export/bin/Release/net10.0/SixLabors.ImageSharp.dll",
+      "sha256": "27ef3f04651914be319d3c75a890e985f7e77f9c340ad9bc7bb0b337a9730588",
+      "bytes": 2099712
+    },
+    {
+      "path": "tools/summarize-step12-performance.py",
+      "sha256": "6b53d6a6b987b00c971be1104b789d1f114919415cdf28a3fb5ab8f3e036a86e",
+      "bytes": 35633
+    }
+  ]
+}

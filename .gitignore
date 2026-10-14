@@ -4,3 +4,4 @@
 !/src/bin/
 !/src/bin/**
 **/obj/
+**/__pycache__/

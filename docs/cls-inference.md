@@ -135,6 +135,11 @@ C# allocation volume covers the current thread's managed allocations, while
 Rust instrumentation counts allocations routed through its System allocator;
 neither number is a process memory peak.
 
+These historical CLS timings used C#'s array overload, which binds external
+storage directly, while Rust copied its input. Preserve their recorded values
+with that input-handling distinction. The newer Step12 `cls_graph` benchmark
+uses C#'s span overload so both engines include the input copy.
+
 Measurements establish a reproducible scalar baseline, not an inference speed
 claim for other machines, models, or optimized backends. There is no fixed
 speed target for this milestone.
