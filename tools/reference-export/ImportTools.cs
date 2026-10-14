@@ -4,18 +4,18 @@ using Sdcb.SimdPaddleOCR.OnnxSharp;
 
 namespace SimdPaddleOCR.ReferenceExport;
 
-internal sealed record AuxiliaryFile(string Id, string Path, string Sha256, long Bytes);
+internal sealed record AuxiliaryFile(string Id, string Path, string Sha256, long Bytes, string Role);
 
 internal static class ImportTools
 {
     private static readonly string[] ModelNames = ["cls", "det", "rec", "small_det", "small_rec", "medium_det", "medium_rec"];
 
-    internal static AuxiliaryFile Auxiliary(Artifact file) => new(file.Id, file.Path, file.Sha256, file.Bytes);
+    internal static AuxiliaryFile Auxiliary(Artifact file) => new(file.Id, file.Path, file.Sha256, file.Bytes, "diagnostic");
     internal static AuxiliaryFile[] ProvenanceFiles(ReferenceProvenance provenance) => provenance.SourceInputs.Files
         .Concat(provenance.ExporterInputs.Files)
         .Concat(provenance.Git.TrackedDiff is null ? [] : new[] { provenance.Git.TrackedDiff })
         .Concat(provenance.Launcher is null ? [] : new[] { provenance.Launcher })
-        .Select(file => new AuxiliaryFile(file.Path, file.Path, file.Sha256, file.Bytes))
+        .Select(file => new AuxiliaryFile(file.Path, file.Path, file.Sha256, file.Bytes, "provenance"))
         .OrderBy(file => file.Path, StringComparer.Ordinal).ToArray();
 
     public static int Export(string[] args)
@@ -46,7 +46,7 @@ internal static class ImportTools
                         {
                             path = $"weights/{name}/{ordinal++:D4}.bin";
                             BundleWriter.WriteNewFile(writer.RootPath, path, tensor.Data.Span);
-                            auxiliary.Add(new("weight:" + name + ":" + tensor.Key, path, hash, tensor.Data.Length));
+                            auxiliary.Add(new("weight:" + name + ":" + tensor.Key, path, hash, tensor.Data.Length, "normalized_weight"));
                         }
                     }
                     return new { tensor.Key, tensor.Name, tensor.Dtype, tensor.Shape, tensor.Constant,
