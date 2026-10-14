@@ -3,17 +3,30 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import zipfile
 
 PIN = "33ff8a81672452041d110e8ba52dcd2639e54228"
+MAX_ASSET_BYTES = 2 * 1024 * 1024 * 1024
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def file_digest(path):
+    value = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(65536), b""):
+            value.update(block)
+    return value.hexdigest()
+
+
 def source_asset(asset, content, detector_name):
-    names = {"det": detector_name, "cls": "cls.onnx", "rec": "rec.onnx", "dictionary": "ppocr_keys.txt"}
+    variant = "small" if detector_name == "small_det.onnx" else "medium" if detector_name == "medium_det.onnx" else "tiny"
+    names = {"det": detector_name, "cls": "cls.onnx",
+             "rec": "rec.onnx" if variant == "tiny" else variant + "_rec.onnx",
+             "dictionary": "ppocr_keys.txt" if variant == "tiny" else "rec_keys.txt"}
     if asset["id"] not in names:
         raise ValueError("Unknown source asset id: " + asset["id"])
     record = {"path": asset["path"], "bytes": asset["bytes"], "sha256": asset["sha256"], "source_name": names[asset["id"]]}
@@ -32,7 +45,7 @@ def package(source, destination, select, model_name, model_ids=None):
     if model_ids is not None:
         manifest["models"] = [asset for asset in manifest["models"] if asset["id"] in model_ids]
     manifest["fixture_selection"] = {"source_manifest_sha256": digest(original_bytes),
-                                     "purpose": "small canonical regression oracle; model payloads acquired by pinned hash"}
+                                     "purpose": "immutable canonical regression oracle; selected cases retain every declared stage; model payloads acquired by pinned hash"}
     assets = manifest["models"]
     for asset in assets:
         content = (source / asset["path"]).read_bytes()
@@ -42,15 +55,18 @@ def package(source, destination, select, model_name, model_ids=None):
     payloads.update({a["path"]: a for a in manifest.get("auxiliary_files", [])})
     with zipfile.ZipFile(destination, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for relative, descriptor in sorted(payloads.items()):
-            data = (source / relative).read_bytes()
-            if len(data) != descriptor["bytes"] or digest(data) != descriptor["sha256"]:
+            path = source / relative
+            if path.stat().st_size != descriptor["bytes"] or file_digest(path) != descriptor["sha256"]:
                 raise ValueError("source artifact integrity differs: " + relative)
             entry = zipfile.ZipInfo(relative, (1980, 1, 1, 0, 0, 0))
-            archive.writestr(entry, data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            with path.open("rb") as input_file, archive.open(entry, "w", force_zip64=True) as output:
+                shutil.copyfileobj(input_file, output, 65536)
         entry = zipfile.ZipInfo("manifest.json", (1980, 1, 1, 0, 0, 0))
         archive.writestr(entry, json.dumps(manifest, indent=2, sort_keys=True).encode() + b"\n", compress_type=zipfile.ZIP_DEFLATED)
-    data = destination.read_bytes()
-    return {"archive": destination.name, "bytes": len(data), "sha256": digest(data),
+    if destination.stat().st_size >= MAX_ASSET_BYTES:
+        raise ValueError("Fixture asset must be below 2 GiB; package explicit case shards")
+    return {"archive": destination.name, "bytes": destination.stat().st_size, "sha256": file_digest(destination),
             "models": [source_asset(a, (source / a["path"]).read_bytes(), model_name) for a in assets]}
 
 
@@ -109,12 +125,50 @@ def package_imports(source, destination):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--references", type=Path, required=True)
+    parser.add_argument("--references", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--imports-only", action="store_true", help="Append the immutable semantic importer fixture to an existing index")
     parser.add_argument("--ocr-source", type=Path, help="Append immutable tiny REC and complete OCR goldens from this fresh semantic reference")
+    parser.add_argument("--bundle-source", type=Path, help="Package a complete immutable OCR bundle, with all cases unless --case selects shards")
+    parser.add_argument("--fixture-name", help="Versioned archive/directory identity for --bundle-source")
+    parser.add_argument("--variant", choices=("tiny", "small", "medium"), default="tiny")
+    parser.add_argument("--case", action="append", help="Case id to retain (repeat to create a full-reference shard)")
+    parser.add_argument("--url", help="Pinned versioned release-asset URL for the new archive")
+    parser.add_argument("--index", type=Path, help="Append the new immutable entry to this existing schema-1 index")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+    if args.bundle_source:
+        name = args.fixture_name
+        if not name or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789-" for character in name):
+            parser.error("--bundle-source requires a lowercase versioned --fixture-name")
+        if args.ocr_source or args.imports_only:
+            parser.error("--bundle-source cannot be combined with legacy packaging modes")
+        index = json.loads(args.index.read_bytes()) if args.index else {
+            "schema_version": 1, "model_commit": PIN,
+            "model_url_root": f"https://raw.githubusercontent.com/mg-chao/SimdPaddleOCR/{PIN}/models/", "fixtures": []}
+        if index["schema_version"] != 1 or any(entry["directory"] == name for entry in index["fixtures"]):
+            raise ValueError("Fixture identity already exists or index schema differs")
+        source_manifest = json.loads((args.bundle_source / "manifest.json").read_bytes())
+        if source_manifest["contract"]["model"] != args.variant:
+            raise ValueError("OCR source model variant differs")
+        def selected_cases(cases):
+            available = {case["id"] for case in cases}
+            if args.case and not set(args.case).issubset(available):
+                raise ValueError("Unknown source case selection")
+            result = [case for case in cases if not args.case or case["id"] in args.case]
+            if not result:
+                raise ValueError("Empty fixture selection")
+            return result
+        record = package(args.bundle_source, args.out / (name + ".zip"), selected_cases,
+                         "det.onnx" if args.variant == "tiny" else args.variant + "_det.onnx")
+        record["directory"] = name
+        if args.url:
+            record["url"] = args.url
+        index["fixtures"].append(record)
+        index_path = args.index if args.index else args.out / "index.json"
+        index_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(record, indent=2))
+        return
     if args.ocr_source:
         index_path = args.out / "index.json"
         index = json.loads(index_path.read_bytes())
@@ -154,6 +208,8 @@ def main():
         index_path.write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
         return
     if args.imports_only:
+        if args.references is None:
+            parser.error("--imports-only requires --references")
         index_path = args.out / "index.json"
         index = json.loads(index_path.read_bytes())
         if any(entry["directory"] == "imports" for entry in index["fixtures"]):
@@ -164,6 +220,8 @@ def main():
         print(f"Packed importer semantic/hash contracts: {record['bytes']:,} bytes")
         return
     entries = []
+    if args.references is None:
+        parser.error("Legacy packaging requires --references")
     for variant in ("tiny", "small", "medium"):
         source = args.references / f"{variant}-step12-compact-v1"
         record = package(source, args.out / f"{variant}.zip",

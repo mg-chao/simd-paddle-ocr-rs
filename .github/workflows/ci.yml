@@ -1,7 +1,15 @@
-name: Rust foundations
+name: Scalar OCR validation
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      cold_cache:
+        description: Ignore the reference asset cache to verify clean acquisition
+        type: boolean
+        default: false
+permissions:
+  contents: read
 jobs:
   test:
     strategy:
@@ -21,13 +29,57 @@ jobs:
         with:
           python-version: '3.12'
       - uses: actions/cache@v4
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.cold_cache }}
         with:
           path: target/reference-models
-          key: reference-models-${{ hashFiles('tests/fixtures/step12/index.json') }}
+          key: reference-assets-${{ runner.os }}-${{ hashFiles('tests/fixtures/step12/index.json') }}
+          restore-keys: reference-assets-${{ runner.os }}-
       - run: python -m unittest discover -s tools/tests
-      - run: python tools/prepare-step12-fixtures.py
+      - name: Acquire and verify reference assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target/ci-reports | Out-Null
+          Copy-Item tests/fixtures/step12/index.json target/ci-reports/fixture-index.json
+          python tools/prepare-step12-fixtures.py 2>&1 | Tee-Object target/ci-reports/preparation.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: cargo test --release --locked --test model_import all_shipped_models_match_authoritative_imports -- --ignored
         env:
           SIMDOCR_IMPORT_REFERENCE: target/step12-fixtures/imports
       - run: cargo test --release --locked --test step12_harness compact_real_models_match_all_detector_and_pixel_stages -- --ignored
       - run: cargo test --release --locked --test line_pipeline -- --ignored
+      - name: Complete native REC and OCR parity
+        shell: pwsh
+        env:
+          SIMDOCR_REC_REFERENCE: target/step12-fixtures/tiny-ocr-ci-v1
+          SIMDOCR_OCR_REFERENCE: target/step12-fixtures/tiny-ocr-ci-v1
+        run: |
+          New-Item -ItemType Directory -Force target/ci-reports | Out-Null
+          git rev-parse HEAD | Set-Content target/ci-reports/checkout.txt
+          rustc -Vv | Set-Content target/ci-reports/rustc.txt
+          cargo test --release --locked --test rec_harness all_frozen_tiny_rec_lines_match_authoritative_native_reference -- --ignored 2>&1 | Tee-Object target/ci-reports/rec-parity.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($test in 'complete_tiny_ocr_matches_every_native_stage_and_public_result', 'complete_ocr_rejects_rehashed_omissions_and_out_of_range_lines', 'complete_ocr_rejects_floating_integer_fields_even_after_rehash') {
+            cargo test --release --locked --test ocr_harness $test -- --ignored --exact 2>&1 | Tee-Object "target/ci-reports/$test.log"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Instrumented warmed allocation gates
+        shell: pwsh
+        run: |
+          cargo build --release --locked --features heap-profiler --bin ocr-benchmark
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $suffix = if ($IsWindows) { '.exe' } else { '' }
+          $executable = Join-Path (Resolve-Path target/release) "ocr-benchmark$suffix"
+          $reference = 'target/step12-fixtures/tiny-ocr-ci-v1'
+          foreach ($mode in 'rec_public_borrowed', 'ocr_borrowed', 'mixed_widths') {
+            $report = "target/ci-reports/$mode.json"
+            & $executable --reference $reference --mode $mode --warmup 3 --samples 3 2> "target/ci-reports/$mode.stderr.log" | Set-Content $report
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            python tools/assert-allocation-smoke.py --report $report --reference $reference --mode $mode --executable $executable --warmup 3 --samples 3
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scalar-ocr-validation-${{ runner.os }}
+          path: target/ci-reports
+          if-no-files-found: warn
