@@ -83,6 +83,29 @@ Profile totals include instrumentation overhead and are excluded from official
 latency and allocator results. The older node-profile mode observes the dense
 diagnostic graph and has a distinct execution scope.
 
+## Repeatable benchmark builds
+
+Prepare one frozen build for a process series, then reuse its exact timing,
+allocator and native exporter bytes across all model families and C# profiles:
+
+```powershell
+./tools/prepare-ocr-benchmark.ps1 -Out target/benchmark-build-v1 -References @('target/step12-fixtures/tiny-ocr-ci-v1', 'target/step12-fixtures/small-ocr-ci-v1', 'target/step12-fixtures/medium-ocr-ci-v1')
+./tools/benchmark-ocr.ps1 -Reference target/step12-fixtures/small-ocr-ci-v1 -PreparedBuild target/benchmark-build-v1/build.json -Out target/small-canonical-v1 -Modes @('rec_public_owned', 'ocr_owned', 'owned_copies') -CSharpProfile canonical -Case image-000 -Rounds 6 -HeapRounds 0 -Warmup 30 -Repeat 100 -ProcessorAffinityMask 1
+```
+
+Use a fresh output directory for each family/profile group. `-CSharpProfile cpu`
+measures optimized single-worker C# separately. Run on an idle host with a common
+recorded affinity; preserve all six process records and their variation. Hosted
+CI has no latency threshold. Preparation, allocator probes and profiling belong
+to separate runs.
+
+The prepared manifest binds source snapshots, compiler/runtime versions, build
+flags, features, models, dictionaries and effective options. Changed identities
+fail before inference. Runs copy and verify the frozen executables without
+relinking. Standalone builds resolve their executable from Cargo's artifact
+output, including custom target directories. `-StopFile` preserves completed
+reports and lets the active process finish before stopping the series.
+
 ## Native validation
 
 Each hosted complete fixture serves both REC and OCR tests. Required Windows/Linux
