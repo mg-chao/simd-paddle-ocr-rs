@@ -4,6 +4,8 @@ The Rust rewrite includes checked tensors, streaming ONNX import, graph normaliz
 
 [All-model inference](docs/all-model-inference.md) describes model selection, replay,
 attention/shape contracts, memory limits and optional production-path profiling.
+[Native validation evidence](docs/all-model-validation.md) records frozen source
+and executable identities, expanded parity coverage, and actual remote CI runs.
 Required Windows/Linux CI acquires hash-pinned complete native fixtures from
 versioned releases and checks REC/OCR parity and warmed allocations for every family.
 
