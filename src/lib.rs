@@ -1,15 +1,26 @@
-//! Validation and stage-by-stage comparison of version 1 OCR reference bundles.
+//! Integrity validation and bounded-memory comparison of frozen OCR bundles.
 
-use serde::Deserialize;
+#![forbid(unsafe_code)]
+
+pub mod bundle;
+
+use bundle::{ArtifactDescriptor, AuxiliaryFileDescriptor, CaseDescriptor, Dtype, ModelDescriptor};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
-    fmt, fs,
+    fmt,
+    fs::File,
+    io::{self, Read},
     path::{Component, Path, PathBuf},
+    time::Instant,
 };
 
-#[derive(Clone, Copy, Debug)]
+pub const STREAM_BLOCK_BYTES: usize = 64 * 1024;
+pub const MAX_JSON_BYTES: u64 = 64 * 1024 * 1024;
+
+#[derive(Clone, Copy, Debug, Serialize)]
 pub struct Tolerance {
     pub atol: f64,
     pub rtol: f64,
@@ -32,7 +43,6 @@ impl fmt::Display for BundleError {
         f.write_str(&self.0)
     }
 }
-
 impl std::error::Error for BundleError {}
 
 type Result<T> = std::result::Result<T, BundleError>;
@@ -41,11 +51,51 @@ fn invalid(message: impl Into<String>) -> BundleError {
     BundleError(message.into())
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct ValidationReport {
+    pub checked_models: usize,
+    pub checked_cases: usize,
+    pub checked_artifacts: usize,
+    pub checked_auxiliary_files: usize,
+    /// Bytes hashed from declared payloads; excludes the manifest itself.
+    pub checked_bytes: u64,
+    /// Paired comparisons share their clock and report elapsed time on ComparisonReport.
+    pub elapsed_ms: Option<f64>,
+}
+
+impl fmt::Display for ValidationReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "VALID: {} models, {} cases, {} artifacts, {} auxiliary files; {} declared bytes verified",
+            self.checked_models,
+            self.checked_cases,
+            self.checked_artifacts,
+            self.checked_auxiliary_files,
+            self.checked_bytes
+        )
+    }
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ComparisonScope {
+    Full,
+    Stage {
+        case_id: String,
+        artifact_id: String,
+    },
+}
+
+#[derive(Debug, Serialize)]
 pub struct ComparisonReport {
     pub checked_cases: usize,
     pub checked_artifacts: usize,
     pub first_difference: Option<String>,
+    pub scope: ComparisonScope,
+    pub reference_validation: ValidationReport,
+    pub candidate_validation: ValidationReport,
+    pub elapsed_ms: f64,
 }
 
 impl ComparisonReport {
@@ -56,58 +106,39 @@ impl ComparisonReport {
 
 impl fmt::Display for ComparisonReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let partial = if matches!(self.scope, ComparisonScope::Stage { .. }) {
+            "PARTIAL "
+        } else {
+            ""
+        };
         if let Some(difference) = &self.first_difference {
-            write!(f, "DIFFERENCE: {difference}")
+            write!(f, "{partial}DIFFERENCE: {difference}")
         } else {
             write!(
                 f,
-                "MATCH: {} cases, {} artifacts; all model/artifact hashes and lengths verified",
+                "{partial}MATCH: {} cases, {} artifacts; all declared model/artifact/auxiliary hashes and lengths verified",
                 self.checked_cases, self.checked_artifacts
-            )
+            )?;
+            if let ComparisonScope::Stage {
+                case_id,
+                artifact_id,
+            } = &self.scope
+            {
+                write!(f, "; scope case={case_id:?}, artifact={artifact_id:?}")?;
+            }
+            Ok(())
         }
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Manifest {
     schema_version: u32,
     contract: Value,
-    models: Vec<Model>,
-    cases: Vec<Case>,
-}
-
-#[derive(Deserialize)]
-struct Model {
-    id: String,
-    path: String,
-    sha256: String,
-    bytes: u64,
-}
-
-#[derive(Deserialize)]
-struct Case {
-    id: String,
-    kind: String,
-    artifacts: Vec<Artifact>,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "lowercase")]
-enum Dtype {
-    F32,
-    U8,
-    Json,
-}
-
-#[derive(Deserialize)]
-struct Artifact {
-    id: String,
-    path: String,
-    dtype: Dtype,
-    shape: Vec<usize>,
-    layout: String,
-    sha256: String,
-    bytes: u64,
+    models: Vec<ModelDescriptor>,
+    cases: Vec<CaseDescriptor>,
+    #[serde(default)]
+    auxiliary_files: Vec<AuxiliaryFileDescriptor>,
 }
 
 struct Bundle {
@@ -115,13 +146,8 @@ struct Bundle {
     manifest: Manifest,
 }
 
-enum Payload {
-    F32(Vec<f32>),
-    U8(Vec<u8>),
-    Json(Value),
-}
-
 impl Bundle {
+    /// Load metadata only. Payloads are streamed once by validation/comparison.
     fn load(directory: &Path) -> Result<Self> {
         let root = directory
             .canonicalize()
@@ -133,8 +159,11 @@ impl Bundle {
             )));
         }
         let manifest_path = safe_file(&root, "manifest.json")?;
-        let bytes = fs::read(&manifest_path)
-            .map_err(|e| invalid(format!("{}: {e}", manifest_path.display())))?;
+        let bytes = read_bounded(
+            File::open(&manifest_path)
+                .map_err(|e| invalid(format!("{}: {e}", manifest_path.display())))?,
+            "manifest.json",
+        )?;
         let manifest: Manifest = serde_json::from_slice(&bytes)
             .map_err(|e| invalid(format!("{}: {e}", manifest_path.display())))?;
         if manifest.schema_version != 1 {
@@ -156,74 +185,72 @@ impl Bundle {
             &root,
         )?;
         unique_ids(manifest.cases.iter().map(|c| c.id.as_str()), "case", &root)?;
-        let bundle = Self { root, manifest };
-        for model in &bundle.manifest.models {
-            read_verified(&bundle.root, &model.path, &model.sha256, model.bytes)?;
-        }
-        for case in &bundle.manifest.cases {
+        for case in &manifest.cases {
             if case.kind.is_empty() {
                 return Err(invalid(format!("case {}: kind is empty", case.id)));
             }
             unique_ids(
                 case.artifacts.iter().map(|a| a.id.as_str()),
                 &format!("artifact in case {}", case.id),
-                &bundle.root,
+                &root,
             )?;
             for artifact in &case.artifacts {
-                bundle.read_artifact(artifact)?;
+                validate_artifact_metadata(artifact)?;
             }
         }
-        Ok(bundle)
+        let mut auxiliary_paths = HashSet::new();
+        for auxiliary in &manifest.auxiliary_files {
+            if auxiliary.role.is_empty() {
+                return Err(invalid(format!(
+                    "{}: auxiliary role is empty",
+                    auxiliary.path
+                )));
+            }
+            let path = portable_path(&auxiliary.path)?;
+            if path == Path::new("manifest.json") || !auxiliary_paths.insert(path) {
+                return Err(invalid(format!(
+                    "{}: duplicate or self-referential auxiliary path",
+                    auxiliary.path
+                )));
+            }
+        }
+        Ok(Self { root, manifest })
     }
+}
 
-    fn read_artifact(&self, artifact: &Artifact) -> Result<Payload> {
-        let context = format!("{} ({})", artifact.id, artifact.path);
-        if artifact.layout.is_empty() {
-            return Err(invalid(format!("{context}: layout is empty")));
+fn validate_artifact_metadata(artifact: &ArtifactDescriptor) -> Result<()> {
+    let context = format!("{} ({})", artifact.id, artifact.path);
+    if artifact.id.is_empty() || artifact.layout.is_empty() {
+        return Err(invalid(format!("{context}: ID or layout is empty")));
+    }
+    if artifact.dtype == Dtype::Json {
+        if !artifact.shape.is_empty() || artifact.layout != "json" {
+            return Err(invalid(format!(
+                "{context}: JSON artifacts require shape=[] and layout=json"
+            )));
         }
-        if artifact.dtype == Dtype::Json {
-            if !artifact.shape.is_empty() || artifact.layout != "json" {
-                return Err(invalid(format!(
-                    "{context}: JSON artifacts require shape=[] and layout=json"
-                )));
-            }
-        } else {
-            let elements = artifact
-                .shape
-                .iter()
-                .try_fold(1usize, |n, &d| n.checked_mul(d))
-                .ok_or_else(|| invalid(format!("{context}: shape element count overflow")))?;
-            let element_bytes = if artifact.dtype == Dtype::F32 { 4 } else { 1 };
-            let expected = elements
-                .checked_mul(element_bytes)
-                .ok_or_else(|| invalid(format!("{context}: shape byte count overflow")))?;
-            if u64::try_from(expected).ok() != Some(artifact.bytes) {
-                return Err(invalid(format!(
-                    "{context}: shape implies {expected} bytes, manifest records {}",
-                    artifact.bytes
-                )));
-            }
+        if artifact.bytes > MAX_JSON_BYTES {
+            return Err(invalid(format!(
+                "{context}: JSON exceeds {MAX_JSON_BYTES} byte limit"
+            )));
         }
-        let bytes = read_verified(&self.root, &artifact.path, &artifact.sha256, artifact.bytes)?;
-        match artifact.dtype {
-            Dtype::F32 => {
-                let values: Vec<f32> = bytes
-                    .chunks_exact(4)
-                    .map(|b| f32::from_le_bytes(b.try_into().expect("four-byte chunk")))
-                    .collect();
-                if let Some(index) = values.iter().position(|v| !v.is_finite()) {
-                    return Err(invalid(format!(
-                        "{context}: nonfinite f32 at index {index}"
-                    )));
-                }
-                Ok(Payload::F32(values))
-            }
-            Dtype::U8 => Ok(Payload::U8(bytes)),
-            Dtype::Json => serde_json::from_slice(&bytes)
-                .map(Payload::Json)
-                .map_err(|e| invalid(format!("{context}: invalid JSON: {e}"))),
+    } else {
+        let elements = artifact
+            .shape
+            .iter()
+            .try_fold(1usize, |n, &d| n.checked_mul(d))
+            .ok_or_else(|| invalid(format!("{context}: shape element count overflow")))?;
+        let expected = elements
+            .checked_mul(if artifact.dtype == Dtype::F32 { 4 } else { 1 })
+            .ok_or_else(|| invalid(format!("{context}: shape byte count overflow")))?;
+        if u64::try_from(expected).ok() != Some(artifact.bytes) {
+            return Err(invalid(format!(
+                "{context}: shape implies {expected} bytes, manifest records {}",
+                artifact.bytes
+            )));
         }
     }
+    Ok(())
 }
 
 fn unique_ids<'a>(ids: impl Iterator<Item = &'a str>, kind: &str, root: &Path) -> Result<()> {
@@ -239,9 +266,7 @@ fn unique_ids<'a>(ids: impl Iterator<Item = &'a str>, kind: &str, root: &Path) -
     Ok(())
 }
 
-fn safe_file(root: &Path, relative: &str) -> Result<PathBuf> {
-    // Check both separators even on Unix, so a bundle is portable and cannot hide
-    // Windows drive prefixes or traversal in a manifest created on another OS.
+fn portable_path(relative: &str) -> Result<PathBuf> {
     if relative.is_empty()
         || relative.starts_with(['/', '\\'])
         || relative
@@ -250,16 +275,20 @@ fn safe_file(root: &Path, relative: &str) -> Result<PathBuf> {
     {
         return Err(invalid(format!("unsafe bundle path {relative:?}")));
     }
-    let portable = relative.replace('\\', "/");
-    let path = Path::new(&portable);
+    let path = PathBuf::from(relative.replace('\\', "/"));
     if path
         .components()
         .any(|c| !matches!(c, Component::Normal(_)))
     {
         return Err(invalid(format!("unsafe bundle path {relative:?}")));
     }
+    Ok(path)
+}
+
+fn safe_file(root: &Path, relative: &str) -> Result<PathBuf> {
+    let path = portable_path(relative)?;
     let resolved = root
-        .join(path)
+        .join(&path)
         .canonicalize()
         .map_err(|e| invalid(format!("{}: {e}", root.join(path).display())))?;
     if !resolved.starts_with(root) || !resolved.is_file() {
@@ -281,50 +310,353 @@ fn portable_segment(segment: &str) -> bool {
     {
         return false;
     }
-    let stem = segment.split('.').next().expect("nonempty path segment");
-    let upper = stem.to_ascii_uppercase();
+    let upper = segment
+        .split('.')
+        .next()
+        .expect("nonempty path segment")
+        .to_ascii_uppercase();
     !matches!(upper.as_str(), "CON" | "PRN" | "AUX" | "NUL")
         && !(upper.len() == 4
             && (upper.starts_with("COM") || upper.starts_with("LPT"))
             && matches!(upper.as_bytes()[3], b'1'..=b'9'))
 }
 
-fn read_verified(
-    root: &Path,
-    path: &str,
-    expected_sha: &str,
-    expected_bytes: u64,
-) -> Result<Vec<u8>> {
-    if expected_sha.len() != 64 || !expected_sha.bytes().all(|b| b.is_ascii_hexdigit()) {
+fn read_bounded(reader: impl Read, context: &str) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    reader
+        .take(MAX_JSON_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| invalid(format!("{context}: {e}")))?;
+    if bytes.len() as u64 > MAX_JSON_BYTES {
         return Err(invalid(format!(
-            "{path}: sha256 must contain 64 hexadecimal digits"
-        )));
-    }
-    let resolved = safe_file(root, path)?;
-    let bytes = fs::read(&resolved).map_err(|e| invalid(format!("{}: {e}", resolved.display())))?;
-    if bytes.len() as u64 != expected_bytes {
-        return Err(invalid(format!(
-            "{}: byte length {} differs from manifest {expected_bytes}",
-            resolved.display(),
-            bytes.len()
-        )));
-    }
-    let actual_sha = format!("{:x}", Sha256::digest(&bytes));
-    if !actual_sha.eq_ignore_ascii_case(expected_sha) {
-        return Err(invalid(format!(
-            "{}: sha256 mismatch (expected {expected_sha}, actual {actual_sha})",
-            resolved.display()
+            "{context}: JSON exceeds {MAX_JSON_BYTES} byte limit"
         )));
     }
     Ok(bytes)
 }
 
-/// Validate both complete bundles, then report the first differing pipeline stage.
-/// Provenance, performance, and other unknown manifest fields are deliberately ignored.
+#[derive(Clone, Copy)]
+struct FileSpec<'a> {
+    path: &'a str,
+    sha256: &'a str,
+    bytes: u64,
+}
+impl<'a> From<&'a ArtifactDescriptor> for FileSpec<'a> {
+    fn from(a: &'a ArtifactDescriptor) -> Self {
+        Self {
+            path: &a.path,
+            sha256: &a.sha256,
+            bytes: a.bytes,
+        }
+    }
+}
+impl<'a> From<&'a ModelDescriptor> for FileSpec<'a> {
+    fn from(a: &'a ModelDescriptor) -> Self {
+        Self {
+            path: &a.path,
+            sha256: &a.sha256,
+            bytes: a.bytes,
+        }
+    }
+}
+impl<'a> From<&'a AuxiliaryFileDescriptor> for FileSpec<'a> {
+    fn from(a: &'a AuxiliaryFileDescriptor) -> Self {
+        Self {
+            path: &a.path,
+            sha256: &a.sha256,
+            bytes: a.bytes,
+        }
+    }
+}
+
+struct VerifiedFile<'a> {
+    file: File,
+    spec: FileSpec<'a>,
+    resolved: PathBuf,
+    hash: Sha256,
+    read_bytes: u64,
+}
+
+impl<'a> VerifiedFile<'a> {
+    fn open(root: &Path, spec: FileSpec<'a>) -> Result<Self> {
+        if spec.sha256.len() != 64 || !spec.sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(invalid(format!(
+                "{}: sha256 must contain 64 hexadecimal digits",
+                spec.path
+            )));
+        }
+        let resolved = safe_file(root, spec.path)?;
+        let file =
+            File::open(&resolved).map_err(|e| invalid(format!("{}: {e}", resolved.display())))?;
+        let actual = file
+            .metadata()
+            .map_err(|e| invalid(format!("{}: {e}", resolved.display())))?
+            .len();
+        if actual != spec.bytes {
+            return Err(invalid(format!(
+                "{}: byte length {actual} differs from manifest {}",
+                resolved.display(),
+                spec.bytes
+            )));
+        }
+        Ok(Self {
+            file,
+            spec,
+            resolved,
+            hash: Sha256::new(),
+            read_bytes: 0,
+        })
+    }
+
+    fn block(&mut self, buffer: &mut [u8]) -> Result<usize> {
+        let length = read_block(&mut self.file, buffer)
+            .map_err(|e| invalid(format!("{}: {e}", self.resolved.display())))?;
+        self.hash.update(&buffer[..length]);
+        self.read_bytes = self
+            .read_bytes
+            .checked_add(length as u64)
+            .ok_or_else(|| invalid("stream byte count overflow"))?;
+        Ok(length)
+    }
+
+    fn finish(self) -> Result<()> {
+        if self.read_bytes != self.spec.bytes {
+            return Err(invalid(format!(
+                "{}: byte length {} differs from manifest {}",
+                self.resolved.display(),
+                self.read_bytes,
+                self.spec.bytes
+            )));
+        }
+        let actual = format!("{:x}", self.hash.finalize());
+        if !actual.eq_ignore_ascii_case(self.spec.sha256) {
+            return Err(invalid(format!(
+                "{}: sha256 mismatch (expected {}, actual {actual})",
+                self.resolved.display(),
+                self.spec.sha256
+            )));
+        }
+        Ok(())
+    }
+}
+
+/// Fill a block despite short reads so float elements cannot straddle blocks.
+fn read_block(reader: &mut impl Read, buffer: &mut [u8]) -> io::Result<usize> {
+    let mut offset = 0;
+    while offset < buffer.len() {
+        match reader.read(&mut buffer[offset..]) {
+            Ok(0) => break,
+            Ok(length) => offset += length,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(offset)
+}
+
+fn account_bytes(report: &mut ValidationReport, bytes: u64) -> Result<()> {
+    report.checked_bytes = report
+        .checked_bytes
+        .checked_add(bytes)
+        .ok_or_else(|| invalid("validated byte count overflow"))?;
+    Ok(())
+}
+
+fn first_nonfinite(bytes: &[u8], offset: usize) -> Option<usize> {
+    bytes
+        .chunks_exact(4)
+        .position(|b| !f32::from_le_bytes(b.try_into().expect("four-byte chunk")).is_finite())
+        .map(|index| offset + index)
+}
+
+fn finite_error(artifact: &ArtifactDescriptor, index: Option<usize>) -> Result<()> {
+    match index {
+        Some(index) => Err(invalid(format!(
+            "{} ({}): nonfinite f32 at index {index}",
+            artifact.id, artifact.path
+        ))),
+        None => Ok(()),
+    }
+}
+
+fn stream_validate(root: &Path, spec: FileSpec<'_>, floats: bool) -> Result<Option<usize>> {
+    let mut file = VerifiedFile::open(root, spec)?;
+    let mut buffer = vec![0; STREAM_BLOCK_BYTES];
+    let mut nonfinite = None;
+    let mut offset = 0;
+    loop {
+        let length = file.block(&mut buffer)?;
+        if length == 0 {
+            break;
+        }
+        if floats {
+            nonfinite = nonfinite.or_else(|| first_nonfinite(&buffer[..length], offset));
+            offset += length / 4;
+        }
+    }
+    file.finish()?;
+    Ok(nonfinite)
+}
+
+fn read_json_artifact(root: &Path, artifact: &ArtifactDescriptor) -> Result<Value> {
+    let mut file = VerifiedFile::open(root, artifact.into())?;
+    let mut buffer = vec![0; STREAM_BLOCK_BYTES];
+    let mut bytes = Vec::new();
+    loop {
+        let length = file.block(&mut buffer)?;
+        if length == 0 {
+            break;
+        }
+        if (bytes.len() as u64 + length as u64) > MAX_JSON_BYTES {
+            return Err(invalid(format!(
+                "{}: JSON exceeds {MAX_JSON_BYTES} byte limit",
+                artifact.path
+            )));
+        }
+        bytes.extend_from_slice(&buffer[..length]);
+    }
+    file.finish()?;
+    serde_json::from_slice(&bytes).map_err(|e| {
+        invalid(format!(
+            "{} ({}): invalid JSON: {e}",
+            artifact.id, artifact.path
+        ))
+    })
+}
+
+fn validate_artifact(
+    bundle: &Bundle,
+    artifact: &ArtifactDescriptor,
+    report: &mut ValidationReport,
+) -> Result<()> {
+    if artifact.dtype == Dtype::Json {
+        read_json_artifact(&bundle.root, artifact)?;
+    } else {
+        finite_error(
+            artifact,
+            stream_validate(&bundle.root, artifact.into(), artifact.dtype == Dtype::F32)?,
+        )?;
+    }
+    report.checked_artifacts += 1;
+    account_bytes(report, artifact.bytes)
+}
+
+fn validate_assets(bundle: &Bundle, report: &mut ValidationReport) -> Result<()> {
+    for model in &bundle.manifest.models {
+        stream_validate(&bundle.root, model.into(), false)?;
+        report.checked_models += 1;
+        account_bytes(report, model.bytes)?;
+    }
+    for auxiliary in &bundle.manifest.auxiliary_files {
+        stream_validate(&bundle.root, auxiliary.into(), false)?;
+        report.checked_auxiliary_files += 1;
+        account_bytes(report, auxiliary.bytes)?;
+    }
+    report.checked_cases = bundle.manifest.cases.len();
+    Ok(())
+}
+
+/// Validate every declared file, without comparing outputs or parsing ONNX models.
+pub fn validate_bundle(directory: &Path) -> Result<ValidationReport> {
+    let start = Instant::now();
+    let bundle = Bundle::load(directory)?;
+    let mut report = ValidationReport::default();
+    validate_assets(&bundle, &mut report)?;
+    for case in &bundle.manifest.cases {
+        for artifact in &case.artifacts {
+            validate_artifact(&bundle, artifact, &mut report)?;
+        }
+    }
+    report.elapsed_ms = Some(start.elapsed().as_secs_f64() * 1000.0);
+    Ok(report)
+}
+
+/// Compare complete ordered bundles, preserving the v1 tolerance/identity contract.
+/// A parity difference is returned only after every declared file is verified.
 pub fn compare_bundles(
     reference: &Path,
     candidate: &Path,
     tolerance: Tolerance,
+) -> Result<ComparisonReport> {
+    compare(reference, candidate, tolerance, ComparisonScope::Full)
+}
+
+/// Compare exactly one artifact by ID. This is explicitly partial parity: other
+/// candidate artifacts/cases may be absent or reordered, but every present file
+/// is still validated, and contracts/model identities must still match.
+pub fn compare_stage(
+    reference: &Path,
+    candidate: &Path,
+    case_id: &str,
+    artifact_id: &str,
+    tolerance: Tolerance,
+) -> Result<ComparisonReport> {
+    if case_id.is_empty() || artifact_id.is_empty() {
+        return Err(invalid(
+            "stage selection requires nonempty case and artifact IDs",
+        ));
+    }
+    compare(
+        reference,
+        candidate,
+        tolerance,
+        ComparisonScope::Stage {
+            case_id: case_id.into(),
+            artifact_id: artifact_id.into(),
+        },
+    )
+}
+
+fn identity_difference(reference: &Manifest, candidate: &Manifest) -> Option<String> {
+    if reference.contract != candidate.contract {
+        return Some("manifest contract differs".into());
+    }
+    if reference.models.len() != candidate.models.len() {
+        return Some(format!(
+            "model count differs: reference {}, candidate {}",
+            reference.models.len(),
+            candidate.models.len()
+        ));
+    }
+    for model in &reference.models {
+        let Some(other) = candidate.models.iter().find(|other| other.id == model.id) else {
+            return Some(format!("missing model {}", model.id));
+        };
+        if !model.sha256.eq_ignore_ascii_case(&other.sha256) {
+            return Some(format!("model {} sha256 differs", model.id));
+        }
+    }
+    None
+}
+
+fn metadata_difference(
+    context: &str,
+    reference: &ArtifactDescriptor,
+    candidate: &ArtifactDescriptor,
+) -> Option<String> {
+    if reference.dtype != candidate.dtype
+        || reference.shape != candidate.shape
+        || reference.layout != candidate.layout
+    {
+        Some(format!(
+            "{context}: metadata differs; reference {:?} {:?} {}, candidate {:?} {:?} {}",
+            reference.dtype,
+            reference.shape,
+            reference.layout,
+            candidate.dtype,
+            candidate.shape,
+            candidate.layout
+        ))
+    } else {
+        None
+    }
+}
+
+fn compare(
+    reference: &Path,
+    candidate: &Path,
+    tolerance: Tolerance,
+    scope: ComparisonScope,
 ) -> Result<ComparisonReport> {
     if !tolerance.atol.is_finite()
         || tolerance.atol < 0.0
@@ -333,164 +665,349 @@ pub fn compare_bundles(
     {
         return Err(invalid("tolerances must be finite and nonnegative"));
     }
+    let start = Instant::now();
     let reference = Bundle::load(reference)?;
     let candidate = Bundle::load(candidate)?;
     let mut report = ComparisonReport {
         checked_cases: 0,
         checked_artifacts: 0,
-        first_difference: None,
+        first_difference: identity_difference(&reference.manifest, &candidate.manifest),
+        scope,
+        reference_validation: ValidationReport::default(),
+        candidate_validation: ValidationReport::default(),
+        elapsed_ms: 0.0,
     };
-    report.first_difference = compare_validated(&reference, &candidate, tolerance, &mut report)?;
+    validate_assets(&reference, &mut report.reference_validation)?;
+    validate_assets(&candidate, &mut report.candidate_validation)?;
+    match report.scope.clone() {
+        ComparisonScope::Full => compare_full(&reference, &candidate, tolerance, &mut report)?,
+        ComparisonScope::Stage {
+            case_id,
+            artifact_id,
+        } => compare_selected(
+            &reference,
+            &candidate,
+            &case_id,
+            &artifact_id,
+            tolerance,
+            &mut report,
+        )?,
+    }
+    report.elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
     Ok(report)
 }
 
-fn compare_validated(
+fn retain_difference(report: &mut ComparisonReport, difference: Option<String>) {
+    if report.first_difference.is_none() {
+        report.first_difference = difference;
+    }
+}
+
+fn compare_or_validate(
+    reference: &Bundle,
+    candidate: &Bundle,
+    artifact: &ArtifactDescriptor,
+    other: Option<&ArtifactDescriptor>,
+    context: &str,
+    tolerance: Tolerance,
+    report: &mut ComparisonReport,
+) -> Result<()> {
+    if let Some(other) = other {
+        retain_difference(report, metadata_difference(context, artifact, other));
+        if report.first_difference.is_none() {
+            let difference = compare_artifacts(reference, candidate, artifact, other, tolerance)?;
+            report.reference_validation.checked_artifacts += 1;
+            account_bytes(&mut report.reference_validation, artifact.bytes)?;
+            report.candidate_validation.checked_artifacts += 1;
+            account_bytes(&mut report.candidate_validation, other.bytes)?;
+            report.checked_artifacts += 1;
+            retain_difference(
+                report,
+                difference.map(|difference| format!("{context}: {difference}")),
+            );
+            return Ok(());
+        }
+        validate_artifact(candidate, other, &mut report.candidate_validation)?;
+    }
+    validate_artifact(reference, artifact, &mut report.reference_validation)
+}
+
+fn compare_full(
     reference: &Bundle,
     candidate: &Bundle,
     tolerance: Tolerance,
     report: &mut ComparisonReport,
-) -> Result<Option<String>> {
-    let r = &reference.manifest;
-    let c = &candidate.manifest;
-    if r.contract != c.contract {
-        return Ok(Some("manifest contract differs".into()));
-    }
-    if r.models.len() != c.models.len() {
-        return Ok(Some(format!(
-            "model count differs: reference {}, candidate {}",
-            r.models.len(),
-            c.models.len()
-        )));
-    }
-    for model in &r.models {
-        let Some(other) = c.models.iter().find(|m| m.id == model.id) else {
-            return Ok(Some(format!("missing model {}", model.id)));
-        };
-        if !model.sha256.eq_ignore_ascii_case(&other.sha256) {
-            return Ok(Some(format!("model {} sha256 differs", model.id)));
-        }
-    }
-    for (index, case) in r.cases.iter().enumerate() {
-        let Some(other) = c.cases.get(index) else {
-            return Ok(Some(format!("case {}: missing from candidate", case.id)));
-        };
-        if case.id != other.id {
-            return Ok(Some(format!(
-                "case order/ID differs at index {index}: reference {}, candidate {}",
-                case.id, other.id
-            )));
-        }
-        if case.kind != other.kind {
-            return Ok(Some(format!(
-                "case {}: kind differs ({} vs {})",
-                case.id, case.kind, other.kind
-            )));
+) -> Result<()> {
+    for (index, case) in reference.manifest.cases.iter().enumerate() {
+        let other = candidate.manifest.cases.get(index);
+        match other {
+            None => retain_difference(
+                report,
+                Some(format!("case {}: missing from candidate", case.id)),
+            ),
+            Some(other) if case.id != other.id => retain_difference(
+                report,
+                Some(format!(
+                    "case order/ID differs at index {index}: reference {}, candidate {}",
+                    case.id, other.id
+                )),
+            ),
+            Some(other) if case.kind != other.kind => retain_difference(
+                report,
+                Some(format!(
+                    "case {}: kind differs ({} vs {})",
+                    case.id, case.kind, other.kind
+                )),
+            ),
+            _ => {}
         }
         for (stage, artifact) in case.artifacts.iter().enumerate() {
-            let Some(other_artifact) = other.artifacts.get(stage) else {
-                return Ok(Some(format!(
-                    "case {}, artifact {}: missing from candidate",
-                    case.id, artifact.id
-                )));
-            };
+            let other_artifact = other.and_then(|other| other.artifacts.get(stage));
             let context = format!("case {}, artifact {}", case.id, artifact.id);
-            if artifact.id != other_artifact.id {
-                return Ok(Some(format!(
-                    "{context}: stage order/ID differs at index {stage} (candidate {})",
-                    other_artifact.id
-                )));
+            match other_artifact {
+                None => {
+                    retain_difference(report, Some(format!("{context}: missing from candidate")))
+                }
+                Some(other) if artifact.id != other.id => retain_difference(
+                    report,
+                    Some(format!(
+                        "{context}: stage order/ID differs at index {stage} (candidate {})",
+                        other.id
+                    )),
+                ),
+                _ => {}
             }
-            if artifact.dtype != other_artifact.dtype
-                || artifact.shape != other_artifact.shape
-                || artifact.layout != other_artifact.layout
-            {
-                return Ok(Some(format!(
-                    "{context}: metadata differs; reference {:?} {:?} {}, candidate {:?} {:?} {}",
-                    artifact.dtype,
-                    artifact.shape,
-                    artifact.layout,
-                    other_artifact.dtype,
-                    other_artifact.shape,
-                    other_artifact.layout
-                )));
-            }
-            let payload = reference.read_artifact(artifact)?;
-            let other_payload = candidate.read_artifact(other_artifact)?;
-            let difference = match (&payload, &other_payload) {
-                (Payload::F32(a), Payload::F32(b)) => compare_f32(a, b, tolerance),
-                (Payload::U8(a), Payload::U8(b)) => compare_bytes(a, b),
-                (Payload::Json(a), Payload::Json(b)) => compare_json(a, b, tolerance, "$"),
-                _ => unreachable!("metadata comparison ensures matching payload types"),
-            };
-            report.checked_artifacts += 1;
-            if let Some(difference) = difference {
-                return Ok(Some(format!("{context}: {difference}")));
+            compare_or_validate(
+                reference,
+                candidate,
+                artifact,
+                other_artifact,
+                &context,
+                tolerance,
+                report,
+            )?;
+        }
+        if let Some(other) = other {
+            for artifact in other.artifacts.iter().skip(case.artifacts.len()) {
+                retain_difference(
+                    report,
+                    Some(format!(
+                        "case {}, artifact {}: extra in candidate",
+                        case.id, artifact.id
+                    )),
+                );
+                validate_artifact(candidate, artifact, &mut report.candidate_validation)?;
             }
         }
-        if other.artifacts.len() > case.artifacts.len() {
-            return Ok(Some(format!(
-                "case {}, artifact {}: extra in candidate",
-                case.id,
-                other.artifacts[case.artifacts.len()].id
-            )));
+        if report.first_difference.is_none() {
+            report.checked_cases += 1;
         }
-        report.checked_cases += 1;
     }
-    if c.cases.len() > r.cases.len() {
-        return Ok(Some(format!(
-            "case {}: extra in candidate",
-            c.cases[r.cases.len()].id
+    for case in candidate
+        .manifest
+        .cases
+        .iter()
+        .skip(reference.manifest.cases.len())
+    {
+        retain_difference(
+            report,
+            Some(format!("case {}: extra in candidate", case.id)),
+        );
+        for artifact in &case.artifacts {
+            validate_artifact(candidate, artifact, &mut report.candidate_validation)?;
+        }
+    }
+    Ok(())
+}
+
+fn compare_selected(
+    reference: &Bundle,
+    candidate: &Bundle,
+    case_id: &str,
+    artifact_id: &str,
+    tolerance: Tolerance,
+    report: &mut ComparisonReport,
+) -> Result<()> {
+    let selected_case = reference
+        .manifest
+        .cases
+        .iter()
+        .find(|case| case.id == case_id)
+        .ok_or_else(|| {
+            invalid(format!(
+                "selected reference case {case_id:?} does not exist"
+            ))
+        })?;
+    if !selected_case
+        .artifacts
+        .iter()
+        .any(|artifact| artifact.id == artifact_id)
+    {
+        return Err(invalid(format!(
+            "selected reference artifact {case_id:?}/{artifact_id:?} does not exist"
         )));
     }
-    Ok(None)
+    let candidate_case = candidate
+        .manifest
+        .cases
+        .iter()
+        .find(|case| case.id == case_id);
+    let selected_candidate = candidate_case.and_then(|case| {
+        case.artifacts
+            .iter()
+            .find(|artifact| artifact.id == artifact_id)
+    });
+    if let Some(case) = candidate_case
+        && case.kind != selected_case.kind
+    {
+        retain_difference(
+            report,
+            Some(format!(
+                "case {case_id}: kind differs ({} vs {})",
+                selected_case.kind, case.kind
+            )),
+        );
+    }
+    if selected_candidate.is_none() {
+        retain_difference(
+            report,
+            Some(format!(
+                "case {case_id}, artifact {artifact_id}: missing from candidate"
+            )),
+        );
+    }
+    for case in &reference.manifest.cases {
+        for artifact in &case.artifacts {
+            if case.id == case_id && artifact.id == artifact_id {
+                compare_or_validate(
+                    reference,
+                    candidate,
+                    artifact,
+                    selected_candidate,
+                    &format!("case {case_id}, artifact {artifact_id}"),
+                    tolerance,
+                    report,
+                )?;
+            } else {
+                validate_artifact(reference, artifact, &mut report.reference_validation)?;
+            }
+        }
+    }
+    for case in &candidate.manifest.cases {
+        for artifact in &case.artifacts {
+            if case.id != case_id || artifact.id != artifact_id {
+                validate_artifact(candidate, artifact, &mut report.candidate_validation)?;
+            }
+        }
+    }
+    if report.first_difference.is_none() {
+        report.checked_cases = 1;
+    }
+    Ok(())
 }
 
-fn within_tolerance(reference: f64, candidate: f64, tolerance: Tolerance) -> bool {
-    (candidate - reference).abs() <= tolerance.atol + tolerance.rtol * reference.abs()
+#[derive(Default)]
+struct FloatMetrics {
+    mismatches: usize,
+    first: Option<(usize, f64, f64)>,
+    max_abs: f64,
+    max_rel: f64,
 }
 
-fn compare_f32(reference: &[f32], candidate: &[f32], tolerance: Tolerance) -> Option<String> {
-    let mut mismatches = 0usize;
-    let mut first = None;
-    let mut max_abs = 0.0f64;
-    let mut max_rel = 0.0f64;
-    for (index, (&a, &b)) in reference.iter().zip(candidate).enumerate() {
-        let a = f64::from(a);
-        let b = f64::from(b);
+impl FloatMetrics {
+    fn observe(&mut self, index: usize, reference: f32, candidate: f32, tolerance: Tolerance) {
+        let a = f64::from(reference);
+        let b = f64::from(candidate);
         let absolute = (a - b).abs();
         let relative = if absolute == 0.0 {
             0.0
         } else {
             absolute / a.abs()
         };
-        max_abs = max_abs.max(absolute);
-        max_rel = max_rel.max(relative);
+        self.max_abs = self.max_abs.max(absolute);
+        self.max_rel = self.max_rel.max(relative);
         if !within_tolerance(a, b, tolerance) {
-            mismatches += 1;
-            first.get_or_insert((index, a, b));
+            self.mismatches += 1;
+            self.first.get_or_insert((index, a, b));
         }
     }
-    first.map(|(index, a, b)| format!("f32 mismatch count={mismatches}/{}, first index={index} reference={a:.9e} candidate={b:.9e}, max abs={max_abs:.9e}, max rel={max_rel:.9e}", reference.len()))
+
+    fn difference(self, elements: usize) -> Option<String> {
+        self.first.map(|(index, a, b)| format!("f32 mismatch count={}/{elements}, first index={index} reference={a:.9e} candidate={b:.9e}, max abs={:.9e}, max rel={:.9e}", self.mismatches, self.max_abs, self.max_rel))
+    }
 }
 
-fn compare_bytes(reference: &[u8], candidate: &[u8]) -> Option<String> {
-    let mismatches = reference
-        .iter()
-        .zip(candidate)
-        .filter(|(a, b)| a != b)
-        .count();
-    reference
-        .iter()
-        .zip(candidate)
-        .position(|(a, b)| a != b)
-        .map(|index| {
-            format!(
-                "u8 mismatch count={mismatches}/{}, first index={index} reference={} candidate={}",
-                reference.len(),
-                reference[index],
-                candidate[index]
-            )
-        })
+fn compare_artifacts(
+    reference: &Bundle,
+    candidate: &Bundle,
+    artifact: &ArtifactDescriptor,
+    other: &ArtifactDescriptor,
+    tolerance: Tolerance,
+) -> Result<Option<String>> {
+    if artifact.dtype == Dtype::Json {
+        return Ok(compare_json(
+            &read_json_artifact(&reference.root, artifact)?,
+            &read_json_artifact(&candidate.root, other)?,
+            tolerance,
+            "$",
+        ));
+    }
+    let mut reference_file = VerifiedFile::open(&reference.root, artifact.into())?;
+    let mut candidate_file = VerifiedFile::open(&candidate.root, other.into())?;
+    let mut a = vec![0; STREAM_BLOCK_BYTES];
+    let mut b = vec![0; STREAM_BLOCK_BYTES];
+    let mut floats = FloatMetrics::default();
+    let mut byte_mismatches = 0usize;
+    let mut first_byte = None;
+    let mut reference_nonfinite = None;
+    let mut candidate_nonfinite = None;
+    let mut offset = 0usize;
+    loop {
+        let a_length = reference_file.block(&mut a)?;
+        let b_length = candidate_file.block(&mut b)?;
+        if a_length == 0 && b_length == 0 {
+            break;
+        }
+        if artifact.dtype == Dtype::F32 {
+            reference_nonfinite =
+                reference_nonfinite.or_else(|| first_nonfinite(&a[..a_length], offset / 4));
+            candidate_nonfinite =
+                candidate_nonfinite.or_else(|| first_nonfinite(&b[..b_length], offset / 4));
+            for (index, (left, right)) in a[..a_length]
+                .chunks_exact(4)
+                .zip(b[..b_length].chunks_exact(4))
+                .enumerate()
+            {
+                floats.observe(
+                    offset / 4 + index,
+                    f32::from_le_bytes(left.try_into().expect("four-byte chunk")),
+                    f32::from_le_bytes(right.try_into().expect("four-byte chunk")),
+                    tolerance,
+                );
+            }
+        } else {
+            for (index, (&left, &right)) in a[..a_length].iter().zip(&b[..b_length]).enumerate() {
+                if left != right {
+                    byte_mismatches += 1;
+                    first_byte.get_or_insert((offset + index, left, right));
+                }
+            }
+        }
+        offset += a_length;
+    }
+    reference_file.finish()?;
+    candidate_file.finish()?;
+    finite_error(artifact, reference_nonfinite)?;
+    finite_error(other, candidate_nonfinite)?;
+    Ok(if artifact.dtype == Dtype::F32 {
+        floats.difference(offset / 4)
+    } else {
+        first_byte.map(|(index, a, b)| format!("u8 mismatch count={byte_mismatches}/{offset}, first index={index} reference={a} candidate={b}"))
+    })
+}
+
+fn within_tolerance(reference: f64, candidate: f64, tolerance: Tolerance) -> bool {
+    (candidate - reference).abs() <= tolerance.atol + tolerance.rtol * reference.abs()
 }
 
 fn compare_json(
@@ -569,8 +1086,13 @@ mod tests {
         };
         assert!(within_tolerance(10.0, 11.05, t));
         assert!(!within_tolerance(10.0, 11.2, t));
+        let mut metrics = FloatMetrics::default();
+        for (index, (a, b)) in [(0.0, 0.2), (1.0, 1.0), (2.0, 3.0)].into_iter().enumerate() {
+            metrics.observe(index, a, b, t);
+        }
         assert!(
-            compare_f32(&[0.0, 1.0, 2.0], &[0.2, 1.0, 3.0], t)
+            metrics
+                .difference(3)
                 .unwrap()
                 .contains("count=2/3, first index=0")
         );
@@ -600,12 +1122,47 @@ mod tests {
             )
             .is_none()
         );
-        let a = serde_json::json!({"lines": [{"text":"a", "score":0.9}]});
-        let b = serde_json::json!({"lines": [{"text":"b", "score":0.9}]});
         assert!(
-            compare_json(&a, &b, t, "$")
-                .unwrap()
-                .contains("$[\"lines\"][0][\"text\"]")
+            compare_json(
+                &serde_json::json!({"lines": [{"text":"a", "score":0.9}]}),
+                &serde_json::json!({"lines": [{"text":"b", "score":0.9}]}),
+                t,
+                "$"
+            )
+            .unwrap()
+            .contains("$[\"lines\"][0][\"text\"]")
         );
+    }
+
+    #[test]
+    fn short_reads_fill_float_aligned_blocks_without_losing_bytes() {
+        struct ShortReader {
+            source: io::Cursor<Vec<u8>>,
+            interrupted: bool,
+        }
+        impl Read for ShortReader {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                if !self.interrupted {
+                    self.interrupted = true;
+                    return Err(io::ErrorKind::Interrupted.into());
+                }
+                let length = buffer.len().min(3);
+                self.source.read(&mut buffer[..length])
+            }
+        }
+        let source: Vec<u8> = [1.0f32, 2.0, 3.0]
+            .into_iter()
+            .flat_map(f32::to_le_bytes)
+            .collect();
+        let mut reader = ShortReader {
+            source: io::Cursor::new(source.clone()),
+            interrupted: false,
+        };
+        let mut buffer = [0; 8];
+        assert_eq!(read_block(&mut reader, &mut buffer).unwrap(), 8);
+        assert_eq!(&buffer, &source[..8]);
+        assert_eq!(read_block(&mut reader, &mut buffer).unwrap(), 4);
+        assert_eq!(&buffer[..4], &source[8..]);
+        assert_eq!(read_block(&mut reader, &mut buffer).unwrap(), 0);
     }
 }
