@@ -3,8 +3,10 @@
 #![forbid(unsafe_code)]
 
 pub mod bundle;
+pub mod cls;
 pub mod model;
 pub mod onnx;
+pub mod runtime;
 pub mod tensor;
 
 use bundle::{ArtifactDescriptor, AuxiliaryFileDescriptor, CaseDescriptor, Dtype, ModelDescriptor};
@@ -12,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt,
     fs::File,
     io::{self, Read},
@@ -88,6 +90,10 @@ pub enum ComparisonScope {
         case_id: String,
         artifact_id: String,
     },
+    Cls {
+        required_lines: usize,
+        required_artifacts: usize,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -109,7 +115,7 @@ impl ComparisonReport {
 
 impl fmt::Display for ComparisonReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let partial = if matches!(self.scope, ComparisonScope::Stage { .. }) {
+        let partial = if !matches!(self.scope, ComparisonScope::Full) {
             "PARTIAL "
         } else {
             ""
@@ -128,6 +134,16 @@ impl fmt::Display for ComparisonReport {
             } = &self.scope
             {
                 write!(f, "; scope case={case_id:?}, artifact={artifact_id:?}")?;
+            }
+            if let ComparisonScope::Cls {
+                required_lines,
+                required_artifacts,
+            } = &self.scope
+            {
+                write!(
+                    f,
+                    "; scope CLS: {required_lines} required lines, {required_artifacts} required artifacts; no full OCR parity"
+                )?;
             }
             Ok(())
         }
@@ -610,6 +626,25 @@ pub fn compare_stage(
     )
 }
 
+/// Compare every captured classifier input, node, and probability tensor.
+/// The reference determines the complete selection. Other stages remain outside
+/// parity scope, but every declared payload on both sides is validated once.
+pub fn compare_cls(
+    reference: &Path,
+    candidate: &Path,
+    tolerance: Tolerance,
+) -> Result<ComparisonReport> {
+    compare(
+        reference,
+        candidate,
+        tolerance,
+        ComparisonScope::Cls {
+            required_lines: 0,
+            required_artifacts: 0,
+        },
+    )
+}
+
 fn identity_difference(reference: &Manifest, candidate: &Manifest) -> Option<String> {
     if reference.contract != candidate.contract {
         return Some("manifest contract differs".into());
@@ -695,6 +730,9 @@ fn compare(
             tolerance,
             &mut report,
         )?,
+        ComparisonScope::Cls { .. } => {
+            compare_classifier(&reference, &candidate, tolerance, &mut report)?
+        }
     }
     report.elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
     Ok(report)
@@ -733,6 +771,99 @@ fn compare_or_validate(
         validate_artifact(candidate, other, &mut report.candidate_validation)?;
     }
     validate_artifact(reference, artifact, &mut report.reference_validation)
+}
+
+fn compare_classifier(
+    reference: &Bundle,
+    candidate: &Bundle,
+    tolerance: Tolerance,
+    report: &mut ComparisonReport,
+) -> Result<()> {
+    let selection = cls::classifier_selection(&reference.manifest)?;
+    report.scope = ComparisonScope::Cls {
+        required_lines: selection.lines.len(),
+        required_artifacts: selection.artifacts.len(),
+    };
+    let candidate_cases: HashMap<_, _> = candidate
+        .manifest
+        .cases
+        .iter()
+        .map(|case| (case.id.as_str(), case))
+        .collect();
+    let candidate_artifacts: HashMap<_, _> = candidate
+        .manifest
+        .cases
+        .iter()
+        .flat_map(|case| {
+            case.artifacts
+                .iter()
+                .map(|artifact| ((case.id.as_str(), artifact.id.as_str()), artifact))
+        })
+        .collect();
+    let mut consumed = HashSet::new();
+    for (case_index, case) in reference.manifest.cases.iter().enumerate() {
+        let candidate_case = candidate_cases.get(case.id.as_str()).copied();
+        let selected_case = selection
+            .lines
+            .iter()
+            .any(|line| line.case_index == case_index);
+        if selected_case {
+            if let Some(other) = candidate_case {
+                if other.kind != case.kind {
+                    retain_difference(
+                        report,
+                        Some(format!(
+                            "case {}: kind differs ({} vs {})",
+                            case.id, case.kind, other.kind,
+                        )),
+                    );
+                }
+            } else {
+                retain_difference(
+                    report,
+                    Some(format!("case {}: missing from candidate", case.id)),
+                );
+            }
+        }
+        for (artifact_index, artifact) in case.artifacts.iter().enumerate() {
+            if selection.artifacts.contains(&(case_index, artifact_index)) {
+                let other = candidate_artifacts
+                    .get(&(case.id.as_str(), artifact.id.as_str()))
+                    .copied();
+                let context = format!("case {}, artifact {}", case.id, artifact.id);
+                if other.is_none() {
+                    retain_difference(report, Some(format!("{context}: missing from candidate")));
+                } else {
+                    consumed.insert((case.id.as_str(), artifact.id.as_str()));
+                }
+                compare_or_validate(
+                    reference, candidate, artifact, other, &context, tolerance, report,
+                )?;
+            } else {
+                validate_artifact(reference, artifact, &mut report.reference_validation)?;
+            }
+        }
+        if selected_case && report.first_difference.is_none() {
+            report.checked_cases += 1;
+        }
+    }
+    for case in &candidate.manifest.cases {
+        for artifact in &case.artifacts {
+            if !consumed.contains(&(case.id.as_str(), artifact.id.as_str())) {
+                if cls::is_classifier_artifact(&artifact.id)? {
+                    retain_difference(
+                        report,
+                        Some(format!(
+                            "case {}, artifact {}: extra classifier artifact in candidate",
+                            case.id, artifact.id
+                        )),
+                    );
+                }
+                validate_artifact(candidate, artifact, &mut report.candidate_validation)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn compare_full(

@@ -2,8 +2,9 @@
 
 The Rust importer loads all seven shipped networks: shared `cls`, tiny `det` and
 `rec`, `small_det`, `small_rec`, `medium_det`, and `medium_rec`. This milestone
-imports graph structure, operator attributes, constants, and shape metadata. It
-does not execute a network or allocate activation buffers.
+imports graph structure, operator attributes, constants, and shape metadata.
+Loading itself does not execute a network or allocate activation buffers;
+the separate [scalar CLS runtime](cls-inference.md) does that work.
 
 `Model::load_path`, `Model::load_reader<R: BufRead>`, and `Model::load_bytes` use
 default limits. Their `_with_options` counterparts accept `LoadOptions`.
@@ -11,7 +12,8 @@ default limits. Their `_with_options` counterparts accept `LoadOptions`.
 requires one graph input and one output, rejects unresolved/non-topological
 retained inputs, and reports unsupported retained operators or tensor types.
 Models own constant buffers once. Accessors expose shared borrows; a caller can
-share the complete immutable model with `Arc<Model>` later.
+share the complete immutable model with `Arc<Model>` across compiled models
+and inference sessions.
 
 The parser streams bounded protobuf messages through buffered reads. It does not
 retain the source ONNX blob. Initializer bytes become typed F32/I32/I64/U8
@@ -29,9 +31,11 @@ not hash tensors or serialize inspection snapshots.
 `ShapeRecipe` records stripped dynamic Reshape relationships. `shape_metadata()`
 retains the deduplicated original metadata nodes, attributes, and necessary
 integer constants even when diagnostic capture is disabled. This supplies the
-future shape evaluator without retaining a second model or executing integer
-shape operators now. No NHWC rewrite, fusion, weight packing, kernel, worker
-pool, session, or GPU path is implemented at this milestone.
+runtime shape evaluator without retaining a second model or executing integer
+shape operators during loading. Runtime binding evaluates the CLS
+Shape/Slice/Concat program from those retained operands. Import inspection
+remains before layout planning; no NHWC rewrite, execution fusion, weight
+packing, worker pool, or GPU path is implemented.
 
 ## Inspect and compare
 

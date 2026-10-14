@@ -1,8 +1,28 @@
 # simd-paddle-ocr-rs
 
-The Rust rewrite now includes checked tensors, a streaming ONNX loader, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. OCR inference is still supplied by the adjacent `SimdPaddleOCR` checkout; Rust does not execute networks yet.
+The Rust rewrite includes checked tensors, a streaming ONNX loader, graph normalization, and a reproducible reference harness. All seven shipped models have exact raw/normalized import parity with the C# reference, including folded and merged weights. Rust executes the shared CLS network with scalar NCHW kernels, evaluated shape programs, reusable activation buffers, and synchronous node tracing. The complete OCR pipeline still comes from the adjacent `SimdPaddleOCR` checkout.
 
 Requirements: .NET 10 SDK, the pinned Rust 1.97.1 toolchain, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
+
+## Scalar CLS inference
+
+```powershell
+# Preserve every node and every detected line in a fresh canonical reference.
+./tools/export-reference.ps1 -ReplayBundle reference-bundles/tiny-reference-v1 -Profile canonical -Nodes all -MaxTracedLines 0 -Out reference-bundles/tiny-canonical-allnodes-v1
+cargo run --release --offline -- run-cls reference-bundles/tiny-canonical-allnodes-v1 --out reference-bundles/rust-cls-v1
+cargo run --release --offline -- compare-cls reference-bundles/tiny-canonical-allnodes-v1 reference-bundles/rust-cls-v1 --json
+```
+
+`run-cls` consumes frozen normalized input tensors, not images. It writes only
+CLS inputs, reference-selected node tensors, and independently computed
+probabilities. `compare-cls` checks all those stages in one traversal and reports
+explicitly partial coverage; DET, REC, preprocessing, and public OCR results are
+not implemented by this command. All declared files on both sides are still
+validated. Existing output directories are never overwritten.
+
+[CLS inference](docs/cls-inference.md) documents the library API, supported
+operators, shape evaluation, borrowed trace/output lifetimes, parity gates,
+and reproducible allocation and latency measurements.
 
 ## Import references and local archives
 
@@ -84,7 +104,9 @@ CPU and canonical bundles have different contracts and cannot be compared direct
 
 ## Compare a Rust candidate
 
-Write the same bundle schema from the future Rust implementation, using the frozen model and input files. Then run:
+For a future complete Rust OCR pipeline, write the same bundle schema using
+the frozen model and input files. The current CLS implementation uses
+`run-cls` and `compare-cls` above. Full pipeline comparison will use:
 
 ```powershell
 cargo run --release --offline -- compare reference-bundles/tiny-reference-v1 reference-bundles/rust-candidate --atol 1e-5 --rtol 1e-4

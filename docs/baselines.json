@@ -245,5 +245,91 @@
     ],
     "restore_command": "Expand-Archive -LiteralPath 'tiny-step12-replay-v2.zip' -DestinationPath 'tiny-step12-replay-v2-restored'; simd-paddle-ocr-rs validate 'tiny-step12-replay-v2-restored'",
     "verification": "archive extracted into a new directory; all declared payloads validated"
+  },
+  {
+    "id": "tiny-canonical-allnodes-v1",
+    "kind": "ocr",
+    "archive_file": "tiny-canonical-allnodes-v1.zip",
+    "archive_sha256": "18f2642bb22e5a23ccba49caa68fadd8bdff750393e0ec212678deeccfb27f49",
+    "archive_bytes": 2500076806,
+    "manifest_sha256": "f9e1a7a1a2ec967f48738b7eed7252c0da93a55ae06825ba08b677b3ba0f55f2",
+    "source_tree_sha256": "a4b9004edb8bc79b0c0ceb45a40c85cd37dad37f996361ac4efccb02b9197bad",
+    "reference_git_head": "cff75e1508abe02ae9a5753c49f39a20e2639329",
+    "contract": {
+      "backend": "cpu",
+      "decoder": "SixLabors.ImageSharp 3.1.11; replay consumes frozen BGR bytes without decoding",
+      "dense_score_semantics": "Mean probability at the first frame of each emitted CTC token; final Softmax graph output.",
+      "logical_input_layout": "nchw",
+      "max_traced_lines": 0,
+      "model": "tiny",
+      "nodes": "all",
+      "options": {
+        "classifier": {
+          "backend": 1,
+          "max_image_pixels": 40000000,
+          "max_pooled_sessions": 1
+        },
+        "classifier_threshold": 0,
+        "det_intra_op_threads": 1,
+        "detector": {
+          "backend": 1,
+          "bitmap_threshold": 0.2,
+          "box_threshold": 0.4,
+          "limit_side_length": 960,
+          "max_candidates": 3000,
+          "max_image_pixels": 40000000,
+          "max_pooled_sessions": 1,
+          "max_session_cache_entries": 10,
+          "unclip_ratio": 1.4,
+          "use_dilation": false
+        },
+        "gpu_ctc_intra_op_threads": 1,
+        "line_worker_count": 1,
+        "max_crop_pixels": 16000000,
+        "preprocess_worker_count": 1,
+        "rec_batch_lines": 1,
+        "recognizer": {
+          "adaptive_width": true,
+          "backend": 1,
+          "max_image_pixels": 40000000,
+          "max_pooled_sessions": 1,
+          "target_width": 320
+        },
+        "use_direction_classification": true
+      },
+      "pixel_format": "bgr24",
+      "profile": "canonical",
+      "public_score_semantics": "Existing compact MatMul/ArgMax maxima, without probability recalibration; preserved as returned by C#.",
+      "return_ctc_alignment": true,
+      "tensor_encoding": "ieee754_f32_little_endian"
+    },
+    "assets": [
+      {
+        "id": "det",
+        "path": "models/det.onnx",
+        "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+        "bytes": 1780590
+      },
+      {
+        "id": "cls",
+        "path": "models/cls.onnx",
+        "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+        "bytes": 1018940
+      },
+      {
+        "id": "rec",
+        "path": "models/rec.onnx",
+        "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+        "bytes": 4462639
+      },
+      {
+        "id": "dictionary",
+        "path": "models/ppocr_keys.txt",
+        "sha256": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82",
+        "bytes": 34057
+      }
+    ],
+    "restore_command": "Expand-Archive -LiteralPath 'tiny-canonical-allnodes-v1.zip' -DestinationPath 'tiny-canonical-allnodes-v1-restored'; simd-paddle-ocr-rs validate 'tiny-canonical-allnodes-v1-restored'",
+    "verification": "archive extracted into a new directory; all declared payloads validated"
   }
 ]

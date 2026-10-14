@@ -122,7 +122,7 @@ pub struct Graph {
     pub outputs: Vec<TensorId>,
 }
 
-/// A stripped metadata relationship, retained for a future shape evaluator without executing it.
+/// A stripped metadata relationship retained for runtime shape binding without executing it during import.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ShapeRecipe {
     pub node_key: String,

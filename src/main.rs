@@ -1,15 +1,19 @@
 use simd_paddle_ocr_rs::{
-    Tolerance, compare_bundles, compare_stage,
+    Tolerance,
+    cls::run_cls,
+    compare_bundles, compare_cls, compare_stage,
     model::{self, LoadOptions, Model},
     validate_bundle,
 };
 use std::{collections::HashSet, env, path::PathBuf, process::ExitCode};
 
-const HELP: &str = "Frozen references and structural ONNX import; no OCR inference yet.
+const HELP: &str = "Frozen references, structural ONNX import, and scalar CLS tensor execution.
 
 Usage:
   simd-paddle-ocr-rs compare <reference> <candidate> [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs compare-stage <reference> <candidate> --case ID --artifact ID [--atol N] [--rtol N] [--json]
+  simd-paddle-ocr-rs run-cls <reference> --out NEW_DIRECTORY [--json]
+  simd-paddle-ocr-rs compare-cls <reference> <candidate> [--atol N] [--rtol N] [--json]
   simd-paddle-ocr-rs validate <bundle> [--json]
   simd-paddle-ocr-rs inspect-model <model.onnx> [--out NEW_DIRECTORY] [--json]
   simd-paddle-ocr-rs validate-import <reference-directory> [--json]
@@ -19,6 +23,7 @@ Usage:
 Float defaults: --atol 1e-5 --rtol 1e-4.
 Shape/layout/order, bytes, text and integer structure compare exactly.
 Stage matches cover one selected artifact; every declared file is validated.
+CLS matches cover all frozen classifier inputs/nodes/probabilities; no full OCR parity.
 Import comparison checks raw/normalized graphs and exact weight hashes.
 Exit status: 0 match/valid; 1 parity difference; 2 invalid arguments or data.";
 
@@ -83,8 +88,8 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
         index += 1;
     }
     let expected = match parsed.command.as_str() {
-        "compare" | "compare-stage" | "compare-import" => 2,
-        "validate" | "inspect-model" | "validate-import" => 1,
+        "compare" | "compare-stage" | "compare-cls" | "compare-import" => 2,
+        "validate" | "inspect-model" | "validate-import" | "run-cls" => 1,
         other => return Err(format!("unknown command {other}")),
     };
     if parsed.paths.len() != expected {
@@ -102,11 +107,15 @@ fn arguments(args: &[String]) -> Result<Arguments, String> {
     } else if parsed.case_id.is_some() || parsed.artifact_id.is_some() {
         return Err("--case/--artifact require compare-stage".into());
     }
-    if parsed.out.is_some() && parsed.command != "inspect-model" {
-        return Err("--out requires inspect-model".into());
+    if parsed.out.is_some() && parsed.command != "inspect-model" && parsed.command != "run-cls" {
+        return Err("--out requires inspect-model or run-cls".into());
+    }
+    if parsed.command == "run-cls" && parsed.out.as_deref().is_none_or(str::is_empty) {
+        return Err("run-cls requires nonempty --out".into());
     }
     if parsed.command != "compare"
         && parsed.command != "compare-stage"
+        && parsed.command != "compare-cls"
         && (seen.contains("--atol") || seen.contains("--rtol"))
     {
         return Err("--atol/--rtol require a tensor comparison command".into());
@@ -130,7 +139,7 @@ fn print_report<T: serde::Serialize + std::fmt::Display>(
 fn run(args: Arguments) -> Result<u8, String> {
     let path = PathBuf::from(&args.paths[0]);
     match args.command.as_str() {
-        "compare" | "compare-stage" => {
+        "compare" | "compare-stage" | "compare-cls" => {
             let other = PathBuf::from(&args.paths[1]);
             let report = if args.command == "compare-stage" {
                 compare_stage(
@@ -140,12 +149,22 @@ fn run(args: Arguments) -> Result<u8, String> {
                     args.artifact_id.as_deref().unwrap(),
                     args.tolerance,
                 )
+            } else if args.command == "compare-cls" {
+                compare_cls(&path, &other, args.tolerance)
             } else {
                 compare_bundles(&path, &other, args.tolerance)
             }
             .map_err(|e| e.to_string())?;
             print_report(&report, args.json)?;
             Ok(u8::from(!report.matches()))
+        }
+        "run-cls" => {
+            print_report(
+                &run_cls(&path, &PathBuf::from(args.out.as_ref().unwrap()))
+                    .map_err(|e| e.to_string())?,
+                args.json,
+            )?;
+            Ok(0)
         }
         "validate" => {
             print_report(
@@ -249,5 +268,10 @@ mod tests {
         assert!(parse(&["compare-import", "a", "cls", "--artifact", "x"]).is_err());
         assert!(parse(&["validate", "a", "--json", "--json"]).is_err());
         assert!(parse(&["compare", "a", "b", "--atol", "0", "--rtol", "0"]).is_ok());
+        assert!(parse(&["run-cls", "reference", "--out", "fresh", "--json"]).is_ok());
+        assert!(parse(&["run-cls", "reference"]).is_err());
+        assert!(parse(&["run-cls", "reference", "--out", "fresh", "--atol", "1"]).is_err());
+        assert!(parse(&["compare-cls", "reference", "candidate", "--atol", "0"]).is_ok());
+        assert!(parse(&["compare-cls", "reference", "candidate", "--case", "sample"]).is_err());
     }
 }

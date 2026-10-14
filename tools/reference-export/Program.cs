@@ -18,6 +18,7 @@ internal static class Program
         {
             if (args.Length > 0 && args[0] == "--export-imports") return ImportTools.Export(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-imports") return ImportTools.Benchmark(args[1..]);
+            if (args.Length > 0 && args[0] == "--benchmark-cls") return ClsTools.Benchmark(args[1..]);
             if (args.Length == 0 || args.Contains("--help"))
             {
                 Console.WriteLine("Use tools/export-reference.ps1 -Out <new-directory> [-InputPath <image-or-directory> | -ReplayBundle <frozen-bundle>] [-Profile canonical|cpu] [-Nodes checkpoints|all] [-MaxTracedLines 3] [-Count 20] [-Warmup 1] [-Repeat 3].");
@@ -400,7 +401,7 @@ internal static class Program
         }
     }
 
-    private static byte[] ReadBundleFile(string root, JsonElement descriptor)
+    internal static byte[] ReadBundleFile(string root, JsonElement descriptor)
     {
         string path = BundleWriter.DestinationPath(root, descriptor.GetProperty("path").GetString()!);
         byte[] bytes = File.ReadAllBytes(path);

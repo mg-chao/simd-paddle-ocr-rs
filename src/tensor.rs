@@ -214,6 +214,14 @@ pub struct TensorView<'a, T> {
     data: &'a [T],
 }
 impl<'a, T> TensorView<'a, T> {
+    /// Borrow checked contiguous storage without allocating or taking ownership.
+    pub fn from_slice(shape: Shape, data: &'a [T]) -> Result<Self, TensorError> {
+        shape.bytes_for(size_of::<T>())?;
+        if shape.element_count() != data.len() {
+            return Err(TensorError::new("view shape changes element count"));
+        }
+        Ok(Self { shape, data })
+    }
     pub fn shape(&self) -> Shape {
         self.shape
     }

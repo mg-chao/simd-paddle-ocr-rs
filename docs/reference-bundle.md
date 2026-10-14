@@ -49,9 +49,18 @@ cargo run --release --offline -- validate reference-bundles/tiny-reference-v1
 cargo run --release --offline -- compare-stage reference-bundles/tiny-reference-v1 reference-bundles/rust-stage --case sample --artifact line.000.cls.node.0000
 ```
 
-The library APIs are `validate_bundle(directory)`, `compare_bundles(reference, candidate, tolerance)`, and `compare_stage(reference, candidate, case_id, artifact_id, tolerance)`. Existing full comparisons retain their v1 identity, ordering, metadata, and numeric-tolerance requirements.
+The library APIs are `validate_bundle(directory)`, `compare_bundles(reference, candidate, tolerance)`, `compare_stage(reference, candidate, case_id, artifact_id, tolerance)`, and `compare_cls(reference, candidate, tolerance)`. Existing full comparisons retain their v1 identity, ordering, metadata, and numeric-tolerance requirements.
 
 A stage comparison selects one exact case/artifact pair by ID and reports `PARTIAL MATCH` or `PARTIAL DIFFERENCE`. It permits unrelated candidate cases/artifacts to be absent or reordered. Both bundles must still have the same contract and model identities, and the selected case kind, dtype, shape, and layout must match. A missing reference selector is an invalid request; a valid candidate missing the selected stage is a parity difference. A partial match establishes parity only for the selected artifact. Copying unimplemented outputs from the reference does not establish Rust inference parity.
+
+`compare-cls` selects every frozen CLS input, captured node, and probability
+tensor declared by a canonical CPU/NCHW reference. It compares that complete
+selection in reference order, validates every declared file on both sides,
+and reports partial classifier coverage with required line/artifact counts.
+It rejects a reference with no captured CLS inputs. A candidate cannot omit
+a required classifier artifact and still pass. Public preprocessing metadata,
+DET, REC, and complete OCR results remain outside this comparison scope.
+The batch traversal avoids repeatedly hashing the whole bundle for each node.
 
 Every declared model, artifact, and auxiliary file in both bundles is validated before a parity result is returned, including files outside the selected stage and extra candidate cases. An invalid file takes precedence over an earlier parity difference. Each declaration is streamed once per side; files declared by multiple entries are checked for each declaration. Numeric and byte payloads use 64 KiB buffers, without materializing whole tensors. The comparator retains the first parity difference in reference stage order and completes the remaining integrity checks. Float diagnostics cover all elements of the first differing tensor and preserve its global element indexes across stream blocks.
 
