@@ -21,6 +21,8 @@ internal static class Program
             if (args.Length > 0 && args[0] == "--benchmark-cls") return ClsTools.Benchmark(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-step12") return Step12Tools.Benchmark(args[1..]);
             if (args.Length > 0 && args[0] == "--benchmark-ocr") return OcrBenchmark.Run(args[1..]);
+            if (args.Length > 0 && args[0] == "--validate-ocr-public") return PublicBenchmarkValidation.Run(args[1..]);
+            if (args.Length == 1 && args[0] == "--verify-public-contracts") return PublicSemanticContractTests.Run();
             if (args.Length > 0 && args[0] == "--export-geometry") return GeometryFixtures.Export(args[1..]);
             if (args.Length > 0 && args[0] == "--export-rec-fixtures") return RecFixtures.Export(args[1..]);
             if (args.Length > 0 && args[0] == "--export-rec-ops") return RecFixtures.ExportOperators(args[1..]);
@@ -177,17 +179,7 @@ internal static class Program
                 VerifyRecognitionStructure(dense, compact, dimensions, $"{fixture.Id}/{stage}");
                 artifacts.Add(writer.WriteJson($"{stage}.rec.public", $"{directory}/{stage}/rec-public.json", RecognitionJson(compact)));
             }
-            artifacts.Add(writer.WriteJson("result.public", $"{directory}/result.json", new
-            {
-                result.DetectedCount, result.DetectorResizedWidth, result.DetectorResizedHeight, result.Text,
-                lines = result.Lines.Select(line => new
-                {
-                    box = BoxJson(line.Box), line.Text, line.RecognitionScore, line.ClassificationScore,
-                    line.ClassificationLabel, line.AppliedRotationDegrees, line.EmittedCount,
-                    line.RecognitionContentWidth, line.RecognitionTensorWidth, line.RecognitionTimeSteps,
-                    ctcSpans = line.CtcSpans
-                }).ToArray()
-            }));
+            artifacts.Add(writer.WriteJson("result.public", $"{directory}/result.json", PublicOcrJson(result)));
             cases.Add(new CaseEntry(fixture.Id, "ocr", artifacts));
             Console.WriteLine($"captured {fixture.Id}: {artifacts.Count} artifacts; traced {tracedLines}/{boxes.Length} lines");
         }
@@ -326,10 +318,22 @@ internal static class Program
         session.CompiledModel.GetTensor(session.CompiledModel.OutputIndex).IsNhwc ? "nhwc" :
         session.OutputShape.Rank == 4 ? "nchw" : "row_major";
 
-    private static object RecognitionJson(PaddleOcrRecognitionResult result) => new
+    internal static object RecognitionJson(PaddleOcrRecognitionResult result) => new
     {
         result.Text, result.Score, result.EmittedCount, result.ResizedWidth, result.TensorWidth,
         result.TimeSteps, result.CtcSpans
+    };
+
+    internal static object PublicOcrJson(PaddleOcrResult result) => new
+    {
+        result.DetectedCount, result.DetectorResizedWidth, result.DetectorResizedHeight, result.Text,
+        lines = result.Lines.Select(line => new
+        {
+            box = BoxJson(line.Box), line.Text, line.RecognitionScore, line.ClassificationScore,
+            line.ClassificationLabel, line.AppliedRotationDegrees, line.EmittedCount,
+            line.RecognitionContentWidth, line.RecognitionTensorWidth, line.RecognitionTimeSteps,
+            ctcSpans = line.CtcSpans
+        }).ToArray()
     };
 
     private readonly record struct RecognitionDimensions(int ContentWidth, int TensorWidth, int TimeSteps);

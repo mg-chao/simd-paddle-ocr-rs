@@ -64,7 +64,7 @@ internal static class OcrBenchmark
         }finally{foreach(var session in sessions)session.Dispose();ocr?.Dispose();det?.Dispose();cls?.Dispose();}
     }
 
-    private static void RequireProfile(string profile)
+    internal static void RequireProfile(string profile)
     {
         if(profile is not ("canonical" or "cpu"))throw new ArgumentException("Benchmark profile must be canonical or cpu");
         if(profile=="canonical")Step12Tools.RequireCanonical();
