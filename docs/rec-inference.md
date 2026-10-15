@@ -1,8 +1,12 @@
 # Tiny scalar recognition
 
 Tiny REC is implemented independently from frozen normalized tensors and from
-oriented crop pixels. Small/medium recognizers, SIMD, threading and GPU execution
-are separate milestones. Shared model import and DET/CLS contracts remain intact.
+oriented crop pixels. This document records the tiny recognition milestone and
+its API/numerical contracts. Small and medium recognition are also implemented;
+see [all-model inference](all-model-inference.md) and the
+[completed native/hosted validation](all-model-validation.md). Explicit SIMD,
+threading and GPU execution remain later milestones. Shared model import and
+DET/CLS contracts remain intact.
 
 ## Public recognition
 

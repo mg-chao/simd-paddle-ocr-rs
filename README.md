@@ -7,7 +7,13 @@ attention/shape contracts, memory limits and optional production-path profiling.
 [Native validation evidence](docs/all-model-validation.md) records frozen source
 and executable identities, expanded parity coverage, and actual remote CI runs.
 Required Windows/Linux CI acquires hash-pinned complete native fixtures from
-versioned releases and checks REC/OCR parity and warmed allocations for every family.
+versioned releases and checks named import, DET/CLS, public API, REC/OCR parity,
+corruption and warmed-allocation gates for every family. Actual cold/warm runs at
+`a121646` passed on both operating systems; the validation report retains their
+source and executable identities.
+[All-model performance](docs/all-model-performance.md) records the completed
+frozen-build C# comparisons and separate production-path profiling. These results
+retain their executed source snapshot when later documentation changes.
 
 The library and Rust commands require the pinned Rust 1.97.1 toolchain. Reference export and paired C# benchmarks additionally require the .NET 10 SDK, PowerShell 7, and Git. Keep the two repositories adjacent, or supply `-ReferenceRepo` to the exporter. The C# checkout includes this workspace's opt-in trace and model-inspection entry points.
 
@@ -33,9 +39,11 @@ goldens. The core accepts raw pixels; callers retain image-decoding responsibili
 
 [Step 1 recognition performance](docs/rec-performance.md) and
 [Step 2 complete tiny OCR performance](docs/tiny-ocr-performance.md) report
-separate graph/public/ownership scopes, six-process latency variation, warmed
-allocation and memory conditions, retained scalar tuning, and final native
-Windows/Linux correctness evidence.
+the earlier tiny milestone's separate graph/public/ownership scopes, six-process
+latency variation, warmed allocation and memory conditions, retained scalar
+tuning, and final native Windows/Linux correctness evidence. The all-model report
+above records the later tiny/small/medium comparison with frozen executables and
+recorded affinity.
 
 Generated JSON reports under `docs/` and `docs/measurements/` are local evidence
 and are ignored by Git. Report paths in the documentation refer to those local

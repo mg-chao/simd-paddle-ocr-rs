@@ -2,12 +2,14 @@
 
 The retained scalar kernel passed expanded native REC and full OCR parity
 for tiny, small and medium on Windows and a native Linux container. Both proofs
-pin the same Rust source snapshot. Its committed production code passed actual
-cold and warm hosted CI on both operating systems at `c1e92b2`. A later public API
-gate also passed all three families on native Windows and Linux. The retained
-scalar changes passed the complete public tuning screen. Official C# comparisons
-and remote CI for the additive public API/workflow/tooling checkpoint remain
-**pending**.
+pin the same Rust source snapshot. The final additive checkpoint
+`a121646c56b3884c3a2c924a465455fbdf3b4052` passed actual cold and warm hosted CI
+on both operating systems, including the all-family public API recovery gate.
+The retained scalar changes also passed the public tuning screen, the completed
+frozen-build official C# comparisons and separate production-path profiling.
+[All-model performance](all-model-performance.md) records the measured workload,
+results and limits. Later documentation commits retain these executed source
+identities; they are not additional measured or CI-executed snapshots.
 
 ## Frozen native proof identity
 
@@ -147,6 +149,52 @@ synthetic runner smokes are not accepted latency measurements.
 
 ## Proven remote CI
 
+The final additive checkpoint
+`a121646c56b3884c3a2c924a465455fbdf3b4052` passed the
+[cold-cache dispatch 38631775454](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38631775454)
+and [warm-cache dispatch 38634463279](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38634463279)
+on Windows and Linux. The archived logs prove **72 required named gate
+executions**, each reporting exactly one passed test: import, compact DET/CLS,
+three line-pipeline checks, all-family public API reuse/recovery, and each family's
+REC, full OCR and two corruption checks. Required names are listed with
+`--ignored --list` before exact execution; a missing name or lost ignore marker
+fails the gate. All 12 public-family completion markers are present.
+
+All **36 instrumented reports** cover three families and three modes
+(`rec_public_borrowed`, `ocr_borrowed`, `mixed_widths`) across both OS/runs, with
+three warmups and three samples. Every row records integer zero for
+`warm_allocation_count`, `warm_allocation_bytes`, `warm_retained_heap_bytes` and
+`warm_peak_heap_growth_bytes`. The public reports match the complete compact
+input/model/dictionary identities, and every mixed-width report contains exactly
+`32,64,96,160,224,320,480,576,992,32,992`. CI timings are smoke observations
+without latency thresholds.
+
+Both cold jobs skipped cache restoration. Both warm logs record actual verified
+cache hits for their OS-specific `reference-assets-Linux-` and
+`reference-assets-Windows-` keys ending in
+`1713d3abb3e1e788babff950fb07de87de9f54deeed93a92bf174625c6318473`.
+The archive retains the exact fixture index bytes, Git commit/tree metadata and
+92 source Git blob identities. The source tree is
+`b8da10084b58f87149ce68e1a878fa1c8f10fc3b`; the unchanged kernel SHA-256 is
+`19c70e511b7c22ae93578a844a4a472f7f4afcd89c76e590d13fba6ab2ca3359`.
+
+Each OS/run uses one instrumented executable across all nine reports. Independent
+Windows builds have distinct hashes; source equality does not imply byte-identical
+executables between those runs.
+
+| Hosted build | Instrumented executable SHA-256 |
+|---|---|
+| Cold and warm Linux | `58636996e5dd00ebc42935e08e4cfadd159e76eeb5c9922f0e392f499fff38d0` |
+| Cold Windows | `9eb267784fcd50e210e2484c790340fd904e8da7cf36065df5ef7d33a3a7e311` |
+| Warm Windows | `74962339fac402f93c83bb3342c2e100a57634ce7858b2c08bede049456ce004` |
+
+The separate [final additive CI archive](../../reference-archives/evidence/all-model-hosted-ci-final-additive-20261015-v1.zip)
+is **344,830 bytes**, SHA-256
+`bce37f05d0f61367e452878d66babde4d5014960b6fc3cbe2fe3a9249b2dbdca`.
+All 18 entries passed ZIP CRC and retained-file byte/SHA-256 readback verification.
+It preserves the raw metadata/log/artifact ZIPs, named-gate and allocation checks,
+source provenance and retention verifier, separately from the earlier checkpoints.
+
 The retained production code at
 `c1e92b2444a286c076c3f15cae0eb9ecd544e9be` passed the
 [cold-cache dispatch 38624701713](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38624701713)
@@ -165,7 +213,8 @@ is 283,795 bytes with SHA-256
 `c96e91df5c68c530e68094373bccd203d9c6d474942e22a8d02862e83cdf1521`.
 Its downloaded metadata/log/report identities and ZIP CRC passed readback
 verification. It certifies `c1e92b2`; it does not claim that the later test and
-workflow additions have already run remotely.
+workflow additions were present at that earlier checkpoint. Their actual remote
+execution is recorded separately above at `a121646`.
 
 The all-model baseline at commit
 `51840089891e30e67b622771e64e07f57c6c75af` passed the
@@ -268,8 +317,8 @@ and SHA-256 hashes are checked for supplied files, cold downloads and cache reus
 The additive workflow guards list only ignored tests before exact execution,
 including import, DET/CLS, line-pipeline, public API and REC/OCR corruption gates.
 Missing names or a lost ignore marker reject the gate. These guard additions
-await remote CI at their later commit. All-family allocation gates are configured
-in the Windows/Linux workflow.
+and all-family allocation gates actually passed in the cold/warm Windows/Linux
+runs at `a121646` above.
 
 Expanded original-page references remain separate immutable local archives:
 
@@ -319,11 +368,33 @@ allocation count, bytes, retained growth and peak growth. The larger vocabulary
 projection tile was rejected after its microbenchmark regressed. Existing batched
 MatMul tiling and contiguous QKV slicing were evaluated without further changes.
 
-## Pending final acceptance
+## Production profiling and completed acceptance
 
-The retained kernel has completed native Windows/Linux parity, Rust checks,
-public tuning selection and actual cold/warm kernel-specific hosted CI. The
-additional all-family public API gate and stable prepared-launcher tooling suite
-have passed locally on both native platforms. Official C# comparisons and remote
-CI for the additive test/workflow/tooling checkpoint remain **pending**. Earlier
-Rust, Python, baseline CI and WSL evidence retain their recorded source scopes.
+The separate [production-profile summary](../target/measurements/all-model-production-profile-final-v2/summary.json)
+passed all 12 family/case checks at `a121646`: each family's upright, rotated,
+blank and one-pixel cases, with three warmups and ten samples. The
+[completion barrier](../target/measurements/all-model-production-profile-final-v2/completion-barrier.json)
+records strict validation, no tracked changes and no remaining owned build or
+inference processes. The source inventory SHA-256 is
+`12e7ea543fbadab761eb449c521ae891ad2486f9e8adbf08d1e8d8a4ce82669d`;
+the separate profiling executable SHA-256 is
+`2fd999b89753aecafb9332c22a53322a3281f0b7f07b2b73d899407c2fdc2801`.
+The summary SHA-256 is
+`61866004459060e84c873207f0a904795f0b6d9d516ffb0b9f9ffc3f86bfc595`.
+These production-path stage observations include timer overhead and remain
+separate from uninstrumented official latency and allocator evidence. The
+[all-model performance report](all-model-performance.md) records their stage scope
+alongside the completed official process series.
+
+The planned complete hosted tiny gates, small/medium scalar REC/OCR, all-family
+public API recovery coverage, frozen-build comparisons and production-path
+profiling are complete for their recorded workloads. Expanded native parity,
+ordinary Rust tests, Python tooling and earlier CI/WSL runs retain their distinct
+source and executable identities. Documentation-only descendants do not claim
+new executions of those snapshots.
+
+These frozen compatibility corpora do not establish labeled OCR accuracy or
+performance on arbitrary documents. Native small recognition numerics extend to
+width 864; its synthetic width-992 coverage remains a Rust regression/allocation
+gate. The paired latency study is Windows-only, and explicit SIMD, threading,
+GPU execution and image decoding remain outside this milestone.
