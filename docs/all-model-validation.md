@@ -335,9 +335,11 @@ large candidate buffers are excluded from the small proof/log archives.
 
 The separate final native proof archives retain raw invocations/comparisons,
 the frozen executable, all 48 source files, all six candidate manifests and all
-three native manifests. Generated dense tensor payloads remain local; their
-descriptor byte counts and SHA-256 hashes remain in the archived candidate
-manifests. Native oracle payloads remain in the immutable expanded archives.
+three native manifests. Generated dense tensor payloads are excluded from these
+proof archives; their descriptor byte counts and SHA-256 hashes remain in the
+archived candidate manifests. The frozen source and executables allow regenerating
+candidate tensors after verified storage cleanup. Native oracle payloads remain
+in the immutable expanded archives.
 
 | Evidence archive | Bytes | SHA-256 |
 |---|---:|---|
