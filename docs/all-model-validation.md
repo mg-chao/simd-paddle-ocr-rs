@@ -8,8 +8,8 @@ on both operating systems, including the all-family public API recovery gate.
 The retained scalar changes also passed the public tuning screen, the completed
 frozen-build official C# comparisons and separate production-path profiling.
 [All-model performance](all-model-performance.md) records the measured workload,
-results and limits. Later documentation commits retain these executed source
-identities; they are not additional measured or CI-executed snapshots.
+results and limits. These archives certify their recorded source snapshots;
+later documentation commits do not alter those executed identities.
 
 ## Frozen native proof identity
 
