@@ -1,0 +1,24 @@
+# Rust build outputs
+/target/
+
+# Local captures and reports from the reference tooling
+/reference-bundles/
+/reference-archives/
+/docs/*.json
+/docs/measurements/
+/tests/fixtures/
+
+# Local outputs left by reference tools
+**/bin/
+**/obj/
+**/__pycache__/
+*.py[cod]
+/.venv/
+/.pytest_cache/
+
+# Operating-system and editor scratch files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
