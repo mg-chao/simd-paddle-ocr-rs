@@ -3,17 +3,20 @@
 This inventory compares active Windows x64 source with pinned C#
 `33ff8a81672452041d110e8ba52dcd2639e54228`.
 The active source is
-`7f341123f48d3d82ad22b970ac627d296b17d8ffda3a08fe9a6ca38f4149a077`.
-Its completed local core checks passed 279/272 all-target tests (264/257 library),
-six documentation tests per feature mode, Clippy both modes with warnings
-denied, 113 tooling contracts and the Debug example. The actual source/PE/PDB
-Debug audit passed with a conservative maximum of 1,997,512 bytes (compact
-projection 1,740,264), below the ordinary 2 MiB worker stack. **Release-library,
-all-model, variants, batching, unavailable-512, Release static and package gates for
-these exact bytes remain pending. Current performance is unmeasured.**
-The rejected 1397 candidate failed two column-shard bounds tests (261/263
-library passed); its failure evidence is retained separately. The corrected
-active source's core tests do not substitute for fresh integrated acceptance.
+`ba0cd3bb3a7b3ed71b3b6abb1c8ef213fc8fc2a73b374da484ad2fb8ea6ee589`
+(78 files). Its **24 focused NCHW tests pass**, including three new independent
+native cancellation/thread, Portable4/available-512 packet-store and simulated
+512-selection tests. **Attempt3 full core/Release-library, seven-model, variants,
+batching, unavailable-512, Debug/Release static and package gates are pending.**
+Current performance is unmeasured; capable-Windows AVX-512 remains user-deferred.
+
+Prior source `7f341...` failed the strict Auto two-thread trace at medium DET
+`Conv.121`, despite an exact final output. Its old Packed3 four-position FMA
+envelope disagreed with pinned C# scalar borders/tails. The corrected dedicated
+eight-output family uses complete spatial 4/8/16-lane packets on interior rows
+and separate scalar multiply/add elsewhere. The literal regression has actual
+RED and after-run GREEN evidence; the failure and its superseded passes remain
+historical. Earlier 1397 column-shard bounds failures are retained separately.
 
 Source `f7bc2ce6761f4521e9492468fe6c201b6a96e5526b5963250d878ee898c2242c`
 and `canonical-stores-20261016` evidence are **historical**: 267/261 all-target,
@@ -27,17 +30,18 @@ generic PackedPointwise retains coefficient-tail/helper/spill overhead, and
 general >25-tap Portable4 geometry retains its explicit fallback. Scoped
 proofs do not establish universal register-only loops or current-source gates.
 **Untagged retained full/variant/static passes in the inventory below refer to
-historical evidence, not qualification of the active 7f341 source.**
+historical evidence, not qualification of the active ba0cd3 source.**
 
 The last measured 54a1 source passed 36/72 performance targets (17/36 latency,
 19/36 throughput); prior a0bc passed 65/72. Neither qualifies current performance.
 All five authorized original-sample rounds are consumed. The append-only
 followup recorder exists, but the new human grant is pending and unrecorded;
 no further real-model timing, including phase-only diagnostics, is authorized.
-Actual AVX-512 execution remains explicitly user-deferred. Remote main protection
-was absent, rulesets empty and only the old Rust core workflow registered in
-the 2026-10-16 read-only receipts; the Windows workflow was unpublished.
-No source has complete hardware/performance acceptance.
+Actual AVX-512 execution remains explicitly user-deferred. The Windows workflow
+is published in draft PR #2. Its two named checks passed for head `10945d03...`;
+main protection now requires both from Actions app 15368 with strict/admin
+enforcement, independently verified by the actual policy receipt. Corrected-head
+CI must run again. No source has complete hardware/performance acceptance.
 
 All C# paths below are relative to `src/Sdcb.SimdPaddleOCR/`; Rust paths are
 relative to this crate. Large captures remain external/ignored, with producer
@@ -93,7 +97,7 @@ loads, gathers, boundary taps, and partial channels remain bounds checked.
 | OC-major pointwise: cout>=16, cout%16=0, plane<48; AVX-512 plus portable-vector fallback | Distinct `pointwise_oc_major` with8/4/1-position register reuse, bounded `[plane][16]` stack tile and planar transpose; **Present** | Plane47/48 selector tests and all available policies compare to an independent accumulation oracle. No full-model retained weight copy is needed. Real AVX-512 execution remains pending. |
 | Pointwise blocked/tiled NHWC working set while final output remains NCHW: AVX2+FMA, cin>=32, cout>=16/%16, plane>=32, per-sample work>=4M | `pointwise_working_set`, bounded128/64-position input panels, ascending32-coefficient reduction blocks; **Present** | Input conversion is reused across output blocks; partial reductions remain raw until final stores. Tests cover plane1024/8193, all K blocks, sample workers and indexed epilogues. Retained G3 passes; G4 remains required. |
 | Unpacked dense3x3: group1, unit stride/dilation, pad1, equal input/output spatial size | Const3x3 `spatial_kind`,16/8/4/1-output reuse; **Present** | Odd widths7/8/15/17/23, empty/nonempty bias, batches and tails match an independent per-tap oracle. |
-| Packed dense3x3: same geometry, cout%8=0; AVX-512 deliberate single-thread large-cout fallback | `packed_dense<3,3,1>`, output-channel vectors and four-position reuse; **Present** | Thread-aware selectors preserve the AVX-512-to-AVX2 fallback and Count4/16-channel worker fork. Shared panels and consumed-panel reporting use the same selector. Retained G3 passes; native AVX-512 and performance acceptance remain pending. |
+| Packed dense3x3: same geometry, cout%8=0; AVX-512 deliberate single-thread large-cout fallback | `packed_three_eight`, eight output chains sharing complete spatial packets; **Present** | Pinned Portable4/AVX/AVX-512 spatial widths are4/8/16. Only interior rows and complete packets use vector accumulation; scalar borders/tails preserve separate multiply/add. Thread-aware selectors retain the AVX-512-to-AVX2 paired16 fallback and Portable4 cout16/threads>2 Dense3 fork. Three independent new regressions and24 focused NCHW tests pass; fresh attempt3 integrated/static gates remain pending. |
 | Native paired packed 3x3: group1, dilation1, stride1, pad1, same spatial size, packed cout%8 prerequisite | `nchw.rs::packed_three_pair16`, reported `nchw_packed_3x3_pair16`; **Present** | Selects native policies only, threads==1, cout>=64 and cout%16==0. Portable4 never selects it; cout16 with threads>2 retains Dense3. Sixteen bias-first output chains share safe eight-spatial loads, preserving ci/ky/kx order; edges/tails remain scalar. AVX-512 deliberately uses the selected AVX2/FMA body. `nchw/audit_pair16.rs` tests 56/64/72/80 channels, 1/2/4 threads, short shapes, batches, guards and global epilogue indices. Fresh integrated/static/performance acceptance remains pending. |
 | General dense stride1: group1, dilation1, K<=2^20, plain AVX horizontal interior>=8 | Dynamic-tap `spatial`,8/4/1-output reuse with safe narrow fallback; **Present** | Source-eligible AVX2/FMA cout%8<=64 projections split disjoint row bands to retain eight output accumulators. Independent row-band and global-index epilogue tests are bit exact. |
 | Packed dense stride1: AVX2+FMA, cin>=16, cout%8=0,5x5/7x7, interior>=4, nonempty vertical interior, work>=4M | Shared-panel `packed_dense`, shape/work/worker gates; **Present** | Selector tests exercise minimum work, channel and worker limits; independent numerical tests cover boundaries and coefficient order. AVX-512 uses the reference AVX2 body. |
@@ -191,10 +195,11 @@ Excluded reference code:
 
 1. Preserve source-family selectors, independent ordered arithmetic tests,
    indexed-store ownership and explicit fallback reporting.
-2. Preserve current core, Release-library, 447 all-model, nine batching,
+2. Complete current-source core, Release-library, 447 all-model, nine batching,
    unavailable-512 rejection, 1341 variants and Debug/scoped Release proofs.
-   Package qualification is determined by
-   `target/core-validation-canonical-stores-20261016/package-report.json`:
+   Package qualification is determined only by the actual current-source
+   `target/core-validation-active-coverage-attempt3-20261016/package-report.json`
+   after it exists:
    it must bind the observed successful Cargo command, exact current source,
    shipped-member hashes and crate SHA. Missing, mismatched or historical reports
    do not qualify these bytes. Historical 54a1 evidence stays bound to its producer.

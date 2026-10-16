@@ -1,26 +1,31 @@
 # Windows x64 CPU rewrite progress
 
 The active frozen Rust source is
-`7f341123f48d3d82ad22b970ac627d296b17d8ffda3a08fe9a6ca38f4149a077`,
-against C# `33ff8a81672452041d110e8ba52dcd2639e54228` and
-`nightly-2026-09-08` on Windows x64. Its completed local core checks passed
-**279/272 all-target tests** (264/257 library), **six documentation tests in
-each feature mode**, Clippy with warnings denied in both modes, **113 tooling
-contracts**, and the Debug example. Its source/PE/PDB-bound Debug stack audit
-also passed: the conservative maximum is **1,997,512 bytes** (compact projection
-1,740,264), below the ordinary 2 MiB worker stack. Release-library, fresh all-model parity,
-forced-policy variants, real batching, unavailable-AVX-512 rejection, scoped
-Release static audits and packaging for these exact bytes are **pending**. Their
-completion must be established by actual logs and source/producer-bound reports.
-Core tests alone do not qualify this source for all-model or release acceptance.
+`ba0cd3bb3a7b3ed71b3b6abb1c8ef213fc8fc2a73b374da484ad2fb8ea6ee589`
+(78 files), against C# `33ff8a81672452041d110e8ba52dcd2639e54228` and
+`nightly-2026-09-08` on Windows x64. **24 focused NCHW tests pass**, including
+three new independent tests for native packed3 cancellation/thread invariance,
+Portable4/available-AVX-512 store packets, and simulated AVX-512 selection.
+Full core and Release-library checks, seven-model parity, policy/thread variants,
+real batching, unavailable-AVX-512 rejection, Debug/Release static audits and
+packaging for these exact bytes are **pending in attempt3**. Focused tests do
+not substitute for those source/producer-bound gates.
 
-This source adds a native single-thread paired 16-output 3x3 convolution family
-for output counts >=64 and divisible by 16. Portable4 compact projection now
-uses zero-initialized full 16-column reductions followed by bias, with scalar
-remainder columns preserving bias-first separate multiply/add. A rejected
-intermediate candidate (`1397` evidence) passed 261/263 library tests but failed
-two column-shard bounds regressions. Its failed logs and producers remain
-retained; the active core gate includes the corrected full-tile bounds.
+The prior `7f341...` attempt2 passed one-thread seven-model correctness, but
+failed the exact Auto two-thread logical trace at medium DET `Conv.121`:
+1,600 of 4,096 intermediate values differed, while the final tensor was exact.
+Its old Packed3 path used four-position FMA on rows and tails where pinned C#
+uses scalar separate multiply/add. The corrected eight-output family now uses
+complete interior spatial packets of 4/8/16 lanes for Portable4/AVX/AVX-512,
+with scalar borders and remainders. The paired16 family retains spatial octets.
+The independent cancellation regression failed before this correction and passed
+afterwards; RED and after-run GREEN captures remain explicitly distinguished.
+No tolerance or thread-equality requirement changed.
+
+Earlier Portable4 compact projection and column-shard fixes remain present:
+complete packed 16-column reductions start at zero then add bias, scalar
+remainders stay bias-first, and column shards own only complete tiles plus one
+last scalar tail. Failed 1397 bounds evidence remains historical and retained.
 
 M5 phase instrumentation now separates Rust `reshape_ns` work from binding.
 The maintained C# exporter has ten passing model-free phase contracts and a
@@ -31,9 +36,9 @@ phase or performance measurement**. Historical unmeasured fields remain null.
 
 | Milestone | Implemented / observed | Remaining acceptance |
 | --- | --- | --- |
-| M1 reproducible validation | Pinned seven-model harness, independent pixel/arithmetic oracles, import/logical/public/complete OCR comparisons, first-divergence reports, missing-evidence failures and Windows workflow published in [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2) | Finish exact-source all-model gates and pass both named Windows checks, then require them on main. The readiness observation found no classic protection and empty rulesets; applied protection remains pending. |
+| M1 reproducible validation | Pinned seven-model harness and [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2); both named Windows checks passed for published head `10945d03...`. Main now requires both exact checks from Actions app 15368, with strict and administrator enforcement verified. | Re-run CI for the corrected PR head and finish attempt3 exact-source local gates. Earlier CI success does not qualify changed source. |
 | M2 CPU APIs | Character boxes, borrowed/owned results, model sets/builder/shared context, classifier limits, packed text/hash helpers and recognition batching | Preserve behavior under fresh integrated and batching validation for the active source. |
-| M3 optimization families | Specialized source families, observable selection, fused stores, bounded reusable storage, focused independent regressions and the actual Debug stack audit | Finish active-source integrated and scoped Release static gates. Historical PackedStride2 and generic PackedPointwise audits retain overhead; general >25-tap Portable4 geometry retains its explicit fallback. No universal register-only or performance claim. |
+| M3 optimization families | Specialized source families, observable selection, fused stores, bounded reusable storage and independent focused regressions | Finish active-source integrated and Debug/Release static gates. Historical PackedStride2 and generic PackedPointwise audits retain overhead; general >25-tap Portable4 geometry retains its explicit fallback. No universal register-only or performance claim. |
 | M4 ISA dispatch | Scalar, Portable4, AVX, AVX/FMA, AVX2/FMA and compiled AVX-512 paths | Finish available-policy checks for this source. Actual capable-Windows AVX-512 execution remains explicitly user-deferred. Compilation does not qualify hardware execution. |
 | M5 performance / release | Phase accounting and license/package tooling implemented | Current-source performance and packaging remain unqualified. Complete latency/throughput targets, actual phase evidence, hardware validation and exact-source packaging are still required. |
 
@@ -68,5 +73,6 @@ historical results. The waiting automation is paused.
 
 Large evidence remains ignored or external. The existing archive at
 `D:/simd-paddle-ocr-workspace/cpu-rewrite-evidence-20261015` retains historical
-proofs. A new attempt2 archive must bind its own actual source, producers, logs,
-reports and manifest; it must not promote earlier evidence to current acceptance.
+proofs. A new attempt3 archive must bind its own actual source, producers, logs,
+reports and manifest. Failed attempt2 evidence remains separate; earlier passes do
+not qualify the corrected source.

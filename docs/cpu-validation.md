@@ -368,13 +368,25 @@ ten model-free phase contracts, and retains evidence on success or failure.
 Missing assets or outputs fail. Push and PR runs for the same repository/head
 share a concurrency group; distinct fork repositories remain separate.
 
-Read-only GitHub receipts on 2026-10-16 found no classic protection on main or
-the existing feature branch, empty repository rulesets, and only the legacy
-`Rust core` workflow registered. The new Windows workflow was unpublished at
-that observation. Local YAML does not make checks required. After publishing
-and observing both exact named checks pass for the reviewed PR, an administrator
-must require those checks on main and verify the applied policy. Remote status
-must be established by fresh actual receipts, not prepared payloads.
+The workflow is published in [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2).
+Actual PR run [38829351626](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38829351626)
+passed both exact named checks for head `10945d03...`, including 201 quick
+comparisons, nine batching comparisons, ten model-free phase contracts and 113
+tooling contracts. Main protection was applied and independently fetched again:
+both checks are required from GitHub Actions app 15368, with strict and
+administrator enforcement. The actual local receipt is
+`target/cpu-ci-actual-20261016/required-ci-policy-complete.json`
+(SHA-256 `9e666f926cef2ff1c85fae817db46c1c84def70e713d0aab1507ca10f5a3e466`).
+The initial policy422/GET404 responses and earlier CI argv failure remain
+historical evidence. No merge or hardware/performance acceptance is implied.
+
+The corrected active source `ba0cd3bb...` must pass a new CI run and the local
+attempt3 gates. Prior `7f341...` failed exact Auto2 logical-node equality at
+medium DET `Conv.121`, despite an exact final tensor; the dedicated Packed3
+spatial-packet correction and three new independent tests now pass 24 focused
+NCHW tests. Full core/model/variant/static/package qualification remains pending.
+The source receipt binds local working bytes separately from reviewed Git
+newline normalization; it does not assert equal raw checkout hashes on CI.
 
 Manual `workflow_dispatch` with `full=true` selects the full pre-release corpus;
 GitHub requires that workflow file on the default branch before manual dispatch

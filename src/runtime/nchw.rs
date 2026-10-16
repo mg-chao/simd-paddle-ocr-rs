@@ -1152,7 +1152,7 @@ fn run_core<const N: usize, const FMA: bool>(
             count,
             store,
         ),
-        Kind::Packed3 => packed_dense::<N, FMA, 3, 3, 1>(
+        Kind::Packed3 => packed_three_eight::<N, FMA>(
             p,
             input,
             weights,
@@ -1639,6 +1639,124 @@ fn packed_dense<
                     out[(co + lane - first) * plane + y * p.output_width + x] = store.scalar(
                         edge(p, input, weights, bias, batch, co + lane, y, x),
                         (batch * p.output_channels + co + lane) * plane + y * p.output_width + x,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Pinned eight-output packed 3x3 family with full spatial-vector packets.
+/// Packet width follows the guarded ISA; all image borders and packet tails
+/// retain separate multiply/add, including FMA-capable policies.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn packed_three_eight<const N: usize, const FMA: bool>(
+    p: &Conv2d,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    out: &mut [f32],
+    batch: usize,
+    first: usize,
+    count: usize,
+    store: &impl simd::StoreTransform,
+) {
+    // Public binding validated full lengths and group-one 3x3 same geometry.
+    // Every exclusive channel band contains complete source OC8 panels.
+    assert!(first.is_multiple_of(8) && count.is_multiple_of(8));
+    let plane = p.height * p.width;
+    let inner = p.input_channels * 9;
+    for co in (first..first + count).step_by(8) {
+        for y in 0..p.height {
+            let mut x = 0;
+            if y > 0 && y + 1 < p.height {
+                for lane in 0..8 {
+                    out[(co + lane - first) * plane + y * p.width] = store.scalar(
+                        edge(p, input, weights, bias, batch, co + lane, y, 0),
+                        (batch * p.output_channels + co + lane) * plane + y * p.width,
+                    );
+                }
+                x = 1;
+                while x + N < p.width {
+                    let mut s0 = Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co] });
+                    let mut s1 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 1] });
+                    let mut s2 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 2] });
+                    let mut s3 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 3] });
+                    let mut s4 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 4] });
+                    let mut s5 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 5] });
+                    let mut s6 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 6] });
+                    let mut s7 =
+                        Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 7] });
+                    for ci in 0..p.input_channels {
+                        for ky in 0..3 {
+                            let row = ((batch * p.input_channels + ci) * p.height + y + ky - 1)
+                                * p.width
+                                + x
+                                - 1;
+                            for kx in 0..3 {
+                                // x>0 && x+N<width proves complete source rows
+                                // for all N input lanes and each kx0..2.
+                                let value = Simd::<f32, N>::from_slice(&input[row + kx..][..N]);
+                                // One immutable16 panel holds adjacent source OC8
+                                // groups; select its lower or upper eight channels.
+                                let k = (ci * 3 + ky) * 3 + kx;
+                                let at = ((co / 16) * inner + k) * 16 + co % 16;
+                                let w = &packed.data()[at..at + 8];
+                                s0 = madd::<N, FMA>(value, Simd::splat(w[0]), s0);
+                                s1 = madd::<N, FMA>(value, Simd::splat(w[1]), s1);
+                                s2 = madd::<N, FMA>(value, Simd::splat(w[2]), s2);
+                                s3 = madd::<N, FMA>(value, Simd::splat(w[3]), s3);
+                                s4 = madd::<N, FMA>(value, Simd::splat(w[4]), s4);
+                                s5 = madd::<N, FMA>(value, Simd::splat(w[5]), s5);
+                                s6 = madd::<N, FMA>(value, Simd::splat(w[6]), s6);
+                                s7 = madd::<N, FMA>(value, Simd::splat(w[7]), s7);
+                            }
+                        }
+                    }
+                    let local = (co - first) * plane + y * p.width + x;
+                    let global = (batch * p.output_channels + co) * plane + y * p.width + x;
+                    store
+                        .vector(s0, global)
+                        .copy_to_slice(&mut out[local..][..N]);
+                    store
+                        .vector(s1, global + plane)
+                        .copy_to_slice(&mut out[local + plane..][..N]);
+                    store
+                        .vector(s2, global + 2 * plane)
+                        .copy_to_slice(&mut out[local + 2 * plane..][..N]);
+                    store
+                        .vector(s3, global + 3 * plane)
+                        .copy_to_slice(&mut out[local + 3 * plane..][..N]);
+                    store
+                        .vector(s4, global + 4 * plane)
+                        .copy_to_slice(&mut out[local + 4 * plane..][..N]);
+                    store
+                        .vector(s5, global + 5 * plane)
+                        .copy_to_slice(&mut out[local + 5 * plane..][..N]);
+                    store
+                        .vector(s6, global + 6 * plane)
+                        .copy_to_slice(&mut out[local + 6 * plane..][..N]);
+                    store
+                        .vector(s7, global + 7 * plane)
+                        .copy_to_slice(&mut out[local + 7 * plane..][..N]);
+                    x += N;
+                }
+            }
+            // Top/bottom rows and the right scalar tail deliberately use
+            // separate multiply/add through the independent source-order edge.
+            for x in x..p.width {
+                for lane in 0..8 {
+                    out[(co + lane - first) * plane + y * p.width + x] = store.scalar(
+                        edge(p, input, weights, bias, batch, co + lane, y, x),
+                        (batch * p.output_channels + co + lane) * plane + y * p.width + x,
                     );
                 }
             }

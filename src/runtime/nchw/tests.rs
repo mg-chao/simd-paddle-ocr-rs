@@ -3,6 +3,12 @@ use super::*;
 #[path = "audit_pair16.rs"]
 mod audit_pair16;
 
+#[path = "audit_packed3_envelope.rs"]
+mod audit_packed3_envelope;
+
+#[path = "audit_packed3_packets.rs"]
+mod audit_packed3_packets;
+
 /// Separate callback counters expose loss of vector epilogues even when both
 /// callback implementations produce numerically identical results.
 struct PacketVisits {
@@ -81,7 +87,7 @@ impl simd::StoreTransform for PacketVisits {
 
 /// Delta weights make every expected output a direct input lookup, independent
 /// of both convolution reduction and StoreTransform implementations.
-fn packed_packet_case(p: Conv2d, kind: Kind, vector_spatial: impl Fn(usize) -> bool + Copy) {
+fn packed_packet_case(p: Conv2d, kind: Kind, vector_spatial: impl Fn(usize, usize) -> bool + Copy) {
     let plane = p.output_height * p.output_width;
     let input: Vec<_> = (0..p.batch * p.input_channels * p.height * p.width)
         .map(|index| (index % 127 + 1) as f32 / 64.)
@@ -193,14 +199,14 @@ fn packed_packet_case(p: Conv2d, kind: Kind, vector_spatial: impl Fn(usize) -> b
                 if plane == 1 {
                     index % p.output_channels < p.output_channels / lanes * lanes
                 } else {
-                    vector_spatial(index % plane)
+                    vector_spatial(lanes, index % plane)
                 }
             });
             band_store.assert_coverage(|index| {
                 if plane == 1 {
                     index - begin < count / lanes * lanes
                 } else {
-                    vector_spatial(index % plane)
+                    vector_spatial(lanes, index % plane)
                 }
             });
         }
@@ -209,19 +215,22 @@ fn packed_packet_case(p: Conv2d, kind: Kind, vector_spatial: impl Fn(usize) -> b
 
 #[test]
 fn packed_epilogues_deliver_spatial_packets_for_three_by_three() {
-    for width in [9, 10] {
+    for width in [1, 5, 6, 8, 9, 10, 17, 18, 33, 34] {
         let p = parameters(4, 24, 3, width, [3, 3], [1, 1], [1, 1], 1);
-        let end = if width == 9 { 5 } else { 9 };
-        // Fixed geometry: one scalar left border, then maximal full quartets.
-        packed_packet_case(p, Kind::Packed3, |spatial| {
-            (1..end).contains(&(spatial % width))
+        // Pinned Vector/AVX/AVX512 loops start at x0, use one scalar
+        // left border, then complete spatial packets only on interior rows.
+        packed_packet_case(p, Kind::Packed3, |lanes, spatial| {
+            let y = spatial / width;
+            let x = spatial % width;
+            let end = 1 + width.saturating_sub(2) / lanes * lanes;
+            y > 0 && y + 1 < 3 && x > 0 && x < end
         });
     }
 }
 #[test]
 fn packed_epilogues_deliver_spatial_packets_for_stride_two() {
     let p = parameters(4, 24, 5, 17, [3, 3], [2, 2], [1, 1], 1);
-    packed_packet_case(p, Kind::PackedStride2, |spatial| {
+    packed_packet_case(p, Kind::PackedStride2, |_, spatial| {
         (1..5).contains(&(spatial % 9))
     });
 }
@@ -229,14 +238,16 @@ fn packed_epilogues_deliver_spatial_packets_for_stride_two() {
 fn packed_epilogues_deliver_spatial_packets_for_pointwise() {
     for width in [49, 51, 53] {
         let p = parameters(4, 24, 1, width, [1, 1], [1, 1], [0, 0], 1);
-        packed_packet_case(p, Kind::PointwisePacked, |spatial| spatial < width / 4 * 4);
+        packed_packet_case(p, Kind::PointwisePacked, |_, spatial| {
+            spatial < width / 4 * 4
+        });
     }
 }
 #[test]
 fn packed_epilogues_deliver_oc_major_packets_and_single_pixel_channels() {
     for width in [1, 7, 47] {
         let p = parameters(4, 32, 1, width, [1, 1], [1, 1], [0, 0], 1);
-        packed_packet_case(p, Kind::PointwiseOcMajor, |spatial| {
+        packed_packet_case(p, Kind::PointwiseOcMajor, |_, spatial| {
             width == 1 || spatial < width / 4 * 4
         });
     }
@@ -246,7 +257,7 @@ fn packed_epilogues_deliver_oc_major_packets_and_single_pixel_channels() {
 fn packed_epilogues_deliver_single_pixel_pointwise_panels_and_channel_tails() {
     for channels in [8, 12, 20] {
         let p = parameters(4, channels, 1, 1, [1, 1], [1, 1], [0, 0], 1);
-        packed_packet_case(p, Kind::PointwisePacked, |_| true);
+        packed_packet_case(p, Kind::PointwisePacked, |_, _| true);
     }
 }
 
@@ -325,10 +336,7 @@ fn reference(
         Backend::AvxFma | Backend::Avx2Fma | Backend::Avx512
     );
     let valid = interior(p);
-    let vector_width = if matches!(
-        kind,
-        Kind::Packed3 | Kind::PackedStride2 | Kind::PackedDense
-    ) {
+    let vector_width = if matches!(kind, Kind::PackedStride2 | Kind::PackedDense) {
         4
     } else if kind == Kind::PackedDepth9 {
         1
@@ -344,7 +352,8 @@ fn reference(
             for y in 0..p.output_height {
                 for x in 0..p.output_width {
                     let do_fma = fused
-                        && (kind != Kind::Packed3Pair16 || y > 0 && y + 1 < p.height)
+                        && (!matches!(kind, Kind::Packed3 | Kind::Packed3Pair16)
+                            || y > 0 && y + 1 < p.height)
                         && (matches!(
                             kind,
                             Kind::PointwiseOcMajor
