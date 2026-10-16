@@ -1,10 +1,12 @@
 use super::*;
 
 mod packed3_band_plan;
+mod packed3_border;
 mod packed3_envelope;
 mod packed3_packets;
 mod packed3_recursive_order;
 mod pair16;
+mod pointwise_spatial;
 mod stride2_band_plan;
 mod stride2_contract;
 

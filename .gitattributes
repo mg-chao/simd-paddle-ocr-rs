@@ -3,3 +3,5 @@
 /tests/baseline/*.json text eol=lf
 /tests/baseline/expected/*.json text eol=lf
 /tests/baseline/corpus/* binary
+# Preserve the upstream license bytes and recorded provenance checksums.
+/licenses/*.txt text eol=lf

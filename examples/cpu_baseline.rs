@@ -1,6 +1,8 @@
 //! See docs/cpu-baseline.md. All dependencies beyond the library are dev-only.
 #[path = "../tools/baseline/mod.rs"]
 mod baseline;
+#[path = "../tools/harness/mod.rs"]
+mod harness;
 use baseline::*;
 use simd_paddle_ocr_rs::{
     OcrModelSet,
@@ -53,15 +55,7 @@ fn run() -> Result<()> {
     if !cfg!(feature = "parallel") || cfg!(feature = "profiling") {
         return Err("baseline requires the default Cargo features".into());
     }
-    for name in [
-        "RUSTFLAGS",
-        "CARGO_ENCODED_RUSTFLAGS",
-        "CARGO_BUILD_RUSTFLAGS",
-    ] {
-        if std::env::var_os(name).is_some_and(|s| !s.is_empty()) {
-            return Err(format!("unset {name}: baseline requires a standard release build").into());
-        }
-    }
+    harness::check_standard_environment()?;
     let mut reference = root.join("../SimdPaddleOCR");
     let mut models = None;
     let mut rust_only = false;
@@ -300,14 +294,17 @@ fn execute(
     start: Instant,
 ) -> Result<()> {
     let adapter = root.join("tools/csharp-reference");
-    if !rust_only {
-        let mut command = Command::new("dotnet");
-        command
-            .current_dir(&adapter)
-            .args(["build", "Reference.csproj", "-c", "Release", "--nologo"])
-            .arg(format!("-p:SimdPaddleOcrRoot={}", reference.display()));
-        run_build(&mut command, &directory.join("csharp-build.log"), start)?;
-    }
+    let reference_dll = if rust_only {
+        None
+    } else {
+        Some(harness::build_csharp(
+            root,
+            reference,
+            &adapter.join("Reference.csproj"),
+            directory,
+            remaining(start)?,
+        )?)
+    };
     let mut failures = Vec::new();
     for (model_index, model) in manifest.models.iter().enumerate() {
         let mut rust = if mode == "verify" {
@@ -328,7 +325,7 @@ fn execute(
             let mut command = Command::new("dotnet");
             command
                 .current_dir(&adapter)
-                .arg(adapter.join("bin/Release/net10.0/Reference.dll"))
+                .arg(reference_dll.as_ref().ok_or("C# adapter was not built")?)
                 .arg(manifest_path)
                 .arg(models)
                 .arg(&model.id)
@@ -499,25 +496,6 @@ fn remaining(start: Instant) -> Result<Duration> {
         .checked_sub(start.elapsed())
         .filter(|d| !d.is_zero())
         .ok_or_else(|| "30-minute suite deadline exceeded".into())
-}
-fn run_build(command: &mut Command, log: &Path, start: Instant) -> Result<()> {
-    let file = fs::File::create(log)?;
-    let mut child = command.stdout(file.try_clone()?).stderr(file).spawn()?;
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return if status.success() {
-                Ok(())
-            } else {
-                Err(format!("C# build failed; see {}", log.display()).into())
-            };
-        }
-        if remaining(start).is_err() {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err("suite deadline exceeded during C# build".into());
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
 }
 fn rust_worker(manifest_path: &Path, models: &Path, model_id: &str) -> Result<()> {
     let manifest: Manifest = read_json(manifest_path)?;

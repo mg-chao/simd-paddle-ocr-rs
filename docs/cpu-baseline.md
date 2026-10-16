@@ -37,6 +37,9 @@ golden JSON checkout line endings are fixed to LF by `.gitattributes`.
 Keep custom `RUSTFLAGS`,
 `CARGO_ENCODED_RUSTFLAGS` and `CARGO_BUILD_RUSTFLAGS` unset. No `target-cpu=native`,
 custom profile, feature override, or forced instruction set is required.
+Validation tools also reject inherited `PPOCR_*`, `SIMD_OCR_*` and CLR
+instruction-set/profiling/layout overrides so they cannot silently change the
+claimed automatic execution configuration. Stage budgets are set by each tool.
 
 For **offline Rust-only verification**, no .NET SDK or C# source tree is needed:
 
@@ -86,6 +89,10 @@ Each case has a 120-second deadline, including first-case model setup. The
 suite has a 30-minute deadline, including the C# adapter build. Timeout,
 malformed output, worker failure, incomplete coverage, or any difference
 produces a nonzero exit code. Child workers are terminated and reaped on error.
+Each invocation builds the adapter and all referenced C# projects into its own
+`target/baseline/<run>/csharp-artifacts` directory and launches that adapter's
+DLL. Concurrent verification does not rebuild another run's loaded assembly.
+Build timeouts also terminate the build process tree.
 
 ## Corpus restoration and baseline maintenance
 

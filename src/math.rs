@@ -1,7 +1,7 @@
 //! Portable scalar exponential matching the native Windows F32 primitive.
 //!
 //! Adapted from AMD win-libm expf.asm (MIT, copyright 2002–2019 AMD).
-//! https://github.com/amd/win-libm/blob/master/expf.asm
+//! <https://github.com/amd/win-libm/blob/master/expf.asm>
 //! Native scalar expf internally uses a double table and cubic with FMA.
 //! Keeping that primitive's operation order avoids host-libm rounding drift;
 //! every argument and graph/public-head operation around it remains F32.

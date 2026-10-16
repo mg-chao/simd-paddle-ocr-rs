@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "implementation_version": "final kernels: allocator placement, spatial packed 1x1, isolated packed 3x3 reductions, grouped packed 3x3 borders, dense 49-tap descriptors",
+  "archived_at_utc": "2026-10-16T12:59:48.146348+00:00",
+  "status": "passed",
+  "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "validation": "physical Windows x64; concurrent correctness suites; no performance inference from elapsed times",
+  "version": {
+    "implementation_version": "final kernels: allocator placement, spatial packed 1x1, isolated packed 3x3 reductions, grouped packed 3x3 borders, dense 49-tap descriptors",
+    "qualification_source_sha256_start": "9be9d4f38dc56e0f220e735ba0bc067f00df10c08941b270482151e1aa0d2b4f",
+    "qualification_source_sha256_end": "9be9d4f38dc56e0f220e735ba0bc067f00df10c08941b270482151e1aa0d2b4f",
+    "source_hash_paths": [
+      "src",
+      "tools/baseline",
+      "tools/harness",
+      "tools/qualification",
+      "tools/csharp-qualification",
+      "examples/cpu_qualify.rs",
+      "Cargo.toml",
+      "Cargo.lock",
+      "rust-toolchain.toml",
+      ".cargo",
+      "build.rs"
+    ],
+    "executable_sha256_before": {
+      "target/release/examples/cpu_baseline.exe": "c0c915ed1ed2ccb2d2edbb6c6621802f33997a0f6a16f1bd59b3eea6333511d4",
+      "target/release/examples/cpu_qualify.exe": "71db34aea5b209fdf6330c05134934bf41af1e4568f6cb96974e2faf080224e3"
+    },
+    "executable_sha256_after": {
+      "target/release/examples/cpu_baseline.exe": "c0c915ed1ed2ccb2d2edbb6c6621802f33997a0f6a16f1bd59b3eea6333511d4",
+      "target/release/examples/cpu_qualify.exe": "71db34aea5b209fdf6330c05134934bf41af1e4568f6cb96974e2faf080224e3"
+    },
+    "core_files_sha256": {
+      "src/runtime/optimized.rs": "bd0cb76ee0e1d87c7db6a8c323fc588f8a4b7eda2cb348bef4f165fece2d83ac",
+      "src/runtime/nchw.rs": "954b7e569d5fed8658db50ee410f8e802352e14056329790cd54e16c3c041427",
+      "src/runtime/nchw/stride2.rs": "64033c2c23c57ccc1fdc2f314a31d886ecc8c03d0ea7aeed9d2c948b0d525ad5",
+      "src/runtime/nchw/reduce3.rs": "a89f0a790a05b309cd7e596d853aa075f57e2dbce1d15d7958f958c9f2aadc15",
+      "src/runtime/nhwc/dense/interior.rs": "643837b95341af31e0649174fd3885e413ed313dc22ebad5043be975626c0ad4",
+      "examples/cpu_baseline.rs": "d068a6bafba0799423b82190b87500b442ea05c14c26075464316dc722a57f7b",
+      "examples/cpu_qualify.rs": "2dae16b5ba5406265c619be64c86b2385d2635c5bef5fcc45fd3d8d51e63905e"
+    }
+  },
+  "suites": [
+    {
+      "suite": "canonical",
+      "source_artifact_directory": "target/baseline/1792155195977-verify-103952",
+      "process_exit_code": 0,
+      "status": "passed",
+      "case_count": 66,
+      "response_counts": {
+        "rust": 66,
+        "csharp": 66
+      },
+      "expected_rejection_response_counts": {
+        "rust": 0,
+        "csharp": 0
+      },
+      "difference_count": 0,
+      "source_run_sha256": "226edfe51739992ef9f8511f563ff29d321320059eea8ffec9aa29d7b9e182a9",
+      "source_differences_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "raw_response_file_count": 132,
+      "raw_response_tree_sha256": "eaad1e08099094ebd7e99ee934b40ce2a6a2607ab536d4e6985d2922a9c677df",
+      "elapsed_seconds": 327.275,
+      "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+      "build": "standard release; default features; automatic SIMD; no custom RUSTFLAGS"
+    },
+    {
+      "suite": "configuration",
+      "source_artifact_directory": "target/qualification/1792155195893-60080",
+      "process_exit_code": 0,
+      "status": "passed",
+      "case_count": 213,
+      "response_counts": {
+        "rust": 213,
+        "csharp": 213
+      },
+      "expected_rejection_response_counts": {
+        "rust": 6,
+        "csharp": 6
+      },
+      "difference_count": 0,
+      "source_run_sha256": "3b1f0cf1c125dd106dc79a22432a5fe46a687b422f314e23c9bbb13b4120994f",
+      "source_differences_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "raw_response_file_count": 96,
+      "raw_response_tree_sha256": "b5e4f3fa5d134dc162517b592531ca1125c68477f9782b587d95cf8eb9cf5c24",
+      "elapsed_seconds": 289.9324541,
+      "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+      "build": "standard release; default features; automatic SIMD/layout; fusion enabled",
+      "alignment_capture": {
+        "rust": {
+          "response_count": 18,
+          "span_count": 2909,
+          "character_box_count": 2909
+        },
+        "csharp": {
+          "response_count": 18,
+          "span_count": 2909,
+          "character_box_count": 2909
+        }
+      },
+      "coverage": "full",
+      "completed_cases": 213,
+      "profile_count": 16,
+      "profiles": [
+        {
+          "id": "default-parallel",
+          "fixtures_per_model": 22
+        },
+        {
+          "id": "serial",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "workers-2",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "workers-4",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "batch-2",
+          "fixtures_per_model": 2
+        },
+        {
+          "id": "batch-4",
+          "fixtures_per_model": 2
+        },
+        {
+          "id": "alignment",
+          "fixtures_per_model": 6
+        },
+        {
+          "id": "rgb-padded",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "bgra-padded",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "rgba-padded",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "cls-off",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "fixed-width",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "default-thresholds",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "dilation",
+          "fixtures_per_model": 3
+        },
+        {
+          "id": "reuse",
+          "fixtures_per_model": 4
+        },
+        {
+          "id": "recovery",
+          "fixtures_per_model": 5
+        }
+      ],
+      "csharp_adapter_sha256": "c7b91357b5e2e71d5ba4f3a372cfa4c93916453030c077668c9439de26dc0c29",
+      "source_recheck_passed": true
+    }
+  ]
+}

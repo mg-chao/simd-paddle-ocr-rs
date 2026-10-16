@@ -990,7 +990,7 @@ impl Recognizer {
         let cpu = self.session.cpu_context().clone();
         cpu.install(|| self.recognize_impl::<false>(image, capture, &mut StageProfile::default()))
     }
-    /// Run crops with the same selected tensor width as one [N,3,48,W] graph.
+    /// Run crops with the same selected tensor width as one `[N,3,48,W]` graph.
     /// Content widths, scores and CTC spans remain independent per image. The
     /// result byte limit applies to the whole batch; an empty batch is valid.
     pub fn recognize_batch(

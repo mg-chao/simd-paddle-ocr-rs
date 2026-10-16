@@ -18,7 +18,7 @@ impl<const N: usize> Swizzle<N> for Even {
 }
 
 #[inline(always)]
-fn load_even<const N: usize>(source: &[f32]) -> Simd<f32, N> {
+pub(super) fn load_even<const N: usize>(source: &[f32]) -> Simd<f32, N> {
     assert!(source.len() >= 2 * N - 1);
     let low = Simd::<f32, N>::from_slice(source);
     let high = if source.len() >= 2 * N {
@@ -73,13 +73,23 @@ fn execute_impl<const N: usize, const FMA: bool, const PAIR16: bool>(
                     }
                     x += N;
                 } else {
+                    let border = if N == 8 && !PAIR16 {
+                        Some(reduce3::border::<2>(
+                            p, input, bias, packed, batch, co, y, x,
+                        ))
+                    } else {
+                        None
+                    };
                     for lane in 0..outputs {
                         let local = (co + lane - first) * plane + y * p.output_width + x;
                         let global = (batch * p.output_channels + co + lane) * plane
                             + y * p.output_width
                             + x;
                         out[local] = store.scalar(
-                            edge(p, input, weights, bias, batch, co + lane, y, x),
+                            border.map_or_else(
+                                || edge(p, input, weights, bias, batch, co + lane, y, x),
+                                |values| values[lane],
+                            ),
                             global,
                         );
                     }
@@ -106,6 +116,17 @@ fn eight<const N: usize, const FMA: bool>(
     store: &impl simd::StoreTransform,
 ) {
     let plane = p.output_height * p.output_width;
+    if N == 8 {
+        let sums = reduce3::eight::<FMA, 2>(p, input, bias, packed, batch, co, y, x);
+        let local = (co - first) * plane + y * p.output_width + x;
+        let global = (batch * p.output_channels + co) * plane + y * p.output_width + x;
+        for (lane, value) in sums.into_iter().enumerate() {
+            store
+                .vector(value, global + lane * plane)
+                .copy_to_slice(&mut out[local + lane * plane..][..8]);
+        }
+        return;
+    }
     let inner = p.input_channels * 9;
     let low = (co / 16) * inner * 16 + co % 16;
     let mut s0 = Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co] });

@@ -1,0 +1,500 @@
+{
+  "schema_version": 1,
+  "implementation_version": "allocator correction; before targeted kernel changes",
+  "suites": [
+    {
+      "suite": "canonical",
+      "source_artifact_directory": "target/baseline/1792152238301-verify-86432",
+      "case_count": 66,
+      "response_counts": {
+        "rust": 66,
+        "csharp": 66
+      },
+      "expected_rejection_response_counts": {
+        "rust": 0,
+        "csharp": 0
+      },
+      "difference_count": 0,
+      "status": "passed",
+      "source_run_sha256": "aaa58e787741ad64cf5e68d03e80905aaf493bcb660de9c83570de037c9448aa",
+      "source_differences_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "version": {
+        "benchmark_source_sha256": "d7190dc60f6fc13887789ef3dd903afe4a5cf050ef7ed5e3a0bb8971bca906be",
+        "files": [
+          {
+            "sha256": "a079b43a3206d2c3981a14c7375ceae07fb55964274a4cafc96a81d1a1f2d82a",
+            "path": "target/release/examples/cpu_baseline.exe",
+            "last_write_utc": "2026-10-16T11:49:33.5679658Z"
+          },
+          {
+            "sha256": "30734ac0a144ea48323df2d40b2104c4008934bfb7107c7d803c6d2e9b9a2d96",
+            "path": "target/release/examples/cpu_qualify.exe",
+            "last_write_utc": "2026-10-16T11:49:34.5248635Z"
+          },
+          {
+            "sha256": "bd0cb76ee0e1d87c7db6a8c323fc588f8a4b7eda2cb348bef4f165fece2d83ac",
+            "path": "src/runtime/optimized.rs",
+            "last_write_utc": "2026-10-16T11:40:04.1650191Z"
+          }
+        ],
+        "version": "post-allocator; before subsequent kernel changes"
+      },
+      "run": {
+        "architecture": "x86_64",
+        "build": "standard release; default features; automatic SIMD; no custom RUSTFLAGS",
+        "cargo": "cargo 1.100.0-nightly (3c0b53475 2026-09-04)",
+        "case_timeout_seconds": "120",
+        "cpu": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+        "cpu_threads": "1",
+        "dotnet_info": ".NET SDK:\r\n Version:           10.0.303\r\n Commit:            e730f1db75\r\n Workload version:  10.0.300-manifests.330ea142\r\n MSBuild version:   18.6.14+e730f1db7\r\n\r\n运行时环境:\r\n OS Name:     Windows\r\n OS Version:  10.0.26300\r\n OS Platform: Windows\r\n RID:         win-x64\r\n Base Path:   C:\\Program Files\\dotnet\\sdk\\10.0.303\\\r\n\r\n已安装 .NET 工作负载:\r\n没有要显示的已安装工作负载。\r\n已配置为在安装新清单时使用 workload sets。\r\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\r\n\r\nHost:\r\n  Version:      10.0.11\r\n  Architecture: x64\r\n  Commit:       e2f47b0110\r\n\r\n.NET SDKs installed:\r\n  9.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.303 [C:\\Program Files\\dotnet\\sdk]\r\n\r\n.NET runtimes installed:\r\n  Microsoft.AspNetCore.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.NETCore.App 8.0.32 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.WindowsDesktop.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n\r\nOther architectures found:\r\n  None\r\n\r\nEnvironment variables:\r\n  Not set\r\n\r\nglobal.json file:\r\n  D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tools\\csharp-reference\\global.json\r\n\r\nLearn more:\r\n  https://aka.ms/dotnet/info\r\n\r\nDownload .NET:\r\n  https://aka.ms/dotnet/download",
+        "elapsed_seconds": "360.152",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "mode": "verify",
+        "os": "windows",
+        "rust_head": "4bf94e0e1fbd76a337dcecbe6294055beb961cfd",
+        "rust_worktree": "M .gitattributes\n M .gitignore\n M README.md\n M docs/cpu-baseline.md\n M examples/cpu_baseline.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n?? docs/cpu-performance.md\n?? docs/cpu-qualification.md\n?? docs/cpu-usage.md\n?? docs/windows-cpu-validation.md\n?? examples/cpu_benchmark.rs\n?? examples/cpu_profile.rs\n?? examples/cpu_qualify.rs\n?? examples/ocr.rs\n?? licenses/\n?? src/runtime/optimized/tests/placement.rs\n?? tests/benchmark_contract.rs\n?? tests/harness_contract.rs\n?? tests/qualification_contract.rs\n?? tools/benchmark/\n?? tools/csharp-benchmark/\n?? tools/csharp-qualification/\n?? tools/harness/\n?? tools/qualification/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: x86_64-pc-windows-msvc\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "status": "passed",
+        "suite_timeout_seconds": "1800"
+      }
+    },
+    {
+      "suite": "configuration",
+      "source_artifact_directory": "target/qualification/1792152238300-62740",
+      "case_count": 213,
+      "response_counts": {
+        "rust": 213,
+        "csharp": 213
+      },
+      "expected_rejection_response_counts": {
+        "rust": 6,
+        "csharp": 6
+      },
+      "difference_count": 0,
+      "status": "passed",
+      "source_run_sha256": "dc65f39ba5571e828ad698dc4162de5cbcbc6de0f7bfa581a1b846299d8ad751",
+      "source_differences_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "version": {
+        "benchmark_source_sha256": "d7190dc60f6fc13887789ef3dd903afe4a5cf050ef7ed5e3a0bb8971bca906be",
+        "files": [
+          {
+            "sha256": "a079b43a3206d2c3981a14c7375ceae07fb55964274a4cafc96a81d1a1f2d82a",
+            "path": "target/release/examples/cpu_baseline.exe",
+            "last_write_utc": "2026-10-16T11:49:33.5679658Z"
+          },
+          {
+            "sha256": "30734ac0a144ea48323df2d40b2104c4008934bfb7107c7d803c6d2e9b9a2d96",
+            "path": "target/release/examples/cpu_qualify.exe",
+            "last_write_utc": "2026-10-16T11:49:34.5248635Z"
+          },
+          {
+            "sha256": "bd0cb76ee0e1d87c7db6a8c323fc588f8a4b7eda2cb348bef4f165fece2d83ac",
+            "path": "src/runtime/optimized.rs",
+            "last_write_utc": "2026-10-16T11:40:04.1650191Z"
+          }
+        ],
+        "version": "post-allocator; before subsequent kernel changes"
+      },
+      "run": {
+        "build": "standard release; default features; automatic SIMD/layout; fusion enabled",
+        "case_count": 213,
+        "case_timeout_seconds": 120,
+        "completed_cases": 213,
+        "coverage": "full",
+        "dotnet_info": ".NET SDK:\r\n Version:           10.0.303\r\n Commit:            e730f1db75\r\n Workload version:  10.0.300-manifests.330ea142\r\n MSBuild version:   18.6.14+e730f1db7\r\n\r\n运行时环境:\r\n OS Name:     Windows\r\n OS Version:  10.0.26300\r\n OS Platform: Windows\r\n RID:         win-x64\r\n Base Path:   C:\\Program Files\\dotnet\\sdk\\10.0.303\\\r\n\r\n已安装 .NET 工作负载:\r\n没有要显示的已安装工作负载。\r\n已配置为在安装新清单时使用 workload sets。\r\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\r\n\r\nHost:\r\n  Version:      10.0.11\r\n  Architecture: x64\r\n  Commit:       e2f47b0110\r\n\r\n.NET SDKs installed:\r\n  9.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.303 [C:\\Program Files\\dotnet\\sdk]\r\n\r\n.NET runtimes installed:\r\n  Microsoft.AspNetCore.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.NETCore.App 8.0.32 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.WindowsDesktop.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n\r\nOther architectures found:\r\n  None\r\n\r\nEnvironment variables:\r\n  Not set\r\n\r\nglobal.json file:\r\n  Not found\r\n\r\nLearn more:\r\n  https://aka.ms/dotnet/info\r\n\r\nDownload .NET:\r\n  https://aka.ms/dotnet/download",
+        "elapsed_seconds": 325.0105781,
+        "host_available_parallelism": 24,
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "models": [
+          "tiny",
+          "small",
+          "medium"
+        ],
+        "profiles": [
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00006737",
+              "imgs_00009282",
+              "imgs_00015504",
+              "imgs_00018069",
+              "imgs_00056221",
+              "imgs_00057937",
+              "imgs_00059985",
+              "imgs_00077949",
+              "imgs_00111002",
+              "imgs_00207393",
+              "imgs_1",
+              "imgs_11",
+              "imgs_12",
+              "imgs_en_254",
+              "imgs_en_img_10",
+              "imgs_en_img_11",
+              "imgs_en_img_12",
+              "imgs_en_img_195",
+              "imgs_en_img623",
+              "imgs_11_rotate90",
+              "imgs_11_rotate180",
+              "blank"
+            ],
+            "format": "Bgr24",
+            "id": "default-parallel",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 1,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 1,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "serial",
+            "line_workers": 1,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 1,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 2,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 2,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "workers-2",
+            "line_workers": 2,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 2,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 4,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 4,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "workers-4",
+            "line_workers": 4,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 4,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 2,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "batch-2",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 4,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "batch-4",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": true,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737",
+              "imgs_11_rotate90",
+              "imgs_11_rotate180",
+              "blank"
+            ],
+            "format": "Bgr24",
+            "id": "alignment",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Rgb24",
+            "id": "rgb-padded",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 13,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgra32",
+            "id": "bgra-padded",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 13,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Rgba32",
+            "id": "rgba-padded",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 13,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": false,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_11_rotate90",
+              "imgs_11_rotate180",
+              "blank"
+            ],
+            "format": "Bgr24",
+            "id": "cls-off",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": false,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "fixed-width",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": true,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "default-thresholds",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": true,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "dilation",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737",
+              "imgs_1"
+            ],
+            "format": "Bgr24",
+            "id": "reuse",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00018069",
+              "imgs_00018069",
+              "imgs_00006737",
+              "imgs_1",
+              "imgs_00018069"
+            ],
+            "format": "Bgr24",
+            "id": "recovery",
+            "line_workers": 0,
+            "max_image_pixels": 600000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          }
+        ],
+        "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "rust_head": "4bf94e0e1fbd76a337dcecbe6294055beb961cfd",
+        "rust_worktree": "M .gitattributes\n M .gitignore\n M README.md\n M docs/cpu-baseline.md\n M examples/cpu_baseline.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n?? docs/cpu-performance.md\n?? docs/cpu-qualification.md\n?? docs/cpu-usage.md\n?? docs/windows-cpu-validation.md\n?? examples/cpu_benchmark.rs\n?? examples/cpu_profile.rs\n?? examples/cpu_qualify.rs\n?? examples/ocr.rs\n?? licenses/\n?? src/runtime/optimized/tests/placement.rs\n?? tests/benchmark_contract.rs\n?? tests/harness_contract.rs\n?? tests/qualification_contract.rs\n?? tools/benchmark/\n?? tools/csharp-benchmark/\n?? tools/csharp-qualification/\n?? tools/harness/\n?? tools/qualification/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: x86_64-pc-windows-msvc\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "schema_version": 1,
+        "status": "passed",
+        "suite_timeout_seconds": 3600
+      }
+    }
+  ]
+}

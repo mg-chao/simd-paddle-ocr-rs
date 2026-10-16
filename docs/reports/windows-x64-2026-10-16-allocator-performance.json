@@ -1,0 +1,3024 @@
+{
+  "budget_seconds_per_language": 600,
+  "cases": [
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 39012352,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 17426069,
+          "retained_resize_scratch_bytes_lower_bound": 43680,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 346.4353,
+        "language": "csharp",
+        "load_compile_ms": 94.4348,
+        "peak_private_bytes": 86695936,
+        "samples_ms": [
+          151.2536,
+          148.4481,
+          146.101
+        ],
+        "warmup_ms": 170.8506,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 148.4481
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 720
+      },
+      "latency_ratio": 1.0494428692586837,
+      "memory_ratio": 0.728243409241236,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 39012352,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 2048,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 4043597,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 166.6224,
+        "language": "rust",
+        "load_compile_ms": 17.566200000000002,
+        "peak_private_bytes": 63135744,
+        "samples_ms": [
+          155.96450000000002,
+          155.1802,
+          155.7878
+        ],
+        "warmup_ms": 162.3486,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 155.7878
+      },
+      "status": "passed",
+      "throughput_ratio": 0.9528865546596076,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 39012352,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 27571373,
+          "retained_resize_scratch_bytes_lower_bound": 43680,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 547.6751,
+        "language": "csharp",
+        "load_compile_ms": 99.2522,
+        "peak_private_bytes": 134537216,
+        "samples_ms": [
+          328.0919,
+          315.0687,
+          319.3318
+        ],
+        "warmup_ms": 328.8925,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 319.3318
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 720
+      },
+      "latency_ratio": 0.9890568368073583,
+      "memory_ratio": 0.7901418742008159,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 78024704,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 4096,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 8087194,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 326.85389999999995,
+        "language": "rust",
+        "load_compile_ms": 15.3503,
+        "peak_private_bytes": 106303488,
+        "samples_ms": [
+          314.8211,
+          324.75379999999996,
+          315.83729999999997
+        ],
+        "warmup_ms": 311.4603,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 315.83729999999997
+      },
+      "status": "passed",
+      "throughput_ratio": 1.0110642409873691,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 7661568,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 17528119,
+          "retained_resize_scratch_bytes_lower_bound": 25952,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 631.6344,
+        "language": "csharp",
+        "load_compile_ms": 94.8306,
+        "peak_private_bytes": 64544768,
+        "samples_ms": [
+          427.5229,
+          416.335,
+          423.1167
+        ],
+        "warmup_ms": 423.2794,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 423.1167
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 430
+      },
+      "latency_ratio": 0.7114651820644281,
+      "memory_ratio": 0.4359690316029953,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 7661568,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 2048,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 2739276,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 304.0731,
+        "language": "rust",
+        "load_compile_ms": 14.4874,
+        "peak_private_bytes": 28139520,
+        "samples_ms": [
+          302.07270000000005,
+          301.0328,
+          300.49559999999997
+        ],
+        "warmup_ms": 301.27720000000005,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 301.0328
+      },
+      "status": "passed",
+      "throughput_ratio": 1.4055501593181872,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 7587840,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 27648699,
+          "retained_resize_scratch_bytes_lower_bound": 24800,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 1085.3913,
+        "language": "csharp",
+        "load_compile_ms": 98.366,
+        "peak_private_bytes": 80109568,
+        "samples_ms": [
+          877.221,
+          857.1428,
+          837.0948
+        ],
+        "warmup_ms": 885.2322,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 857.1428
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 430
+      },
+      "latency_ratio": 0.7069198971279931,
+      "memory_ratio": 0.4879333265160037,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 15323136,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 4096,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 5478552,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 613.1306,
+        "language": "rust",
+        "load_compile_ms": 16.6971,
+        "peak_private_bytes": 39088128,
+        "samples_ms": [
+          606.7198999999999,
+          605.9313,
+          605.8613
+        ],
+        "warmup_ms": 610.3545,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 605.9313
+      },
+      "status": "passed",
+      "throughput_ratio": 1.4145874293009786,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 34990080,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 17732643,
+          "retained_resize_scratch_bytes_lower_bound": 82752,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 678.4843,
+        "language": "csharp",
+        "load_compile_ms": 94.6943,
+        "peak_private_bytes": 87916544,
+        "samples_ms": [
+          457.5462,
+          446.7348,
+          448.1958
+        ],
+        "warmup_ms": 449.7896,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 448.1958
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 896
+      },
+      "latency_ratio": 0.7500728476259706,
+      "memory_ratio": 0.6956298919120387,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 34990080,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 2048,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 4599492,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 340.3966,
+        "language": "rust",
+        "load_compile_ms": 14.9549,
+        "peak_private_bytes": 61157376,
+        "samples_ms": [
+          335.5181,
+          336.1795,
+          336.2885
+        ],
+        "warmup_ms": 329.9455,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 336.1795
+      },
+      "status": "passed",
+      "throughput_ratio": 1.3332038390205232,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 34990080,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 27832759,
+          "retained_resize_scratch_bytes_lower_bound": 82752,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 1160.1215,
+        "language": "csharp",
+        "load_compile_ms": 92.6956,
+        "peak_private_bytes": 138850304,
+        "samples_ms": [
+          926.9003,
+          967.7118,
+          951.8933
+        ],
+        "warmup_ms": 926.4477,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 951.8933
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 896
+      },
+      "latency_ratio": 0.7373096333381063,
+      "memory_ratio": 0.7269830968465146,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 69980160,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 4096,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 9198984,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 688.861,
+        "language": "rust",
+        "load_compile_ms": 15.5719,
+        "peak_private_bytes": 100941824,
+        "samples_ms": [
+          701.8401,
+          673.4451,
+          726.3193
+        ],
+        "warmup_ms": 662.4715,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 701.8401
+      },
+      "status": "passed",
+      "throughput_ratio": 1.3562822927900529,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 40630272,
+          "retained_inference_sessions": 7,
+          "retained_primitive_request_array_bytes_lower_bound": 17560813,
+          "retained_resize_scratch_bytes_lower_bound": 170816,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 245.1338,
+        "language": "csharp",
+        "load_compile_ms": 90.6805,
+        "peak_private_bytes": 96526336,
+        "samples_ms": [
+          54.9613,
+          51.4233,
+          51.4463
+        ],
+        "warmup_ms": 64.5175,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 51.4463
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 720
+      },
+      "latency_ratio": 1.0171285398561218,
+      "memory_ratio": 0.6997793431214462,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 40960000,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 5515748,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 57.8953,
+        "language": "rust",
+        "load_compile_ms": 14.8465,
+        "peak_private_bytes": 67547136,
+        "samples_ms": [
+          53.557,
+          50.465700000000005,
+          52.3275
+        ],
+        "warmup_ms": 49.6066,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 52.3275
+      },
+      "status": "passed",
+      "throughput_ratio": 0.9831599063589891,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 81260544,
+          "retained_inference_sessions": 14,
+          "retained_primitive_request_array_bytes_lower_bound": 28025278,
+          "retained_resize_scratch_bytes_lower_bound": 341632,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 293.517,
+        "language": "csharp",
+        "load_compile_ms": 89.6426,
+        "peak_private_bytes": 150228992,
+        "samples_ms": [
+          84.6931,
+          89.9172,
+          128.3686
+        ],
+        "warmup_ms": 94.9018,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 89.9172
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 720
+      },
+      "latency_ratio": 1.107617897354455,
+      "memory_ratio": 0.7649753251356436,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 81920000,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 11031496,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 102.0631,
+        "language": "rust",
+        "load_compile_ms": 15.1275,
+        "peak_private_bytes": 114921472,
+        "samples_ms": [
+          100.944,
+          99.5939,
+          97.7823
+        ],
+        "warmup_ms": 96.7472,
+        "result_summary": {
+          "text_sha256": "dc7f9d051ca5d6e3aacbccbf1d104aa30116e1c800d68ff4924c75fafdaef16b",
+          "line_count": 3,
+          "detected_count": 3,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 99.5939
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.9028384268514436,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 9904128,
+          "retained_inference_sessions": 9,
+          "retained_primitive_request_array_bytes_lower_bound": 17739339,
+          "retained_resize_scratch_bytes_lower_bound": 130080,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 314.7598,
+        "language": "csharp",
+        "load_compile_ms": 91.3507,
+        "peak_private_bytes": 70148096,
+        "samples_ms": [
+          133.1656,
+          118.9048,
+          131.7901
+        ],
+        "warmup_ms": 121.2207,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 131.7901
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 430
+      },
+      "latency_ratio": 0.6879887032485749,
+      "memory_ratio": 0.5042041340651641,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 10233856,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 6273917,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 102.7773,
+        "language": "rust",
+        "load_compile_ms": 15.4545,
+        "peak_private_bytes": 35368960,
+        "samples_ms": [
+          102.4629,
+          90.0142,
+          90.6701
+        ],
+        "warmup_ms": 101.73,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 90.6701
+      },
+      "status": "passed",
+      "throughput_ratio": 1.453512238323328,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 19808256,
+          "retained_inference_sessions": 18,
+          "retained_primitive_request_array_bytes_lower_bound": 28376350,
+          "retained_resize_scratch_bytes_lower_bound": 260160,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 364.7542,
+        "language": "csharp",
+        "load_compile_ms": 90.8592,
+        "peak_private_bytes": 95973376,
+        "samples_ms": [
+          175.1118,
+          176.5373,
+          179.564
+        ],
+        "warmup_ms": 176.0075,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 176.5373
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 430
+      },
+      "latency_ratio": 0.9714604222450441,
+      "memory_ratio": 0.5539242883359652,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 20467712,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 12547834,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 150.4265,
+        "language": "rust",
+        "load_compile_ms": 19.3583,
+        "peak_private_bytes": 53161984,
+        "samples_ms": [
+          172.1334,
+          171.49900000000002,
+          169.2478
+        ],
+        "warmup_ms": 171.63320000000002,
+        "result_summary": {
+          "text_sha256": "09d56d45e685be9b4f3e98c7e08c0026e8936a4890537ee202a2c5460990cfeb",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 171.49900000000002
+      },
+      "status": "passed",
+      "throughput_ratio": 1.0293780138659698,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 39297024,
+          "retained_inference_sessions": 9,
+          "retained_primitive_request_array_bytes_lower_bound": 18095515,
+          "retained_resize_scratch_bytes_lower_bound": 296672,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 330.718,
+        "language": "csharp",
+        "load_compile_ms": 95.7071,
+        "peak_private_bytes": 105525248,
+        "samples_ms": [
+          121.1656,
+          121.2663,
+          128.4777
+        ],
+        "warmup_ms": 116.8484,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 121.2663
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 896
+      },
+      "latency_ratio": 0.8023127612535387,
+      "memory_ratio": 0.6559795054923728,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 39626752,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 9048305,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 108.0809,
+        "language": "rust",
+        "load_compile_ms": 16.332099999999997,
+        "peak_private_bytes": 69222400,
+        "samples_ms": [
+          97.2935,
+          96.1123,
+          101.1584
+        ],
+        "warmup_ms": 94.9068,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 97.2935
+      },
+      "status": "passed",
+      "throughput_ratio": 1.2463967274278345,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 78594048,
+          "retained_inference_sessions": 18,
+          "retained_primitive_request_array_bytes_lower_bound": 29094682,
+          "retained_resize_scratch_bytes_lower_bound": 593344,
+          "shared_cached_weight_bytes_lower_bound": 8687808,
+          "source_weight_bytes": 7096348
+        },
+        "first_inference_ms": 396.7572,
+        "language": "csharp",
+        "load_compile_ms": 93.2139,
+        "peak_private_bytes": 161943552,
+        "samples_ms": [
+          195.2331,
+          201.58,
+          218.6136
+        ],
+        "warmup_ms": 203.0528,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 201.58
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "tiny",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 896
+      },
+      "latency_ratio": 0.9778688361940667,
+      "memory_ratio": 0.7357412044414093,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 79253504,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 18096610,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "first_inference_ms": 180.2264,
+        "language": "rust",
+        "load_compile_ms": 16.3624,
+        "peak_private_bytes": 119148544,
+        "samples_ms": [
+          165.2273,
+          197.1188,
+          198.446
+        ],
+        "warmup_ms": 174.0,
+        "result_summary": {
+          "text_sha256": "65c08b4b6a0f535d2baf0cc4c7cd9f28948ce78b81b697080e8f0141233c7c61",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 197.1188
+      },
+      "status": "passed",
+      "throughput_ratio": 1.0226320371268496,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 55183360,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 42186158,
+          "retained_resize_scratch_bytes_lower_bound": 44064,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 670.4042,
+        "language": "csharp",
+        "load_compile_ms": 163.523,
+        "peak_private_bytes": 156069888,
+        "samples_ms": [
+          399.818,
+          428.1746,
+          412.3286
+        ],
+        "warmup_ms": 407.2191,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 412.3286
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 720
+      },
+      "latency_ratio": 1.1902606319328808,
+      "memory_ratio": 0.8331102537857912,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 55183360,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 3072,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 4576173,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 491.2329,
+        "language": "rust",
+        "load_compile_ms": 60.3692,
+        "peak_private_bytes": 130023424,
+        "samples_ms": [
+          490.7785,
+          479.1115,
+          494.0144
+        ],
+        "warmup_ms": 478.8409,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 490.7785
+      },
+      "status": "failed",
+      "throughput_ratio": 0.8401521256534261,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 55183360,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 52331462,
+          "retained_resize_scratch_bytes_lower_bound": 44064,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 1117.9402,
+        "language": "csharp",
+        "load_compile_ms": 164.1886,
+        "peak_private_bytes": 216670208,
+        "samples_ms": [
+          856.0975,
+          875.9786,
+          849.6759
+        ],
+        "warmup_ms": 880.0801,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 856.0975
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 720
+      },
+      "latency_ratio": 1.115539059511329,
+      "memory_ratio": 0.8782373624711709,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 110366720,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 6144,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 9152346,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 995.1151,
+        "language": "rust",
+        "load_compile_ms": 56.412499999999994,
+        "peak_private_bytes": 190287872,
+        "samples_ms": [
+          962.3622,
+          955.0102,
+          953.9078
+        ],
+        "warmup_ms": 1034.5647,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 955.0102
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8964275983649179,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 11560960,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 42317747,
+          "retained_resize_scratch_bytes_lower_bound": 25952,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 1473.0516,
+        "language": "csharp",
+        "load_compile_ms": 168.6167,
+        "peak_private_bytes": 120430592,
+        "samples_ms": [
+          1213.578,
+          1216.0564,
+          1223.2507
+        ],
+        "warmup_ms": 1222.1046,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 1216.0564
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 430
+      },
+      "latency_ratio": 0.8227030423917838,
+      "memory_ratio": 0.7094415345894837,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 11560960,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 3072,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 4267665,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 999.6514,
+        "language": "rust",
+        "load_compile_ms": 53.8058,
+        "peak_private_bytes": 85438464,
+        "samples_ms": [
+          998.0978,
+          1006.2803,
+          1000.4533
+        ],
+        "warmup_ms": 981.5196,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 1000.4533
+      },
+      "status": "passed",
+      "throughput_ratio": 1.2155054113970136,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 11266048,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 52409579,
+          "retained_resize_scratch_bytes_lower_bound": 24736,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 2752.9672,
+        "language": "csharp",
+        "load_compile_ms": 172.4832,
+        "peak_private_bytes": 147648512,
+        "samples_ms": [
+          1591.4543,
+          1580.3699,
+          1783.4377
+        ],
+        "warmup_ms": 1591.4779,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 1591.4543
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 430
+      },
+      "latency_ratio": 1.2557552548005932,
+      "memory_ratio": 0.6872139151663107,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 23121920,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 6144,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 8535330,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 2009.8314,
+        "language": "rust",
+        "load_compile_ms": 55.1277,
+        "peak_private_bytes": 101466112,
+        "samples_ms": [
+          2037.8446,
+          1998.4771,
+          1995.07
+        ],
+        "warmup_ms": 2011.1793,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 1998.4771
+      },
+      "status": "failed",
+      "throughput_ratio": 0.7963335181574009,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 54765568,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 42551327,
+          "retained_resize_scratch_bytes_lower_bound": 80704,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 1634.5002,
+        "language": "csharp",
+        "load_compile_ms": 165.494,
+        "peak_private_bytes": 165810176,
+        "samples_ms": [
+          1368.9873,
+          1429.2379,
+          1431.5247
+        ],
+        "warmup_ms": 1371.2921,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 1429.2379
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 896
+      },
+      "latency_ratio": 0.8127449600937674,
+      "memory_ratio": 0.8255724907981522,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 54765568,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 3072,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 6340911,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 1160.2817,
+        "language": "rust",
+        "load_compile_ms": 57.933,
+        "peak_private_bytes": 136888320,
+        "samples_ms": [
+          1166.6012,
+          1161.6059,
+          1132.7873
+        ],
+        "warmup_ms": 1138.8671,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 1161.6059
+      },
+      "status": "passed",
+      "throughput_ratio": 1.2303982787966212,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 54765568,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 52693303,
+          "retained_resize_scratch_bytes_lower_bound": 80704,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 3072.4389,
+        "language": "csharp",
+        "load_compile_ms": 167.0961,
+        "peak_private_bytes": 223744000,
+        "samples_ms": [
+          2638.6392,
+          1898.5743,
+          1885.3459
+        ],
+        "warmup_ms": 2747.4247,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 1898.5743
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 896
+      },
+      "latency_ratio": 1.1981256145729984,
+      "memory_ratio": 0.8865171624713959,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 109531136,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 6144,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 12681822,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 2283.2541,
+        "language": "rust",
+        "load_compile_ms": 60.8716,
+        "peak_private_bytes": 198352896,
+        "samples_ms": [
+          2297.0263,
+          2253.1798,
+          2274.7305
+        ],
+        "warmup_ms": 2287.9006999999997,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 2274.7305
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8346370262323383,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 59863040,
+          "retained_inference_sessions": 5,
+          "retained_primitive_request_array_bytes_lower_bound": 42311914,
+          "retained_resize_scratch_bytes_lower_bound": 166016,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 372.0529,
+        "language": "csharp",
+        "load_compile_ms": 164.2413,
+        "peak_private_bytes": 169287680,
+        "samples_ms": [
+          118.0131,
+          118.4175,
+          137.8806
+        ],
+        "warmup_ms": 152.5382,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 118.4175
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 720
+      },
+      "latency_ratio": 1.2480984651761775,
+      "memory_ratio": 0.8193080087103799,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 60413952,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 6240716,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 158.0464,
+        "language": "rust",
+        "load_compile_ms": 54.4941,
+        "peak_private_bytes": 138698752,
+        "samples_ms": [
+          144.78060000000002,
+          147.79670000000002,
+          166.12099999999998
+        ],
+        "warmup_ms": 149.31230000000002,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 147.79670000000002
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8012188364151567,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 119726080,
+          "retained_inference_sessions": 10,
+          "retained_primitive_request_array_bytes_lower_bound": 52778196,
+          "retained_resize_scratch_bytes_lower_bound": 332032,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 451.5587,
+        "language": "csharp",
+        "load_compile_ms": 160.0342,
+        "peak_private_bytes": 247824384,
+        "samples_ms": [
+          238.9743,
+          238.6148,
+          253.8584
+        ],
+        "warmup_ms": 221.5899,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 238.9743
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 720
+      },
+      "latency_ratio": 1.1511643720684608,
+      "memory_ratio": 0.8307715192383974,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 120827904,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 12481432,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 281.9651,
+        "language": "rust",
+        "load_compile_ms": 55.9342,
+        "peak_private_bytes": 205885440,
+        "samples_ms": [
+          275.09869999999995,
+          270.0589,
+          292.9113
+        ],
+        "warmup_ms": 296.96090000000004,
+        "result_summary": {
+          "text_sha256": "fd8d22b867093e273b501be2b13d72728b806de33fe8063b272dcb5a2c9cc7c7",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 275.09869999999995
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8686856753594256,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 18227200,
+          "retained_inference_sessions": 9,
+          "retained_primitive_request_array_bytes_lower_bound": 42619783,
+          "retained_resize_scratch_bytes_lower_bound": 130080,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 532.0779,
+        "language": "csharp",
+        "load_compile_ms": 160.0361,
+        "peak_private_bytes": 147193856,
+        "samples_ms": [
+          307.3668,
+          286.3795,
+          242.8231
+        ],
+        "warmup_ms": 304.162,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 286.3795
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 430
+      },
+      "latency_ratio": 0.956702906458039,
+      "memory_ratio": 0.6775656723063224,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 18778112,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 11300942,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 270.7277,
+        "language": "rust",
+        "load_compile_ms": 57.499,
+        "peak_private_bytes": 99733504,
+        "samples_ms": [
+          277.4778,
+          273.9801,
+          272.5052
+        ],
+        "warmup_ms": 269.2703,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 273.9801
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 1.0452565715539195,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 36454400,
+          "retained_inference_sessions": 18,
+          "retained_primitive_request_array_bytes_lower_bound": 53382278,
+          "retained_resize_scratch_bytes_lower_bound": 260160,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 738.4784,
+        "language": "csharp",
+        "load_compile_ms": 160.6328,
+        "peak_private_bytes": 176926720,
+        "samples_ms": [
+          409.9356,
+          383.4301,
+          362.1958
+        ],
+        "warmup_ms": 459.7231,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 383.4301
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 430
+      },
+      "latency_ratio": 1.1651703922044723,
+      "memory_ratio": 0.7382798935061928,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 37556224,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 22601884,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 464.5178,
+        "language": "rust",
+        "load_compile_ms": 53.6541,
+        "peak_private_bytes": 130621440,
+        "samples_ms": [
+          527.7092,
+          446.7614,
+          443.9695
+        ],
+        "warmup_ms": 505.8769,
+        "result_summary": {
+          "text_sha256": "ae21d12d72ef6d147455fd5105054b80ea192a6931b7bf7f084e3aff7548bbe9",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 446.7614
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8582435725199178,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 69689344,
+          "retained_inference_sessions": 9,
+          "retained_primitive_request_array_bytes_lower_bound": 43033731,
+          "retained_resize_scratch_bytes_lower_bound": 295264,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 568.54,
+        "language": "csharp",
+        "load_compile_ms": 159.2988,
+        "peak_private_bytes": 199593984,
+        "samples_ms": [
+          319.0375,
+          286.9532,
+          267.3796
+        ],
+        "warmup_ms": 335.884,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 286.9532
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 896
+      },
+      "latency_ratio": 1.062093749085217,
+      "memory_ratio": 0.7797615383036796,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 70240256,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 14719886,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 316.4702,
+        "language": "rust",
+        "load_compile_ms": 55.0779,
+        "peak_private_bytes": 155635712,
+        "samples_ms": [
+          319.718,
+          301.6877,
+          304.7712
+        ],
+        "warmup_ms": 303.9708,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 304.7712
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.9415364706376455,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 139378688,
+          "retained_inference_sessions": 18,
+          "retained_primitive_request_array_bytes_lower_bound": 54245142,
+          "retained_resize_scratch_bytes_lower_bound": 590528,
+          "shared_cached_weight_bytes_lower_bound": 34798976,
+          "source_weight_bytes": 31845632
+        },
+        "first_inference_ms": 794.0457,
+        "language": "csharp",
+        "load_compile_ms": 161.9091,
+        "peak_private_bytes": 282161152,
+        "samples_ms": [
+          494.4299,
+          471.5546,
+          453.8363
+        ],
+        "warmup_ms": 501.6742,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 471.5546
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "small",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 896
+      },
+      "latency_ratio": 1.2803806812615126,
+      "memory_ratio": 0.8559089523422416,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 140480512,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 29439772,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "first_inference_ms": 636.1175999999999,
+        "language": "rust",
+        "load_compile_ms": 57.363499999999995,
+        "peak_private_bytes": 241504256,
+        "samples_ms": [
+          551.9377,
+          629.0472,
+          603.7694
+        ],
+        "warmup_ms": 596.2197,
+        "result_summary": {
+          "text_sha256": "6b6492953dfdcad5a470fe03b8d92a22990bdb7330d8c5cecbea3dcd58d09b7d",
+          "line_count": 33,
+          "detected_count": 33,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 603.7694
+      },
+      "status": "failed",
+      "throughput_ratio": 0.7810177196790695,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 157149184,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 149216413,
+          "retained_resize_scratch_bytes_lower_bound": 43648,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 1894.2519,
+        "language": "csharp",
+        "load_compile_ms": 471.2146,
+        "peak_private_bytes": 509530112,
+        "samples_ms": [
+          1651.8432,
+          1641.6338,
+          1511.7054
+        ],
+        "warmup_ms": 1678.2621,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 1641.6338
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 720
+      },
+      "latency_ratio": 1.1917405087541446,
+      "memory_ratio": 0.8772237272603037,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 157149184,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 8192,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 4618627,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 1998.4105,
+        "language": "rust",
+        "load_compile_ms": 273.8954,
+        "peak_private_bytes": 446971904,
+        "samples_ms": [
+          1947.9506,
+          1977.8742,
+          1956.4015
+        ],
+        "warmup_ms": 1929.7767,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 1956.4015
+      },
+      "status": "failed",
+      "throughput_ratio": 0.8391088434557018,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 157149184,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 159361717,
+          "retained_resize_scratch_bytes_lower_bound": 43648,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 3667.0921,
+        "language": "csharp",
+        "load_compile_ms": 473.2049,
+        "peak_private_bytes": 678248448,
+        "samples_ms": [
+          3094.5831,
+          3107.3542,
+          2933.514
+        ],
+        "warmup_ms": 3130.0104,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 3094.5831
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 720
+      },
+      "latency_ratio": 1.3039384852841729,
+      "memory_ratio": 0.8982595357151485,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 314298368,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 9237254,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 3965.9207,
+        "language": "rust",
+        "load_compile_ms": 279.05960000000005,
+        "peak_private_bytes": 609243136,
+        "samples_ms": [
+          4167.2999,
+          3944.7599,
+          4035.146
+        ],
+        "warmup_ms": 3915.4142,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 4035.146
+      },
+      "status": "failed",
+      "throughput_ratio": 0.7669073436252368,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 30271488,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 149359399,
+          "retained_resize_scratch_bytes_lower_bound": 25216,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 4151.8594,
+        "language": "csharp",
+        "load_compile_ms": 477.5566,
+        "peak_private_bytes": 373862400,
+        "samples_ms": [
+          3099.7198,
+          2945.6619,
+          2999.9087
+        ],
+        "warmup_ms": 3192.2045,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 2999.9087
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 430
+      },
+      "latency_ratio": 1.1025327870811534,
+      "memory_ratio": 0.8539359079704191,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 30271488,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 8192,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 4063710,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 3302.4174999999996,
+        "language": "rust",
+        "load_compile_ms": 274.1284,
+        "peak_private_bytes": 319254528,
+        "samples_ms": [
+          3288.0196,
+          3320.9644,
+          3307.4977
+        ],
+        "warmup_ms": 3328.3678999999997,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 3307.4977
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.907002505247396,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 30271488,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 159499071,
+          "retained_resize_scratch_bytes_lower_bound": 25216,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 7180.031,
+        "language": "csharp",
+        "load_compile_ms": 475.1662,
+        "peak_private_bytes": 418402304,
+        "samples_ms": [
+          6102.1283,
+          6355.3674,
+          6170.1112
+        ],
+        "warmup_ms": 6050.981,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 6170.1112
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 430
+      },
+      "latency_ratio": 1.0923001679451092,
+      "memory_ratio": 0.8454806214451439,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 60542976,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 8127420,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 6942.3115,
+        "language": "rust",
+        "load_compile_ms": 271.8332,
+        "peak_private_bytes": 353751040,
+        "samples_ms": [
+          6739.6134999999995,
+          6756.9425,
+          6693.8718
+        ],
+        "warmup_ms": 6971.1023000000005,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 6739.6134999999995
+      },
+      "status": "passed",
+      "throughput_ratio": 0.9154992641640356,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 143124480,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 149568728,
+          "retained_resize_scratch_bytes_lower_bound": 80640,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 5099.9938,
+        "language": "csharp",
+        "load_compile_ms": 471.6983,
+        "peak_private_bytes": 483872768,
+        "samples_ms": [
+          4180.9242,
+          4019.023,
+          4021.7093
+        ],
+        "warmup_ms": 4080.6292,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 4021.7093
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 1,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 896
+      },
+      "latency_ratio": 1.1541621369799155,
+      "memory_ratio": 0.9135127356454166,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 143124480,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 8192,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 6437365,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 4552.7769,
+        "language": "rust",
+        "load_compile_ms": 260.7852,
+        "peak_private_bytes": 442023936,
+        "samples_ms": [
+          4817.8335,
+          4597.012699999999,
+          4641.7046
+        ],
+        "warmup_ms": 4651.9934,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 4641.7046
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8664293932017991,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 143124480,
+          "retained_inference_sessions": 3,
+          "retained_primitive_request_array_bytes_lower_bound": 159710704,
+          "retained_resize_scratch_bytes_lower_bound": 80640,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 9557.2833,
+        "language": "csharp",
+        "load_compile_ms": 486.6225,
+        "peak_private_bytes": 619098112,
+        "samples_ms": [
+          8214.1314,
+          8139.3242,
+          8230.6115
+        ],
+        "warmup_ms": 8282.2664,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 8214.1314
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "1",
+        "concurrency": 2,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 1,
+        "width": 896
+      },
+      "latency_ratio": 1.134600366875066,
+      "memory_ratio": 0.9557715336725174,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 286248960,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 12874730,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 9212.5879,
+        "language": "rust",
+        "load_compile_ms": 266.40659999999997,
+        "peak_private_bytes": 591716352,
+        "samples_ms": [
+          9528.706,
+          9319.7565,
+          9227.5794
+        ],
+        "warmup_ms": 9217.907,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 9319.7565
+      },
+      "status": "failed",
+      "throughput_ratio": 0.8813675979624576,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 163303424,
+          "retained_inference_sessions": 5,
+          "retained_primitive_request_array_bytes_lower_bound": 149342489,
+          "retained_resize_scratch_bytes_lower_bound": 165920,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 718.2775,
+        "language": "csharp",
+        "load_compile_ms": 480.173,
+        "peak_private_bytes": 508092416,
+        "samples_ms": [
+          476.0829,
+          446.0164,
+          440.2118
+        ],
+        "warmup_ms": 553.7613,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 446.0164
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 720
+      },
+      "latency_ratio": 1.1707080726179577,
+      "memory_ratio": 0.9004562823468714,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 163952640,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 6365592,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 533.1064,
+        "language": "rust",
+        "load_compile_ms": 260.9951,
+        "peak_private_bytes": 457515008,
+        "samples_ms": [
+          528.2940000000001,
+          522.1550000000001,
+          520.3761999999999
+        ],
+        "warmup_ms": 535.8305,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 522.1550000000001
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8541839109076805,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 326606848,
+          "retained_inference_sessions": 10,
+          "retained_primitive_request_array_bytes_lower_bound": 159810502,
+          "retained_resize_scratch_bytes_lower_bound": 331840,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 1040.6836,
+        "language": "csharp",
+        "load_compile_ms": 481.3144,
+        "peak_private_bytes": 680300544,
+        "samples_ms": [
+          784.4969,
+          720.188,
+          751.6609
+        ],
+        "warmup_ms": 790.6178,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 751.6609
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_1",
+        "height": 1150,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_1.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 720
+      },
+      "latency_ratio": 1.4213083319885336,
+      "memory_ratio": 0.9237155982635816,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 327905280,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 12731184,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 1068.8436000000002,
+        "language": "rust",
+        "load_compile_ms": 270.0487,
+        "peak_private_bytes": 628404224,
+        "samples_ms": [
+          1034.4599,
+          1068.3419,
+          1074.9852
+        ],
+        "warmup_ms": 1124.0304999999998,
+        "result_summary": {
+          "text_sha256": "fae4a1fa473397884278763ee38dc63c546730a6cc0cc790e12d9886a27e651b",
+          "line_count": 2,
+          "detected_count": 2,
+          "detector_resized_width": 608,
+          "detector_resized_height": 960
+        },
+        "median_batch_ms": 1068.3419
+      },
+      "status": "failed",
+      "throughput_ratio": 0.7035771039215069,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 38117376,
+          "retained_inference_sessions": 9,
+          "retained_primitive_request_array_bytes_lower_bound": 149659771,
+          "retained_resize_scratch_bytes_lower_bound": 128896,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 1170.3135,
+        "language": "csharp",
+        "load_compile_ms": 462.8776,
+        "peak_private_bytes": 390180864,
+        "samples_ms": [
+          816.5989,
+          750.3577,
+          741.9427
+        ],
+        "warmup_ms": 946.5335,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 750.3577
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 430
+      },
+      "latency_ratio": 1.131257132431639,
+      "memory_ratio": 0.8544809414333554,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 38766592,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 10717520,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 841.8449,
+        "language": "rust",
+        "load_compile_ms": 252.5244,
+        "peak_private_bytes": 333402112,
+        "samples_ms": [
+          815.1893,
+          866.7158000000001,
+          848.8475
+        ],
+        "warmup_ms": 851.5456,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 848.8475
+      },
+      "status": "inconclusive",
+      "throughput_ratio": 0.8839723271848007,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 76234752,
+          "retained_inference_sessions": 18,
+          "retained_primitive_request_array_bytes_lower_bound": 160445066,
+          "retained_resize_scratch_bytes_lower_bound": 257792,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 1955.9858,
+        "language": "csharp",
+        "load_compile_ms": 470.1153,
+        "peak_private_bytes": 439373824,
+        "samples_ms": [
+          1440.21,
+          1408.5606,
+          1416.164
+        ],
+        "warmup_ms": 1507.731,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 1416.164
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_00018069",
+        "height": 267,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00018069.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 430
+      },
+      "latency_ratio": 1.3871335523286852,
+      "memory_ratio": 0.8741854589862869,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 77533184,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 21435040,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 1674.0234,
+        "language": "rust",
+        "load_compile_ms": 252.3415,
+        "peak_private_bytes": 384094208,
+        "samples_ms": [
+          1964.4086,
+          2052.3151,
+          1808.8717
+        ],
+        "warmup_ms": 1911.8812,
+        "result_summary": {
+          "text_sha256": "ea1e7490259b4d19ee0906959b80700ba5a65de4ae2f68dc0a7c5d7d238a4676",
+          "line_count": 69,
+          "detected_count": 69,
+          "detector_resized_width": 416,
+          "detector_resized_height": 256
+        },
+        "median_batch_ms": 1964.4086
+      },
+      "status": "failed",
+      "throughput_ratio": 0.7209111179822772,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 1,
+          "retained_activation_bytes_lower_bound": 165519360,
+          "retained_inference_sessions": 9,
+          "retained_primitive_request_array_bytes_lower_bound": 150097740,
+          "retained_resize_scratch_bytes_lower_bound": 301792,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 1437.6464,
+        "language": "csharp",
+        "load_compile_ms": 469.2434,
+        "peak_private_bytes": 519180288,
+        "samples_ms": [
+          1044.035,
+          1003.3612,
+          1012.1818
+        ],
+        "warmup_ms": 1102.1755,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 1012.1818
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 1,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 896
+      },
+      "latency_ratio": 1.1746886774688103,
+      "memory_ratio": 0.8995921201076109,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 166168576,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 15389870,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 1211.2512,
+        "language": "rust",
+        "load_compile_ms": 255.4584,
+        "peak_private_bytes": 467050496,
+        "samples_ms": [
+          1242.1078,
+          1182.6578000000002,
+          1188.9985
+        ],
+        "warmup_ms": 1147.2293,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 1188.9985
+      },
+      "status": "failed",
+      "throughput_ratio": 0.8512893834601137,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    },
+    {
+      "csharp": {
+        "diagnostics": {
+          "concurrent_owned_results": 2,
+          "retained_activation_bytes_lower_bound": 331038720,
+          "retained_inference_sessions": 18,
+          "retained_primitive_request_array_bytes_lower_bound": 161321004,
+          "retained_resize_scratch_bytes_lower_bound": 603584,
+          "shared_cached_weight_bytes_lower_bound": 151384544,
+          "source_weight_bytes": 138874476
+        },
+        "first_inference_ms": 2498.6187,
+        "language": "csharp",
+        "load_compile_ms": 461.4779,
+        "peak_private_bytes": 702377984,
+        "samples_ms": [
+          1940.7811,
+          1930.9087,
+          1924.178
+        ],
+        "warmup_ms": 2038.2158,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 1930.9087
+      },
+      "differences": [],
+      "error": null,
+      "job": {
+        "affinity": "ff",
+        "concurrency": 2,
+        "fixture": "imgs_00006737",
+        "height": 528,
+        "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+        "model": "medium",
+        "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792151587227-70156\\imgs_00006737.bgr",
+        "runs": 3,
+        "threads": 8,
+        "width": 896
+      },
+      "latency_ratio": 1.2617984475392339,
+      "memory_ratio": 0.9252386589611556,
+      "rust": {
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 332337152,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+          "retained_requests": 2,
+          "retained_workspace_bytes": 30779740,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "first_inference_ms": 2375.1310000000003,
+        "language": "rust",
+        "load_compile_ms": 256.64320000000004,
+        "peak_private_bytes": 649867264,
+        "samples_ms": [
+          2386.6735000000003,
+          2792.1332,
+          2436.4176
+        ],
+        "warmup_ms": 3274.6760999999997,
+        "result_summary": {
+          "text_sha256": "2d173f1ec789357a93be048e0dc86eb65b58e973806006c7f96975d5495ad5c7",
+          "line_count": 31,
+          "detected_count": 31,
+          "detector_resized_width": 896,
+          "detector_resized_height": 544
+        },
+        "median_batch_ms": 2436.4176
+      },
+      "status": "failed",
+      "throughput_ratio": 0.7925195992673832,
+      "correctness": {
+        "difference_count": 0,
+        "outputs_agree": true
+      }
+    }
+  ],
+  "coverage": {
+    "duplicate_case_count": 0,
+    "full_qualification_passed": false,
+    "required_case_count": 36,
+    "scope": "full Windows x64 matrix",
+    "selected_unique_case_count": 36
+  },
+  "elapsed_seconds_per_language": {
+    "csharp": 261.1863807,
+    "rust": 262.9097612
+  },
+  "provenance": {
+    "case_timeout_seconds": "120",
+    "cpu": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "csharp_adapter_sha256": "045ee2d71f465d084a5b48cf488e5fff3ea4be8c334d08b27994848c8ab57a37",
+    "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+    "dotnet": ".NET SDK:\r\n Version:           10.0.303\r\n Commit:            e730f1db75\r\n Workload version:  10.0.300-manifests.330ea142\r\n MSBuild version:   18.6.14+e730f1db7\r\n\r\n运行时环境:\r\n OS Name:     Windows\r\n OS Version:  10.0.26300\r\n OS Platform: Windows\r\n RID:         win-x64\r\n Base Path:   C:\\Program Files\\dotnet\\sdk\\10.0.303\\\r\n\r\n已安装 .NET 工作负载:\r\n没有要显示的已安装工作负载。\r\n已配置为在安装新清单时使用 workload sets。\r\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\r\n\r\nHost:\r\n  Version:      10.0.11\r\n  Architecture: x64\r\n  Commit:       e2f47b0110\r\n\r\n.NET SDKs installed:\r\n  9.0.319 [C:\\Program Files\\dotnet\\sdk]\r\n  10.0.303 [C:\\Program Files\\dotnet\\sdk]\r\n\r\n.NET runtimes installed:\r\n  Microsoft.AspNetCore.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.AspNetCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.AspNetCore.App]\r\n  Microsoft.NETCore.App 8.0.32 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.NETCore.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App]\r\n  Microsoft.WindowsDesktop.App 9.0.21 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n  Microsoft.WindowsDesktop.App 10.0.11 [C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App]\r\n\r\nOther architectures found:\r\n  None\r\n\r\nEnvironment variables:\r\n  Not set\r\n\r\nglobal.json file:\r\n  Not found\r\n\r\nLearn more:\r\n  https://aka.ms/dotnet/info\r\n\r\nDownload .NET:\r\n  https://aka.ms/dotnet/download",
+    "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+    "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; peak process private commit before diagnostics",
+    "rust_executable_sha256": "e224b1c3c834293b0ceef89bd93150556823a28498535a578d33a99a90022261",
+    "rust_head": "4bf94e0e1fbd76a337dcecbe6294055beb961cfd",
+    "rust_source_sha256": "d7190dc60f6fc13887789ef3dd903afe4a5cf050ef7ed5e3a0bb8971bca906be",
+    "rust_worktree": "M .gitattributes\n M .gitignore\n M README.md\n M docs/cpu-baseline.md\n M examples/cpu_baseline.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n?? docs/cpu-performance.md\n?? docs/cpu-qualification.md\n?? docs/cpu-usage.md\n?? docs/windows-cpu-validation.md\n?? examples/cpu_benchmark.rs\n?? examples/cpu_profile.rs\n?? examples/cpu_qualify.rs\n?? examples/ocr.rs\n?? licenses/\n?? src/runtime/optimized/tests/placement.rs\n?? tests/benchmark_contract.rs\n?? tests/harness_contract.rs\n?? tests/qualification_contract.rs\n?? tools/benchmark/\n?? tools/csharp-benchmark/\n?? tools/csharp-qualification/\n?? tools/harness/\n?? tools/qualification/",
+    "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: x86_64-pc-windows-msvc\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1"
+  },
+  "schema_version": 1,
+  "status": "failed",
+  "archive_kind": "compact CPU comparison evidence; full OCR payloads omitted",
+  "implementation_version": "allocator correction; before targeted kernel changes",
+  "source_artifact": "target/cpu-benchmark/1792151587227-70156/report.json",
+  "source_artifact_sha256": "e19c5aa61723ba50f30d63c3d46603fad3e8762bb4c282f3312724288373e86f"
+}

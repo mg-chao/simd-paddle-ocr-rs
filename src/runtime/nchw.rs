@@ -1,6 +1,6 @@
-//! Canonical NCHW specializations. Packed kernels keep output-channel vectors
-//! in registers and scatter directly into disjoint final planes; no transient
-//! layout, coefficient copy, or per-run scratch allocation is needed.
+//! Canonical NCHW specializations. Packed kernels accumulate directly into
+//! disjoint final planes; no transient layout, coefficient copy, or per-run
+//! scratch allocation is needed.
 use super::{
     packing::PackedMatrix,
     simd::{self, Backend, Conv2d},
@@ -11,6 +11,7 @@ use std::simd::{Simd, StdFloat};
 mod native;
 #[cfg(target_arch = "x86_64")]
 mod pad_end2;
+mod reduce3;
 mod stride2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1602,6 +1603,10 @@ fn packed_pointwise_impl<const N: usize, const FMA: bool>(
         packed_pointwise_single::<N, FMA>(p, input, bias, packed, out, batch, first, count, store);
         return;
     }
+    if N == 8 && plane >= 16 && first.is_multiple_of(4) && count.is_multiple_of(4) {
+        packed_pointwise_spatial::<FMA>(p, input, bias, packed, out, batch, first, count, store);
+        return;
+    }
     let inner = p.input_channels;
     for co in (first..first + count).step_by(N) {
         for x in (0..plane).step_by(4) {
@@ -1650,6 +1655,134 @@ fn packed_pointwise_impl<const N: usize, const FMA: bool>(
                     );
                 }
             }
+        }
+    }
+}
+
+/// OC4 x 16 spatial values keep NCHW loads/stores contiguous. Large input
+/// planes traverse a bounded spatial tile before moving to the next OC4 block,
+/// so all output blocks can reuse that input tile in cache. The existing OC16
+/// panels are read directly; every output retains its ascending-ci FMA chain.
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn packed_pointwise_spatial<const FMA: bool>(
+    p: &Conv2d,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    out: &mut [f32],
+    batch: usize,
+    first: usize,
+    count: usize,
+    store: &impl simd::StoreTransform,
+) {
+    let plane = p.height * p.width;
+    let inner = p.input_channels;
+    let tile_spatial = if count > 4 && inner.saturating_mul(plane) > 262_144 {
+        ((49_152 / inner) & !15).max(64)
+    } else {
+        plane
+    };
+    for tile in (0..plane).step_by(tile_spatial) {
+        let end = tile.saturating_add(tile_spatial).min(plane);
+        for co in (first..first + count).step_by(4) {
+            let mut x = tile;
+            while x + 16 <= end {
+                packed_pointwise_spatial_packet::<8, FMA, true>(
+                    p, input, bias, packed, out, batch, first, co, x, store,
+                );
+                x += 16;
+            }
+            if x + 8 <= end {
+                packed_pointwise_spatial_packet::<8, FMA, false>(
+                    p, input, bias, packed, out, batch, first, co, x, store,
+                );
+                x += 8;
+            }
+            if x + 4 <= end {
+                packed_pointwise_spatial_packet::<4, FMA, false>(
+                    p, input, bias, packed, out, batch, first, co, x, store,
+                );
+                x += 4;
+            }
+            // Keep the pre-existing fused arithmetic even on scalar spatial
+            // tails. Only completed contiguous packets use vector epilogues.
+            for x in x..end {
+                let mut sum = initial::<4>(bias, co, p.output_channels);
+                for ci in 0..inner {
+                    let weights = coefficient::<4>(packed, inner, ci, co, p.output_channels);
+                    let value = Simd::splat(input[(batch * inner + ci) * plane + x]);
+                    sum = madd::<4, FMA>(value, weights, sum);
+                }
+                for lane in 0..4 {
+                    out[(co + lane - first) * plane + x] = store.scalar(
+                        sum[lane],
+                        (batch * p.output_channels + co + lane) * plane + x,
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn packed_pointwise_spatial_packet<const W: usize, const FMA: bool, const PAIR: bool>(
+    p: &Conv2d,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    out: &mut [f32],
+    batch: usize,
+    first: usize,
+    co: usize,
+    x: usize,
+    store: &impl simd::StoreTransform,
+) {
+    let plane = p.height * p.width;
+    let inner = p.input_channels;
+    let bias = initial::<4>(bias, co, p.output_channels);
+    let mut s0 = Simd::<f32, W>::splat(bias[0]);
+    let mut s1 = Simd::<f32, W>::splat(bias[1]);
+    let mut s2 = Simd::<f32, W>::splat(bias[2]);
+    let mut s3 = Simd::<f32, W>::splat(bias[3]);
+    let mut t0 = s0;
+    let mut t1 = s1;
+    let mut t2 = s2;
+    let mut t3 = s3;
+    for ci in 0..inner {
+        let weights = coefficient::<4>(packed, inner, ci, co, p.output_channels);
+        let w0 = Simd::splat(weights[0]);
+        let w1 = Simd::splat(weights[1]);
+        let w2 = Simd::splat(weights[2]);
+        let w3 = Simd::splat(weights[3]);
+        let source = (batch * inner + ci) * plane + x;
+        let value = Simd::<f32, W>::from_slice(&input[source..][..W]);
+        s0 = madd::<W, FMA>(value, w0, s0);
+        s1 = madd::<W, FMA>(value, w1, s1);
+        s2 = madd::<W, FMA>(value, w2, s2);
+        s3 = madd::<W, FMA>(value, w3, s3);
+        if PAIR {
+            let value = Simd::<f32, W>::from_slice(&input[source + W..][..W]);
+            t0 = madd::<W, FMA>(value, w0, t0);
+            t1 = madd::<W, FMA>(value, w1, t1);
+            t2 = madd::<W, FMA>(value, w2, t2);
+            t3 = madd::<W, FMA>(value, w3, t3);
+        }
+    }
+    let local = (co - first) * plane + x;
+    let global = (batch * p.output_channels + co) * plane + x;
+    for (lane, (sum, next)) in [(s0, t0), (s1, t1), (s2, t2), (s3, t3)]
+        .into_iter()
+        .enumerate()
+    {
+        store
+            .vector(sum, global + lane * plane)
+            .copy_to_slice(&mut out[local + lane * plane..][..W]);
+        if PAIR {
+            store
+                .vector(next, global + lane * plane + W)
+                .copy_to_slice(&mut out[local + lane * plane + W..][..W]);
         }
     }
 }
@@ -1874,14 +2007,37 @@ fn packed_three_eight_impl<const N: usize, const FMA: bool>(
         for y in 0..p.height {
             let mut x = 0;
             if y > 0 && y + 1 < p.height {
+                let border = if N == 8 {
+                    Some(reduce3::border::<1>(
+                        p, input, bias, packed, batch, co, y, 0,
+                    ))
+                } else {
+                    None
+                };
                 for lane in 0..8 {
                     out[(co + lane - first) * plane + y * p.width] = store.scalar(
-                        edge(p, input, weights, bias, batch, co + lane, y, 0),
+                        border.map_or_else(
+                            || edge(p, input, weights, bias, batch, co + lane, y, 0),
+                            |values| values[lane],
+                        ),
                         (batch * p.output_channels + co + lane) * plane + y * p.width,
                     );
                 }
                 x = 1;
                 while x + N < p.width {
+                    if N == 8 {
+                        let sums =
+                            reduce3::eight::<FMA, 1>(p, input, bias, packed, batch, co, y, x);
+                        let local = (co - first) * plane + y * p.width + x;
+                        let global = (batch * p.output_channels + co) * plane + y * p.width + x;
+                        for (lane, value) in sums.into_iter().enumerate() {
+                            store
+                                .vector(value, global + lane * plane)
+                                .copy_to_slice(&mut out[local + lane * plane..][..8]);
+                        }
+                        x += 8;
+                        continue;
+                    }
                     let mut s0 = Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co] });
                     let mut s1 =
                         Simd::<f32, N>::splat(if bias.is_empty() { 0. } else { bias[co + 1] });
@@ -1955,9 +2111,19 @@ fn packed_three_eight_impl<const N: usize, const FMA: bool>(
             // Top/bottom rows and the right scalar tail deliberately use
             // separate multiply/add through the independent source-order edge.
             for x in x..p.width {
+                let border = if N == 8 {
+                    Some(reduce3::border::<1>(
+                        p, input, bias, packed, batch, co, y, x,
+                    ))
+                } else {
+                    None
+                };
                 for lane in 0..8 {
                     out[(co + lane - first) * plane + y * p.width + x] = store.scalar(
-                        edge(p, input, weights, bias, batch, co + lane, y, x),
+                        border.map_or_else(
+                            || edge(p, input, weights, bias, batch, co + lane, y, x),
+                            |values| values[lane],
+                        ),
                         (batch * p.output_channels + co + lane) * plane + y * p.width + x,
                     );
                 }

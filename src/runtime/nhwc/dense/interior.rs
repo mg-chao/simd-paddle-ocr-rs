@@ -5,7 +5,10 @@
 //! only a channel/tap cursor; private descriptors prove every scalar load.
 use super::*;
 
-const MAX_TAPS: usize = 25;
+// The shipped Medium detector includes dense 7x7 convolutions. Their 49 taps
+// must use the same checked descriptors as 3x3/5x5 instead of repeating general
+// gather geometry in every reduction lane.
+const MAX_TAPS: usize = 49;
 static PADDING_ZERO: f32 = 0.0;
 
 pub(super) struct Taps {
@@ -20,7 +23,7 @@ pub(super) struct Taps {
 #[derive(Clone, Copy)]
 pub(super) struct Inputs<'a>([&'a [f32]; ROWS]);
 
-/// Each six-row u32 table occupies 600 bytes; eight grouped tiles use 4,800
+/// Each six-row u32 table occupies 1,176 bytes; eight grouped tiles use 9,408
 /// table bytes, plus descriptors and enum tags. Larger borrowed inputs retain
 /// the general gather instead of truncating indices.
 pub(super) struct BorderInputs<'a> {
@@ -416,6 +419,129 @@ mod tests {
     }
 
     #[test]
+    fn seven_by_seven_descriptors_cover_last_tap_and_reject_larger_tables() {
+        for dilation in [1, 2] {
+            let mut p = plan();
+            p.batch = 2;
+            p.kh = 7;
+            p.kw = 7;
+            p.dh = dilation;
+            p.dw = dilation;
+            p.height = 19;
+            p.width = 25;
+            p.oh = p.height;
+            p.ow = p.width;
+            p.pt = 3 * dilation;
+            p.pl = 3 * dilation;
+            let length = p.batch * p.height * p.width * p.cin;
+            let sentinel = f32::from_bits(0x7fc0_1234);
+            let mut guarded = vec![sentinel; length + 2];
+            for (i, value) in guarded[1..=length].iter_mut().enumerate() {
+                *value = match i % 6 {
+                    0 => -0.0,
+                    1 => 0.0,
+                    2 => f32::from_bits(0x7fc0_4321),
+                    3 => f32::INFINITY,
+                    4 => f32::NEG_INFINITY,
+                    _ => i as f32,
+                };
+            }
+            let input = &guarded[1..=length];
+            let taps = Taps::new(&p).expect("the shipped dense 7x7 head needs checked descriptors");
+            assert_eq!(taps.count, 49);
+            for n in 0..p.batch {
+                for y in [0, p.pt, p.oh - 1] {
+                    for first in [0, p.pl, p.ow - ROWS] {
+                        let origins = std::array::from_fn::<_, ROWS, _>(|r| (n, y, first + r));
+                        let table = taps.inputs(&p, input, &origins).unwrap();
+                        assert_eq!(
+                            matches!(&table, TileInputs::Interior(_)),
+                            y == p.pt && first == p.pl,
+                            "dilation={dilation} n={n} y={y} first={first}"
+                        );
+                        for tap in 0..taps.count {
+                            for channel in [0, p.cin - 1] {
+                                let expected = std::array::from_fn::<_, ROWS, _>(|row| {
+                                    let (_, y, x) = origins[row];
+                                    let sy = y * p.sh + tap / p.kw * p.dh;
+                                    let sx = x * p.sw + tap % p.kw * p.dw;
+                                    if sy < p.pt
+                                        || sy - p.pt >= p.height
+                                        || sx < p.pl
+                                        || sx - p.pl >= p.width
+                                    {
+                                        0.
+                                    } else {
+                                        input[((n * p.height + sy - p.pt) * p.width + sx - p.pl)
+                                            * p.cin
+                                            + channel]
+                                    }
+                                });
+                                macro_rules! read_rows {
+                                    ($reader:expr) => {
+                                        [
+                                            $reader.read::<0>(&taps, tap, channel),
+                                            $reader.read::<1>(&taps, tap, channel),
+                                            $reader.read::<2>(&taps, tap, channel),
+                                            $reader.read::<3>(&taps, tap, channel),
+                                            $reader.read::<4>(&taps, tap, channel),
+                                            $reader.read::<5>(&taps, tap, channel),
+                                        ]
+                                    };
+                                }
+                                // SAFETY: inputs() validated all six row spans;
+                                // the loops visit every active tap (including
+                                // slot 48) and the two channel endpoints.
+                                let actual = unsafe {
+                                    match &table {
+                                        TileInputs::Interior(reader) => read_rows!(reader),
+                                        TileInputs::Border(reader) => read_rows!(reader),
+                                    }
+                                };
+                                assert_eq!(
+                                    actual.map(f32::to_bits),
+                                    expected.map(f32::to_bits),
+                                    "dilation={dilation} n={n} y={y} first={first} tap={tap} channel={channel}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The final tap/channel of this full interior span is also the
+            // final input coefficient. One omitted coefficient must reject
+            // the interior span and the checked border fallback alike.
+            let last = [(
+                p.batch - 1,
+                p.height - 1 + p.pt - taps.y_extent,
+                p.width - 1 + p.pl - taps.x_extent,
+            ); ROWS];
+            assert!(taps.interior_inputs(&p, input, &last).is_some());
+            assert!(taps.inputs(&p, &input[..length - 1], &last).is_none());
+            assert!(
+                taps.inputs(&p, &input[..length - 1], &[(0, 0, 0); ROWS])
+                    .is_none()
+            );
+            assert!(taps.inputs(&p, input, &last[..ROWS - 1]).is_none());
+            for invalid in [(p.batch, 0, 0), (0, p.oh, 0), (0, 0, p.ow)] {
+                assert!(taps.inputs(&p, input, &[invalid; ROWS]).is_none());
+            }
+            assert_eq!(guarded[0].to_bits(), sentinel.to_bits());
+            assert_eq!(guarded[length + 1].to_bits(), sentinel.to_bits());
+
+            // Exactly 50 taps must take the general path, even with dilation;
+            // both rectangular orders and the 9x9 fallback stay outside the
+            // private descriptor's 49-slot proof.
+            for (kh, kw) in [(5, 10), (10, 5), (7, 8), (9, 9)] {
+                p.kh = kh;
+                p.kw = kw;
+                assert!(Taps::new(&p).is_none(), "{kh}x{kw} dilation={dilation}");
+            }
+        }
+    }
+
+    #[test]
     fn border_reader_validates_guarded_spans_and_preserves_scalar_bits() {
         let p = plan();
         let length = p.height * p.width * p.cin;
@@ -480,27 +606,35 @@ mod tests {
 
     #[test]
     fn border_reader_all_padding_and_index_fallback_are_explicit() {
-        let mut p = plan();
-        p.pt = 10;
-        p.pl = 10;
-        p.oh = 21;
-        p.ow = 26;
-        let input = vec![f32::NAN; p.height * p.width * p.cin];
-        let taps = Taps::new(&p).unwrap();
-        let border = taps.border_inputs(&p, &input, &[(0, 0, 0); ROWS]).unwrap();
-        assert!(border.bases.iter().flatten().all(|&base| base == u32::MAX));
-        for tap in 0..taps.count {
-            // SAFETY: this descriptor is all-padding; tap/channel are valid.
-            assert_eq!(
-                unsafe { border.read::<5>(&taps, tap, p.cin - 1) }.to_bits(),
-                0
-            );
+        for kernel in [3, 7] {
+            for dilation in [1, 2] {
+                let mut p = plan();
+                p.kh = kernel;
+                p.kw = kernel;
+                p.dh = dilation;
+                p.dw = dilation;
+                p.pt = (kernel - 1) * dilation + 1;
+                p.pl = p.pt;
+                p.oh = 21;
+                p.ow = 26;
+                let input = vec![f32::NAN; p.height * p.width * p.cin];
+                let taps = Taps::new(&p).unwrap();
+                let border = taps.border_inputs(&p, &input, &[(0, 0, 0); ROWS]).unwrap();
+                assert!(border.bases.iter().flatten().all(|&base| base == u32::MAX));
+                for tap in 0..taps.count {
+                    // SAFETY: this descriptor is all-padding; tap/channel are valid.
+                    assert_eq!(
+                        unsafe { border.read::<5>(&taps, tap, p.cin - 1) }.to_bits(),
+                        0
+                    );
+                }
+                p.height = usize::MAX;
+                assert!(taps.border_inputs(&p, &input, &[(0, 0, 0); ROWS]).is_none());
+            }
         }
         assert_eq!(encode_base(0), Some(0));
         assert_eq!(encode_base(u32::MAX as usize - 1), Some(u32::MAX - 1));
         assert_eq!(encode_base(u32::MAX as usize), None);
         assert_eq!(encode_base(u32::MAX as usize + 1), None);
-        p.height = usize::MAX;
-        assert!(taps.border_inputs(&p, &input, &[(0, 0, 0); ROWS]).is_none());
     }
 }

@@ -779,30 +779,53 @@ impl Plan {
             );
         }
         let mut groups: Vec<_> = groups.into_iter().collect();
-        groups.sort_unstable_by_key(|&(v, (s, _, _))| (s, v));
-        let mut blocks: Vec<(usize, usize, usize)> = Vec::new();
+        // Place the largest alias groups first, as in the reference planner.
+        // Reusing a whole dead block without splitting it strands its unused
+        // tail when several smaller tensors are simultaneously live later.
+        // Conflicting lifetimes alone reserve address ranges, so those tensors
+        // can instead occupy disjoint parts of the same former large region.
+        groups.sort_unstable_by(|&(a, (sa, _, la)), &(b, (sb, _, lb))| {
+            lb.cmp(&la)
+                .then_with(|| sa.cmp(&sb))
+                .then_with(|| a.cmp(&b))
+        });
+        let mut placed: Vec<(usize, usize, usize, usize)> = Vec::new();
+        let mut conflicts = Vec::new();
         let mut offsets = HashMap::new();
+        self.elements = 0;
         for (root, (s, e, len)) in groups {
-            if let Some((offset, _, last)) = blocks
-                .iter_mut()
-                .filter(|(_, size, last)| *last < s && *size >= len)
-                .min_by_key(|(_, size, _)| *size)
-            {
-                *last = e;
-                offsets.insert(root, *offset);
-            } else {
-                let offset = self
-                    .elements
+            conflicts.clear();
+            conflicts.extend(
+                placed
+                    .iter()
+                    // A last read and first write at the same step still overlap.
+                    .filter(|(_, _, ps, pe)| *ps <= e && s <= *pe)
+                    .map(|&(offset, size, _, _)| (offset, size)),
+            );
+            conflicts.sort_unstable_by_key(|&(offset, _)| offset);
+            let mut offset = 0;
+            for &(other, size) in &conflicts {
+                if other >= offset && other - offset >= len {
+                    break;
+                }
+                let end = other
+                    .checked_add(size)
+                    .ok_or_else(|| RuntimeError::new("arena size overflow"))?;
+                // Align starts, not tensor lengths: a sole three-element
+                // tensor must still fit a twelve-byte activation budget.
+                let next = end
                     .checked_add(15)
                     .ok_or_else(|| RuntimeError::new("arena alignment overflow"))?
                     / 16
                     * 16;
-                self.elements = offset
-                    .checked_add(len)
-                    .ok_or_else(|| RuntimeError::new("arena size overflow"))?;
-                blocks.push((offset, len, e));
-                offsets.insert(root, offset);
+                offset = offset.max(next);
             }
+            let extent = offset
+                .checked_add(len)
+                .ok_or_else(|| RuntimeError::new("arena size overflow"))?;
+            self.elements = self.elements.max(extent);
+            placed.push((offset, len, s, e));
+            offsets.insert(root, offset);
         }
         for v in 0..self.values.len() {
             if self.values[v].constant.is_none() {

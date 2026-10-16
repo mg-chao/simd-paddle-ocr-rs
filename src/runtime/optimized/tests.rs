@@ -1,6 +1,8 @@
 use super::*;
 mod alias;
 mod nchw_epilogue;
+mod performance;
+mod placement;
 mod selection_policy;
 mod semantic;
 fn var(mut n: u64) -> Vec<u8> {

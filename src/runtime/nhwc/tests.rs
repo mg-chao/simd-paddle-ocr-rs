@@ -1,4 +1,5 @@
 use super::*;
+mod performance;
 fn backends() -> Vec<Backend> {
     let mut result = vec![Backend::Scalar, Backend::Portable4];
     for (available, backend) in [
@@ -386,6 +387,8 @@ fn dense_interior_preserves_order_across_borders_dilation_and_worker_bands() {
         ([2, 65, 17, 9, 23], [3, 3], [1, 1], [1, 1], [1, 1, 1, 1]),
         ([1, 5, 33, 17, 29], [5, 5], [2, 1], [1, 1], [2, 1, 0, 3]),
         ([1, 1, 9, 7, 13], [7, 7], [1, 1], [1, 1], [3, 3, 3, 3]),
+        ([1, 32, 32, 9, 13], [7, 7], [1, 1], [1, 1], [3, 3, 3, 3]),
+        ([2, 11, 17, 11, 17], [7, 7], [2, 1], [2, 2], [6, 6, 6, 6]),
     ] {
         let p = plan(dimensions, kernel, stride, dilation, padding, 1);
         let mut input = values(p.batch * p.height * p.width * p.cin, 101);
@@ -779,43 +782,61 @@ fn batch_norm_affine_uses_reserved_multipliers_and_preserves_channel_tails() {
 
 #[test]
 fn dense_border_keeps_padding_products_and_signed_zero() {
-    let p = plan([1, 1, 17, 1, 1], [3, 3], [1, 1], [1, 1], [1; 4], 1);
-    for backend in backends() {
-        let input = [-0.0];
-        let weights = vec![1.0; p.cout * 9];
-        let bias = vec![-0.0; p.cout];
-        let packed = pack(&p, &weights).unwrap();
-        let mut output = vec![f32::NAN; p.cout];
-        dense::execute(
-            backend,
-            &p,
-            &input,
-            &bias,
-            &packed,
-            &mut output,
-            0,
-            &IdentityStore,
+    // 7x7 exercises the largest checked descriptor; 9x9 must retain the
+    // general gather. Dilation must preserve padding products in both paths.
+    for (kernel, dilation) in [(3, 1), (7, 1), (7, 2), (9, 1), (9, 2)] {
+        let p = plan(
+            [1, 1, 17, 1, 1],
+            [kernel, kernel],
+            [1, 1],
+            [dilation, dilation],
+            [(kernel - 1) * dilation / 2; 4],
+            1,
         );
-        // Padding products are +0, so they change a negative-zero seed to +0.
-        // Skipping all padded K entries would leave -0 for the lone valid tap.
-        assert!(output.iter().all(|x| x.to_bits() == 0), "{backend:?}");
-        let input = [1.0];
-        let mut weights = vec![1.0; p.cout * 9];
-        for row in weights.as_chunks_mut::<9>().0 {
-            row[0] = f32::INFINITY;
+        let taps = p.kh * p.kw;
+        for backend in backends() {
+            let input = [-0.0];
+            let weights = vec![1.0; p.cout * taps];
+            let bias = vec![-0.0; p.cout];
+            let packed = pack(&p, &weights).unwrap();
+            let mut output = vec![f32::NAN; p.cout];
+            dense::execute(
+                backend,
+                &p,
+                &input,
+                &bias,
+                &packed,
+                &mut output,
+                0,
+                &IdentityStore,
+            );
+            // Padding products are +0, so they change a negative-zero seed to +0.
+            // Skipping all padded K entries would leave -0 for the lone valid tap.
+            assert!(
+                output.iter().all(|x| x.to_bits() == 0),
+                "{backend:?} kernel={kernel} dilation={dilation}"
+            );
+            let input = [1.0];
+            let mut weights = vec![1.0; p.cout * taps];
+            for row in weights.chunks_exact_mut(taps) {
+                row[0] = f32::INFINITY;
+            }
+            let packed = pack(&p, &weights).unwrap();
+            dense::execute(
+                backend,
+                &p,
+                &input,
+                &bias,
+                &packed,
+                &mut output,
+                0,
+                &IdentityStore,
+            );
+            // The first padded +0*Inf is still evaluated; skipping it gives finite1.
+            assert!(
+                output.iter().all(|x| x.is_nan()),
+                "{backend:?} kernel={kernel} dilation={dilation}"
+            );
         }
-        let packed = pack(&p, &weights).unwrap();
-        dense::execute(
-            backend,
-            &p,
-            &input,
-            &bias,
-            &packed,
-            &mut output,
-            0,
-            &IdentityStore,
-        );
-        // The first padded +0*Inf is still evaluated; skipping it gives finite1.
-        assert!(output.iter().all(|x| x.is_nan()), "{backend:?}");
     }
 }

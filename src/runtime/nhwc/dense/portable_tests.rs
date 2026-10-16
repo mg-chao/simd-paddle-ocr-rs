@@ -128,6 +128,10 @@ fn portable_dense_pairs_cover_panels_blocks_borders_dilation_and_general_taps() 
         plan(65, 17, 3, 1),
         plan(23, 33, 5, 1),
         plan(17, 15, 6, 1),
+        plan(11, 17, 7, 1),
+        plan(11, 17, 7, 2),
+        plan(7, 17, 9, 1),
+        plan(7, 17, 9, 2),
     ] {
         let input = values(p.batch * p.height * p.width * p.cin, 7);
         let weights = values(p.cout * p.cin * p.kh * p.kw, 11);
