@@ -137,6 +137,57 @@ fn optimized_policy_goldens_preserve_all_tail_and_partition_bits() {
 }
 
 #[test]
+fn activation_packets_preserve_goldens_across_store_widths() {
+    fn packet<const LANES: usize>(
+        backend: Backend,
+        operation: UnaryOp,
+        inputs: &[u32; 8],
+        expected: &[u32; 8],
+    ) {
+        let value = Simd::<f32, LANES>::from_array(std::array::from_fn(|lane| {
+            f32::from_bits(inputs[lane % inputs.len()])
+        }));
+        let actual = unary_vector_with_math(operation, value, UnaryMath::for_backend(backend));
+        for (lane, value) in actual.to_array().into_iter().enumerate() {
+            assert_eq!(
+                value.to_bits(),
+                expected[lane % expected.len()],
+                "{backend:?} {operation:?} width={LANES} lane={lane}"
+            );
+        }
+    }
+
+    // Store packets and scalar tails can differ from the backend's preferred
+    // width. Independent goldens protect the arithmetic across outlined SIMD
+    // call boundaries, including wide portable packets and one-lane FMA tails.
+    for backend in optimized_backends() {
+        let fused = backend.uses_fma();
+        for (operation, inputs, expected) in [
+            (
+                UnaryOp::Erf,
+                &ERF_INPUTS,
+                if fused { &ERF_FMA } else { &ERF_SEPARATE },
+            ),
+            (
+                UnaryOp::Gelu,
+                &GELU_INPUTS,
+                if fused {
+                    &GELU_NATIVE_FMA
+                } else {
+                    &GELU_NATIVE_SEPARATE
+                },
+            ),
+            (UnaryOp::Sigmoid, &SIGMOID_INPUTS, &SIGMOID_NATIVE),
+        ] {
+            packet::<1>(backend, operation, inputs, expected);
+            packet::<4>(backend, operation, inputs, expected);
+            packet::<8>(backend, operation, inputs, expected);
+            packet::<16>(backend, operation, inputs, expected);
+        }
+    }
+}
+
+#[test]
 fn selected_math_preserves_nan_rejection_and_special_values() {
     for backend in optimized_backends() {
         let math = UnaryMath::for_backend(backend);

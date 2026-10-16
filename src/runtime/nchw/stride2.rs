@@ -40,7 +40,7 @@ fn full_width(p: &Conv2d, x: usize, lanes: usize) -> bool {
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-pub(super) fn execute<const N: usize, const FMA: bool, const PAIR16: bool>(
+fn execute_impl<const N: usize, const FMA: bool, const PAIR16: bool>(
     p: &Conv2d,
     input: &[f32],
     weights: &[f32],
@@ -401,4 +401,23 @@ fn dual4<const FMA: bool>(
     store
         .vector(s15, global + 7 * plane + 4)
         .copy_to_slice(&mut out[local + 7 * plane + 4..][..4]);
+}
+
+super::native::outline! {
+    pub(super) fn execute => execute_impl <
+        const N: usize,
+        const FMA: bool,
+        const PAIR16: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
 }

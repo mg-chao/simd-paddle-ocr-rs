@@ -8,6 +8,7 @@ use super::{
 use crate::{cpu::CpuContext, model::ConvAttributes};
 use std::simd::{Simd, StdFloat};
 
+mod native;
 #[cfg(target_arch = "x86_64")]
 mod pad_end2;
 mod stride2;
@@ -951,7 +952,7 @@ target_spatial_rows!(spatial_rows_avx512, "avx512f,avx2,fma", 16, true);
 #[cfg(feature = "parallel")]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn spatial_rows<const N: usize, const FMA: bool>(
+fn spatial_rows_impl<const N: usize, const FMA: bool>(
     p: &Conv2d,
     input: &[f32],
     weights: &[f32],
@@ -1061,7 +1062,7 @@ fn spatial_rows<const N: usize, const FMA: bool>(
 #[cfg(feature = "parallel")]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn packed_rows<const N: usize, const FMA: bool>(
+fn packed_rows_impl<const N: usize, const FMA: bool>(
     p: &Conv2d,
     input: &[f32],
     bias: &[f32],
@@ -1108,7 +1109,7 @@ fn packed_rows<const N: usize, const FMA: bool>(
 #[cfg(feature = "parallel")]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn packed_depth_rows<const N: usize, const FMA: bool>(
+fn packed_depth_rows_impl<const N: usize, const FMA: bool>(
     p: &Conv2d,
     input: &[f32],
     bias: &[f32],
@@ -1501,7 +1502,7 @@ fn coefficient<const N: usize>(
 /// coefficient panel is layout-equivalent to the reference OC-major format.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn pointwise_oc_major<const N: usize, const FMA: bool>(
+fn pointwise_oc_major_impl<const N: usize, const FMA: bool>(
     p: &Conv2d,
     input: &[f32],
     bias: &[f32],
@@ -1585,7 +1586,7 @@ fn pointwise_oc_major<const N: usize, const FMA: bool>(
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn packed_pointwise<const N: usize, const FMA: bool>(
+fn packed_pointwise_impl<const N: usize, const FMA: bool>(
     p: &Conv2d,
     input: &[f32],
     bias: &[f32],
@@ -1753,7 +1754,7 @@ fn edge(
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn packed_dense<
+fn packed_dense_impl<
     const N: usize,
     const FMA: bool,
     const KH: usize,
@@ -1852,7 +1853,7 @@ fn packed_dense<
 /// retain separate multiply/add, including FMA-capable policies.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn packed_three_eight<const N: usize, const FMA: bool>(
+fn packed_three_eight_impl<const N: usize, const FMA: bool>(
     p: &Conv2d,
     input: &[f32],
     weights: &[f32],
@@ -2172,7 +2173,7 @@ fn spatial_kind<const N: usize, const FMA: bool, const OUT: usize>(
 }
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn spatial<
+fn spatial_impl<
     const N: usize,
     const FMA: bool,
     const OUT: usize,
@@ -2265,7 +2266,7 @@ fn spatial<
 /// only at its final valid tap, so epilogues need no additional output pass.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn depthwise_tap_major<
+fn depthwise_tap_major_impl<
     const N: usize,
     const FMA: bool,
     const KH: usize,
@@ -2381,7 +2382,7 @@ fn depthwise_tap_major<
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn depthwise_strip<
+fn depthwise_strip_impl<
     const N: usize,
     const FMA: bool,
     const KH: usize,
@@ -2505,7 +2506,7 @@ fn depthwise_strip<
 /// block. Intermediate F32 stores preserve the original ascending-K order.
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn pointwise_working_set<const N: usize, const FMA: bool, const SPATIAL: usize>(
+fn pointwise_working_set_impl<const N: usize, const FMA: bool, const SPATIAL: usize>(
     p: &Conv2d,
     input: &[f32],
     bias: &[f32],
@@ -2850,7 +2851,7 @@ fn transpose_core<const N: usize, const FMA: bool>(
 }
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn transpose_tile<const N: usize, const FMA: bool, const OC: usize>(
+fn transpose_tile_impl<const N: usize, const FMA: bool, const OC: usize>(
     p: &super::kernels::ConvTranspose,
     input: &[f32],
     weights: &[f32],
@@ -2927,3 +2928,233 @@ fn transpose_tile<const N: usize, const FMA: bool, const OC: usize>(
 
 #[cfg(test)]
 mod tests;
+
+// Whole-family boundaries keep shape dispatch small while retaining native reductions.
+native::outline! {
+    fn spatial => spatial_impl <
+        const N: usize,
+        const FMA: bool,
+        const OUT: usize,
+        const KH: usize,
+        const KW: usize,
+        const SH: usize,
+        const SW: usize,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        out: &mut [f32],
+        batch: usize,
+        co: usize,
+        first: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn depthwise_tap_major => depthwise_tap_major_impl <
+        const N: usize,
+        const FMA: bool,
+        const KH: usize,
+        const KW: usize,
+        const SH: usize,
+        const SW: usize,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn depthwise_strip => depthwise_strip_impl <
+        const N: usize,
+        const FMA: bool,
+        const KH: usize,
+        const KW: usize,
+        const SH: usize,
+        const SW: usize,
+        const ROWS: usize,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    #[cfg(feature = "parallel")]
+    fn spatial_rows => spatial_rows_impl <
+        const N: usize,
+        const FMA: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        packed: Option<&PackedMatrix>,
+        band: [Option<&mut [f32]>; 64],
+        begin: usize,
+        batch: usize,
+        first: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    #[cfg(feature = "parallel")]
+    fn packed_rows => packed_rows_impl <
+        const N: usize,
+        const FMA: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        band: [Option<&mut [f32]>; 64],
+        begin: usize,
+        batch: usize,
+        first: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    #[cfg(feature = "parallel")]
+    fn packed_depth_rows => packed_depth_rows_impl <
+        const N: usize,
+        const FMA: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        band: [Option<&mut [f32]>; 64],
+        begin: usize,
+        batch: usize,
+        first: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn pointwise_oc_major => pointwise_oc_major_impl <
+        const N: usize,
+        const FMA: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn packed_pointwise => packed_pointwise_impl <
+        const N: usize,
+        const FMA: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn packed_dense => packed_dense_impl <
+        const N: usize,
+        const FMA: bool,
+        const KH: usize,
+        const KW: usize,
+        const STRIDE: usize,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn packed_three_eight => packed_three_eight_impl <
+        const N: usize,
+        const FMA: bool,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn pointwise_working_set => pointwise_working_set_impl <
+        const N: usize,
+        const FMA: bool,
+        const SPATIAL: usize,
+    > (
+        p: &Conv2d,
+        input: &[f32],
+        bias: &[f32],
+        packed: &PackedMatrix,
+        out: &mut [f32],
+        batch: usize,
+        first: usize,
+        count: usize,
+    )
+    store: Store
+}
+
+native::outline! {
+    fn transpose_tile => transpose_tile_impl <
+        const N: usize,
+        const FMA: bool,
+        const OC: usize,
+    > (
+        p: &crate::runtime::kernels::ConvTranspose,
+        input: &[f32],
+        weights: &[f32],
+        bias: &[f32],
+        out: &mut [f32],
+        batch: usize,
+        co: usize,
+        first: usize,
+    )
+    store: Store
+}

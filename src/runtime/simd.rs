@@ -9,6 +9,7 @@ use super::packing::{MATRIX_BLOCK_COLUMNS, PackedMatrix};
 use crate::math::exp_f32;
 use serde::{Deserialize, Serialize};
 use std::simd::{Select, Simd, StdFloat, cmp::SimdPartialOrd, num::SimdFloat};
+mod activation;
 mod argmax;
 mod columns;
 pub(crate) mod matrix;
@@ -2719,6 +2720,8 @@ pub(super) struct UnaryMath {
     erf_fma: bool,
     inverse_gelu_scale: bool,
     sigmoid_vector_exp: bool,
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    backend: Option<Backend>,
 }
 impl UnaryMath {
     pub(super) const fn for_backend(backend: Backend) -> Self {
@@ -2729,14 +2732,15 @@ impl UnaryMath {
             ),
             inverse_gelu_scale: !matches!(backend, Backend::Scalar),
             sigmoid_vector_exp: !matches!(backend, Backend::Scalar),
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            backend: Some(backend),
         }
     }
 }
 
-// A single scalar activation program must not expand into every unoptimized
-// native family frame. Release retains the caller's guarded ISA context.
-#[cfg_attr(debug_assertions, inline(never))]
-#[cfg_attr(not(debug_assertions), inline(always))]
+// Keep cheap scalar operations inline. The large transcendental programs have
+// shared ISA-specific boundaries, including for one-lane scalar tails.
+#[inline(always)]
 pub(super) fn unary_value_with_math(operation: UnaryOp, value: f32, math: UnaryMath) -> f32 {
     match operation {
         UnaryOp::Erf | UnaryOp::Gelu | UnaryOp::Sigmoid => {
@@ -2747,11 +2751,6 @@ pub(super) fn unary_value_with_math(operation: UnaryOp, value: f32, math: UnaryM
 }
 
 #[inline(always)]
-fn erf_vector<const LANES: usize>(value: Simd<f32, LANES>, math: UnaryMath) -> Simd<f32, LANES> {
-    transcendental::erf_with_fma(value, math.erf_fma)
-}
-
-#[inline(always)]
 pub(super) fn unary_vector<const LANES: usize>(
     operation: UnaryOp,
     value: Simd<f32, LANES>,
@@ -2759,11 +2758,10 @@ pub(super) fn unary_vector<const LANES: usize>(
     unary_vector_with_math(operation, value, UnaryMath::default())
 }
 
-// Unoptimized common and generic store paths share this large activation
-// program instead of reserving it in every nested native dispatcher frame.
-// Release inlining keeps the surrounding kernel's guarded ISA context.
-#[cfg_attr(debug_assertions, inline(never))]
-#[cfg_attr(not(debug_assertions), inline(always))]
+// Do not inline the complete transcendental program into every convolution
+// shape and store type. Its outlined entries carry their own target features;
+// they do not depend on inheriting the calling kernel's ISA through inlining.
+#[inline(always)]
 pub(super) fn unary_vector_with_math<const LANES: usize>(
     operation: UnaryOp,
     value: Simd<f32, LANES>,
@@ -2774,22 +2772,8 @@ pub(super) fn unary_vector_with_math<const LANES: usize>(
         UnaryOp::Square => value * value,
         UnaryOp::Relu => value.simd_gt(zero).select(value, zero),
         UnaryOp::Sqrt => value.sqrt(),
-        UnaryOp::Erf => erf_vector(value, math),
-        UnaryOp::Sigmoid => {
-            let one = Simd::splat(1.0);
-            if math.sigmoid_vector_exp {
-                // Pinned native and generic Vector Sigmoid use nonfused exp
-                // and one division. Optimized scalar tails use the same math.
-                let exponent = transcendental::exp(-value.abs());
-                let positive = one / (one + exponent);
-                value.simd_lt(zero).select(one - positive, positive)
-            } else {
-                let exponent = Simd::from_array((-value.abs()).to_array().map(exp_f32));
-                let denominator = one + exponent;
-                value
-                    .simd_ge(zero)
-                    .select(one / denominator, exponent / denominator)
-            }
+        UnaryOp::Erf | UnaryOp::Gelu | UnaryOp::Sigmoid => {
+            activation::complex(operation, value, math)
         }
         UnaryOp::HardSigmoid { alpha, beta } => {
             // Keep this expression unfused, matching the graph primitive.
@@ -2804,17 +2788,6 @@ pub(super) fn unary_vector_with_math<const LANES: usize>(
             let gate = gate.simd_lt(zero).select(zero, gate);
             let one = Simd::splat(1.0);
             value * gate.simd_gt(one).select(one, gate)
-        }
-        UnaryOp::Gelu => {
-            #[allow(clippy::excessive_precision, clippy::approx_constant)]
-            const REFERENCE_INVERSE_SQRT_TWO: f32 = 0.70710678118654752;
-            let scaled = if math.inverse_gelu_scale {
-                value * Simd::splat(REFERENCE_INVERSE_SQRT_TWO)
-            } else {
-                value / Simd::splat(std::f32::consts::SQRT_2)
-            };
-            let erf = erf_vector(scaled, math);
-            ((erf + Simd::splat(1.0)) * value) * Simd::splat(0.5)
         }
     }
 }

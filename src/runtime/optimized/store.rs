@@ -170,7 +170,8 @@ impl<'data> Recipe<'data> {
     // Share one activation call site. Duplicating the complete unary program
     // in six recipe arms makes unoptimized native family dispatch reserve
     // multi-megabyte frames even when the selected recipe is very small.
-    // Release inlining preserves the calling kernel's native ISA context.
+    // Release inlines the small recipe; transcendental activations retain
+    // their own shared ISA-specific boundaries.
     // Debug keeps a boundary so nested family dispatch does not reserve all
     // unary temporaries in its own unoptimized stack frames.
     #[cfg_attr(debug_assertions, inline(never))]
