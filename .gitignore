@@ -1,0 +1,9 @@
+# Rust build outputs
+/target/
+
+# Operating-system and editor scratch files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo

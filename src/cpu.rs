@@ -1,0 +1,503 @@
+//! One bounded CPU executor shared by requests and their nested kernels.
+use crate::image::{ImageError, ImageResult};
+use crate::runtime::{RuntimeError, RuntimeResult};
+use std::{
+    cell::RefCell,
+    marker::PhantomData,
+    rc::Rc,
+    sync::{Arc, Mutex, MutexGuard, OnceLock},
+};
+
+thread_local! {
+    // The guard borrows its CpuContext, so these identity-only addresses cannot
+    // move or be reused while registered. No pointer is ever dereferenced.
+    static INLINE_CONTEXTS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+    static ACTIVE_REQUESTS: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+}
+
+pub(crate) struct ActiveRequest<'a> {
+    context: &'a CpuContext,
+    _calling_thread: PhantomData<Rc<()>>,
+}
+impl Drop for ActiveRequest<'_> {
+    fn drop(&mut self) {
+        let identity = std::ptr::from_ref(self.context) as usize;
+        ACTIVE_REQUESTS.with_borrow_mut(|contexts| {
+            let index = contexts
+                .iter()
+                .rposition(|&context| context == identity)
+                .expect("active OCR request context is registered");
+            contexts.remove(index);
+        });
+    }
+}
+
+/// Keeps inline work on its calling thread while sharing one admission slot.
+/// MutexGuard also prevents the owner registration from moving to a new thread.
+pub(crate) struct InlineAdmission<'a> {
+    owner: Option<usize>,
+    _lock: Option<MutexGuard<'a, ()>>,
+}
+impl Drop for InlineAdmission<'_> {
+    fn drop(&mut self) {
+        if let Some(owner) = self.owner {
+            INLINE_CONTEXTS.with_borrow_mut(|owners| {
+                let index = owners
+                    .iter()
+                    .rposition(|&context| context == owner)
+                    .expect("inline CPU admission owner is registered");
+                owners.remove(index);
+            });
+        }
+    }
+}
+
+/// CPU budgets. Zero selects the original implementation's automatic budget.
+/// Positive values are maxima capped to the context capacity and 16.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CpuOptions {
+    pub line_workers: usize,
+    pub preprocess_workers: usize,
+    pub detector_threads: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CpuBudgets {
+    pub capacity: usize,
+    pub line_workers: usize,
+    pub preprocess_workers: usize,
+    pub detector_threads: usize,
+    pub recognizer_base_threads: usize,
+}
+impl CpuOptions {
+    pub fn resolve(self, capacity: usize, channels_last: bool) -> ImageResult<CpuBudgets> {
+        if capacity == 0 {
+            return Err(ImageError::new("CPU capacity must be positive"));
+        }
+        let lines = if self.line_workers == 0 {
+            capacity.min(4)
+        } else {
+            cap_stage_threads(self.line_workers, capacity)
+        };
+        let preprocess = if self.preprocess_workers == 0 {
+            capacity.min(16)
+        } else {
+            cap_stage_threads(self.preprocess_workers, capacity)
+        };
+        let detector = if self.detector_threads == 0 {
+            capacity.min(if channels_last { 16 } else { 8 })
+        } else {
+            cap_stage_threads(self.detector_threads, capacity)
+        };
+        Ok(CpuBudgets {
+            capacity,
+            line_workers: lines,
+            preprocess_workers: preprocess,
+            detector_threads: detector,
+            recognizer_base_threads: (capacity / lines).clamp(1, 8),
+        })
+    }
+}
+pub(crate) fn cap_stage_threads(requested: usize, capacity: usize) -> usize {
+    requested.min(capacity).min(16)
+}
+impl CpuBudgets {
+    /// Static sparse-page boost; scheduling progress never changes arithmetic.
+    pub fn recognizer_threads(self, line_count: usize) -> usize {
+        let active = self.line_workers.min(line_count).max(1);
+        (self.recognizer_base_threads * self.line_workers / active)
+            .clamp(self.recognizer_base_threads, self.capacity.min(16))
+    }
+}
+
+/// A private fixed-size pool. Capacity one executes on the calling thread.
+/// Production stages sharing its Arc share the cap across simultaneous requests.
+/// Trace orchestration and user callbacks remain on their calling thread.
+pub struct CpuContext {
+    capacity: usize,
+    inline_admission: Mutex<()>,
+    #[cfg(feature = "parallel")]
+    pool: Option<rayon::ThreadPool>,
+}
+impl std::fmt::Debug for CpuContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CpuContext")
+            .field("capacity", &self.capacity)
+            .finish_non_exhaustive()
+    }
+}
+impl CpuContext {
+    pub fn new(capacity: usize) -> RuntimeResult<Self> {
+        if capacity == 0 || capacity > 1024 {
+            return Err(RuntimeError::new("CPU capacity must be within 1..=1024"));
+        }
+        #[cfg(feature = "parallel")]
+        {
+            let pool = if capacity > 1 {
+                Some(
+                    rayon::ThreadPoolBuilder::new()
+                        .num_threads(capacity)
+                        .thread_name(|i| format!("simd-ocr-{i}"))
+                        .build()
+                        .map_err(|e| RuntimeError::new(format!("CPU pool creation: {e}")))?,
+                )
+            } else {
+                None
+            };
+            Ok(Self {
+                capacity,
+                inline_admission: Mutex::new(()),
+                pool,
+            })
+        }
+        #[cfg(not(feature = "parallel"))]
+        {
+            if capacity != 1 {
+                return Err(RuntimeError::new(
+                    "multiple CPU threads require the parallel feature",
+                ));
+            }
+            Ok(Self {
+                capacity,
+                inline_admission: Mutex::new(()),
+            })
+        }
+    }
+    pub fn automatic() -> RuntimeResult<Self> {
+        #[cfg(feature = "parallel")]
+        let capacity = std::thread::available_parallelism().map_or(1, usize::from);
+        #[cfg(not(feature = "parallel"))]
+        let capacity = 1;
+        Self::new(capacity)
+    }
+    /// Default engines and requests share one process-wide worker capacity.
+    pub fn shared_default() -> RuntimeResult<Arc<Self>> {
+        static DEFAULT: OnceLock<RuntimeResult<Arc<CpuContext>>> = OnceLock::new();
+        DEFAULT
+            .get_or_init(|| Self::automatic().map(Arc::new))
+            .clone()
+    }
+    pub fn serial() -> Arc<Self> {
+        Arc::new(Self::new(1).expect("inline CPU context needs no resources"))
+    }
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+    fn inline_owned(&self) -> bool {
+        let identity = std::ptr::from_ref(self) as usize;
+        INLINE_CONTEXTS.with_borrow(|owners| owners.contains(&identity))
+    }
+    pub(crate) fn enter_request(&self) -> ActiveRequest<'_> {
+        let identity = std::ptr::from_ref(self) as usize;
+        ACTIVE_REQUESTS.with_borrow_mut(|contexts| contexts.push(identity));
+        ActiveRequest {
+            context: self,
+            _calling_thread: PhantomData,
+        }
+    }
+    pub(crate) fn is_active_request(&self) -> bool {
+        let identity = std::ptr::from_ref(self) as usize;
+        ACTIVE_REQUESTS.with_borrow(|contexts| contexts.contains(&identity))
+    }
+    /// Capacity one has no worker thread. Its calling thread holds the shared
+    /// admission mutex, and nested work on this same context reuses ownership.
+    pub(crate) fn enter_inline(&self) -> InlineAdmission<'_> {
+        if self.capacity != 1 || self.inline_owned() {
+            return InlineAdmission {
+                owner: None,
+                _lock: None,
+            };
+        }
+        let lock = self
+            .inline_admission
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let identity = std::ptr::from_ref(self) as usize;
+        INLINE_CONTEXTS.with_borrow_mut(|owners| owners.push(identity));
+        InlineAdmission {
+            owner: Some(identity),
+            _lock: Some(lock),
+        }
+    }
+    pub fn is_worker_thread(&self) -> bool {
+        if self.capacity == 1 {
+            return self.inline_owned();
+        }
+        #[cfg(feature = "parallel")]
+        if let Some(pool) = &self.pool {
+            return pool.current_thread_index().is_some();
+        }
+        false
+    }
+    #[cfg(test)]
+    pub(crate) fn assert_production_thread(&self, stage: &str) {
+        assert!(
+            self.is_worker_thread(),
+            "{stage} production work escaped its CPU context on {:?}",
+            std::thread::current().id()
+        );
+    }
+    pub fn install<T: Send>(&self, operation: impl FnOnce() -> T + Send) -> T {
+        #[cfg(feature = "parallel")]
+        if let Some(pool) = &self.pool {
+            return pool.install(operation);
+        }
+        let _inline = self.enter_inline();
+        operation()
+    }
+    /// Bounded scoped jobs; nested calls stay on this same fixed-size pool.
+    pub fn for_each(&self, count: usize, budget: usize, body: impl Fn(usize) + Sync) {
+        let workers = count.min(budget.max(1)).min(self.capacity);
+        if workers <= 1 {
+            self.install(|| {
+                for i in 0..count {
+                    body(i);
+                }
+            });
+            #[cfg(feature = "parallel")]
+            return;
+        }
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            self.install(|| {
+                (0..workers).into_par_iter().for_each(|worker| {
+                    for i in (worker..count).step_by(workers) {
+                        body(i);
+                    }
+                })
+            });
+        }
+    }
+    /// Each item is exclusively borrowed and all jobs join before returning.
+    pub fn for_each_mut<T: Send>(
+        &self,
+        items: &mut [T],
+        budget: usize,
+        body: impl Fn(usize, &mut T) + Sync,
+    ) {
+        let workers = items.len().min(budget.max(1)).min(self.capacity);
+        if workers <= 1 {
+            self.install(|| {
+                for (i, item) in items.iter_mut().enumerate() {
+                    body(i, item);
+                }
+            });
+            #[cfg(feature = "parallel")]
+            return;
+        }
+        #[cfg(feature = "parallel")]
+        {
+            use rayon::prelude::*;
+            let chunk = items.len().div_ceil(workers);
+            self.install(|| {
+                items
+                    .par_chunks_mut(chunk)
+                    .enumerate()
+                    .for_each(|(band, items)| {
+                        for (offset, item) in items.iter_mut().enumerate() {
+                            body(band * chunk + offset, item);
+                        }
+                    })
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn original_budgets_and_sparse_boost() {
+        for (cpu, lines, rec) in [
+            (1, 1, 1),
+            (2, 2, 1),
+            (3, 3, 1),
+            (8, 4, 2),
+            (16, 4, 4),
+            (32, 4, 8),
+        ] {
+            let b = CpuOptions::default().resolve(cpu, true).unwrap();
+            assert_eq!((b.line_workers, b.recognizer_base_threads), (lines, rec));
+            assert_eq!(b.preprocess_workers, cpu.min(16));
+            assert_eq!(b.detector_threads, cpu.min(16));
+            assert!(b.recognizer_threads(1) <= cpu.min(16));
+            assert_eq!(b.recognizer_threads(lines), rec);
+        }
+        assert_eq!(
+            CpuOptions::default()
+                .resolve(32, false)
+                .unwrap()
+                .detector_threads,
+            8
+        );
+        assert!(CpuOptions::default().resolve(0, false).is_err());
+    }
+    #[test]
+    fn explicit_stage_budget_caps_each_option_without_changing_automatic_siblings() {
+        for capacity in [1, 4, 32] {
+            for channels_last in [false, true] {
+                let automatic = CpuOptions::default()
+                    .resolve(capacity, channels_last)
+                    .unwrap();
+                assert_eq!(
+                    automatic,
+                    CpuBudgets {
+                        capacity,
+                        line_workers: capacity.min(4),
+                        preprocess_workers: capacity.min(16),
+                        detector_threads: capacity.min(if channels_last { 16 } else { 8 }),
+                        recognizer_base_threads: (capacity / capacity.min(4)).clamp(1, 8),
+                    }
+                );
+                for requested in [17, usize::MAX] {
+                    for field in 0..3 {
+                        let mut options = CpuOptions::default();
+                        let mut expected = automatic;
+                        let capped = requested.min(capacity).min(16);
+                        match field {
+                            0 => {
+                                options.line_workers = requested;
+                                expected.line_workers = capped;
+                                expected.recognizer_base_threads = (capacity / capped).clamp(1, 8);
+                            }
+                            1 => {
+                                options.preprocess_workers = requested;
+                                expected.preprocess_workers = capped;
+                            }
+                            _ => {
+                                options.detector_threads = requested;
+                                expected.detector_threads = capped;
+                            }
+                        }
+                        assert_eq!(options.resolve(capacity, channels_last).unwrap(), expected);
+                    }
+                }
+            }
+        }
+        assert!(
+            CpuOptions {
+                line_workers: usize::MAX,
+                preprocess_workers: usize::MAX,
+                detector_threads: usize::MAX,
+            }
+            .resolve(0, true)
+            .is_err()
+        );
+    }
+    #[test]
+    fn inline_executes_on_the_calling_thread_and_empty_jobs_are_safe() {
+        let cpu = CpuContext::new(1).unwrap();
+        let caller = std::thread::current().id();
+        assert_eq!(cpu.install(|| std::thread::current().id()), caller);
+        let mut values = [0; 17];
+        cpu.for_each_mut(&mut values, 16, |i, v| *v = i);
+        assert_eq!(values, std::array::from_fn::<_, 17, _>(|i| i));
+        cpu.for_each(0, 0, |_| panic!("empty executor dispatched a task"));
+        assert!(CpuContext::new(0).is_err());
+        assert!(CpuContext::new(1025).is_err());
+    }
+    #[test]
+    fn concurrent_inline_work_is_serialized_and_same_context_calls_are_reentrant() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let cpu = CpuContext::new(1).unwrap();
+        let ready = std::sync::Barrier::new(4);
+        let active = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                let cpu = &cpu;
+                let ready = &ready;
+                let active = &active;
+                let peak = &peak;
+                scope.spawn(move || {
+                    let caller = std::thread::current().id();
+                    ready.wait();
+                    for _ in 0..6 {
+                        cpu.install(|| {
+                            assert_eq!(std::thread::current().id(), caller);
+                            assert!(cpu.is_worker_thread());
+                            let simultaneous = active.fetch_add(1, Ordering::SeqCst) + 1;
+                            peak.fetch_max(simultaneous, Ordering::SeqCst);
+                            cpu.install(|| assert_eq!(active.load(Ordering::SeqCst), 1));
+                            cpu.for_each(2, 1, |_| assert_eq!(active.load(Ordering::SeqCst), 1));
+                            let mut values = [0, 0];
+                            cpu.for_each_mut(&mut values, 1, |index, value| *value = index);
+                            assert_eq!(values, [0, 1]);
+                            std::thread::sleep(std::time::Duration::from_millis(1));
+                            active.fetch_sub(1, Ordering::SeqCst);
+                        });
+                    }
+                    assert!(!cpu.is_worker_thread());
+                });
+            }
+        });
+        assert_eq!(peak.load(Ordering::SeqCst), 1);
+        assert_eq!(active.load(Ordering::SeqCst), 0);
+    }
+    #[test]
+    fn inline_ownership_and_admission_recover_after_caught_panics() {
+        let cpu = CpuContext::new(1).unwrap();
+        cpu.install(|| {
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    cpu.install(|| panic!("nested inline panic"));
+                }))
+                .is_err()
+            );
+            assert!(cpu.is_worker_thread());
+            cpu.install(|| assert!(cpu.is_worker_thread()));
+        });
+        assert!(!cpu.is_worker_thread());
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                cpu.install(|| panic!("outer inline panic"));
+            }))
+            .is_err()
+        );
+        assert!(!cpu.is_worker_thread());
+        assert_eq!(cpu.install(|| 7), 7);
+    }
+    #[test]
+    fn request_markers_are_context_specific_nested_and_unwind_safe() {
+        let first = CpuContext::new(1).unwrap();
+        let second = CpuContext::new(1).unwrap();
+        assert!(!first.is_active_request());
+        {
+            let _outer = first.enter_request();
+            assert!(first.is_active_request());
+            assert!(!first.is_worker_thread());
+            assert!(!second.is_active_request());
+            {
+                let _inner = first.enter_request();
+                assert!(first.is_active_request());
+            }
+            assert!(first.is_active_request());
+            std::thread::scope(|scope| {
+                scope.spawn(|| assert!(!first.is_active_request()));
+            });
+        }
+        assert!(!first.is_active_request());
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _active = first.enter_request();
+                panic!("active request panic");
+            }))
+            .is_err()
+        );
+        assert!(!first.is_active_request());
+    }
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn nested_jobs_share_the_fixed_pool() {
+        use std::sync::Mutex;
+        let cpu = CpuContext::new(2).unwrap();
+        let ids = Mutex::new(std::collections::HashSet::new());
+        cpu.for_each(16, 2, |_| {
+            cpu.for_each(16, 2, |_| {
+                ids.lock().unwrap().insert(std::thread::current().id());
+            })
+        });
+        assert!(ids.lock().unwrap().len() <= 2);
+    }
+}
