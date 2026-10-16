@@ -1,5 +1,7 @@
 # Rust build outputs
 /target/
+/tools/csharp-reference/bin/
+/tools/csharp-reference/obj/
 
 # Operating-system and editor scratch files
 .DS_Store

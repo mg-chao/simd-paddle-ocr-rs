@@ -1,0 +1,5 @@
+# The complete manifest is hashed by the goldens, so checkout line endings
+# must not change those bytes across platforms.
+/tests/baseline/*.json text eol=lf
+/tests/baseline/expected/*.json text eol=lf
+/tests/baseline/corpus/* binary

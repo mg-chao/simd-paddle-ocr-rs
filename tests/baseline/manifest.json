@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "corpus_commit": "ddaa85ddafe1edfbe618b83ca0e8e61dab33155b",
+  "settings": {
+    "cpu_threads": 1,
+    "kernel_policy": "auto",
+    "layout": "auto",
+    "fusion": true,
+    "direction_classification": true,
+    "classifier_threshold": 0.0,
+    "recognition_batch_size": 1,
+    "adaptive_width": true,
+    "target_width": 320,
+    "detector_limit": 960,
+    "bitmap_threshold": 0.2,
+    "unclip_ratio": 1.4,
+    "max_candidates": 3000,
+    "use_dilation": false
+  },
+  "models": [
+    {
+      "id": "tiny",
+      "det": "det.onnx",
+      "rec": "rec.onnx",
+      "dictionary": "ppocr_keys.txt",
+      "cls": "cls.onnx",
+      "box_threshold": 0.4
+    },
+    {
+      "id": "small",
+      "det": "small_det.onnx",
+      "rec": "small_rec.onnx",
+      "dictionary": "rec_keys.txt",
+      "cls": "cls.onnx",
+      "box_threshold": 0.45
+    },
+    {
+      "id": "medium",
+      "det": "medium_det.onnx",
+      "rec": "medium_rec.onnx",
+      "dictionary": "rec_keys.txt",
+      "cls": "cls.onnx",
+      "box_threshold": 0.45
+    }
+  ],
+  "assets": [
+    {
+      "file": "cls.onnx",
+      "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2"
+    },
+    {
+      "file": "det.onnx",
+      "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8"
+    },
+    {
+      "file": "medium_det.onnx",
+      "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1"
+    },
+    {
+      "file": "medium_rec.onnx",
+      "sha256": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba"
+    },
+    {
+      "file": "ppocr_keys.txt",
+      "sha256": "46e1b34ef45684cb46d75ac76d355341fe7f0a2c38d6ee02e63ae6b3878019fc",
+      "sha256_crlf": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82"
+    },
+    {
+      "file": "rec_keys.txt",
+      "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+      "sha256_crlf": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6"
+    },
+    {
+      "file": "rec.onnx",
+      "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6"
+    },
+    {
+      "file": "small_det.onnx",
+      "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e"
+    },
+    {
+      "file": "small_rec.onnx",
+      "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "imgs_00006737",
+      "file": "corpus/imgs_00006737.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00006737.jpg",
+      "sha256": "4425af33dd163cf73bdff502bd35ee527e9bdd5725501db1da78bfdae9f538f4",
+      "transform": "identity",
+      "base": null,
+      "width": 896,
+      "height": 528,
+      "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73"
+    },
+    {
+      "id": "imgs_00009282",
+      "file": "corpus/imgs_00009282.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00009282.jpg",
+      "sha256": "957a9cc15da49312277796126be225e0ee653f3316578c12d626fa43fbe9561b",
+      "transform": "identity",
+      "base": null,
+      "width": 350,
+      "height": 350,
+      "pixel_sha256": "f4ca342c18bc99df5c87d020b29d9123081aa9b8d90526ab224e2b6d7117948d"
+    },
+    {
+      "id": "imgs_00015504",
+      "file": "corpus/imgs_00015504.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00015504.jpg",
+      "sha256": "74f8433958845bed4b2f1819a14488d31ccd57c6caca0307585c3cb89ddc7ff1",
+      "transform": "identity",
+      "base": null,
+      "width": 559,
+      "height": 519,
+      "pixel_sha256": "5f171b2eba6f7b5eaddefd54e867b956bfeb1ca3442280ce85d017e1cef01b38"
+    },
+    {
+      "id": "imgs_00018069",
+      "file": "corpus/imgs_00018069.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00018069.jpg",
+      "sha256": "769bce39ef8baccd4db0cd36cdf80952dca7a6fa041aac4763938ebf1b875b8b",
+      "transform": "identity",
+      "base": null,
+      "width": 430,
+      "height": 267,
+      "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463"
+    },
+    {
+      "id": "imgs_00056221",
+      "file": "corpus/imgs_00056221.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00056221.jpg",
+      "sha256": "f76ac52816fa74fa9efac12ab4c382cbed3c137d02b689738edbcb63717abe9e",
+      "transform": "identity",
+      "base": null,
+      "width": 670,
+      "height": 510,
+      "pixel_sha256": "1d873e2e54ed9d7302fc8af098718502f291ed9931bfb919a66b23034df487a0"
+    },
+    {
+      "id": "imgs_00057937",
+      "file": "corpus/imgs_00057937.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00057937.jpg",
+      "sha256": "640dd04a43a761812fab58ef5ad1ef1694a8bc843e576b3c28bee0110a3d0c4d",
+      "transform": "identity",
+      "base": null,
+      "width": 1000,
+      "height": 750,
+      "pixel_sha256": "f66d57ca686bbce376b7250001dc81bd038af2c2945ba169b07b1059c59dfb5d"
+    },
+    {
+      "id": "imgs_00059985",
+      "file": "corpus/imgs_00059985.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00059985.jpg",
+      "sha256": "1294755b7db3d7c22daa31ed1995d1509aa385d5a54831774532716b4b26c330",
+      "transform": "identity",
+      "base": null,
+      "width": 574,
+      "height": 528,
+      "pixel_sha256": "6c7f561e30ef35e6ff204a675a2198ba706e6b26395223973a491cf1fa874ca4"
+    },
+    {
+      "id": "imgs_00077949",
+      "file": "corpus/imgs_00077949.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00077949.jpg",
+      "sha256": "52d9f8b28b109b6594b07e8f10961f661b85bb0762ebb1bfa210ea424efaa4f9",
+      "transform": "identity",
+      "base": null,
+      "width": 750,
+      "height": 563,
+      "pixel_sha256": "56fafcaae2c7691a383d41b0364211ec4dbc7a1ad90422cecf40c09603f59889"
+    },
+    {
+      "id": "imgs_00111002",
+      "file": "corpus/imgs_00111002.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00111002.jpg",
+      "sha256": "25d7fb496543765eab9adca7edebdab74f0a78068dae8312cbe4f8b508af9e0f",
+      "transform": "identity",
+      "base": null,
+      "width": 500,
+      "height": 667,
+      "pixel_sha256": "9b997076acbf0cd19c4eb20ff5f6c6d278f3c1bd0feca93beb883ada00ba14f1"
+    },
+    {
+      "id": "imgs_00207393",
+      "file": "corpus/imgs_00207393.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00207393.jpg",
+      "sha256": "e3766e72d161d38bf3893fcff94dbcde348dadf03a8f88f7ebf637d5a6f5831c",
+      "transform": "identity",
+      "base": null,
+      "width": 489,
+      "height": 375,
+      "pixel_sha256": "b3622989a9ac6e4b127d0f2c569303f5412887419284cd5b690ffa8663c03528"
+    },
+    {
+      "id": "imgs_1",
+      "file": "corpus/imgs_1.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/1.jpg",
+      "sha256": "1b3978f3708bc31e3acfe603b052531a480db87ebaa1460559ee7d3eb1160593",
+      "transform": "identity",
+      "base": null,
+      "width": 720,
+      "height": 1150,
+      "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63"
+    },
+    {
+      "id": "imgs_11",
+      "file": "corpus/imgs_11.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/11.jpg",
+      "sha256": "2bb78629be3a6b29025d85db3677642c267d0ff176706ab963e8cb0c132df10b",
+      "transform": "identity",
+      "base": null,
+      "width": 500,
+      "height": 500,
+      "pixel_sha256": "d8e48187414b36fb660f0c341649b801b87ddace1953b7a87f90dd5ec1b0a411"
+    },
+    {
+      "id": "imgs_12",
+      "file": "corpus/imgs_12.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/12.jpg",
+      "sha256": "3ac37804e4e292f68c8960d553485147516cdc2e4154afeec6ca742a70e71dca",
+      "transform": "identity",
+      "base": null,
+      "width": 720,
+      "height": 1150,
+      "pixel_sha256": "ad141249d6bcd59c9839319d54111158ca1c72b96dd8598146bdbd86c50a6e8d"
+    },
+    {
+      "id": "imgs_en_254",
+      "file": "corpus/imgs_en_254.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs_en/254.jpg",
+      "sha256": "39c9c9b69673880b17fa038c74f2a46e3e97841ed39ac4318efc5fde58512984",
+      "transform": "identity",
+      "base": null,
+      "width": 700,
+      "height": 933,
+      "pixel_sha256": "639ab109abbbffcd402e8455d653d90f86842a80f32269fcef135074ab1e2af3"
+    },
+    {
+      "id": "imgs_en_img_10",
+      "file": "corpus/imgs_en_img_10.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs_en/img_10.jpg",
+      "sha256": "eb2fd6496072cbdad3f00e38b42bb24549860c196de345ef2196017b38a5c4c0",
+      "transform": "identity",
+      "base": null,
+      "width": 1280,
+      "height": 720,
+      "pixel_sha256": "5ff62a4d6d134e6295607745baa810efeb31593d653971879704a01377b4b1ce"
+    },
+    {
+      "id": "imgs_en_img_11",
+      "file": "corpus/imgs_en_img_11.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs_en/img_11.jpg",
+      "sha256": "1ab8c1df87fce39d149a1a369a7785bebc1def74f555d233d86168c169d068d7",
+      "transform": "identity",
+      "base": null,
+      "width": 1280,
+      "height": 720,
+      "pixel_sha256": "47e64760214d42eebe67166ee548babb0f789dca98a3c44c626df5b25519a4aa"
+    },
+    {
+      "id": "imgs_en_img_12",
+      "file": "corpus/imgs_en_img_12.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs_en/img_12.jpg",
+      "sha256": "25567eede48109f0ec02b68c8b873c593a569c5d15ad43d167c970599ade8c3f",
+      "transform": "identity",
+      "base": null,
+      "width": 1680,
+      "height": 1048,
+      "pixel_sha256": "a0bec72ed02dcbe77b84d0b821191abf8f5887becb988bf5daef0593c4f34aad"
+    },
+    {
+      "id": "imgs_en_img_195",
+      "file": "corpus/imgs_en_img_195.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs_en/img_195.jpg",
+      "sha256": "22fc122c7db7c70d8372f5154e489d0d52d8a3cf68f4801aec3c40bafc8c07ef",
+      "transform": "identity",
+      "base": null,
+      "width": 1280,
+      "height": 720,
+      "pixel_sha256": "9c4f97e9dca0557d7f7e47752971f1c661cd8c75145e4183acce72f8a92cbdf2"
+    },
+    {
+      "id": "imgs_en_img623",
+      "file": "corpus/imgs_en_img623.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs_en/img623.jpg",
+      "sha256": "0cf065709746c4288fd98d77aad9070ca18e1e9563452f4d12527190d81418dd",
+      "transform": "identity",
+      "base": null,
+      "width": 722,
+      "height": 542,
+      "pixel_sha256": "953e5cf20af4d3cfd4c379425bff61d1bfadf0ae249905a7b81427a30714b910"
+    },
+    {
+      "id": "imgs_11_rotate90",
+      "file": null,
+      "url": null,
+      "sha256": null,
+      "transform": "rotate90",
+      "base": "imgs_11",
+      "width": 500,
+      "height": 500,
+      "pixel_sha256": "7560f9d64617a848ce4978a52294f1a46e2ac3417c0460bf6865653105f7a4d1"
+    },
+    {
+      "id": "imgs_11_rotate180",
+      "file": null,
+      "url": null,
+      "sha256": null,
+      "transform": "rotate180",
+      "base": "imgs_11",
+      "width": 500,
+      "height": 500,
+      "pixel_sha256": "c6664498a871cf51af26c5246efb8245d6ffaefa0e5d7f915c9c4cb40d170bc1"
+    },
+    {
+      "id": "blank",
+      "file": null,
+      "url": null,
+      "sha256": null,
+      "transform": "white",
+      "base": null,
+      "width": 512,
+      "height": 512,
+      "pixel_sha256": "902ab44f9b6b07c34a29958b325726ba7f6d506403335cf95a2af25e0ca1ad00"
+    }
+  ]
+}
