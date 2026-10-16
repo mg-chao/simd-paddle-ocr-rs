@@ -9,6 +9,18 @@ mod audit_packed3_envelope;
 #[path = "audit_packed3_packets.rs"]
 mod audit_packed3_packets;
 
+#[path = "audit_packed3_recursive_order.rs"]
+mod audit_packed3_recursive_order;
+
+#[path = "audit_packed3_band_plan.rs"]
+mod audit_packed3_band_plan;
+
+#[path = "audit_stride2_contract.rs"]
+mod audit_stride2_contract;
+
+#[path = "audit_stride2_band_plan.rs"]
+mod audit_stride2_band_plan;
+
 /// Separate callback counters expose loss of vector epilogues even when both
 /// callback implementations produce numerically identical results.
 struct PacketVisits {
@@ -229,10 +241,30 @@ fn packed_epilogues_deliver_spatial_packets_for_three_by_three() {
 }
 #[test]
 fn packed_epilogues_deliver_spatial_packets_for_stride_two() {
-    let p = parameters(4, 24, 5, 17, [3, 3], [2, 2], [1, 1], 1);
-    packed_packet_case(p, Kind::PackedStride2, |_, spatial| {
-        (1..5).contains(&(spatial % 9))
-    });
+    for height in [1, 2, 3, 4, 5, 6] {
+        for width in [7, 8, 9, 10, 17, 18, 19, 33, 34, 35] {
+            let p = parameters(4, 24, height, width, [3, 3], [2, 2], [1, 1], 1);
+            packed_packet_case(p, Kind::PackedStride2, |lanes, spatial| {
+                let oy = spatial / p.output_width;
+                let x = spatial % p.output_width;
+                // Literal packed-source loop. Portable4's preferred dual
+                // packet has the same covered values as two adjacent N tiles.
+                let mut ox = 0;
+                while ox < p.output_width {
+                    let vector = oy > 0
+                        && oy * 2 + 1 < height
+                        && ox > 0
+                        && ox + lanes <= p.output_width
+                        && (ox + lanes - 1) * 2 + 1 < width;
+                    if vector && x >= ox && x < ox + lanes {
+                        return true;
+                    }
+                    ox += if vector { lanes } else { 1 };
+                }
+                false
+            });
+        }
+    }
 }
 #[test]
 fn packed_epilogues_deliver_spatial_packets_for_pointwise() {
@@ -336,7 +368,7 @@ fn reference(
         Backend::AvxFma | Backend::Avx2Fma | Backend::Avx512
     );
     let valid = interior(p);
-    let vector_width = if matches!(kind, Kind::PackedStride2 | Kind::PackedDense) {
+    let vector_width = if kind == Kind::PackedDense {
         4
     } else if kind == Kind::PackedDepth9 {
         1
@@ -344,6 +376,29 @@ fn reference(
         lanes
     };
     let vector_end = valid.start + valid.len() / vector_width * vector_width;
+    // Packed stride-two is a separate source family, including its paired
+    // OC16 native form. Build the literal full-footprint spatial packet map;
+    // the generic interior helper does not encode its vertical requirement.
+    let packed_stride2 = matches!(kind, Kind::PackedStride2 | Kind::PackedStride2Pair16);
+    let mut stride2_packets = Vec::new();
+    if packed_stride2 {
+        stride2_packets.resize(p.output_height * p.output_width, false);
+        for oy in 0..p.output_height {
+            let mut ox = 0;
+            while ox < p.output_width {
+                let vector = oy > 0
+                    && oy * 2 + 1 < p.height
+                    && ox > 0
+                    && ox + lanes <= p.output_width
+                    && (ox + lanes - 1) * 2 + 1 < p.width;
+                if vector {
+                    stride2_packets[oy * p.output_width + ox..oy * p.output_width + ox + lanes]
+                        .fill(true);
+                }
+                ox += if vector { lanes } else { 1 };
+            }
+        }
+    }
     let mut output = Vec::new();
     let cpg = p.input_channels / p.groups;
     let opg = p.output_channels / p.groups;
@@ -351,17 +406,21 @@ fn reference(
         for co in 0..p.output_channels {
             for y in 0..p.output_height {
                 for x in 0..p.output_width {
-                    let do_fma = fused
-                        && (!matches!(kind, Kind::Packed3 | Kind::Packed3Pair16)
-                            || y > 0 && y + 1 < p.height)
-                        && (matches!(
-                            kind,
-                            Kind::PointwiseOcMajor
-                                | Kind::PackedDepth9
-                                | Kind::PointwisePacked
-                                | Kind::PointwiseBlocked
-                                | Kind::PointwiseTiled
-                        ) || (x >= valid.start && x < vector_end));
+                    let do_fma = if packed_stride2 {
+                        fused && stride2_packets[y * p.output_width + x]
+                    } else {
+                        fused
+                            && (!matches!(kind, Kind::Packed3 | Kind::Packed3Pair16)
+                                || y > 0 && y + 1 < p.height)
+                            && (matches!(
+                                kind,
+                                Kind::PointwiseOcMajor
+                                    | Kind::PackedDepth9
+                                    | Kind::PointwisePacked
+                                    | Kind::PointwiseBlocked
+                                    | Kind::PointwiseTiled
+                            ) || (x >= valid.start && x < vector_end))
+                    };
                     let mut sum = if bias.is_empty() { 0. } else { bias[co] };
                     for ci in 0..cpg {
                         for ky in 0..p.kernel_height {

@@ -10,6 +10,7 @@ use std::simd::{Simd, StdFloat};
 
 #[cfg(target_arch = "x86_64")]
 mod pad_end2;
+mod stride2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Kind {
@@ -38,6 +39,7 @@ enum Kind {
     DepthGeneral,
     PackedDepth9,
     Packed3Pair16,
+    PackedStride2Pair16,
 }
 impl Kind {
     fn name(self) -> &'static str {
@@ -51,6 +53,7 @@ impl Kind {
             Self::Packed3Pair16 => "nchw_packed_3x3_pair16",
             Self::Dense3 => "nchw_dense_3x3",
             Self::PackedStride2 => "nchw_packed_3x3_stride2",
+            Self::PackedStride2Pair16 => "nchw_packed_3x3_stride2_pair16",
             Self::Stride2 => "nchw_dense_3x3_stride2",
             Self::PadEnd2 => "nchw_dense_2x2_pad_end",
             Self::PackedDense => "nchw_packed_dense_stride1",
@@ -298,7 +301,14 @@ fn select(backend: Backend, p: &Conv2d, packed: bool, threads: usize) -> Option<
                     && eight
                     && !(backend == Backend::Portable4 && p.output_channels == 16 && threads > 2)
                 {
-                    Kind::PackedStride2
+                    if matches!(backend, Backend::Avx | Backend::AvxFma | Backend::Avx2Fma)
+                        && (threads <= 1 || p.batch != 1 || p.output_channels < 16)
+                        && p.output_channels.is_multiple_of(16)
+                    {
+                        Kind::PackedStride2Pair16
+                    } else {
+                        Kind::PackedStride2
+                    }
                 } else {
                     Kind::Stride2
                 },
@@ -324,6 +334,26 @@ pub(super) fn family_for_threads(
     if threads == 1 {
         family(backend, p, packed)
     } else {
+        #[cfg(feature = "parallel")]
+        if let Some(plan) = packed3_band_plan(backend, p, packed, threads, threads)
+            .or_else(|| packed_stride2_band_plan(backend, p, packed, threads, threads))
+        {
+            let mut paired = false;
+            let mut eight = false;
+            for worker in 0..plan.workers() {
+                let band = plan.band(worker).expect("planned packed3 worker");
+                paired |= matches!(band.kind, Kind::Packed3Pair16 | Kind::PackedStride2Pair16);
+                eight |= matches!(band.kind, Kind::Packed3 | Kind::PackedStride2);
+            }
+            if paired {
+                return Some(match (plan.stride2, eight) {
+                    (true, true) => "nchw_packed_3x3_stride2_parallel_mixed16_8",
+                    (true, false) => "nchw_packed_3x3_stride2_parallel_pair16",
+                    (false, true) => "nchw_packed_3x3_parallel_mixed16_8",
+                    (false, false) => "nchw_packed_3x3_parallel_pair16",
+                });
+            }
+        }
         select(backend, p, packed, threads).map(Kind::name)
     }
 }
@@ -361,6 +391,7 @@ pub(super) fn uses_pack_for_threads(
                     | Kind::Packed3
                     | Kind::Packed3Pair16
                     | Kind::PackedStride2
+                    | Kind::PackedStride2Pair16
                     | Kind::PackedDense
                     | Kind::PackedDepth9
             )
@@ -511,6 +542,35 @@ pub(super) fn try_conv_store(
         return true;
     }
     #[cfg(feature = "parallel")]
+    if let Some(plan) = packed3_band_plan(actual, p, packed.is_some(), threads, cpu.capacity())
+        .or_else(|| packed_stride2_band_plan(actual, p, packed.is_some(), threads, cpu.capacity()))
+    {
+        for (batch, out) in output
+            .chunks_exact_mut(p.output_channels * plane)
+            .enumerate()
+        {
+            super::parallel::aligned_bands(
+                out,
+                8 * plane,
+                p.output_channels / 8,
+                plan.workers(),
+                1,
+                cpu,
+                |out, first_block| {
+                    let worker = plan.worker_at_first_block(first_block);
+                    let band = plan.band(worker).expect("aligned packed3 channel band");
+                    debug_assert_eq!(band.first, first_block * 8);
+                    debug_assert_eq!(band.count * plane, out.len());
+                    run(
+                        actual, band.kind, p, input, weights, bias, packed, out, batch, band.first,
+                        band.count, store,
+                    );
+                },
+            );
+        }
+        return true;
+    }
+    #[cfg(feature = "parallel")]
     let tile = if matches!(kind, Kind::PointwiseBlocked | Kind::PointwiseTiled) {
         16
     } else if kind == Kind::PackedDepth9 {
@@ -577,6 +637,127 @@ pub(super) fn try_conv_store(
         );
     }
     true
+}
+
+/// Read-only plan for the pinned packed3/stride2 OC8 channel split. The same boundaries
+/// drive execution and per-band family queries; no temporary band vector exists.
+#[cfg(any(feature = "parallel", test))]
+#[derive(Clone, Copy, Debug)]
+pub(super) struct PackedChannelBandPlan {
+    backend: Backend,
+    blocks: usize,
+    workers: usize,
+    stride2: bool,
+}
+
+#[cfg(any(feature = "parallel", test))]
+#[derive(Clone, Copy, Debug)]
+pub(super) struct PackedChannelBand {
+    pub(super) first: usize,
+    pub(super) count: usize,
+    kind: Kind,
+}
+
+#[cfg(any(feature = "parallel", test))]
+impl PackedChannelBand {
+    #[cfg(test)]
+    pub(super) fn family(self) -> &'static str {
+        self.kind.name()
+    }
+}
+
+#[cfg(any(feature = "parallel", test))]
+impl PackedChannelBandPlan {
+    pub(super) fn workers(self) -> usize {
+        self.workers
+    }
+
+    pub(super) fn band(self, worker: usize) -> Option<PackedChannelBand> {
+        if worker >= self.workers {
+            return None;
+        }
+        let first = super::parallel::band_boundary(self.blocks, self.workers, 1, worker) * 8;
+        let end = super::parallel::band_boundary(self.blocks, self.workers, 1, worker + 1) * 8;
+        let count = end - first;
+        // AVX channel workers recursively enter Try(..., childCount, 1).
+        // AVX512 children retain eight-output native bodies; Portable4
+        // children enter Vector bodies, which also own OC8.
+        let paired = matches!(
+            self.backend,
+            Backend::Avx | Backend::AvxFma | Backend::Avx2Fma
+        ) && (self.stride2 || count >= 64)
+            && count.is_multiple_of(16);
+        let kind = match (self.stride2, paired) {
+            (true, true) => Kind::PackedStride2Pair16,
+            (true, false) => Kind::PackedStride2,
+            (false, true) => Kind::Packed3Pair16,
+            (false, false) => Kind::Packed3,
+        };
+        Some(PackedChannelBand { first, count, kind })
+    }
+
+    #[cfg(feature = "parallel")]
+    fn worker_at_first_block(self, first: usize) -> usize {
+        // There are at least as many OC8 blocks as workers, so all boundaries
+        // are distinct. This is the inverse of floor(blocks * worker/workers).
+        (((first as u128 + 1) * self.workers as u128 - 1) / self.blocks as u128) as usize
+    }
+}
+
+#[cfg(any(feature = "parallel", test))]
+pub(super) fn packed3_band_plan(
+    backend: Backend,
+    p: &Conv2d,
+    packed: bool,
+    threads: usize,
+    capacity: usize,
+) -> Option<PackedChannelBandPlan> {
+    if capacity == 0
+        || select(backend, p, packed, threads) != Some(Kind::Packed3)
+        || !channel_shard_eligible(backend, Kind::Packed3, p, threads)
+    {
+        return None;
+    }
+    let blocks = p.output_channels / 8;
+    let workers = threads.min(capacity).min(blocks);
+    if workers <= 1 {
+        return None;
+    }
+    Some(PackedChannelBandPlan {
+        backend,
+        blocks,
+        workers,
+        stride2: false,
+    })
+}
+
+#[cfg(any(feature = "parallel", test))]
+pub(super) fn packed_stride2_band_plan(
+    backend: Backend,
+    p: &Conv2d,
+    packed: bool,
+    threads: usize,
+    capacity: usize,
+) -> Option<PackedChannelBandPlan> {
+    if capacity == 0
+        || threads <= 1
+        || p.batch != 1
+        || select(backend, p, packed, threads) != Some(Kind::PackedStride2)
+        || p.output_channels < 16
+    {
+        return None;
+    }
+    let blocks = p.output_channels / 8;
+    let workers = threads.min(capacity).min(blocks);
+    if workers <= 1 {
+        return None;
+    }
+    Some(PackedChannelBandPlan {
+        backend,
+        blocks,
+        workers,
+        stride2: true,
+    })
 }
 
 #[cfg(any(feature = "parallel", test))]
@@ -1164,7 +1345,7 @@ fn run_core<const N: usize, const FMA: bool>(
             count,
             store,
         ),
-        Kind::PackedStride2 => packed_dense::<N, FMA, 3, 3, 2>(
+        Kind::PackedStride2 => stride2::execute::<N, FMA, false>(
             p,
             input,
             weights,
@@ -1176,6 +1357,26 @@ fn run_core<const N: usize, const FMA: bool>(
             count,
             store,
         ),
+        Kind::PackedStride2Pair16 => {
+            // Public selection and recursive native children use this only
+            // in guarded eight-lane AVX/FMA entries. AVX512 always owns OC8.
+            if N == 8 {
+                stride2::execute::<8, FMA, true>(
+                    p,
+                    input,
+                    weights,
+                    bias,
+                    packed.expect("selected panel"),
+                    out,
+                    batch,
+                    first,
+                    count,
+                    store,
+                );
+            } else {
+                unreachable!("packed stride2 paired16 requires the AVX spatial width");
+            }
+        }
         Kind::PackedDense => packed_dense::<N, FMA, 0, 0, 1>(
             p,
             input,
@@ -1782,11 +1983,14 @@ fn packed_three_pair16<const FMA: bool>(
     store: &impl simd::StoreTransform,
 ) {
     // Public binding validated full lengths and group-one 3x3 same geometry.
-    // This family is selected only for one worker and complete 16-output panels.
-    assert!(first.is_multiple_of(16) && count.is_multiple_of(16));
+    // Each reference child owns complete OC8 bands; an eligible paired band
+    // can start at the upper half of our shared immutable16 coefficient panel.
+    assert!(first.is_multiple_of(8) && count.is_multiple_of(16));
     let plane = p.height * p.width;
     let inner = p.input_channels * 9;
     for co in (first..first + count).step_by(16) {
+        let low = (co / 16) * inner * 16 + co % 16;
+        let high = ((co + 8) / 16) * inner * 16 + (co + 8) % 16;
         for y in 0..p.height {
             let mut x = 0;
             if y > 0 && y + 1 < p.height {
@@ -1839,27 +2043,27 @@ fn packed_three_pair16<const FMA: bool>(
                                 // x>0 && x+8<width proves all eight input lanes
                                 // stay inside this complete source row for kx0..2.
                                 let value = Simd::<f32, 8>::from_slice(&input[row + kx..][..8]);
-                                // The shared immutable16 format places both source
-                                // OC8 panels together; no repacking/copy is needed.
+                                // Borrow both source OC8 panels directly, including
+                                // the cross-format boundary when first%16 is 8.
                                 let k = (ci * 3 + ky) * 3 + kx;
-                                let at = ((co / 16) * inner + k) * 16;
-                                let w = &packed.data()[at..at + 16];
-                                s0 = madd::<8, FMA>(value, Simd::splat(w[0]), s0);
-                                s1 = madd::<8, FMA>(value, Simd::splat(w[1]), s1);
-                                s2 = madd::<8, FMA>(value, Simd::splat(w[2]), s2);
-                                s3 = madd::<8, FMA>(value, Simd::splat(w[3]), s3);
-                                s4 = madd::<8, FMA>(value, Simd::splat(w[4]), s4);
-                                s5 = madd::<8, FMA>(value, Simd::splat(w[5]), s5);
-                                s6 = madd::<8, FMA>(value, Simd::splat(w[6]), s6);
-                                s7 = madd::<8, FMA>(value, Simd::splat(w[7]), s7);
-                                s8 = madd::<8, FMA>(value, Simd::splat(w[8]), s8);
-                                s9 = madd::<8, FMA>(value, Simd::splat(w[9]), s9);
-                                s10 = madd::<8, FMA>(value, Simd::splat(w[10]), s10);
-                                s11 = madd::<8, FMA>(value, Simd::splat(w[11]), s11);
-                                s12 = madd::<8, FMA>(value, Simd::splat(w[12]), s12);
-                                s13 = madd::<8, FMA>(value, Simd::splat(w[13]), s13);
-                                s14 = madd::<8, FMA>(value, Simd::splat(w[14]), s14);
-                                s15 = madd::<8, FMA>(value, Simd::splat(w[15]), s15);
+                                let w0 = &packed.data()[low + k * 16..low + k * 16 + 8];
+                                let w8 = &packed.data()[high + k * 16..high + k * 16 + 8];
+                                s0 = madd::<8, FMA>(value, Simd::splat(w0[0]), s0);
+                                s1 = madd::<8, FMA>(value, Simd::splat(w0[1]), s1);
+                                s2 = madd::<8, FMA>(value, Simd::splat(w0[2]), s2);
+                                s3 = madd::<8, FMA>(value, Simd::splat(w0[3]), s3);
+                                s4 = madd::<8, FMA>(value, Simd::splat(w0[4]), s4);
+                                s5 = madd::<8, FMA>(value, Simd::splat(w0[5]), s5);
+                                s6 = madd::<8, FMA>(value, Simd::splat(w0[6]), s6);
+                                s7 = madd::<8, FMA>(value, Simd::splat(w0[7]), s7);
+                                s8 = madd::<8, FMA>(value, Simd::splat(w8[0]), s8);
+                                s9 = madd::<8, FMA>(value, Simd::splat(w8[1]), s9);
+                                s10 = madd::<8, FMA>(value, Simd::splat(w8[2]), s10);
+                                s11 = madd::<8, FMA>(value, Simd::splat(w8[3]), s11);
+                                s12 = madd::<8, FMA>(value, Simd::splat(w8[4]), s12);
+                                s13 = madd::<8, FMA>(value, Simd::splat(w8[5]), s13);
+                                s14 = madd::<8, FMA>(value, Simd::splat(w8[6]), s14);
+                                s15 = madd::<8, FMA>(value, Simd::splat(w8[7]), s15);
                             }
                         }
                     }

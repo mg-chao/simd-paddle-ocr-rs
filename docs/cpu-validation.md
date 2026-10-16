@@ -354,8 +354,12 @@ and prior ID. Conflicting IDs/text, stale chains, old replay and concurrent lost
 updates fail. Plans/reports identify the latest cap and authorization. Neither
 record-only command reserves a round; failed/interrupted timing rounds still
 consume the stored allowance. Neither command grants permission or changes
-`AGENTS.md`. All five currently authorized original-sample rounds are consumed;
-the further human grant is pending and no followup grant has been recorded.
+`AGENTS.md`. The first five original-sample rounds are consumed. The explicit
+user grant `42014eec-5933-488f-8879-41dc67a0da8b` ("Allow one additional round")
+is now recorded append-only, raising the cap to six. The sixth full 72-case round
+is unreserved and unmeasured; current correctness/static/package gates must pass
+before it runs under the existing fixed `normal-background-v3` policy. Neither
+the grant nor this documentation implies a result or resets previous rounds.
 
 ## CI
 
@@ -369,22 +373,47 @@ Missing assets or outputs fail. Push and PR runs for the same repository/head
 share a concurrency group; distinct fork repositories remain separate.
 
 The workflow is published in [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2).
-Actual PR run [38829351626](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38829351626)
-passed both exact named checks for head `10945d03...`, including 201 quick
+Actual PR run [38833702666](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38833702666)
+passed both exact named checks for historical ba0 head `df04c959...`, including 201 quick
 comparisons, nine batching comparisons, ten model-free phase contracts and 113
 tooling contracts. Main protection was applied and independently fetched again:
 both checks are required from GitHub Actions app 15368, with strict and
 administrator enforcement. The actual local receipt is
-`target/cpu-ci-actual-20261016/required-ci-policy-complete.json`
-(SHA-256 `9e666f926cef2ff1c85fae817db46c1c84def70e713d0aab1507ca10f5a3e466`).
-The initial policy422/GET404 responses and earlier CI argv failure remain
+`target/cpu-ci-actual-20261016/required-ci-policy-df04c959-complete.json`
+(SHA-256 `e838202487205825dec91823803e189038ab661d6c0ec3243ea2bf04e87be98b`).
+It independently rechecks existing strict/admin main protection for that head;
+the original policy application remains separately retained historical evidence.
+The initial policy 422/GET 404 responses and earlier CI argv failure remain
 historical evidence. No merge or hardware/performance acceptance is implied.
 
-The corrected active source `ba0cd3bb...` must pass a new CI run and the local
-attempt3 gates. Prior `7f341...` failed exact Auto2 logical-node equality at
-medium DET `Conv.121`, despite an exact final tensor; the dedicated Packed3
-spatial-packet correction and three new independent tests now pass 24 focused
-NCHW tests. Full core/model/variant/static/package qualification remains pending.
+The corrected active source `d4a38134...` (83 files) must pass a new CI run and
+local attempt4 gates. Prior `7f341...` failed exact Auto2 logical-node equality
+at medium DET `Conv.121`, despite an exact final tensor. Dedicated Packed3 spatial
+packets, recursive native worker children and packed stride-two OC8/OC16/dual4
+corrections now pass 30 focused NCHW tests. Their actual RED and after-run GREEN
+producer captures are retained. Current full core/model/variant/Release-static/
+package qualification remains pending.
+
+The current core run has completed **273/265 library tests (288/280 all-target
+checks)** with all features and without default features respectively, six documentation tests
+per mode, both all-target Clippy checks with warnings denied, and **113 tooling
+contracts**. Its final Release-example stage is still compiling, so the whole
+core gate remains pending. These completed leaves do not qualify model parity,
+Release-library, static, hardware or performance gates.
+
+The actual scoped Debug receipt is
+`target/cpu-stride2-quick-debug-scoped-20261016/complete.json`
+(SHA-256 `a63a0d47aceadc40b866f02c067f72f0cc9d4ac0f3d2d3422f0b222a1b48b4f5`).
+Its largest compiled fixed/logical kernel chain is 1,776,512 bytes below the
+unchanged 2 MiB threshold, assuming at most 11 logical visit levels and a 256 KiB
+outer/framework/caller allowance. The allowance is an entry assumption, not a
+proof of global physical Rayon helping, concurrent-root or reentrant depth.
+Every one of 632 worker-frame addresses is assigned to nine complete action
+alternatives plus two shared roots; maximum alternatives replace their former
+mutually exclusive sum at each logical level. Other helper/reserve accounting
+is unchanged. The initial overinclusive 2,162,480-byte rejection remains retained.
+Actual bounded-worker/concurrency core regressions are required independently;
+this static proof does not execute or substitute for them.
 The source receipt binds local working bytes separately from reviewed Git
 newline normalization; it does not assert equal raw checkout hashes on CI.
 

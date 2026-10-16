@@ -1,6 +1,18 @@
 //! Exclusive aligned output bands on the request's bounded CPU context.
 use crate::cpu::CpuContext;
 
+/// Shared exact floor boundary for exclusive aligned bands. Callers validate
+/// nonzero worker count, power-of-two alignment and worker<=workers.
+#[cfg(any(feature = "parallel", test))]
+#[inline(always)]
+pub(crate) fn band_boundary(rows: usize, workers: usize, alignment: usize, worker: usize) -> usize {
+    if worker == workers {
+        rows
+    } else {
+        (rows as u128 * worker as u128 / workers as u128) as usize & !(alignment - 1)
+    }
+}
+
 /// Every band owns complete rows and the final band owns any alignment tail.
 /// Recursive stack jobs avoid a temporary Vec of mutable slices or closures.
 #[allow(clippy::too_many_arguments)]
@@ -55,13 +67,7 @@ fn visit<T: Send>(
     worker_count: usize,
     action: &(impl Fn(&mut [T], usize) + Sync),
 ) {
-    let boundary = |worker| {
-        if worker == workers {
-            rows
-        } else {
-            (rows as u128 * worker as u128 / workers as u128) as usize & !(alignment - 1)
-        }
-    };
+    let boundary = |worker| band_boundary(rows, workers, alignment, worker);
     let first = boundary(first_worker);
     if worker_count == 1 {
         action(output, first);
