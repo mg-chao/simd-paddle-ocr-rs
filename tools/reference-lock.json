@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/mg-chao/SimdPaddleOCR",
+  "revision": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "models": {
+    "cls.onnx": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+    "det.onnx": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+    "medium_det.onnx": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+    "medium_rec.onnx": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba",
+    "ppocr_keys.txt": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82",
+    "rec.onnx": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+    "rec_keys.txt": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6",
+    "small_det.onnx": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+    "small_rec.onnx": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+  },
+  "sample": {
+    "path": "examples/sample.jpg",
+    "sha256": "30c417c9f758a3b62718729f5a944f7d2e10cdd2bde0e8ce6785523ddb68ffe9"
+  },
+  "tolerances": {
+    "tensor_atol": 0.001,
+    "tensor_rtol": 0.001,
+    "score_atol": 0.01,
+    "coordinate_atol": 0.5
+  }
+}

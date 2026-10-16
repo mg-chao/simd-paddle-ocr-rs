@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "reference_revision": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "reference_configuration": { "PPOCR_NHWC": "0", "SIMD_OCR_NOFUSE": "1", "DOTNET_EnableHWIntrinsic": "0", "threads": 1 },
+  "input": { "width": 7, "height": 9, "pixel_format": "bgr24", "byte_formula": "(index * 17) % 256" },
+  "files": {
+    "det.f32": { "sha256": "ab8c6cac64dd03383aa6f5831d28f380935a6da080e84ca62148d2a8626f7195", "shape": [1, 3, 32, 32], "reference_case": "preprocess/det/tiny" },
+    "cls.f32": { "sha256": "7036467bc8f956d052a820f451f4c44f202f2b9c8340d6fa4bf86f62757a250f", "shape": [1, 3, 80, 160], "reference_case": "preprocess/cls/tiny" },
+    "rec.f32": { "sha256": "a2d1176fc22f430e5e631c7776d5ac7ad8d6bf82ecce9c430164ad91a0bc8390", "shape": [1, 3, 48, 320], "reference_case": "preprocess/rec/tiny" },
+    "crop.f32": { "sha256": "0e3e79df980e1f209ff9da22f7a85f48d51e6096d4dc4b02fd2dd99559acc32f", "shape": [8, 6, 3], "reference_case": "crop/tiny" }
+  }
+}

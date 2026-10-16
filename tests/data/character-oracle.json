@@ -1,0 +1,1362 @@
+{
+  "schema_version": 1,
+  "reference_revision": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "framework": ".NET 10.0.11",
+  "reference_assembly_sha256": "7561e6291ad055a3d3f1e1d626b01d747cf3ed959022910675f67e955fee9c0a",
+  "generator": "tools/reference-exporter/CharacterOracle.cs",
+  "cases": [
+    {
+      "id": "padded-horizontal-gaps-unicode",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "points": [
+            [
+              18.333334,
+              20
+            ],
+            [
+              51.666668,
+              20
+            ],
+            [
+              51.666668,
+              40
+            ],
+            [
+              18.333334,
+              40
+            ]
+          ]
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "points": [
+            [
+              51.666668,
+              20
+            ],
+            [
+              89.166664,
+              20
+            ],
+            [
+              89.166664,
+              40
+            ],
+            [
+              51.666668,
+              40
+            ]
+          ]
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "points": [
+            [
+              89.166664,
+              20
+            ],
+            [
+              101.666664,
+              20
+            ],
+            [
+              101.666664,
+              40
+            ],
+            [
+              89.166664,
+              40
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "unpadded-horizontal",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 128,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "points": [
+            [
+              16.25,
+              20
+            ],
+            [
+              41.25,
+              20
+            ],
+            [
+              41.25,
+              40
+            ],
+            [
+              16.25,
+              40
+            ]
+          ]
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "points": [
+            [
+              41.25,
+              20
+            ],
+            [
+              69.375,
+              20
+            ],
+            [
+              69.375,
+              40
+            ],
+            [
+              41.25,
+              40
+            ]
+          ]
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "points": [
+            [
+              69.375,
+              20
+            ],
+            [
+              78.75,
+              20
+            ],
+            [
+              78.75,
+              40
+            ],
+            [
+              69.375,
+              40
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "skewed-perspective",
+      "detection": {
+        "points": [
+          [
+            5,
+            13
+          ],
+          [
+            123,
+            7
+          ],
+          [
+            112,
+            45
+          ],
+          [
+            9,
+            52
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "points": [
+            [
+              15.31977,
+              12.4752655
+            ],
+            [
+              55.68707,
+              10.422691
+            ],
+            [
+              53.072628,
+              49.004772
+            ],
+            [
+              17.952314,
+              51.39159
+            ]
+          ]
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "points": [
+            [
+              55.68707,
+              10.422691
+            ],
+            [
+              99.42826,
+              8.198563
+            ],
+            [
+              91.31272,
+              46.405933
+            ],
+            [
+              53.072628,
+              49.004772
+            ]
+          ]
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "points": [
+            [
+              99.42826,
+              8.198563
+            ],
+            [
+              113.63217,
+              7.4763303
+            ],
+            [
+              103.771774,
+              45.5592
+            ],
+            [
+              91.31272,
+              46.405933
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "skewed-180",
+      "detection": {
+        "points": [
+          [
+            5,
+            13
+          ],
+          [
+            123,
+            7
+          ],
+          [
+            112,
+            45
+          ],
+          [
+            9,
+            52
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 180,
+      "expected": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "points": [
+            [
+              75.34042,
+              9.423368
+            ],
+            [
+              113.63217,
+              7.4763303
+            ],
+            [
+              103.771774,
+              45.5592
+            ],
+            [
+              70.23047,
+              47.838707
+            ]
+          ]
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "points": [
+            [
+              30.626556,
+              11.696955
+            ],
+            [
+              75.34042,
+              9.423368
+            ],
+            [
+              70.23047,
+              47.838707
+            ],
+            [
+              31.250355,
+              50.48784
+            ]
+          ]
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "points": [
+            [
+              15.31977,
+              12.4752655
+            ],
+            [
+              30.626556,
+              11.696955
+            ],
+            [
+              31.250355,
+              50.48784
+            ],
+            [
+              17.952314,
+              51.39159
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "vertical-crop",
+      "detection": {
+        "points": [
+          [
+            25,
+            5
+          ],
+          [
+            49,
+            8
+          ],
+          [
+            44,
+            163
+          ],
+          [
+            20,
+            150
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "points": [
+            [
+              20.421774,
+              137.76855
+            ],
+            [
+              22.099512,
+              89.11416
+            ],
+            [
+              46.100616,
+              97.8809
+            ],
+            [
+              44.422123,
+              149.91414
+            ]
+          ]
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "points": [
+            [
+              22.099512,
+              89.11416
+            ],
+            [
+              23.969257,
+              34.891544
+            ],
+            [
+              47.969997,
+              39.930035
+            ],
+            [
+              46.100616,
+              97.8809
+            ]
+          ]
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "points": [
+            [
+              23.969257,
+              34.891544
+            ],
+            [
+              24.588385,
+              16.936853
+            ],
+            [
+              48.588726,
+              20.74947
+            ],
+            [
+              47.969997,
+              39.930035
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "vertical-crop-180",
+      "detection": {
+        "points": [
+          [
+            25,
+            5
+          ],
+          [
+            49,
+            8
+          ],
+          [
+            44,
+            163
+          ],
+          [
+            20,
+            150
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 180,
+      "expected": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "points": [
+            [
+              22.93281,
+              64.948524
+            ],
+            [
+              24.588385,
+              16.936853
+            ],
+            [
+              48.588726,
+              20.74947
+            ],
+            [
+              46.93391,
+              72.04883
+            ]
+          ]
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "points": [
+            [
+              21.052675,
+              119.47241
+            ],
+            [
+              22.93281,
+              64.948524
+            ],
+            [
+              46.93391,
+              72.04883
+            ],
+            [
+              45.05343,
+              130.34369
+            ]
+          ]
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "points": [
+            [
+              20.421774,
+              137.76855
+            ],
+            [
+              21.052675,
+              119.47241
+            ],
+            [
+              45.05343,
+              130.34369
+            ],
+            [
+              44.422123,
+              149.91414
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "right-padding-clamps",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "x",
+          "score": 0.5,
+          "start_column": 13,
+          "end_column": 16
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 48,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": [
+        {
+          "text": "x",
+          "score": 0.5,
+          "points": [
+            [
+              110,
+              20
+            ],
+            [
+              110,
+              20
+            ],
+            [
+              110,
+              40
+            ],
+            [
+              110,
+              40
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "touching-token-runs",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "a",
+          "score": 0.5,
+          "start_column": 2,
+          "end_column": 6
+        },
+        {
+          "text": "b",
+          "score": 0.75,
+          "start_column": 6,
+          "end_column": 9
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": [
+        {
+          "text": "a",
+          "score": 0.5,
+          "points": [
+            [
+              26.666666,
+              20
+            ],
+            [
+              60,
+              20
+            ],
+            [
+              60,
+              40
+            ],
+            [
+              26.666666,
+              40
+            ]
+          ]
+        },
+        {
+          "text": "b",
+          "score": 0.75,
+          "points": [
+            [
+              60,
+              20
+            ],
+            [
+              85,
+              20
+            ],
+            [
+              85,
+              40
+            ],
+            [
+              60,
+              40
+            ]
+          ]
+        }
+      ],
+      "error": null
+    },
+    {
+      "id": "empty-before-geometry-validation",
+      "detection": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "score": 1
+      },
+      "spans": [],
+      "time_steps": 0,
+      "content_width": 0,
+      "tensor_width": 0,
+      "applied_rotation_degrees": 90,
+      "expected": [],
+      "error": null
+    },
+    {
+      "id": "missing-alignment",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": null,
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "InvalidOperationException"
+    },
+    {
+      "id": "overlapping-spans",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "a",
+          "score": 0.5,
+          "start_column": 1,
+          "end_column": 7
+        },
+        {
+          "text": "b",
+          "score": 0.75,
+          "start_column": 5,
+          "end_column": 9
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "empty-run",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "a",
+          "score": 0.5,
+          "start_column": 4,
+          "end_column": 4
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "run-after-time-axis",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "a",
+          "score": 0.5,
+          "start_column": 15,
+          "end_column": 17
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "zero-time-axis",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 0,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "zero-content-width",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 0,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "tensor-smaller-than-content",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 129,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "unsupported-rotation",
+      "detection": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            110,
+            20
+          ],
+          [
+            110,
+            40
+          ],
+          [
+            10,
+            40
+          ]
+        ],
+        "score": 0.9
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 90,
+      "expected": null,
+      "error": "ArgumentOutOfRangeException"
+    },
+    {
+      "id": "degenerate-detection",
+      "detection": {
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "score": 1
+      },
+      "spans": [
+        {
+          "text": "\u4E2D",
+          "score": 0.875,
+          "start_column": 1,
+          "end_column": 3
+        },
+        {
+          "text": "a\u0301",
+          "score": 0.625,
+          "start_column": 7,
+          "end_column": 9
+        },
+        {
+          "text": "\uD83D\uDE42",
+          "score": 0.75,
+          "start_column": 10,
+          "end_column": 11
+        }
+      ],
+      "time_steps": 16,
+      "content_width": 96,
+      "tensor_width": 128,
+      "applied_rotation_degrees": 0,
+      "expected": null,
+      "error": "InvalidDataException"
+    }
+  ],
+  "packed_text_cases": [
+    {
+      "id": "no-lines",
+      "lines": [],
+      "text": "",
+      "packed_text": "",
+      "packed_utf8_hex": "",
+      "packed_text_hash": 14695981039346656037
+    },
+    {
+      "id": "empty-line",
+      "lines": [
+        ""
+      ],
+      "text": "",
+      "packed_text": "\u0000",
+      "packed_utf8_hex": "00",
+      "packed_text_hash": 12638153115695167455
+    },
+    {
+      "id": "unicode-tokens",
+      "lines": [
+        "\u4E2D",
+        "a\u0301",
+        "\uD83D\uDE42"
+      ],
+      "text": "\u4E2D\na\u0301\n\uD83D\uDE42",
+      "packed_text": "\u4E2D\u0000a\u0301\u0000\uD83D\uDE42\u0000",
+      "packed_utf8_hex": "e4b8ad0061cc8100f09f998200",
+      "packed_text_hash": 17252016131246657294
+    },
+    {
+      "id": "embedded-nul-and-newline",
+      "lines": [
+        "a\u0000b",
+        "line\nbreak",
+        ""
+      ],
+      "text": "a\u0000b\nline\nbreak\n",
+      "packed_text": "a\u0000b\u0000line\nbreak\u0000\u0000",
+      "packed_utf8_hex": "610062006c696e650a627265616b0000",
+      "packed_text_hash": 8983521804845271313
+    },
+    {
+      "id": "ordered-empty-lines",
+      "lines": [
+        "",
+        "\u4E2D",
+        "",
+        "\uD83D\uDE42"
+      ],
+      "text": "\n\u4E2D\n\n\uD83D\uDE42",
+      "packed_text": "\u0000\u4E2D\u0000\u0000\uD83D\uDE42\u0000",
+      "packed_utf8_hex": "00e4b8ad0000f09f998200",
+      "packed_text_hash": 12994958423933312548
+    },
+    {
+      "id": "multilingual",
+      "lines": [
+        "R\u00E9sum\u00E9",
+        "\u0420\u0443\u0441\u0441\u043A\u0438\u0439",
+        "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"
+      ],
+      "text": "R\u00E9sum\u00E9\n\u0420\u0443\u0441\u0441\u043A\u0438\u0439\n\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
+      "packed_text": "R\u00E9sum\u00E9\u0000\u0420\u0443\u0441\u0441\u043A\u0438\u0439\u0000\u0627\u0644\u0639\u0631\u0628\u064A\u0629\u0000",
+      "packed_utf8_hex": "52c3a973756dc3a900d0a0d183d181d181d0bad0b8d0b900d8a7d984d8b9d8b1d8a8d98ad8a900",
+      "packed_text_hash": 5556034397996313929
+    }
+  ]
+}

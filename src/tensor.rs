@@ -342,7 +342,7 @@ impl TensorData {
             values
                 .try_reserve_exact(bytes.len() / N)
                 .map_err(|error| TensorError::new(format!("tensor allocation failed: {error}")))?;
-            for chunk in bytes.chunks_exact(N) {
+            for chunk in bytes.as_chunks::<N>().0 {
                 let mut fixed = [0; N];
                 fixed.copy_from_slice(chunk);
                 values.push(convert(fixed));

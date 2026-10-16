@@ -116,6 +116,27 @@ pub struct Detector {
     padded: Vec<u8>,
 }
 impl Detector {
+    pub fn fork(&self) -> ImageResult<Self> {
+        let mut fork = Self::new(
+            self.compiled.clone(),
+            self.options,
+            self.session.execution_limits(),
+        )?;
+        fork.set_execution_context(
+            self.session.cpu_context().clone(),
+            self.session.intra_op_threads(),
+        )?;
+        Ok(fork)
+    }
+    pub fn set_execution_context(
+        &mut self,
+        cpu: Arc<crate::cpu::CpuContext>,
+        threads: usize,
+    ) -> ImageResult<()> {
+        self.session
+            .set_execution_context(cpu, threads)
+            .map_err(Into::into)
+    }
     pub fn new(
         compiled: Arc<CompiledModel>,
         mut options: DetectorOptions,
@@ -138,7 +159,7 @@ impl Detector {
                 0.45
             });
         }
-        let session = Session::new(compiled.clone(), &[1, 3, 32, 32], limits)?;
+        let session = Session::new_serial(compiled.clone(), &[1, 3, 32, 32], limits)?;
         if session.output_shape().dimensions() != [1, 1, 32, 32] {
             return Err(ImageError::new(
                 "detector requires a [1,1,H,W] probability output matching input spatial dimensions",
@@ -159,6 +180,9 @@ impl Detector {
     pub fn compiled(&self) -> &Arc<CompiledModel> {
         &self.compiled
     }
+    pub fn execution_limits(&self) -> ExecutionLimits {
+        self.session.execution_limits()
+    }
     pub fn activation_bytes(&self) -> usize {
         self.session.activation_bytes()
     }
@@ -169,7 +193,11 @@ impl Detector {
         self.resize.retained_bytes()
             + self.db.retained_bytes()
             + self.padded.capacity()
-            + self.session.retained_planning_bytes()
+            + (self.session.retained_planning_bytes() + self.session.retained_scratch_bytes())
+    }
+    /// Retained kernel buffers, already included in retained workspace bytes.
+    pub fn retained_kernel_scratch_bytes(&self) -> usize {
+        self.session.retained_scratch_bytes()
     }
     /// Replay a frozen map through the same reusable DB workspace, without inference.
     #[allow(clippy::too_many_arguments)]
@@ -210,14 +238,15 @@ impl Detector {
         })
     }
     pub fn detect(&mut self, image: ImageView<'_>) -> ImageResult<DetectionView<'_>> {
-        self.detect_impl::<false, false, _>(image, |_| Ok(()), &mut StageProfile::default())
+        self.detect_profiled::<false>(image, &mut StageProfile::default())
     }
     pub(crate) fn detect_profiled<const PROFILE: bool>(
         &mut self,
         image: ImageView<'_>,
         profile: &mut StageProfile,
     ) -> ImageResult<DetectionView<'_>> {
-        self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile)
+        let cpu = self.session.cpu_context().clone();
+        cpu.install(|| self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile))
     }
     pub fn detect_with_trace<F>(
         &mut self,
@@ -238,6 +267,10 @@ impl Detector {
     where
         F: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
     {
+        #[cfg(test)]
+        if !TRACE {
+            self.session.cpu_context().assert_production_thread("DET");
+        }
         let binding_timer = Timer::<PROFILE>::start();
         if image.pixel_count()? > self.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
@@ -250,7 +283,16 @@ impl Detector {
             self.options.limit_side_length,
         )?;
         // Reshape is transactional; no processing starts before a valid binding exists.
-        self.session.reshape(&[1, 3, size.height, size.width])?;
+        if PROFILE {
+            profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
+        }
+        let reshape_timer = Timer::<PROFILE>::start();
+        let reshape = self.session.reshape(&[1, 3, size.height, size.width]);
+        if PROFILE {
+            profile.reshape_ns = profile.reshape_ns.saturating_add(reshape_timer.elapsed());
+        }
+        reshape?;
+        let binding_timer = Timer::<PROFILE>::start();
         if self.session.output_shape().dimensions() != [1, 1, size.height, size.width] {
             return Err(ImageError::new(
                 "detector output spatial shape differs from resized input",
@@ -281,10 +323,21 @@ impl Detector {
         let observer = RefCell::new(observer);
         let input_shape = self.session.input_shape();
         let mut preprocessing_ns = 0;
-        let fill = |input: &mut [f32]| {
+        let cpu = self.session.cpu_context().clone();
+        let threads = self.session.intra_op_threads();
+        let mut fill = |input: &mut [f32], nhwc: bool| {
             let timer = Timer::<PROFILE>::start();
-            preprocess::det(source, size.width, size.height, input, &mut self.resize)
-                .map_err(|e| RuntimeError::new(e.to_string()))?;
+            preprocess::det_with_context_layout(
+                source,
+                size.width,
+                size.height,
+                input,
+                &mut self.resize,
+                &cpu,
+                threads,
+                nhwc,
+            )
+            .map_err(|e| RuntimeError::new(e.to_string()))?;
             preprocessing_ns = timer.elapsed();
             if TRACE {
                 observer.borrow_mut()(DetectionTrace::Input {
@@ -297,12 +350,15 @@ impl Detector {
         };
         let inference_timer = Timer::<PROFILE>::start();
         let prediction = if TRACE {
-            self.session.run_with_input_and_trace(fill, |node| {
-                observer.borrow_mut()(DetectionTrace::Node(node))
-                    .map_err(|e| RuntimeError::new(e.to_string()))
-            })?
+            self.session.run_with_input_and_trace(
+                |input| fill(input, false),
+                |node| {
+                    observer.borrow_mut()(DetectionTrace::Node(node))
+                        .map_err(|e| RuntimeError::new(e.to_string()))
+                },
+            )?
         } else {
-            self.session.run_with_input(fill)?
+            self.session.run_with_layout_input(fill)?
         };
         if PROFILE {
             profile.det_preprocess_ns = profile.det_preprocess_ns.saturating_add(preprocessing_ns);

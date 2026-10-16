@@ -1,9 +1,12 @@
 //! Reusable pixel-to-oriented-crop pipeline. Recognition is a separate stage.
 use crate::{
+    cpu::{CpuBudgets, CpuContext, CpuOptions},
     crop::{self, CropTransform},
     detector::{DetectionBox, DetectionTrace, Detector},
     image::{ImageError, ImageResult, ImageView, PixelFormat},
-    orientation::{ClassificationResult, Classifier, ClassifierTrace, should_rotate},
+    orientation::{
+        ClassificationResult, Classifier, ClassifierOptions, ClassifierTrace, should_rotate,
+    },
     runtime::{CompiledModel, ExecutionLimits, NodeTrace},
 };
 use serde::Serialize;
@@ -152,10 +155,17 @@ pub struct OrientedLineExtractor {
     transforms: Vec<CropTransform>,
     metadata: Vec<LineMetadata>,
     slab: Vec<u8>,
+    cpu: Arc<CpuContext>,
+    cpu_options: CpuOptions,
+    budgets: CpuBudgets,
+    classifier_workers: Vec<Classifier>,
 }
 impl OrientedLineExtractor {
     pub fn detector(&self) -> &Detector {
         &self.detector
+    }
+    pub(crate) fn classifier_model(&self) -> Option<&Arc<CompiledModel>> {
+        self.classifier.as_ref().map(Classifier::compiled)
     }
     pub fn new(
         detector: Detector,
@@ -176,7 +186,15 @@ impl OrientedLineExtractor {
             return Err(ImageError::new("image and crop limits must be positive"));
         }
         let classifier = classifier
-            .map(|model| Classifier::new(model, options.classifier_execution_limits))
+            .map(|model| {
+                Classifier::new_with_options(
+                    model,
+                    ClassifierOptions {
+                        max_image_pixels: options.max_classifier_image_pixels,
+                    },
+                    options.classifier_execution_limits,
+                )
+            })
             .transpose()?;
         Ok(Self {
             detector,
@@ -185,7 +203,50 @@ impl OrientedLineExtractor {
             transforms: Vec::new(),
             metadata: Vec::new(),
             slab: Vec::new(),
+            cpu: CpuContext::serial(),
+            cpu_options: CpuOptions::default(),
+            budgets: CpuOptions::default().resolve(1, true)?,
+            classifier_workers: Vec::new(),
         })
+    }
+    pub fn fork(&self) -> ImageResult<Self> {
+        Ok(Self {
+            detector: self.detector.fork()?,
+            classifier: self.classifier.as_ref().map(Classifier::fork).transpose()?,
+            options: self.options,
+            transforms: Vec::new(),
+            metadata: Vec::new(),
+            slab: Vec::new(),
+            cpu: self.cpu.clone(),
+            cpu_options: self.cpu_options,
+            budgets: self.budgets,
+            classifier_workers: Vec::new(),
+        })
+    }
+    pub fn set_execution_context(
+        &mut self,
+        cpu: Arc<CpuContext>,
+        options: CpuOptions,
+    ) -> ImageResult<()> {
+        let budgets = options.resolve(
+            cpu.capacity(),
+            matches!(
+                self.detector.compiled().options().layout,
+                crate::runtime::LayoutPolicy::Auto
+            ),
+        )?;
+        self.detector
+            .set_execution_context(cpu.clone(), budgets.detector_threads)?;
+        if let Some(classifier) = &mut self.classifier {
+            classifier.set_execution_context(cpu.clone(), 1)?;
+        }
+        for classifier in &mut self.classifier_workers {
+            classifier.set_execution_context(cpu.clone(), 1)?;
+        }
+        self.cpu = cpu;
+        self.cpu_options = options;
+        self.budgets = budgets;
+        Ok(())
     }
     pub fn detector_mut(&mut self) -> &mut Detector {
         &mut self.detector
@@ -194,19 +255,22 @@ impl OrientedLineExtractor {
         self.options
     }
     pub fn extract(&mut self, image: ImageView<'_>) -> ImageResult<OrientedLines<'_>> {
-        self.extract_impl::<false, false, _, _>(
-            image,
-            &mut |_| Ok(()),
-            &mut |_| Ok(()),
-            &mut crate::profile::StageProfile::default(),
-        )
+        self.extract_profiled::<false>(image, &mut crate::profile::StageProfile::default())
     }
     pub(crate) fn extract_profiled<const PROFILE: bool>(
         &mut self,
         image: ImageView<'_>,
         profile: &mut crate::profile::StageProfile,
     ) -> ImageResult<OrientedLines<'_>> {
-        self.extract_impl::<false, PROFILE, _, _>(image, &mut |_| Ok(()), &mut |_| Ok(()), profile)
+        let cpu = self.cpu.clone();
+        cpu.install(|| {
+            self.extract_impl::<false, PROFILE, _, _>(
+                image,
+                &mut |_| Ok(()),
+                &mut |_| Ok(()),
+                profile,
+            )
+        })
     }
     pub fn extract_with_trace<D, L>(
         &mut self,
@@ -236,6 +300,10 @@ impl OrientedLineExtractor {
         D: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
         L: for<'a> FnMut(LineTrace<'a>) -> ImageResult<()>,
     {
+        #[cfg(test)]
+        if !TRACE {
+            self.cpu.assert_production_thread("crop extraction");
+        }
         let detection = if TRACE {
             self.detector.detect_with_trace(image, det_observer)?
         } else {
@@ -293,6 +361,28 @@ impl OrientedLineExtractor {
         if PROFILE {
             profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
         }
+        if !TRACE && self.cpu.capacity() > 1 && !self.metadata.is_empty() {
+            extract_parallel::<PROFILE>(
+                &self.cpu,
+                self.budgets,
+                image,
+                &self.transforms,
+                &mut self.metadata,
+                &mut self.slab,
+                &self.classifier,
+                &mut self.classifier_workers,
+                self.options.classifier_threshold,
+                profile,
+            )?;
+            return Ok(OrientedLines {
+                resized_width: detection.resized_width,
+                resized_height: detection.resized_height,
+                width_ratio: detection.width_ratio,
+                height_ratio: detection.height_ratio,
+                lines: &self.metadata,
+                pixels: &self.slab,
+            });
+        }
         for (index, (metadata, transform)) in
             self.metadata.iter_mut().zip(&self.transforms).enumerate()
         {
@@ -310,7 +400,9 @@ impl OrientedLineExtractor {
                 line_observer(LineTrace::Crop { index, image: crop })?;
             }
             if PROFILE {
-                profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
+                let elapsed = crop_timer.elapsed();
+                profile.crop_ns = profile.crop_ns.saturating_add(elapsed);
+                profile.crop_work_ns = profile.crop_work_ns.saturating_add(elapsed);
             }
             let cls_timer = crate::profile::Timer::<PROFILE>::start();
             if let Some(classifier) = &mut self.classifier {
@@ -345,9 +437,10 @@ impl OrientedLineExtractor {
                 }
             }
             if PROFILE {
-                profile.cls_orientation_ns = profile
-                    .cls_orientation_ns
-                    .saturating_add(cls_timer.elapsed());
+                let elapsed = cls_timer.elapsed();
+                profile.cls_orientation_ns = profile.cls_orientation_ns.saturating_add(elapsed);
+                profile.classification_wall_ns =
+                    profile.classification_wall_ns.saturating_add(elapsed);
             }
             if TRACE {
                 line_observer(LineTrace::OrientedCrop {
@@ -383,19 +476,236 @@ impl OrientedLineExtractor {
         self.classifier
             .as_ref()
             .map_or(0, Classifier::activation_bytes)
+            + self
+                .classifier_workers
+                .iter()
+                .map(Classifier::activation_bytes)
+                .sum::<usize>()
     }
     pub fn classifier_retained_activation_bytes(&self) -> usize {
         self.classifier
             .as_ref()
             .map_or(0, Classifier::retained_activation_bytes)
+            + self
+                .classifier_workers
+                .iter()
+                .map(Classifier::retained_activation_bytes)
+                .sum::<usize>()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        self.detector.retained_workspace_bytes()
+        let buffers = self.detector.retained_workspace_bytes()
             + self
                 .classifier
                 .as_ref()
                 .map_or(0, Classifier::retained_workspace_bytes)
             + self.crop_capacity_bytes()
             + self.line_capacity_bytes()
+            + self
+                .classifier_workers
+                .iter()
+                .map(Classifier::retained_workspace_bytes)
+                .sum::<usize>();
+        buffers.saturating_add(
+            self.classifier_workers
+                .capacity()
+                .saturating_mul(std::mem::size_of::<Classifier>()),
+        )
+    }
+    /// Retained kernel buffers across DET and every classifier request.
+    pub fn retained_kernel_scratch_bytes(&self) -> usize {
+        self.detector.retained_kernel_scratch_bytes()
+            + self
+                .classifier
+                .as_ref()
+                .map_or(0, Classifier::retained_kernel_scratch_bytes)
+            + self
+                .classifier_workers
+                .iter()
+                .map(Classifier::retained_kernel_scratch_bytes)
+                .sum::<usize>()
+    }
+}
+
+struct CropJob<'a> {
+    transform: CropTransform,
+    first_row: usize,
+    pixels: &'a mut [u8],
+    error: Option<ImageError>,
+    elapsed: u64,
+}
+
+struct ClassifyJob<'a> {
+    index: usize,
+    metadata: &'a mut LineMetadata,
+    pixels: &'a mut [u8],
+}
+struct ClassifyTask<'a> {
+    classifier: &'a mut Classifier,
+    jobs: Vec<ClassifyJob<'a>>,
+    error: Option<(usize, ImageError)>,
+    work_ns: u64,
+}
+#[allow(clippy::too_many_arguments)]
+fn extract_parallel<const PROFILE: bool>(
+    cpu: &Arc<CpuContext>,
+    budgets: CpuBudgets,
+    image: ImageView<'_>,
+    transforms: &[CropTransform],
+    metadata: &mut [LineMetadata],
+    slab: &mut [u8],
+    classifier: &Option<Classifier>,
+    classifiers: &mut Vec<Classifier>,
+    threshold: f32,
+    profile: &mut crate::profile::StageProfile,
+) -> ImageResult<()> {
+    let crop_timer = crate::profile::Timer::<PROFILE>::start();
+    let mut jobs = Vec::new();
+    let bands = metadata
+        .iter()
+        .try_fold(0usize, |sum, line| {
+            sum.checked_add(line.height.div_ceil(16))
+        })
+        .ok_or_else(|| ImageError::new("crop band count overflow"))?;
+    jobs.try_reserve_exact(bands)
+        .map_err(|e| ImageError::new(format!("crop bands allocation: {e}")))?;
+    let mut remaining = &mut *slab;
+    for (transform, line) in transforms.iter().zip(metadata.iter()) {
+        let (pixels, tail) = remaining.split_at_mut(line.bytes);
+        remaining = tail;
+        let row_bytes = line.width * 3;
+        for (band, pixels) in pixels.chunks_mut(row_bytes * 16).enumerate() {
+            jobs.push(CropJob {
+                transform: *transform,
+                first_row: band * 16,
+                pixels,
+                error: None,
+                elapsed: 0,
+            });
+        }
+    }
+    cpu.for_each_mut(&mut jobs, budgets.preprocess_workers, |_, job| {
+        let timer = crate::profile::Timer::<PROFILE>::start();
+        job.error = job
+            .transform
+            .extract_rows_into(image, job.first_row, job.pixels)
+            .err();
+        job.elapsed = timer.elapsed();
+    });
+    if PROFILE {
+        profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
+        profile.crop_work_ns = profile
+            .crop_work_ns
+            .saturating_add(jobs.iter().map(|j| j.elapsed).sum::<u64>());
+    }
+    for job in jobs {
+        if let Some(error) = job.error {
+            return Err(error);
+        }
+    }
+    let Some(classifier) = classifier else {
+        return Ok(());
+    };
+    let cls_timer = crate::profile::Timer::<PROFILE>::start();
+    let active = budgets.line_workers.min(metadata.len());
+    classifiers
+        .try_reserve(active.saturating_sub(classifiers.len()))
+        .map_err(|e| ImageError::new(format!("classifier workers allocation: {e}")))?;
+    while classifiers.len() < active {
+        let mut worker = classifier.fork()?;
+        worker.set_execution_context(cpu.clone(), 1)?;
+        classifiers.push(worker);
+    }
+    let mut tasks = Vec::new();
+    tasks
+        .try_reserve_exact(active)
+        .map_err(|e| ImageError::new(format!("classification tasks allocation: {e}")))?;
+    for classifier in &mut classifiers[..active] {
+        let mut jobs = Vec::new();
+        jobs.try_reserve_exact(metadata.len().div_ceil(active))
+            .map_err(|e| ImageError::new(format!("classification jobs allocation: {e}")))?;
+        tasks.push(ClassifyTask {
+            classifier,
+            jobs,
+            error: None,
+            work_ns: 0,
+        });
+    }
+    let mut remaining = &mut *slab;
+    for (index, line) in metadata.iter_mut().enumerate() {
+        let (pixels, tail) = remaining.split_at_mut(line.bytes);
+        remaining = tail;
+        tasks[index % active].jobs.push(ClassifyJob {
+            index,
+            metadata: line,
+            pixels,
+        });
+    }
+    cpu.for_each_mut(&mut tasks, active, |_, task| {
+        for job in &mut task.jobs {
+            let timer = crate::profile::Timer::<PROFILE>::start();
+            let outcome = (|| {
+                let crop = ImageView::new(
+                    job.pixels,
+                    job.metadata.width,
+                    job.metadata.height,
+                    0,
+                    PixelFormat::Bgr24,
+                )?;
+                let result = task.classifier.classify(crop)?;
+                job.metadata.classification = Some(result);
+                if should_rotate(result, threshold) {
+                    crop::rotate180(job.pixels, job.metadata.width, job.metadata.height)?;
+                    job.metadata.applied_rotation_degrees = 180;
+                }
+                Ok(())
+            })();
+            task.work_ns = task.work_ns.saturating_add(timer.elapsed());
+            if let Err(error) = outcome
+                && task
+                    .error
+                    .as_ref()
+                    .is_none_or(|(earlier, _)| job.index < *earlier)
+            {
+                task.error = Some((job.index, error));
+            }
+        }
+    });
+    let mut error = None;
+    for task in tasks {
+        if PROFILE {
+            profile.cls_orientation_ns = profile.cls_orientation_ns.saturating_add(task.work_ns);
+        }
+        if let Some((index, cause)) = task.error
+            && error.as_ref().is_none_or(|(earlier, _)| index < *earlier)
+        {
+            error = Some((index, cause));
+        }
+    }
+    if PROFILE {
+        profile.classification_wall_ns = profile
+            .classification_wall_ns
+            .saturating_add(cls_timer.elapsed());
+    }
+    if let Some((_, error)) = error {
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retained_workspace_counts_reserved_classifier_worker_storage() {
+        let mut template = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
+        let detector = template.extractor_mut().detector().fork().unwrap();
+        let mut extractor =
+            OrientedLineExtractor::new(detector, None, LineOptions::default()).unwrap();
+        let before = extractor.retained_workspace_bytes();
+        extractor.classifier_workers.try_reserve_exact(3).unwrap();
+        let added = extractor.classifier_workers.capacity() * std::mem::size_of::<Classifier>();
+        assert!(added > 0);
+        assert_eq!(extractor.retained_workspace_bytes(), before + added);
     }
 }

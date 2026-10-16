@@ -1,0 +1,94 @@
+name: CPU correctness and model parity
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the complete pre-release corpus
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Share same-repository push/PR runs; distinct fork heads retain distinct groups.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core / Windows / x86-64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the repository-pinned Rust toolchain
+        run: rustup show
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Core, pixel, planner and dispatch tests
+        run: cargo test --locked --all-features --all-targets
+      - name: All-feature documentation tests
+        run: cargo test --locked --all-features --doc
+      - name: Serial build and tests
+        run: cargo test --locked --no-default-features --all-targets
+      - name: Serial documentation tests
+        run: cargo test --locked --no-default-features --doc
+      - name: Lints
+        run: cargo clippy --locked --all-features --all-targets -- -D warnings
+      - name: Serial lints
+        run: cargo clippy --locked --no-default-features --all-targets -- -D warnings
+      - name: Test the parity gate itself
+        run: python -m unittest discover -s tools -p "test_*.py" -v
+
+  model-parity:
+    name: Seven-model parity / Windows / x86-64
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: rust
+      - name: Checkout the immutable C# CPU oracle and model assets
+        uses: actions/checkout@v4
+        with:
+          repository: mg-chao/SimdPaddleOCR
+          ref: 33ff8a81672452041d110e8ba52dcd2639e54228
+          path: reference
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install pinned Rust
+        working-directory: rust
+        run: rustup show
+      - name: Required scalar and optimized reference comparison
+        shell: pwsh
+        run: |
+          $workload = if ('${{ inputs.full }}' -eq 'true') { @() } else { @('--quick') }
+          python rust/tools/cpu_parity.py --reference-dir reference --models-dir reference/models --output rust/target/cpu-parity --correctness-only --iterations 1 @workload
+      - name: Required independent batched recognition comparison
+        run: python rust/tools/cpu_parity.py --reference-dir reference --models-dir reference/models --output rust/target/cpu-batch --quick --batch-only --correctness-only --iterations 1
+      - name: Phase accounting forwarding contracts
+        run: dotnet rust/target/cpu-parity/binaries/csharp/Sdcb.SimdPaddleOCR.Tests.dll --acceptance --phase-contracts
+      - name: Pre-release stages, forced ISAs and exact parallel results
+        if: inputs.full == true
+        run: python rust/tools/cpu_variants.py --bundle rust/target/cpu-parity --models-dir reference/models --output rust/target/cpu-variants --backends avx,avx-fma,avx2-fma
+      - name: Preserve hashes, timings, memory and first-divergence captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpu-parity-windows-x86-64
+          path: |
+            rust/target/cpu-parity
+            rust/target/cpu-batch
+            rust/target/cpu-variants
+          if-no-files-found: error
+          retention-days: 14

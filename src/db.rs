@@ -37,6 +37,8 @@ pub(crate) struct Workspace {
     pending: Vec<u8>,
     blocked: Vec<u8>,
     dilated: Vec<u8>,
+    interior: Vec<u8>,
+    interior_ready: bool,
     stack: Vec<Run>,
     boundary: Vec<Point>,
     hull: Vec<Point>,
@@ -51,6 +53,7 @@ impl Workspace {
             + self.pending.capacity()
             + self.blocked.capacity()
             + self.dilated.capacity()
+            + self.interior.capacity()
             + self.stack.capacity() * 12
             + (self.boundary.capacity() + self.hull.capacity() + self.expanded.capacity()) * 8
             + (self.row_min.capacity() + self.row_max.capacity()) * 4
@@ -67,6 +70,28 @@ pub(crate) fn run(
     source_height: usize,
     s: &mut Workspace,
 ) -> ImageResult<()> {
+    run_with_kernel(
+        prediction,
+        width,
+        height,
+        options,
+        source_width,
+        source_height,
+        s,
+        crate::pixel_kernels::PixelKernel::selected(),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn run_with_kernel(
+    prediction: &[f32],
+    width: usize,
+    height: usize,
+    options: &DetectorOptions,
+    source_width: usize,
+    source_height: usize,
+    s: &mut Workspace,
+    kernel: crate::pixel_kernels::PixelKernel,
+) -> ImageResult<()> {
     let pixels = width
         .checked_mul(height)
         .ok_or_else(|| ImageError::new("DB map size overflow"))?;
@@ -74,17 +99,13 @@ pub(crate) fn run(
         return Err(ImageError::new("invalid DB probability map size"));
     }
     resize_vec(&mut s.bitmap, pixels)?;
-    let mut foreground = false;
-    for (i, &v) in prediction.iter().enumerate() {
-        if !v.is_finite() {
-            return Err(ImageError::new(
-                "detector output contains a nonfinite value",
-            ));
-        }
-        let set = v > options.bitmap_threshold;
-        s.bitmap[i] = u8::from(set);
-        foreground |= set;
-    }
+    s.interior_ready = false;
+    let foreground = crate::pixel_kernels::binarize(
+        kernel,
+        prediction,
+        &mut s.bitmap[..pixels],
+        options.bitmap_threshold,
+    )?;
     s.boxes.clear();
     if !foreground {
         return Ok(());
@@ -103,6 +124,17 @@ pub(crate) fn run(
             }
         }
         s.bitmap[..pixels].copy_from_slice(&s.dilated[..pixels]);
+    }
+    if kernel != crate::pixel_kernels::PixelKernel::Scalar && width >= 3 && height >= 3 {
+        resize_vec(&mut s.interior, pixels)?;
+        crate::pixel_kernels::interior(
+            kernel,
+            &s.bitmap[..pixels],
+            width,
+            height,
+            &mut s.interior[..pixels],
+        );
+        s.interior_ready = true;
     }
     resize_vec(&mut s.pending, pixels)?;
     resize_vec(&mut s.blocked, pixels)?;
@@ -173,18 +205,25 @@ pub(crate) fn run(
     Ok(())
 }
 fn next(a: &[u8], from: usize, to: usize, nonzero: bool) -> usize {
-    let mut i = from;
-    while i < to && (a[i] != 0) != nonzero {
-        i += 1;
-    }
-    i
+    from + crate::pixel_kernels::scan(
+        crate::pixel_kernels::PixelKernel::selected(),
+        &a[from..to],
+        nonzero,
+        false,
+    )
 }
 fn run_start(a: &[u8], lower: usize, end: usize, nonzero: bool) -> usize {
-    let mut i = end;
-    while i > lower && (a[i - 1] != 0) == nonzero {
-        i -= 1;
+    let opposite = crate::pixel_kernels::scan(
+        crate::pixel_kernels::PixelKernel::selected(),
+        &a[lower..end],
+        !nonzero,
+        true,
+    );
+    if opposite == end - lower {
+        lower
+    } else {
+        lower + opposite + 1
     }
-    i
 }
 fn boundary(s: &mut Workspace, x: usize, y: usize, cap: usize) -> ImageResult<()> {
     if s.boundary.len() < cap {
@@ -234,7 +273,11 @@ fn fill_foreground(
         let left = run.left as usize;
         let right = run.right as usize;
         for x in left..=right {
-            if is_boundary(&s.bitmap, w, h, x, y) {
+            if if s.interior_ready {
+                s.interior[y * w + x] == 0
+            } else {
+                is_boundary(&s.bitmap, w, h, x, y)
+            } {
                 boundary(s, x, y, cap)?;
             }
         }
@@ -950,5 +993,113 @@ mod tests {
         assert!(run(&[0.; 4], 1, 1, &o, 1, 1, &mut s).is_err());
         run(&[0.1; 4], 2, 2, &o, 2, 2, &mut s).unwrap();
         assert!(s.boxes.is_empty());
+    }
+    #[test]
+    fn cached_interior_preserves_contours_holes_dilation_thresholds_and_order() {
+        let (width, height) = (65, 39);
+        let mut prediction = vec![0.3; width * height];
+        for y in 3..19 {
+            for x in 4..31 {
+                prediction[y * width + x] = 0.9;
+            }
+        }
+        for y in 8..14 {
+            for x in 11..23 {
+                prediction[y * width + x] = 0.1;
+            }
+        }
+        for y in 25..36 {
+            for x in 37..62 {
+                prediction[y * width + x] = 0.8;
+            }
+        }
+        for i in 0..8 {
+            prediction[(21 + i) * width + 3 + i] = f32::from_bits(0.3f32.to_bits() + 1);
+        }
+        for use_dilation in [false, true] {
+            let options = DetectorOptions {
+                bitmap_threshold: 0.3,
+                box_threshold: Some(0.4),
+                use_dilation,
+                ..Default::default()
+            };
+            let mut original = Workspace::default();
+            run_with_kernel(
+                &prediction,
+                width,
+                height,
+                &options,
+                130,
+                78,
+                &mut original,
+                crate::pixel_kernels::PixelKernel::Scalar,
+            )
+            .unwrap();
+            assert!(!original.boxes.is_empty());
+            assert!(!original.interior_ready);
+            let expected = serde_json::to_value(&original.boxes).unwrap();
+            for kernel in crate::pixel_kernels::PixelKernel::test_kernels() {
+                let mut actual = Workspace::default();
+                run_with_kernel(
+                    &prediction,
+                    width,
+                    height,
+                    &options,
+                    130,
+                    78,
+                    &mut actual,
+                    kernel,
+                )
+                .unwrap();
+                assert_eq!(
+                    serde_json::to_value(&actual.boxes).unwrap(),
+                    expected,
+                    "{kernel:?}/{use_dilation}"
+                );
+                let retained = actual.retained_bytes();
+                run_with_kernel(
+                    &prediction,
+                    width,
+                    height,
+                    &options,
+                    130,
+                    78,
+                    &mut actual,
+                    kernel,
+                )
+                .unwrap();
+                assert_eq!(actual.retained_bytes(), retained);
+                let mut invalid = prediction.clone();
+                invalid[width * height - 1] = f32::NAN;
+                assert!(
+                    run_with_kernel(
+                        &invalid,
+                        width,
+                        height,
+                        &options,
+                        130,
+                        78,
+                        &mut actual,
+                        kernel
+                    )
+                    .is_err()
+                );
+                run_with_kernel(
+                    &prediction,
+                    width,
+                    height,
+                    &options,
+                    130,
+                    78,
+                    &mut actual,
+                    kernel,
+                )
+                .unwrap();
+                assert_eq!(serde_json::to_value(&actual.boxes).unwrap(), expected);
+                run_with_kernel(&[0.; 6], 2, 3, &options, 2, 3, &mut actual, kernel).unwrap();
+                assert!(actual.boxes.is_empty());
+                assert!(!actual.interior_ready);
+            }
+        }
     }
 }

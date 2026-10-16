@@ -133,6 +133,7 @@ pub struct ShapeRecipe {
 
 #[derive(Debug)]
 pub struct Model {
+    pub(crate) packed_weights: crate::runtime::packing::WeightCache,
     ir_version: i64,
     opsets: BTreeMap<String, i64>,
     source_bytes: u64,
@@ -147,6 +148,11 @@ pub struct Model {
 }
 
 impl Model {
+    /// Shared packed capacities retained by all compiled views of this model.
+    /// These bytes are separate from normalized coefficients and request arenas.
+    pub fn cached_packed_weight_bytes(&self) -> usize {
+        self.packed_weights.bytes()
+    }
     pub fn graph(&self) -> &Graph {
         &self.graph
     }
@@ -845,6 +851,122 @@ fn set_attr(node: &mut RawNode, name: &str, value: AttributeValue) {
         });
     }
 }
+
+fn unsupported_attribute(node: &RawNode, name: &str) -> ImportError {
+    error(format!(
+        "{} ({}): unsupported attribute {name} or value for the OCR CPU subset",
+        node.name, node.op_type
+    ))
+}
+
+/// Validate before transformations can erase source semantics. Attributes stored in
+/// EffectiveAttributes are checked by their typed readers and the runtime; other
+/// attributes are accepted only when they are documented neutral ONNX defaults.
+/// This is an OCR operator subset, not a general ONNX schema validator.
+fn validate_attributes(node: &RawNode) -> Result<()> {
+    let retained: &[&str] = match node.op_type.as_str() {
+        "Conv" | "ConvTranspose" => &[
+            "kernel_shape",
+            "strides",
+            "dilations",
+            "pads",
+            "group",
+            "auto_pad",
+        ],
+        "MaxPool" | "AveragePool" => &[
+            "kernel_shape",
+            "strides",
+            "pads",
+            "ceil_mode",
+            "count_include_pad",
+            "auto_pad",
+        ],
+        "BatchNormalization" => &["epsilon", "momentum", "training_mode"],
+        "HardSigmoid" => &["alpha", "beta"],
+        "Squeeze" | "Unsqueeze" => &["axes"],
+        "Transpose" => &["perm"],
+        "Softmax" | "Concat" => &["axis"],
+        "ReduceMean" => &["axes", "keepdims", "noop_with_empty_axes"],
+        "Resize" => &[
+            "scales",
+            "mode",
+            "coordinate_transformation_mode",
+            "nearest_mode",
+        ],
+        "Reshape" => &["allowzero"],
+        "Slice" => &["starts", "ends", "axes", "steps"],
+        "Constant" => &[
+            "value",
+            "value_float",
+            "value_int",
+            "value_floats",
+            "value_ints",
+        ],
+        "Add" | "Mul" | "Div" | "Erf" | "Relu" | "MatMul" | "Sigmoid" | "Sub" | "Pow" | "Sqrt"
+        | "Identity" | "GlobalAveragePool" => &[],
+        // Shape programs and unsupported operators retain their attributes for
+        // their own compiler to diagnose; they do not pass through effective().
+        _ => return Ok(()),
+    };
+    for attr in &node.attributes {
+        if retained.contains(&attr.name.as_str()) {
+            continue;
+        }
+        let neutral = match (node.op_type.as_str(), attr.name.as_str(), &attr.value) {
+            ("ConvTranspose", "output_padding", AttributeValue::Ints(v)) => v == &[0, 0],
+            ("MaxPool" | "AveragePool", "dilations", AttributeValue::Ints(v)) => v == &[1, 1],
+            ("MaxPool", "storage_order", AttributeValue::Int(v)) => *v == 0,
+            ("BatchNormalization", "spatial" | "is_test", AttributeValue::Int(v)) => *v == 1,
+            ("Resize", "antialias" | "exclude_outside", AttributeValue::Int(v)) => *v == 0,
+            ("Resize", "cubic_coeff_a", AttributeValue::Float(v)) => *v == -0.75,
+            ("Resize", "extrapolation_value", AttributeValue::Float(v)) => *v == 0.0,
+            ("Resize", "keep_aspect_ratio_policy", AttributeValue::String(v)) => v == b"stretch",
+            ("Resize", "axes", AttributeValue::Ints(v)) => v == &[0, 1, 2, 3],
+            _ => false,
+        };
+        if !neutral {
+            return Err(unsupported_attribute(node, &attr.name));
+        }
+    }
+    if node.op_type == "Constant" && node.attributes.len() != 1 {
+        return Err(error(format!(
+            "{} (Constant): exactly one value attribute is required",
+            node.name
+        )));
+    }
+    if node.op_type == "BatchNormalization" {
+        // Folding into Conv must never turn training-mode BN into inference BN.
+        if int_attr(node, "training_mode", 0)? != 0 {
+            return Err(unsupported_attribute(node, "training_mode"));
+        }
+        for (name, default) in [("epsilon", 1e-5), ("momentum", 0.9)] {
+            if !float_attr(node, name, default)?.is_finite() {
+                return Err(unsupported_attribute(node, name));
+            }
+        }
+    }
+    if matches!(
+        node.op_type.as_str(),
+        "Conv" | "ConvTranspose" | "MaxPool" | "AveragePool"
+    ) {
+        let auto_pad = bytes_attr(node, "auto_pad", b"NOTSET")?;
+        if auto_pad != b"NOTSET" {
+            // VALID is neutral only with zero pads; SAME_UPPER is normalized
+            // below only for the supported, input-size-independent stride one.
+            let supported_same = auto_pad == b"SAME_UPPER"
+                && matches!(node.op_type.as_str(), "Conv" | "MaxPool")
+                && ints_attr(node, "strides", &[1, 1])? == [1, 1]
+                && ints_attr(node, "kernel_shape", &[])?.len() == 2;
+            if (auto_pad != b"VALID" && !supported_same)
+                || array_attr::<4>(node, "pads", &[0; 4])? != [0; 4]
+            {
+                return Err(unsupported_attribute(node, "auto_pad"));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn effective(node: &RawNode, opset: i64) -> Result<EffectiveAttributes> {
     Ok(match node.op_type.as_str() {
         "Conv" | "ConvTranspose" => {
@@ -949,6 +1071,9 @@ fn effective(node: &RawNode, opset: i64) -> Result<EffectiveAttributes> {
         }
     })
 }
+
+#[cfg(test)]
+mod tests;
 
 struct Constant {
     name: String,
@@ -1108,6 +1233,7 @@ fn normalize(
                 )));
             }
         }
+        validate_attributes(n)?;
         for name in n.outputs.iter().filter(|n| !n.is_empty()) {
             if producer.insert(name.clone(), i).is_some() {
                 return Err(error(format!("duplicate tensor producer {name}")));
@@ -1515,6 +1641,7 @@ fn normalize(
         outputs: output_names.iter().map(|n| index[n]).collect(),
     };
     Ok(Model {
+        packed_weights: crate::runtime::packing::WeightCache::default(),
         ir_version,
         opsets,
         source_bytes,
@@ -1528,6 +1655,14 @@ fn normalize(
 }
 
 fn normalize_same(node: &mut RawNode) -> Result<()> {
+    if matches!(
+        node.op_type.as_str(),
+        "Conv" | "ConvTranspose" | "MaxPool" | "AveragePool"
+    ) && bytes_attr(node, "auto_pad", b"NOTSET")? == b"VALID"
+    {
+        node.attributes.retain(|a| a.name != "auto_pad");
+        return Ok(());
+    }
     if !matches!(node.op_type.as_str(), "Conv" | "MaxPool") {
         return Ok(());
     }

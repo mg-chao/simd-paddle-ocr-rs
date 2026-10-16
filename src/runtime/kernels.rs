@@ -5,16 +5,19 @@ use crate::{
     tensor::{MAX_RANK, Shape},
 };
 
+#[derive(Clone)]
 pub(super) struct BoundStep {
     pub output: TensorId,
     pub kind: BoundKind,
 }
+#[derive(Clone, Copy)]
 pub(super) enum BinaryOp {
     Add,
     Mul,
     Div,
     Sub,
 }
+#[derive(Clone)]
 pub(super) enum BoundKind {
     Binary(Broadcast, BinaryOp),
     Square,
@@ -188,7 +191,227 @@ pub(super) fn execute<'a>(
     }
 }
 
-fn erf(x: f32) -> f32 {
+/// Shape binding selects this dispatch once; every scalar fallback remains available.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn execute_optimized<'a>(
+    kind: &BoundKind,
+    inputs: &[TensorId],
+    data: impl Fn(TensorId) -> &'a [f32],
+    out: &mut [f32],
+    backend: super::Backend,
+    packed: Option<&super::packing::PackedMatrix>,
+    cpu: &super::CpuContext,
+    threads: usize,
+) {
+    use super::simd;
+    #[cfg(not(feature = "parallel"))]
+    let _ = (cpu, threads);
+    if backend == super::Backend::Scalar {
+        execute(kind, inputs, data, out);
+        return;
+    }
+    let a = data(inputs[0]);
+    match kind {
+        BoundKind::MatMul {
+            rows,
+            inner,
+            columns,
+        } => {
+            let b = data(inputs[1]);
+            #[cfg(feature = "parallel")]
+            if threads > 1 && rows * inner * columns >= 262_144 && *rows >= 8 {
+                use rayon::prelude::*;
+                let row_chunk = rows.div_ceil(threads).max(4).next_multiple_of(4);
+                cpu.install(|| {
+                    out.par_chunks_mut(row_chunk * columns)
+                        .enumerate()
+                        .for_each(|(i, dst)| {
+                            let start = i * row_chunk;
+                            simd::matmul(
+                                backend,
+                                &a[start * inner..start * inner + dst.len() / columns * inner],
+                                b,
+                                packed,
+                                dst,
+                                dst.len() / columns,
+                                *inner,
+                                *columns,
+                            );
+                        })
+                });
+                return;
+            }
+            simd::matmul(backend, a, b, packed, out, *rows, *inner, *columns);
+        }
+        BoundKind::BatchedMatMul(p) => {
+            let b = data(inputs[1]);
+            let mut counters = [0; MAX_RANK];
+            let (mut ai, mut bi) = (0, 0);
+            for batch in 0..p.batches {
+                simd::matmul(
+                    backend,
+                    &a[ai..ai + p.a_matrix],
+                    &b[bi..bi + p.b_matrix],
+                    None,
+                    &mut out[batch * p.output_matrix..(batch + 1) * p.output_matrix],
+                    p.rows,
+                    p.inner,
+                    p.columns,
+                );
+                for axis in (0..p.batch_rank).rev() {
+                    counters[axis] += 1;
+                    if counters[axis] < p.dimensions[axis] {
+                        ai += p.a_strides[axis];
+                        bi += p.b_strides[axis];
+                        break;
+                    }
+                    ai -= (counters[axis] - 1) * p.a_strides[axis];
+                    bi -= (counters[axis] - 1) * p.b_strides[axis];
+                    counters[axis] = 0;
+                }
+            }
+        }
+        BoundKind::Conv(p) => {
+            let params = simd::Conv2d {
+                batch: p.batch,
+                input_channels: p.cin,
+                output_channels: p.cout,
+                height: p.height,
+                width: p.width,
+                output_height: p.oh,
+                output_width: p.ow,
+                kernel_height: p.kh,
+                kernel_width: p.kw,
+                stride_height: p.sh,
+                stride_width: p.sw,
+                dilation_height: p.dh,
+                dilation_width: p.dw,
+                pad_top: p.pt,
+                pad_left: p.pl,
+                groups: p.cin / p.cpg,
+            };
+            let weights = data(inputs[1]);
+            let bias: &[f32] = inputs.get(2).map_or(&[], |&id| data(id));
+            if super::nchw::try_conv(
+                backend, &params, a, weights, bias, packed, out, cpu, threads,
+            ) {
+                return;
+            }
+            // Whole-output scalar APIs must be selected before channel bands.
+            if params.uses_original_convolution(backend) {
+                simd::conv2d(backend, &params, a, weights, bias, out);
+                return;
+            }
+            #[cfg(feature = "parallel")]
+            if threads > 1
+                && p.batch * p.cout * p.oh * p.ow * p.cpg * p.kh * p.kw >= 262_144
+                && p.cout >= 4
+            {
+                use rayon::prelude::*;
+                let channels = p.cout.div_ceil(threads).max(4).next_multiple_of(4);
+                let plane = p.oh * p.ow;
+                for (batch, dst) in out.chunks_exact_mut(p.cout * plane).enumerate() {
+                    cpu.install(|| {
+                        dst.par_chunks_mut(channels * plane)
+                            .enumerate()
+                            .for_each(|(band, dst)| {
+                                simd::conv2d_output_range(
+                                    backend,
+                                    &params,
+                                    a,
+                                    weights,
+                                    bias,
+                                    dst,
+                                    batch,
+                                    band * channels,
+                                    dst.len() / plane,
+                                )
+                            })
+                    });
+                }
+                return;
+            }
+            simd::conv2d(backend, &params, a, weights, bias, out);
+        }
+        BoundKind::ConvTranspose(p) => {
+            let weights = data(inputs[1]);
+            let bias: &[f32] = inputs.get(2).map_or(&[], |&id| data(id));
+            if !super::nchw::try_transpose(backend, p, a, weights, bias, out, cpu, threads) {
+                simd::conv_transpose2x2(
+                    backend, a, weights, bias, out, p.batch, p.cin, p.cout, p.height, p.width,
+                );
+            }
+        }
+        BoundKind::Square => {
+            simd::parallel::unary(backend, simd::UnaryOp::Square, a, out, cpu, threads)
+        }
+        BoundKind::Erf => simd::parallel::unary(backend, simd::UnaryOp::Erf, a, out, cpu, threads),
+        BoundKind::Sigmoid => {
+            simd::parallel::unary(backend, simd::UnaryOp::Sigmoid, a, out, cpu, threads)
+        }
+        BoundKind::Softmax { rows, columns } => simd::softmax(backend, a, out, *rows, *columns),
+        BoundKind::MaxPool { height, width } => simd::max_pool(backend, a, out, *height, *width),
+        BoundKind::AveragePool {
+            height,
+            width,
+            output_height,
+            output_width,
+        } => simd::average_pool(
+            backend,
+            a,
+            out,
+            *height,
+            *width,
+            *output_height,
+            *output_width,
+        ),
+        BoundKind::Reduce(p)
+            if p.input.rank() == 4
+                && p.contiguous == Some(p.input.dimensions()[2] * p.input.dimensions()[3])
+                && out.len() == p.input.dimensions()[0] * p.input.dimensions()[1] =>
+        {
+            simd::spatial_mean(
+                backend,
+                a,
+                out,
+                p.input.dimensions()[2] * p.input.dimensions()[3],
+            );
+        }
+        BoundKind::Relu => {
+            simd::parallel::unary(backend, simd::UnaryOp::Relu, a, out, cpu, threads)
+        }
+        BoundKind::Sqrt => {
+            simd::parallel::unary(backend, simd::UnaryOp::Sqrt, a, out, cpu, threads)
+        }
+        BoundKind::HardSigmoid(alpha, beta) => simd::unary(
+            backend,
+            simd::UnaryOp::HardSigmoid {
+                alpha: *alpha,
+                beta: *beta,
+            },
+            a,
+            out,
+        ),
+        BoundKind::Binary(p, operation) => {
+            let b = data(inputs[1]);
+            let op = match operation {
+                BinaryOp::Add => simd::BinaryOp::Add,
+                BinaryOp::Mul => simd::BinaryOp::Mul,
+                BinaryOp::Div => simd::BinaryOp::Div,
+                BinaryOp::Sub => simd::BinaryOp::Sub,
+            };
+            match p.kind {
+                BroadcastKind::Full => simd::parallel::binary(backend, op, a, b, out, cpu, threads),
+                BroadcastKind::RightScalar => simd::binary_scalar(backend, op, a, b[0], false, out),
+                BroadcastKind::LeftScalar => simd::binary_scalar(backend, op, b, a[0], true, out),
+                _ => execute(kind, inputs, data, out),
+            }
+        }
+        _ => execute(kind, inputs, data, out),
+    }
+}
+
+pub(super) fn erf(x: f32) -> f32 {
     // Identical individual F32 operations to the C# scalar reference.
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let magnitude = x.abs();
@@ -198,19 +421,20 @@ fn erf(x: f32) -> f32 {
     sign * (1.0 - polynomial * exp_f32(-magnitude * magnitude))
 }
 
+#[derive(Clone)]
 pub(super) struct BatchedMatMul {
-    rows: usize,
-    inner: usize,
-    columns: usize,
-    batches: usize,
-    batch_rank: usize,
-    dimensions: [usize; MAX_RANK],
-    a_strides: [usize; MAX_RANK],
-    b_strides: [usize; MAX_RANK],
-    a_matrix: usize,
-    b_matrix: usize,
-    output_matrix: usize,
-    equal_batches: bool,
+    pub(super) rows: usize,
+    pub(super) inner: usize,
+    pub(super) columns: usize,
+    pub(super) batches: usize,
+    pub(super) batch_rank: usize,
+    pub(super) dimensions: [usize; MAX_RANK],
+    pub(super) a_strides: [usize; MAX_RANK],
+    pub(super) b_strides: [usize; MAX_RANK],
+    pub(super) a_matrix: usize,
+    pub(super) b_matrix: usize,
+    pub(super) output_matrix: usize,
+    pub(super) equal_batches: bool,
 }
 pub(super) fn bind_matmul(a: Shape, b: Shape) -> RuntimeResult<(Shape, BoundKind)> {
     if a.rank() < 2 || b.rank() < 2 {
@@ -342,7 +566,7 @@ fn batched_matmul(plan: &BatchedMatMul, a: &[f32], b: &[f32], out: &mut [f32]) {
 
 // Four independent rows share each contiguous four-column weight load. Each
 // accumulator still adds products in ascending K order, without FMA or packing.
-fn matmul(
+pub(super) fn matmul(
     input: &[f32],
     weights: &[f32],
     output: &mut [f32],
@@ -521,11 +745,12 @@ fn batch_normalization(
         }
     }
 }
+#[derive(Clone)]
 pub(super) struct Transpose {
-    rank: usize,
-    dimensions: [usize; MAX_RANK],
-    strides: [usize; MAX_RANK],
-    base: usize,
+    pub(super) rank: usize,
+    pub(super) dimensions: [usize; MAX_RANK],
+    pub(super) strides: [usize; MAX_RANK],
+    pub(super) base: usize,
 }
 pub(super) fn bind_transpose(
     input: Shape,
@@ -623,6 +848,7 @@ pub(super) fn bind_slice(
     ))
 }
 
+#[derive(Clone)]
 enum BroadcastKind {
     Full,
     RightScalar,
@@ -643,14 +869,33 @@ enum BroadcastKind {
     },
     Generic,
 }
+#[derive(Clone)]
 pub(super) struct Broadcast {
     kind: BroadcastKind,
-    rank: usize,
-    dimensions: [usize; MAX_RANK],
-    a_strides: [usize; MAX_RANK],
-    b_strides: [usize; MAX_RANK],
+    pub(super) rank: usize,
+    pub(super) dimensions: [usize; MAX_RANK],
+    pub(super) a_strides: [usize; MAX_RANK],
+    pub(super) b_strides: [usize; MAX_RANK],
 }
 impl Broadcast {
+    pub(super) fn channel(&self) -> Option<super::simd::ChannelBroadcast> {
+        if let BroadcastKind::Channel {
+            scalar_left,
+            channels,
+            plane,
+            batched,
+        } = self.kind
+        {
+            Some(super::simd::ChannelBroadcast {
+                channels,
+                plane,
+                batched,
+                gate_left: scalar_left,
+            })
+        } else {
+            None
+        }
+    }
     pub(super) fn new(a: Shape, b: Shape, out: Shape) -> Self {
         let channel = |full: Shape, gate: Shape, scalar_left| {
             let fd = full.dimensions();
@@ -849,9 +1094,10 @@ fn binary<const OP: u8>(plan: &Broadcast, a: &[f32], b: &[f32], out: &mut [f32])
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Concat {
-    outer: usize,
-    output_chunk: usize,
+    pub(super) outer: usize,
+    pub(super) output_chunk: usize,
 }
 
 pub(super) fn bind_concat(
@@ -1006,12 +1252,13 @@ fn resize(input: &[f32], output: &mut [f32], height: usize, width: usize, factor
     }
 }
 
+#[derive(Clone)]
 pub(super) struct ConvTranspose {
-    batch: usize,
-    cin: usize,
-    cout: usize,
-    height: usize,
-    width: usize,
+    pub(super) batch: usize,
+    pub(super) cin: usize,
+    pub(super) cout: usize,
+    pub(super) height: usize,
+    pub(super) width: usize,
 }
 
 pub(super) fn bind_conv_transpose(
@@ -1079,8 +1326,8 @@ fn conv_transpose(
                     let (top, bottom) = rows.split_at_mut(output_width);
                     for ((&value, top), bottom) in values
                         .iter()
-                        .zip(top.chunks_exact_mut(2))
-                        .zip(bottom.chunks_exact_mut(2))
+                        .zip(top.as_chunks_mut::<2>().0.iter_mut())
+                        .zip(bottom.as_chunks_mut::<2>().0.iter_mut())
                     {
                         top[0] += value * weight[0];
                         top[1] += value * weight[1];
@@ -1093,24 +1340,25 @@ fn conv_transpose(
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Conv {
-    batch: usize,
-    cin: usize,
-    cout: usize,
-    height: usize,
-    width: usize,
-    oh: usize,
-    ow: usize,
-    cpg: usize,
-    opg: usize,
-    kh: usize,
-    kw: usize,
-    sh: usize,
-    sw: usize,
-    dh: usize,
-    dw: usize,
-    pt: usize,
-    pl: usize,
+    pub(super) batch: usize,
+    pub(super) cin: usize,
+    pub(super) cout: usize,
+    pub(super) height: usize,
+    pub(super) width: usize,
+    pub(super) oh: usize,
+    pub(super) ow: usize,
+    pub(super) cpg: usize,
+    pub(super) opg: usize,
+    pub(super) kh: usize,
+    pub(super) kw: usize,
+    pub(super) sh: usize,
+    pub(super) sw: usize,
+    pub(super) dh: usize,
+    pub(super) dw: usize,
+    pub(super) pt: usize,
+    pub(super) pl: usize,
 }
 pub(super) fn bind_conv(
     a: Shape,
@@ -1206,7 +1454,7 @@ pub(super) fn bind_conv(
         }),
     ))
 }
-fn conv(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f32]) {
+pub(super) fn conv(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f32]) {
     if p.kh == 1
         && p.kw == 1
         && p.sh == 1
@@ -1326,7 +1574,7 @@ fn valid_taps(
         .min(kernel);
     first..end
 }
-fn conv1x1(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f32]) {
+pub(super) fn conv1x1(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mut [f32]) {
     let plane = p.height * p.width;
     let full_pixels = plane / 4 * 4;
     for batch in 0..p.batch {
@@ -1467,11 +1715,12 @@ fn depthwise(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32], output: &mu
     }
 }
 
+#[derive(Clone)]
 pub(super) struct Reduction {
-    input: Shape,
-    reduction: usize,
-    output_strides: [usize; MAX_RANK],
-    contiguous: Option<usize>,
+    pub(super) input: Shape,
+    pub(super) reduction: usize,
+    pub(super) output_strides: [usize; MAX_RANK],
+    pub(super) contiguous: Option<usize>,
 }
 pub(super) fn bind_reduce(
     input: Shape,

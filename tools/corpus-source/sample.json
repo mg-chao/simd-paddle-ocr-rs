@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "width": 320,
+  "height": 320,
+  "pixel_format": "bgr24",
+  "sha256": "f437d3231d0661a0497f0ad71ff22d4d3c1b66d3dd81bdcee33b058b4828a86e",
+  "source_repository": "https://github.com/mg-chao/SimdPaddleOCR",
+  "source_revision": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "source_path": "examples/sample.jpg",
+  "source_jpeg_sha256": "30c417c9f758a3b62718729f5a944f7d2e10cdd2bde0e8ce6785523ddb68ffe9",
+  "provenance": "Decoded once with SixLabors.ImageSharp 3.1.11 Rgb24, resized to width 320 by integer nearest-neighbour (source x*source_width/320, y*source_height/320), stored as interleaved BGR24. The maintained generator consumes these checked raw bytes and has no image-codec dependency.",
+  "license": "Apache-2.0 (reference repository LICENSE)"
+}

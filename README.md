@@ -1,118 +1,94 @@
 # simd-paddle-ocr-rs
 
-A safe Rust library for PaddleOCR inference. It loads ONNX models and runs text
-detection, orientation classification, and recognition directly from borrowed
-image pixels. Tiny, small, and medium model families use serial F32/NCHW kernels.
-Explicit SIMD, threading, and GPU execution are not implemented.
+Rust CPU inference for SimdPaddleOCR's tiny, small and medium Chinese OCR models
+and shared text-line orientation model. Development and validation target
+**Windows x64**, using the pinned `nightly-2026-09-08` toolchain.
 
-## Usage
+The library implements ONNX import and normalization, scalar and SIMD execution,
+NHWC planning, graph fusion, compact CTC decoding, and the complete raw-pixel OCR
+pipeline. Models and compiled weights are shareable; mutable sessions and OCR
+requests own reusable storage. This is the operator subset needed by the shipped
+models, rather than a general-purpose ONNX runtime.
 
-Use the pinned Rust 1.97.1 toolchain. Add this crate as a local dependency:
+## Raw pixels and execution
 
-```toml
-[dependencies]
-simd-paddle-ocr-rs = { path = "../simd-paddle-ocr-rs" }
-```
+Image APIs accept BGR24, RGB24, BGRA32 and RGBA32, including padded row strides.
+Callers decode files and retain the pixel buffer until inference returns.
 
-Supply compatible model files and a UTF-8 recognition dictionary separately:
-
-| Family | Detector | Recognizer | Dictionary |
-| --- | --- | --- | --- |
-| tiny | `det.onnx` | `rec.onnx` | `ppocr_keys.txt` |
-| small | `small_det.onnx` | `small_rec.onnx` | `rec_keys.txt` |
-| medium | `medium_det.onnx` | `medium_rec.onnx` | `rec_keys.txt` |
-
-All families share `cls.onnx` for optional orientation classification. These are
-the model filenames from the upstream
-[SimdPaddleOCR project](https://github.com/sdcb/SimdPaddleOCR). The importer and
-runtime support the operators used by these networks.
+Use `OcrModelSet` and its builder for complete OCR, or `Detector`, `Classifier`,
+`Recognizer`, `OrientedLineExtractor` and `Ocr` for
+individual stages or full OCR. Borrowed results last until the next mutable use;
+`try_to_owned()` copies results when they must escape the request. `OcrEngine`
+provides bounded, reusable request leases for concurrent callers.
 
 ```rust,no_run
-use simd_paddle_ocr_rs::{
-    detector::{Detector, DetectorOptions},
-    image::{ImageView, PixelFormat},
-    lines::{LineOptions, OrientedLineExtractor},
-    model::Model,
-    ocr::{Ocr, OcrOptions},
-    recognizer::{Dictionary, Recognizer, RecognizerOptions},
-    runtime::{CompiledModel, ExecutionLimits},
-};
-use std::{error::Error, fs, sync::Arc};
+use std::sync::Arc;
+use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet, cpu::CpuContext,
+    image::{ImageView, PixelFormat}};
 
-fn compile(path: &str) -> Result<Arc<CompiledModel>, Box<dyn Error>> {
-    let model = Arc::new(Model::load_path(path)?);
-    Ok(Arc::new(CompiledModel::new(model)?))
-}
-
-fn main() -> Result<(), Box<dyn Error>> {
-    let detector = Detector::new(
-        compile("models/det.onnx")?,
-        DetectorOptions::default(),
-        ExecutionLimits::default(),
-    )?;
-    let extractor = OrientedLineExtractor::new(
-        detector,
-        Some(compile("models/cls.onnx")?),
-        LineOptions::default(),
-    )?;
-    let dictionary = Arc::new(Dictionary::from_utf8(&fs::read("models/ppocr_keys.txt")?)?);
-    let recognizer = Recognizer::new(
-        compile("models/rec.onnx")?,
-        dictionary,
-        RecognizerOptions::default(),
-        ExecutionLimits::default(),
-    )?;
-    let mut ocr = Ocr::new(extractor, recognizer, OcrOptions::default())?;
-
-    // Supply decoded, tightly packed BGR pixels for a 640 x 480 image.
-    let pixels = fs::read("image.bgr")?;
-    let image = ImageView::new(&pixels, 640, 480, 0, PixelFormat::Bgr24)?;
-    let result = ocr.run(image, true)?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let models = OcrModelSet::from_directory("models", ModelPreset::ChineseV6Tiny, true)?;
+    let mut ocr = models.builder().cpu_context(Arc::new(CpuContext::new(4)?))
+        .recognition_batch_size(1).build()?;
+    let pixels = std::fs::read("image.bgr")?; // decoded 320x320 BGR24
+    let image = ImageView::new(&pixels, 320, 320, 0, PixelFormat::Bgr24)?;
+    let result = ocr.run(image, true)?; // capture CTC token alignment
+    println!("{}", result.text);
     for line in result.iter() {
-        println!("{} ({:.3})", line.text, line.recognition_score);
+        for token in line.estimate_character_boxes()? {
+            println!("{} {:?}", token.text, token.points);
+        }
     }
     Ok(())
 }
 ```
 
-Image decoding belongs to the caller. `ImageView` accepts BGR24, RGB24, BGRA32,
-and RGBA32 with an explicit byte stride; zero means tightly packed rows. Pass
-`None` as the classifier to skip orientation classification.
+`CompileOptions::reference()` selects scalar, NCHW, unfused execution.
+`CompileOptions::default()` enables optimized execution. The default `parallel`
+feature uses a bounded CPU context shared by nested work; `--no-default-features`
+retains serial execution. See [API and memory contracts](docs/migration.md).
 
-## API and memory
+`OcrModelSet::from_paths` and `from_readers` support custom sources and optional
+classification. Presets pair tiny with `ppocr_keys.txt` and small/medium with
+`rec_keys.txt`. `builder.build_engine(limits)` creates a bounded request pool.
+Same-width recognition batching defaults to one; configure it through the
+builder or `Ocr::set_recognition_batch_size`. Packed UTF-8 text and its
+reference-compatible FNV-1a hash are available on borrowed and owned OCR results.
 
-- `Model` imports and normalizes ONNX graphs with checked load limits.
-- `CompiledModel` and `Session` execute graphs with reusable activation storage.
-- `Detector`, `OrientedLineExtractor`, and `Recognizer` can run independently.
-- `Ocr` returns ordered text, quadrilateral boxes, scores, rotations, and optional
-  CTC spans. The second argument to `run` controls span capture.
+Run the raw-pixel example without an image decoder:
 
-Models, compiled models, and dictionaries can be shared through `Arc`. Mutable
-engines reuse their workspaces. Results borrow engine storage; call
-`try_to_owned()` when results need to survive another inference call.
-
-Recognition uses height 48 and adaptive widths rounded up to a multiple of 32.
-The default activation budget is 1 GiB per session, excluding shared weights,
-retained workspaces, and owned results. Configure `ExecutionLimits` and the
-engine options for application-specific limits.
-
-Synchronous trace methods expose intermediate stages. The optional `profiling`
-feature adds `Recognizer::recognize_profiled`, `Ocr::run_profiled`, and
-`StageProfile`; ordinary inference does not read profiling timers.
-
-## Development
-
-```sh
-cargo build --locked
-cargo fmt --all -- --check
-cargo test --locked --all-features
-cargo clippy --locked --all-targets --all-features -- -D warnings
+```powershell
+cargo run --release --example ocr -- ../SimdPaddleOCR/models tiny tools/corpus-source/sample.bgr 320 320 4 1
 ```
 
-The Rust tests use synthetic models and inputs and require no downloaded models
-or external runtimes. CI runs these checks on Windows and Linux.
+## Correctness validation
 
-## License
+Keep a clean checkout of the pinned C# reference alongside this repository and
+provide all seven models and both dictionaries explicitly:
 
-Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [licenses](licenses/) for
-upstream attribution and third-party license terms.
+```powershell
+cargo test --locked --all-features --all-targets
+cargo test --locked --no-default-features
+cargo clippy --locked --all-targets --all-features -- -D warnings
+python -m unittest discover -s tools -p "test_cpu_*.py" -v
+python tools/cpu_parity.py --reference-dir ../SimdPaddleOCR --models-dir ../SimdPaddleOCR/models --quick --threads 1 --correctness-only
+```
+
+The maintained harness pins reference revision, model bytes, dictionaries and raw
+pixels. It compares independent C# scalar/optimized captures with Rust execution,
+including logical node tensors, public heads, CTC spans and complete OCR. Missing
+assets, omitted results, nonfinite values and mismatches fail. Large captures stay
+under ignored `target/` storage. See [validation commands](docs/cpu-validation.md)
+and the [CPU optimization coverage matrix](docs/cpu-coverage.md).
+
+## Completion gates
+
+CPU completion requires all-model parity, public feature completeness, every
+active Windows x64 reference optimization family, real AVX-512 hardware checks,
+and warmed OCR latency within 10% of C# at matched CPU budgets. Coverage and
+measurements must be recorded separately; compile-only checks do not establish
+hardware validation or performance. GPU, ARM64, WASM and image codecs are outside
+the current scope. Disabled reference INT8/VNNI experiments are excluded.
+
+The source and adapted algorithms are licensed under Apache-2.0, with MIT
+components identified in [NOTICE](NOTICE) and `licenses/`.
