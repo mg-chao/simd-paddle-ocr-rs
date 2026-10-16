@@ -6,25 +6,30 @@ The active frozen Rust source is
 `nightly-2026-09-08` on Windows x64. **30 focused NCHW tests pass**, including
 independent cancellation, complete spatial packet, worker-child family,
 Portable4 dual-tile, shared-panel, exact-store and simulated ISA selection tests.
-The source is frozen for attempt4; full core and Release-library checks,
-seven-model parity, policy/thread variants, real batching, unavailable-AVX-512
-rejection, Release static audits and packaging are **pending**. Focused tests
-do not substitute for those source/producer-bound gates.
+Attempt4 correctness, available-policy checks, scoped Debug/Release static
+reviews and the preperformance package have passed for these exact source bytes.
+The authorized performance round completed 37/72 targets, so M5 remains unmet.
+Final package authority and capable-Windows AVX-512 execution remain separate
+acceptance gates.
 
-The current core run has completed **273/265 library tests (288/280 all-target
-checks)** with all features and without default features respectively, six documentation tests
-per mode, both all-target Clippy checks with warnings denied, and **113 tooling
-contracts**. Its final Release-example stage is still compiling, so the whole
-core gate remains pending. These completed leaves do not qualify model parity,
-Release-library, static, hardware or performance gates.
+The exact source has passed **273/265 library tests (288/280 all-target
+checks)** with all features and without default features respectively, six
+documentation tests per mode, both all-target Clippy checks with warnings denied,
+**113 tooling contracts**, and **273 Release-library tests**. Fresh model gates
+passed seven exact imports and **447 comparisons**, **1,341 cases across nine
+policy/layout/thread configurations**, nine real-batch comparisons, and explicit
+unavailable-AVX-512 rejection. Current core and regression completion receipts
+bind the actual logs, source snapshot and closed producing executable/PDB pairs.
+These results establish correctness on available hardware, separately from speed
+and capable-Windows AVX-512 acceptance.
 
 The actual Debug static audit bounds the compiled fixed/logical kernel chain
 at **1,776,512 bytes**, below the unchanged 2 MiB limit. It includes at most
 11 logical visit levels and a 256 KiB outer/framework/caller allowance. That
 entry allowance is an assumption; this proof does not establish a global bound
 on physical Rayon helping, nested requests or callback recursion. Actual
-bounded-worker and concurrency tests are separate required core checks. The
-initial 2,162,480-byte sum across mutually exclusive worker action types remains
+bounded-worker and concurrency core tests passed separately; they do not make
+this a global physical-stack theorem. The initial 2,162,480-byte sum across mutually exclusive worker action types remains
 retained alongside the exhaustive 632-frame grouping and scoped posterior proof.
 
 The prior `7f341...` attempt2 passed one-thread seven-model correctness, but
@@ -38,8 +43,7 @@ Packed3 workers now use floor OC8 bands and reselect eligible native paired16
 children. Packed stride-two has dedicated OC8/native OC16 bodies and Portable4
 adjacent 4+4 spatial tiles; its worker split has no generic work threshold.
 Independent regressions failed before each correction and pass afterwards.
-The independent cancellation regression failed before this correction and passed
-afterwards; RED and after-run GREEN captures remain explicitly distinguished.
+RED and after-run GREEN captures remain explicitly distinguished.
 No tolerance or thread-equality requirement changed.
 
 Earlier Portable4 compact projection and column-shard fixes remain present:
@@ -51,16 +55,35 @@ M5 phase instrumentation now separates Rust `reshape_ns` work from binding.
 The maintained C# exporter has ten passing model-free phase contracts and a
 separate diagnostic phase process. C# returns owned results intrinsically;
 external post-Run copying is zero by that API contract, while lazy text
-publication is observed separately. These changes have **no new real-model
-phase or performance measurement**. Historical unmeasured fields remain null.
+publication is observed separately. The completed authorized paired round retains
+and revalidates separate actual phase captures. Historical unmeasured fields
+remain null; intrinsic zero-copy and lazy-text diagnostics remain distinct.
 
 | Milestone | Implemented / observed | Remaining acceptance |
 | --- | --- | --- |
-| M1 reproducible validation | Pinned seven-model harness and [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2); both named Windows checks passed for published head `df04c959...` (historical ba0 source). Main now requires both exact checks from Actions app 15368, with strict and administrator enforcement verified. | Re-run CI for the corrected PR head and finish attempt4 exact-source local gates. Earlier CI success does not qualify changed source. |
-| M2 CPU APIs | Character boxes, borrowed/owned results, model sets/builder/shared context, classifier limits, packed text/hash helpers and recognition batching | Preserve behavior under fresh integrated and batching validation for the active source. |
-| M3 optimization families | Specialized source families, observable selection, fused stores, bounded reusable storage and independent focused regressions | Finish active-source integrated and Release static gates. Historical generic PackedStride2 findings do not qualify its replacement; generic PackedPointwise audits retain overhead; general >25-tap Portable4 geometry retains its explicit fallback. No universal register-only or performance claim. |
-| M4 ISA dispatch | Scalar, Portable4, AVX, AVX/FMA, AVX2/FMA and compiled AVX-512 paths | Finish available-policy checks for this source. Actual capable-Windows AVX-512 execution remains explicitly user-deferred. Compilation does not qualify hardware execution. |
-| M5 performance / release | Phase accounting and license/package tooling implemented | Current-source performance and packaging remain unqualified. Complete latency/throughput targets, actual phase evidence, hardware validation and exact-source packaging are still required. |
+| M1 reproducible validation | Maintained pinned seven-model harness; exact-source local core/full/variant/batch gates passed. Both named Windows checks passed for current published D4 head `fe639067...` in [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2). Main requires both from Actions app 15368 with strict/admin enforcement verified. | Bind the final documentation publication and its corresponding CI run; retain final evidence. No earlier head substitutes for a later changed tree. |
+| M2 CPU APIs | Character boxes, borrowed/owned results, model sets/builder/shared context, classifier limits, packed text/hash helpers and recognition batching; fresh behavioral/core/full/batch gates passed. | Preserve these contracts in the final package. |
+| M3 optimization families | Active specialized source families, observable child selection, fused stores and reusable bounded storage; fresh integrated and selected Release static gates passed. | Retain documented spill/helper/fallback limits. Static coverage establishes no universal register-only or measured speed claim. |
+| M4 ISA dispatch | Scalar, Portable4, AVX, AVX/FMA and AVX2/FMA available-policy checks passed; compiled AVX-512 and unavailable-policy rejection verified. | Actual capable-Windows AVX-512 execution remains explicitly user-deferred. Compilation does not qualify hardware execution. |
+| M5 performance / release | Correctness/static prerequisites and the saved 131-member preperformance package passed. The fixed sixth round completed 37/72 targets (18/36 latency, 19/36 throughput); phase evidence is retained. | Latency/throughput acceptance remains unmet. All six rounds are consumed with no further measurement authorization. Bind the final documentation package and archive; hardware acceptance remains separate. |
+
+The current Release static gate is closed by
+`target/cpu-active-coverage-attempt4-production-codegen-20261016/complete.json`
+(SHA-256 `33aa811584ef731d45dd22e3273d9e5d74f1011924bb9eac7844de0a78df695f`),
+with 348 hash-bound evidence files. It binds the actual current executable/PDB,
+source, native and Portable4 reductions, common-store/transpose bindings,
+17 selected NCHW numerical tiles and 20 selected Gelu/store control-flow paths.
+These are selected path proofs: canonical packed paths retain documented spills,
+bounds checks and coefficient-tail helper overhead. They do not establish that
+every kernel is register-only, all epilogue paths are call-free, or AVX-512 ran.
+
+The preperformance package passed with **131 members**. Its saved
+`preperformance-package.crate`, log and `preperformance-package-report.json`
+under `target/core-validation-active-coverage-attempt4-20261016` preserve the
+exact premeasurement documentation and member hashes. This is an immutable
+prerequisite snapshot, not the final release package. Final package qualification
+requires a new successful observed Cargo package command and
+`package-report.json` binding the final documentation and shipped bytes.
 
 The prior source
 `f7bc2ce6761f4521e9492468fe6c201b6a96e5526b5963250d878ee898c2242c`
@@ -79,14 +102,27 @@ The last completed performance round, historical source `54a1e088...`, passed
 passed 65/72. Neither establishes the active source's speed. Fixed acceptance
 remains warmed median Rust latency <=110% of C# and throughput >=90% for every
 frozen model/workload at matched total CPU budgets 1/2/4/8. The first five
-original-sample rounds (ordinary three plus the explicit two-round exception)
-are consumed. The user authorized **one additional complete 72-case round**;
-the append-only grant `42014eec-5933-488f-8879-41dc67a0da8b` raises the task cap
-to six and preserves all prior reservations. The sixth round is **unreserved
-and unmeasured**. It may run after current-source correctness, static and package
-gates, under the fixed `normal-background-v3` policy, with the separate phase
-evidence retained. Recording authorization does not establish any performance
-result or consume the round.
+original-sample rounds remain consumed. The append-only grant
+`42014eec-5933-488f-8879-41dc67a0da8b` authorizes one additional complete round,
+raises the task cap to six and preserves all prior reservations.
+
+The authorized sixth full 72-case performance round completed **37/72 targets**:
+**18/36 latency** and **19/36 throughput**. **M5 remains unmet.** The fixed gates
+remain warmed median Rust latency <=110% of C# and throughput >=90%, measured
+under `normal-background-v3` with two warmups, five samples and one iteration
+at matched total CPU budgets 1/2/4/8. All public output comparisons and same-kernel
+thread determinism checks passed; measured repeated-shape Rust retained storage
+had zero growth. The eight-partition report and separate phase evidence are
+retained and revalidated, including every nonpassing result.
+
+Actual completion is bound by
+`target/cpu-sixth-round-attempt4-20261016/performance-completion.json`
+(SHA-256 `07054326e6aca8d3e792a7ea8969913c399bcfdcfa51a338fecb943f1de5e9d0`),
+round `c7db05b3-e51f-48ae-b20a-8d75d5be9b24` and frozen plan SHA-256
+`43f9c5ed6c79ec8f24390f25ef949c95cfdbae387d8baa77e593da9c534a11bf`.
+**All six authorized rounds are consumed; no further performance round is
+authorized.** No threshold, sample schedule, tolerance or prior ledger entry was
+changed to improve the reported outcome.
 
 The numerical contract remains tensor atol=rtol=0.001, score error<=0.01 and
 coordinates<=0.5px. Text, labels, counts, order, dimensions, CTC span boundaries,
@@ -100,4 +136,7 @@ Large evidence remains ignored or external. The existing archive at
 proofs. A new attempt4 archive must bind its own actual source, producers, logs,
 reports and manifest. Failed attempt2, canceled attempt3, the Packed3/stride-two
 RED and after-run GREEN captures, and the initial Debug overinclusive rejection
-remain separate; earlier passes do not qualify the corrected source.
+remain separate. The v2 wrapper's Python-resolution failure occurred before
+Python, preflight or reservation; its preserved receipt does not count as a
+performance run. The corrected v3 wrapper launched the sixth round, whose completed nonpassing
+verdict is retained. Earlier passes do not qualify the corrected source.

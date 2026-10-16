@@ -356,10 +356,13 @@ record-only command reserves a round; failed/interrupted timing rounds still
 consume the stored allowance. Neither command grants permission or changes
 `AGENTS.md`. The first five original-sample rounds are consumed. The explicit
 user grant `42014eec-5933-488f-8879-41dc67a0da8b` ("Allow one additional round")
-is now recorded append-only, raising the cap to six. The sixth full 72-case round
-is unreserved and unmeasured; current correctness/static/package gates must pass
-before it runs under the existing fixed `normal-background-v3` policy. Neither
-the grant nor this documentation implies a result or resets previous rounds.
+is recorded append-only, raising the cap to six. The sixth full 72-case round
+completed 37/72 targets after actual correctness/static/preperformance-package
+prerequisites passed, under the unchanged `normal-background-v3` policy.
+All six authorized rounds are consumed; no further round is authorized. The v2
+wrapper's Python-resolution failure occurred before Python/preflight/reservation;
+the corrected v3 wrapper launched the completed actual run. The ledger history
+and nonpassing report remain preserved; the grant does not imply a pass.
 
 ## CI
 
@@ -373,33 +376,70 @@ Missing assets or outputs fail. Push and PR runs for the same repository/head
 share a concurrency group; distinct fork repositories remain separate.
 
 The workflow is published in [draft PR #2](https://github.com/mg-chao/simd-paddle-ocr-rs/pull/2).
-Actual PR run [38833702666](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38833702666)
-passed both exact named checks for historical ba0 head `df04c959...`, including 201 quick
-comparisons, nine batching comparisons, ten model-free phase contracts and 113
-tooling contracts. Main protection was applied and independently fetched again:
-both checks are required from GitHub Actions app 15368, with strict and
-administrator enforcement. The actual local receipt is
-`target/cpu-ci-actual-20261016/required-ci-policy-df04c959-complete.json`
-(SHA-256 `e838202487205825dec91823803e189038ab661d6c0ec3243ea2bf04e87be98b`).
-It independently rechecks existing strict/admin main protection for that head;
-the original policy application remains separately retained historical evidence.
-The initial policy 422/GET 404 responses and earlier CI argv failure remain
-historical evidence. No merge or hardware/performance acceptance is implied.
+Actual PR run [38838188243](https://github.com/mg-chao/simd-paddle-ocr-rs/actions/runs/38838188243)
+passed both exact named checks for current D4 head `fe639067...`, including
+201 quick comparisons, nine batching comparisons, ten model-free phase contracts
+and 113 tooling contracts. Main protection requires both from GitHub Actions
+app 15368 with strict/admin enforcement, independently verified for that head.
+The actual receipt is
+`target/cpu-ci-actual-20261016/required-ci-policy-fe639067-complete.json`.
+The earlier ba0/df04 and 7f/109 CI receipts, original policy application,
+initial 422/GET404 responses and earlier argv failure remain historical evidence.
+A final documentation publication must bind its own new head and matching CI
+receipt; no merge or hardware/performance acceptance is implied.
 
-The corrected active source `d4a38134...` (83 files) must pass a new CI run and
-local attempt4 gates. Prior `7f341...` failed exact Auto2 logical-node equality
-at medium DET `Conv.121`, despite an exact final tensor. Dedicated Packed3 spatial
-packets, recursive native worker children and packed stride-two OC8/OC16/dual4
-corrections now pass 30 focused NCHW tests. Their actual RED and after-run GREEN
-producer captures are retained. Current full core/model/variant/Release-static/
-package qualification remains pending.
+The active source `d4a38134...` (83 files) passed the local attempt4 gates.
+Prior `7f341...` failed exact Auto2 logical-node equality at medium DET `Conv.121`
+despite an exact final tensor. Dedicated Packed3 spatial packets, recursive native
+worker children and packed stride-two OC8/OC16/dual4 corrections now pass 30
+focused NCHW tests; their RED and after-run GREEN captures remain distinct.
 
-The current core run has completed **273/265 library tests (288/280 all-target
-checks)** with all features and without default features respectively, six documentation tests
-per mode, both all-target Clippy checks with warnings denied, and **113 tooling
-contracts**. Its final Release-example stage is still compiling, so the whole
-core gate remains pending. These completed leaves do not qualify model parity,
-Release-library, static, hardware or performance gates.
+The exact source has passed **273/265 library tests (288/280 all-target
+checks)** with all features and without default features respectively, six
+documentation tests per mode, both all-target Clippy checks with warnings denied,
+**113 tooling contracts**, and **273 Release-library tests**. Fresh model gates
+passed seven exact imports and **447 comparisons**, **1,341 cases across nine
+policy/layout/thread configurations**, nine real-batch comparisons, and explicit
+unavailable-AVX-512 rejection. Current core and regression completion receipts
+bind the actual logs, source snapshot and closed producing executable/PDB pairs.
+These results establish correctness on available hardware, separately from speed
+and capable-Windows AVX-512 acceptance.
+
+The current Release static gate is closed by
+`target/cpu-active-coverage-attempt4-production-codegen-20261016/complete.json`
+(SHA-256 `33aa811584ef731d45dd22e3273d9e5d74f1011924bb9eac7844de0a78df695f`),
+with 348 hash-bound evidence files. It binds the actual current executable/PDB,
+source, native and Portable4 reductions, common-store/transpose bindings,
+17 selected NCHW numerical tiles and 20 selected Gelu/store control-flow paths.
+These are selected path proofs: canonical packed paths retain documented spills,
+bounds checks and coefficient-tail helper overhead. They do not establish that
+every kernel is register-only, all epilogue paths are call-free, or AVX-512 ran.
+
+The preperformance package passed with **131 members**. Its saved
+`preperformance-package.crate`, log and `preperformance-package-report.json`
+under `target/core-validation-active-coverage-attempt4-20261016` preserve the
+exact premeasurement documentation and member hashes. This is an immutable
+prerequisite snapshot, not the final release package. Final package qualification
+requires a new successful observed Cargo package command and
+`package-report.json` binding the final documentation and shipped bytes.
+
+The authorized sixth full 72-case performance round completed **37/72 targets**:
+**18/36 latency** and **19/36 throughput**. **M5 remains unmet.** The fixed gates
+remain warmed median Rust latency <=110% of C# and throughput >=90%, measured
+under `normal-background-v3` with two warmups, five samples and one iteration
+at matched total CPU budgets 1/2/4/8. All public output comparisons and same-kernel
+thread determinism checks passed; measured repeated-shape Rust retained storage
+had zero growth. The eight-partition report and separate phase evidence are
+retained and revalidated, including every nonpassing result.
+
+Actual completion is bound by
+`target/cpu-sixth-round-attempt4-20261016/performance-completion.json`
+(SHA-256 `07054326e6aca8d3e792a7ea8969913c399bcfdcfa51a338fecb943f1de5e9d0`),
+round `c7db05b3-e51f-48ae-b20a-8d75d5be9b24` and frozen plan SHA-256
+`43f9c5ed6c79ec8f24390f25ef949c95cfdbae387d8baa77e593da9c534a11bf`.
+**All six authorized rounds are consumed; no further performance round is
+authorized.** No threshold, sample schedule, tolerance or prior ledger entry was
+changed to improve the reported outcome.
 
 The actual scoped Debug receipt is
 `target/cpu-stride2-quick-debug-scoped-20261016/complete.json`
@@ -412,8 +452,11 @@ Every one of 632 worker-frame addresses is assigned to nine complete action
 alternatives plus two shared roots; maximum alternatives replace their former
 mutually exclusive sum at each logical level. Other helper/reserve accounting
 is unchanged. The initial overinclusive 2,162,480-byte rejection remains retained.
-Actual bounded-worker/concurrency core regressions are required independently;
-this static proof does not execute or substitute for them.
+Actual bounded-worker/concurrency core regressions passed independently;
+this static proof does not execute or substitute for them. The official attempt4
+Debug binder is `target/cpu-debug-stack-active-coverage-attempt4-20261016/complete.json`
+(SHA-256 `0aa85b9078b79dbd8b302a932fbd70847df6ff578a25f1daa543005e035326ca`),
+which retains explicit dependencies on the scoped proof and initial rejection.
 The source receipt binds local working bytes separately from reviewed Git
 newline normalization; it does not assert equal raw checkout hashes on CI.
 
