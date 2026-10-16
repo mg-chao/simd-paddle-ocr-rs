@@ -72,7 +72,8 @@ jobs:
       - name: Required scalar and optimized reference comparison
         shell: pwsh
         run: |
-          $workload = if ('${{ inputs.full }}' -eq 'true') { @() } else { @('--quick') }
+          $workload = @()
+          if ('${{ inputs.full }}' -ne 'true') { $workload += '--quick' }
           python rust/tools/cpu_parity.py --reference-dir reference --models-dir reference/models --output rust/target/cpu-parity --correctness-only --iterations 1 @workload
       - name: Required independent batched recognition comparison
         run: python rust/tools/cpu_parity.py --reference-dir reference --models-dir reference/models --output rust/target/cpu-batch --quick --batch-only --correctness-only --iterations 1
