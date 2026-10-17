@@ -11,6 +11,9 @@ fn sme_rows_preserve_order_tails_and_offsets() {
         (15, 7, 17),
         (16, 17, 16),
         (17, 65, 33),
+        (31, 191, 31),
+        (32, 192, 32),
+        (33, 193, 63),
         (63, 129, 65),
         (64, 384, 97),
         (65, 513, 17),
@@ -201,35 +204,38 @@ fn sme_guard_preserves_za_state_and_nondefault_fpcr() {
     }
     // ZA-only state does not change non-streaming vector semantics. Never
     // assert or unwind before restoring it. The tile must reject live ZA.
-    let a = [0.25f32; 16];
-    let bias = [0f32; 16];
-    let mut out = [f32::NAN; 256];
-    let before: u64;
-    let after: u64;
-    let mut skipped: bool;
-    unsafe {
-        asm!(".arch_extension sme", "mrs {v}, SVCR", v = out(reg) before, options(nomem, nostack));
+    type Tile = unsafe fn(*const f32, *const f32, *const f32, *mut f32, usize) -> bool;
+    for tile in [tile as Tile, tile32 as Tile] {
+        let a = [0.25f32; 32];
+        let bias = [0f32; 32];
+        let mut out = [f32::NAN; 1024];
+        let before: u64;
+        let after: u64;
+        let mut skipped: bool;
+        unsafe {
+            asm!(".arch_extension sme", "mrs {v}, SVCR", v = out(reg) before, options(nomem, nostack));
+        }
+        if before != 0 {
+            return;
+        }
+        unsafe {
+            asm!(".arch_extension sme", "smstart za", options(nostack));
+            skipped = !tile(a.as_ptr(), a.as_ptr(), bias.as_ptr(), out.as_mut_ptr(), 1);
+            asm!(".arch_extension sme", "mrs {v}, SVCR", "smstop za", v = out(reg) after, options(nostack));
+        }
+        assert!(skipped);
+        assert_eq!(after, 2);
+        assert!(out.iter().all(|x| x.is_nan()));
+        let fpcr: u64;
+        let restored: u64;
+        unsafe {
+            asm!("mrs {v}, FPCR", v = out(reg) fpcr, options(nomem, nostack));
+            asm!("msr FPCR, {v}", v = in(reg) (fpcr | (1 << 24)), options(nostack));
+            skipped = !tile(a.as_ptr(), a.as_ptr(), bias.as_ptr(), out.as_mut_ptr(), 1);
+            asm!("mrs {v}, FPCR", "msr FPCR, {old}", v = out(reg) restored, old = in(reg) fpcr, options(nostack));
+        }
+        assert!(skipped);
+        assert_eq!(restored, fpcr | (1 << 24));
+        assert!(out.iter().all(|x| x.is_nan()));
     }
-    if before != 0 {
-        return;
-    }
-    unsafe {
-        asm!(".arch_extension sme", "smstart za", options(nostack));
-        skipped = !tile(a.as_ptr(), a.as_ptr(), bias.as_ptr(), out.as_mut_ptr(), 1);
-        asm!(".arch_extension sme", "mrs {v}, SVCR", "smstop za", v = out(reg) after, options(nostack));
-    }
-    assert!(skipped);
-    assert_eq!(after, 2);
-    assert!(out.iter().all(|x| x.is_nan()));
-    let fpcr: u64;
-    let restored: u64;
-    unsafe {
-        asm!("mrs {v}, FPCR", v = out(reg) fpcr, options(nomem, nostack));
-        asm!("msr FPCR, {v}", v = in(reg) (fpcr | (1 << 24)), options(nostack));
-        skipped = !tile(a.as_ptr(), a.as_ptr(), bias.as_ptr(), out.as_mut_ptr(), 1);
-        asm!("mrs {v}, FPCR", "msr FPCR, {old}", v = out(reg) restored, old = in(reg) fpcr, options(nostack));
-    }
-    assert!(skipped);
-    assert_eq!(restored, fpcr | (1 << 24));
-    assert!(out.iter().all(|x| x.is_nan()));
 }

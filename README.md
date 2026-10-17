@@ -68,12 +68,18 @@ and measured Medium and memory limitations.
 The [Medium mixed-width follow-up](docs/macos-arm64-medium-mixed-regression.md)
 addresses the long-crop recognition bottleneck while retaining the Tiny/Small
 gains, with a fresh three-version comparison and owner timing evidence.
-The [current pipeline latency analysis](docs/macos-current-pipeline-analysis.md)
-measures each production stage after those changes and ranks the remaining
-optimization opportunities using fresh local benchmarks and operator profiles.
+The [pre-SME pipeline latency analysis](docs/macos-current-pipeline-analysis.md)
+measures each production stage after those changes and identifies convolution
+optimization opportunities using local benchmarks and operator profiles.
 The [SME recognition optimization](docs/macos-arm64-sme-optimization.md)
 adds guarded matrix kernels on supported macOS ARM64 hardware, with measured
 Small/Medium page gains, memory costs, and the full correctness results.
+The [SME pipeline analysis](docs/macos-sme-pipeline-analysis.md)
+connects page and stage timings to fused-operator probes,
+recognition worker completion times, and the remaining optimization priorities.
+The [SME tile and crossover follow-up](docs/macos-arm64-sme-tile-optimization.md)
+records further Small/Medium gains, unchanged retained memory, exact output
+checks, and the measured Tiny timing limitations.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

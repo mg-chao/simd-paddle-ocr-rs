@@ -1,6 +1,6 @@
 # Apple M4 current OCR pipeline latency analysis
 
-The subsequent [SME recognition optimization](macos-arm64-sme-optimization.md) implements the large-channel convolution recommendation and records the new page and stage timings. The measurements below remain the pre-SME baseline at `2e5287f`.
+The subsequent [SME recognition optimization](macos-arm64-sme-optimization.md) implements the large-channel convolution recommendation and records the new page and stage timings. The [current SME pipeline analysis](macos-sme-pipeline-analysis.md) adds post-SME operator and scheduling analysis at `52ed1be`. The measurements below remain the pre-SME baseline at `2e5287f`.
 
 Convolution execution is the strongest remaining optimization target in the current implementation. **Detector inference accounts for 67.1–71.6% of sparse-page elapsed time. Recognition accounts for 56.4%, 81.5% and 89.1% of dense-page time for Tiny, Small and Medium.** Small and Medium recognition should prioritize large-channel 1×1 convolutions. Tiny dense pages also spend 29.0% in orientation classification. DB geometry, CTC decoding and result copying have much smaller absolute costs.
 

@@ -27,6 +27,34 @@ pub(super) fn values(length: usize, seed: usize) -> Vec<f32> {
 }
 
 #[test]
+fn sme_crossover_preserves_platform_backend_and_small_shape_fallbacks() {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    let available = std::arch::is_aarch64_feature_detected!("sme");
+    #[cfg(not(all(target_arch = "aarch64", target_os = "macos")))]
+    let available = false;
+    for (rows, inner, columns, expected) in [
+        (31, 384, 384, false),
+        (32, 384, 384, true),
+        (192, 191, 384, false),
+        (192, 192, 383, false),
+        (192, 192, 384, true),
+        (192, 384, 192, true),
+        (1920, 256, 512, true),
+        (1920, 512, 256, true),
+        (1920, 128, 256, false),
+    ] {
+        for backend in backends() {
+            let selected = available && backend == Backend::NeonFma && expected;
+            assert_eq!(
+                sme_scratch_elements(backend, rows, inner, columns),
+                if selected { 64 * inner } else { 0 },
+                "{backend:?} {rows}x{inner}x{columns}"
+            );
+        }
+    }
+}
+
+#[test]
 fn inline_avx2_selection_keeps_platform_isa_and_shape_boundaries() {
     let enabled = cfg!(all(target_arch = "x86_64", target_os = "windows"));
     for (inner, columns, expected) in [

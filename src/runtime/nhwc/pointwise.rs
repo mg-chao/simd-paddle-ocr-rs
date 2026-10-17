@@ -577,11 +577,14 @@ pub(in crate::runtime) fn sme_scratch_elements(
     inner: usize,
     columns: usize,
 ) -> usize {
+    // Packing is worthwhile for the measured 192<->384 and 256<->512
+    // recognition layers too. Keep short row bands and smaller channels on
+    // NEON so dispatch does not assume the same crossover for tiny products.
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
     if backend == Backend::NeonFma
         && rows >= 32
-        && inner >= 384
-        && columns >= 384
+        && inner.min(columns) >= 192
+        && inner.max(columns) >= 384
         && sme::available()
     {
         return inner.checked_mul(sme::GROUP).unwrap_or(0);
