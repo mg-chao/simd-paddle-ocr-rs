@@ -1,0 +1,2989 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-17",
+  "timezone": "Asia/Shanghai",
+  "host": {
+    "machine": "physical Apple M4",
+    "os": "macOS 27.0.1 (26A434)",
+    "target": "aarch64-apple-darwin",
+    "logical_cpus": 10,
+    "memory_bytes": 17179869184,
+    "affinity": "unbound"
+  },
+  "rust_base_commit": "577db456c761fd7b813885ee832aa686106e66a6",
+  "csharp_reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "scope": "Native Rust before/after CPU optimization; stage diagnostics and retained pipeline version are separate. No new C# performance comparison.",
+  "source_versions": {
+    "baseline": {
+      "label": "frozen 577db45 production sources plus diagnostic harness",
+      "fingerprint": {
+        "sha256": "fdf7b01ea9ab0116ee3501bd5210af4fea60c3c27aec8bfbf9d02fcd5fbdc46a",
+        "files": {
+          "Cargo.lock": "bebca8902ee9d2f939a2313ccf03f084625a1715657888c209819bed1e5240d7",
+          "Cargo.toml": "6b1e4a4bac9f2204a82e65dd589de5f22472d0d1ea93a90d592b4d4f4586efa4",
+          "examples/cpu_adoption_probe.rs": "3690ce77209262a0c18f89e92ab24b5afa33c56da33c7c2a093a3d4a09a477e8",
+          "examples/cpu_baseline.rs": "d068a6bafba0799423b82190b87500b442ea05c14c26075464316dc722a57f7b",
+          "examples/cpu_benchmark.rs": "2e3f8baadc68abf418635f46c6e50c72c7b65a8e907da822033f7296a1503996",
+          "examples/cpu_profile.rs": "72d2ac57da6bfe30de4f794c46cd178fd8f42e61fe39ff37de07210848f54675",
+          "examples/cpu_qualify.rs": "2dae16b5ba5406265c619be64c86b2385d2635c5bef5fcc45fd3d8d51e63905e",
+          "examples/ocr.rs": "7a532fed15637690b861c120e8db0725164000d1b7c53341855397ecfc345a13",
+          "rust-toolchain.toml": "1d405aef485d32fe4c42ed6221a40ca825b3a7553ca19675de936747cc4b277a",
+          "src/builder.rs": "d3dcfad32e48f4ac02f181122dd8b25f9292bc9a38e62f60ec3e8f72dda5b407",
+          "src/characters.rs": "41fb16898906eb3f7b29a999b475044c88592a9dac1b7f6b23be25886db54d70",
+          "src/cpu.rs": "20402077f07e3a2776238d90b95151b16fdd4520b62bd2658579a1068e5560cb",
+          "src/crop.rs": "3eaffa13b79770fdb20170075a2a79add94a710d5ee25ba3207b49f89850b033",
+          "src/db.rs": "c7a138bfe47d71f3ef32071fc59df90d5ef341008b933d781bdaa295cb7eae5c",
+          "src/detector.rs": "7ef667a9c7a5ef24055ba3f2ad06f04b023f7be6088745c8e9759f40c0ff0d48",
+          "src/engine.rs": "cf24c65430b020395d4826b5f888742becbaad8f3955479262e493d26af87f41",
+          "src/image.rs": "6c93fb87bf4448be0fffb92cd2dc9d1db5fc646fe4391ac2c0f074a64e235de3",
+          "src/lib.rs": "cba215c1c206f91665d92eff6a48f23524e8f1643bd50780f3cdecd6b22a94cb",
+          "src/lines.rs": "f5f19338e95051c73e6dfd683bf5455bf8345d726dec2f9cf35c8de1b64056e4",
+          "src/math.rs": "05a50f135847a527393fbf28e067dc84069670ce2916ef52054d3074de5db4b4",
+          "src/model/tests.rs": "7292782687a8f56260ed55ab0ab00c4ba3fb05eb517b7ce691b5a563569be355",
+          "src/model.rs": "3dc21f5b7544922e76cefe3d6c3e53d6acc6d455554d60339356ebf30ccb88ce",
+          "src/ocr.rs": "cf861377a30cec7188e6d8ea325e82be601a1de76ac557b705ce076e53e86c6d",
+          "src/onnx.rs": "b5bcb3d0106ccac193641b35ed98b4ec053cff626cd16bf727ef8db83a6d5095",
+          "src/orientation.rs": "91426b3984b6f4ff5c1bb830608235f1d0ade8cb4e67133fbcdca7155b0807aa",
+          "src/pixel_kernels.rs": "1e52888c1bb9e23c68bf1471b341f1d80795da2c700dd122f04808e1400c9592",
+          "src/preprocess.rs": "566cca701710ba9db465858c819f32bd377b300d52630efa61d9c7d6d56c0091",
+          "src/profile/tests.rs": "7984a343fe312de85caf11aaa8cb7b6d61726aaac78a266ff51cc800803e64e6",
+          "src/profile.rs": "1719e869183be492515c1cdc39040cea4119a33cdb0f43025d42adaa8d207be4",
+          "src/recognizer.rs": "8d54a6f5bff87f30d92242df7cb0f55d6af635245fd1d80f0d0e148d16ce17de",
+          "src/runtime/kernels.rs": "43ece5b370405736f752ef8c3ced5238c6267831482a092e14527a46ece79471",
+          "src/runtime/nchw/native.rs": "1329d170b3e30e4eecd607fd2b3b231de421bae0f00fb7c9050ba9d1c7b7777c",
+          "src/runtime/nchw/pad_end2.rs": "c08d7cfde16eade104af5a19250e53929592c21e1c6ca93d6ecece05aacad818",
+          "src/runtime/nchw/pointwise_spatial.rs": "d1ecbe7be5014888ad3fd613dda20eaf205bdb21d0403ad9450f270528e58347",
+          "src/runtime/nchw/reduce3.rs": "61f712a9e0c5d8a5ac26d50c20e9b175cee616b473c3de9290de8428ea2ec1c4",
+          "src/runtime/nchw/stride2.rs": "64033c2c23c57ccc1fdc2f314a31d886ecc8c03d0ea7aeed9d2c948b0d525ad5",
+          "src/runtime/nchw/tests/packed3_band_plan.rs": "b8418d4a2b1dba77ea0bb2d34d3d8afd11b65e09b3fbdb6fe344c6324b70aa62",
+          "src/runtime/nchw/tests/packed3_border.rs": "2a13b56a241a6eee97df0fd05ce084b655914ab2dd89c58605e238667755a207",
+          "src/runtime/nchw/tests/packed3_envelope.rs": "dbd25a715412fdb23e585d466c8c66285f03200b0cd6f49a9a3c749d54877fb9",
+          "src/runtime/nchw/tests/packed3_packets.rs": "0988311b2c5533ff6ce8a43f1c75aade32b6f240cef05c1b599c838944fe56b3",
+          "src/runtime/nchw/tests/packed3_recursive_order.rs": "d50b9d0d870c57180154e1fb9860db2e5bc1d9e924eebce5340e61e4001420a5",
+          "src/runtime/nchw/tests/pair16.rs": "cb105cb99530b923cc1d934b0dc7615d5e9a946016951218dab083c9447e0fd3",
+          "src/runtime/nchw/tests/pointwise_spatial.rs": "a8dbb0b5c83f400a5e86084fa1812a88932a3cfaafd813ffd068942c331a485d",
+          "src/runtime/nchw/tests/stride2_band_plan.rs": "68bcda828b89862c33680116bd1664d7880909964f7a7d5a89ca16e40c76cc46",
+          "src/runtime/nchw/tests/stride2_contract.rs": "d45b9c5dfdd064fafe9991082a56f99a263f612f5a6fb4c689a8dffb4baa2366",
+          "src/runtime/nchw/tests.rs": "5f474a6f120dee40d2a29894b9ef7d477f15fc53044d5ff5ba86d5f9a6931f35",
+          "src/runtime/nchw.rs": "5fe0c05eea72a5abbb053e9d9ff32983ffd4c85b91f96a355bddcaa25382a2a6",
+          "src/runtime/nhwc/concat.rs": "bcea40e94d67b22ee700f3e4d64e63805a8f45afe450d9dc5440d6512c9ff0b2",
+          "src/runtime/nhwc/dense/interior.rs": "4a0ea11b4e6762a6a6621355ff47623a8f96fdd06ae116bbc7ae0ac243b5746b",
+          "src/runtime/nhwc/dense/neon_tests.rs": "baba368ff578c1f7a043bfd25bd587b7851774d5435f915d44318c66b457fff6",
+          "src/runtime/nhwc/dense/portable_tests.rs": "1a2c55e35a035b9d34cb4f7d8708842e0cf87292457609e8ca98921bb9625a30",
+          "src/runtime/nhwc/dense.rs": "38aff613f1ad7582f60f0d785c399511445693eb10e0f5f2f8e9d57d44c5cc2a",
+          "src/runtime/nhwc/misc/resize_tests.rs": "87e76fb033df38da7e5bbfb316d29f912d67f0694f14f133494797dc40740e1f",
+          "src/runtime/nhwc/misc.rs": "6033c332cabcd86841a07db4eb3a4e0d41ae1d7adb624e7327b7e8552e8e0533",
+          "src/runtime/nhwc/neon_depthwise.rs": "8172fd2bde7adf4f835347e953021a4842ea896efbebc6f5d2f168d27ad420a2",
+          "src/runtime/nhwc/parallel_tests.rs": "bdb2a59014da8a1ea2ee1ffb0af22d0ff728fceda6b786f9ae341832f0d9fca6",
+          "src/runtime/nhwc/pointwise/neon.rs": "ee0b31b043ffab33efa193c0a5365b690963b8b46b79ffe8011fb1aa27309b74",
+          "src/runtime/nhwc/pointwise/neon_bench.rs": "ea161ac28cd0b7474ebd3af128ecad2a91e67e84553c40d38fb8ecf2b4378da0",
+          "src/runtime/nhwc/pointwise/tests.rs": "5753a16cc4fa966656d9e7fa8af58a9c59cdaea0d5a0e87f0ee6f63e9bc62b7d",
+          "src/runtime/nhwc/pointwise.rs": "6929b00d3bec919ae2c2b88646ac5b1b56bf36e169ee737b6ae40dccbe4f089e",
+          "src/runtime/nhwc/row_policy_tests.rs": "f109d9bc471646a88331da1db8c99c17bed1b920b0fc1b74bb3bcd9e14bb4394",
+          "src/runtime/nhwc/strip/tests.rs": "a322d35af516b65f4e0ce5202c311f225674260231a11281f2e57e7207183ea3",
+          "src/runtime/nhwc/strip.rs": "4879ae26c06c4c8e2cee243f490e79efe02931a5086cd1c8d519acfa362ba007",
+          "src/runtime/nhwc/tests/performance.rs": "69dfb38bb6d1d4a78a022d845f4abb78189ab829ed188982189d58f470498f0a",
+          "src/runtime/nhwc/tests.rs": "646ea9b001939f229f15d652638d27d95c82e878357131868de1d551b0670ac8",
+          "src/runtime/nhwc/transpose.rs": "c9621b075658906c6477c4fa4a3a31479d840168d46d83f9ec8da81d0b711da9",
+          "src/runtime/nhwc.rs": "8529cffad593280911c9338ea5c94c8f22a61fb97991d42f8cdef0790ae35ad0",
+          "src/runtime/optimized/elementwise_alias.rs": "8a7eede001c84b1e6ab6b1e34f0243c1bab2eacc1d67d15ca023fcdde879e4d8",
+          "src/runtime/optimized/layout/tests.rs": "8514cd6cf129a9e8cc5ef61d35fd9d38a43e0de357b68b851df417c610161f02",
+          "src/runtime/optimized/layout.rs": "df192742bcad6e2004b473901d17faf705d5d868cf1cf77edc6e25d3c64f5d59",
+          "src/runtime/optimized/semantic.rs": "321de72eaa493c533e45472e9d1d4ca58e9f7d84375aeeca3b98244253ee94db",
+          "src/runtime/optimized/store/tests.rs": "279fe21bdeebba19790f245a435c5ce0f6f88c09b12f56b3f4c1326ec1f04201",
+          "src/runtime/optimized/store.rs": "5bc40c3ecea0d5a67df1e465e1bb80e9b656ae8e1d0dd7c3f7f8c4bfcdb317ef",
+          "src/runtime/optimized/tests/alias.rs": "210da7cdca4a524bbba8c68eea920a1b987be88de04bf3acdd2abef51fa77020",
+          "src/runtime/optimized/tests/concat.rs": "ca73578078a2a0dc97cdfd0ca48a9c6a58046a8fd82c1ce77009df716108a330",
+          "src/runtime/optimized/tests/elementwise_alias.rs": "88cead27c092a3e47aa5889f847487374c1ba7fa8f00582545bd0207c8ac5e1f",
+          "src/runtime/optimized/tests/nchw_epilogue.rs": "5cd73f6fe3a63779b15891eeba9a50796f011304104e28cbb26d22dd8f045ef8",
+          "src/runtime/optimized/tests/performance.rs": "ad10cdc68a060c266989c150413885f8f5c0990b0eb1210426cb43791808aa51",
+          "src/runtime/optimized/tests/placement.rs": "7eb5604e45ff787286fcbde3a9b9291b79b7e8f506940b7743b1bed611becc60",
+          "src/runtime/optimized/tests/selection_policy.rs": "9737e3dbe6a4ca08f978e36f2a9d3234f2e8854e397dee604fd4be0c18bc98e8",
+          "src/runtime/optimized/tests/semantic.rs": "23f50d387fe79ff6d207c6378323ac63a9638d92ddac42a85040eccb87186214",
+          "src/runtime/optimized/tests.rs": "24351df552596a357bc2bb7042949068f548fc5c85e4009690808a3ee0dc9282",
+          "src/runtime/optimized.rs": "049c494240ffeb590932355535df949640b7513d3cc82bda0e68aa1f155fdf0d",
+          "src/runtime/packing.rs": "aa2dbac843e7a53c519e116b465d17236781e64d4f4e64a4d159e8c039762435",
+          "src/runtime/parallel/tests.rs": "ec50b91998f299ad06024086fd95aa23ff03ae139d7e25f45261cceee43927fe",
+          "src/runtime/parallel.rs": "6134a6b3d77e679b58bd65dab5ab41511ac677a3fbdb22c8958a72f3b182e6dc",
+          "src/runtime/shapes.rs": "b212bfc39bbb9f6e262e84397c1e42f0bdadf9d8efc818501e786b53e3cf98eb",
+          "src/runtime/simd/activation.rs": "0fd57c2ac022f33c547f0d5bd6106a8b5f92a9ce37af5a00863ab1a763c30d51",
+          "src/runtime/simd/argmax/portable_tests.rs": "5e1eeccd5d2bb71a3236b697ba0103130564b2b78553bc343a057728403306d0",
+          "src/runtime/simd/argmax.rs": "13816740fff1d1cf9e9d61df35c003b17f837f4f37204e32e318fbc9258cfb4b",
+          "src/runtime/simd/columns/portable_tests.rs": "ecd7f74ebc12259b3182d56fd0b684d367387ff10224b8882192c717ecd5057e",
+          "src/runtime/simd/columns.rs": "562c56580ce8402c7dee79106cb851f8f75909f00267f3304bce28956f03b545",
+          "src/runtime/simd/matrix.rs": "34a25a3c5d5b3f18bb3eda85fce4a55dce6a22b7b2d7e9fa05324e071e11de11",
+          "src/runtime/simd/neon/tests.rs": "2c31535ee799cdfe6cd3b7c0100dc96983ddd7b43ea14ff5d507d3b8b4098a05",
+          "src/runtime/simd/neon.rs": "59d2e0be707f4a6bebc36dd7891a7265d9f73e5e666e94eda968125d3e714bfc",
+          "src/runtime/simd/parallel.rs": "78ac83f04c9d43cbae2dd38dd8019732551c5ff45a66794d73fe43f634a9581d",
+          "src/runtime/simd/portable_softmax_tests.rs": "748cf3557e4cc180f2d56a76e17d45ffc569c914e58150bd8353a2773e4b1828",
+          "src/runtime/simd/tensor.rs": "074ce566814d23c7c98eb8fd54e8703aa696e2f9ba6461912569b797f48db7d9",
+          "src/runtime/simd/transcendental.rs": "9c42a7dc4b375573ab746252eb7ce7b51378426b8b844a9ca4e59a0ec6d9ebd3",
+          "src/runtime/simd/unary_policy_tests.rs": "cb6a6bc1bb74b75b1ac670309db4258f80e76e35d51b4f15f211ee983cdffdad",
+          "src/runtime/simd.rs": "009c90d2c9fd28f271f2d86e7c6c7b15679ca05c98de39ff50ef1b0e2714304b",
+          "src/runtime.rs": "0aa4c660ba810b804a1c8e47ee2aaa7a2e81b14dd9aa45bdfcc3b9c627b79b70",
+          "src/tensor.rs": "e2adc36679e8f9d990e52ee0075c971cf9cf49378400aacc848ffe1a82c1d109",
+          "tools/baseline/mod.rs": "53d5d4dea12768d9df7be3194880d8e11dfbf0fe48042a690b7402f6ea0289de",
+          "tools/benchmark/mod.rs": "149e9ccc9505bfdf787db325289b83d1b08b786b8c188876f6e0242eb67b6dd1",
+          "tools/benchmark/platform.rs": "775fb3b28da8f79af95026649fd7ed1596f6597234daf5f220fa55225abab353",
+          "tools/csharp-benchmark/Benchmark.csproj": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe",
+          "tools/csharp-benchmark/ProcessMetrics.cs": "a525b6bb49e29e6e032afd8459b1b99ff6b6a2720305617640aadfc9575b11e4",
+          "tools/csharp-benchmark/Program.cs": "231ba76673caf20e2f7415b3985a6dde610a1f268a60c207819ae22c0bb7a210",
+          "tools/csharp-benchmark/global.json": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac",
+          "tools/csharp-profile/KernelProbe.cs": "f7cfd48fd4b2d0195cf8dd6465dea60db119f74d0154048c6cc841246c29914a",
+          "tools/csharp-profile/NodeProbe.cs": "b957f0dec036a511512807a392d106c7c6ac71019a4a3afe14d9215b4f149ce1",
+          "tools/csharp-profile/Program.cs": "f8be43163263121605bb9262cfeaa370b5686e0b5c83412021de4b5d1ecf9402",
+          "tools/csharp-profile/README.md": "06a1bf9f6c26d4514aa4787d4b808a2d0302b17be06e4fe5295f5510107910b3",
+          "tools/csharp-profile/Sdcb.SimdPaddleOCR.Benchmarks.csproj": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe",
+          "tools/csharp-profile/global.json": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac",
+          "tools/csharp-qualification/Program.cs": "7ed1a3a13e1fe94573a80c2fbb872e2a79edd7175b9e355c019344ac18b34ec2",
+          "tools/csharp-qualification/Qualification.csproj": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe",
+          "tools/csharp-qualification/global.json": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac",
+          "tools/csharp-reference/Program.cs": "940955a34940f7003258c15dbfb2a0f24cdae30b1acda4f528a8953797e7989f",
+          "tools/csharp-reference/Reference.csproj": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe",
+          "tools/csharp-reference/global.json": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac",
+          "tools/fetch-baseline-corpus.ps1": "1e0a2a241ae53849b008b37d8e32295dde988ef0d17b1c8d98cff43ad1209f03",
+          "tools/harness/mod.rs": "57d7becd76b019e7f33cf9971523057d842c20e2b1cb41859ae00b48e1035bcb",
+          "tools/qualification/mod.rs": "2c2daddaa452e59e7774193df5e7b9c953705b1a725e98fbd33657f73a71865d",
+          "tools/validate-macos.sh": "8952e3f2b33d390ea3449ee1c4d3d2ce92cea51c97ffa4cf630470b37fe6adba"
+        }
+      }
+    },
+    "diagnostic_v1": {
+      "label": "unconditional kernel policy comparisons; not final production dispatch",
+      "fingerprint": {
+        "sha256": "f058ef00973512ae0de5ff7f315c677ae2040df56d65cfb6f6e7aa6e53944b32",
+        "file_delta_from": "baseline",
+        "changed_or_added_files": {
+          "src/pixel_kernels/threshold_tests.rs": "7f7d0aa40a60b3b0c67cad18d207a121644ecb0d019e99f31f4e2b630c53cd0b",
+          "src/pixel_kernels.rs": "141b91beb50526b19693524baebfb7e9def0d96ef8ac6470cea610eeac2178a8",
+          "src/runtime/nhwc/neon_depthwise/strip.rs": "bf3c5b7d143cde5d104c871eb9e5d204ca110e1f7fb74cffe461bbce4447870c",
+          "src/runtime/nhwc/neon_depthwise/tests/benchmark.rs": "90df4e87b2cb5ef3d6f7bddf57fc85a5628b8e3fbe76b16b02c6d11d62cc5204",
+          "src/runtime/nhwc/neon_depthwise.rs": "63a52971776c292fc96a84b02b12e708168aa8a6f52025b56029f23b4ec5e99e",
+          "src/runtime/optimized/semantic.rs": "9ee664819bf277b685982a37fd03198bd73cf334c581d5631c7cf04d5a185f53",
+          "src/runtime/optimized/tests/performance.rs": "55484e4bf9900535fdf091661e5cbab113e08acab9ca5ae8e93ce79f3b4cc2d4",
+          "src/runtime/optimized/tests/semantic.rs": "bb4ca1f2fb33f29cedc827fd1c63ced4551fddcb3ac28bb6263d759b48993f32",
+          "src/runtime/optimized.rs": "e404d31da7d328b7e01a01d14d2c6d5b8ba51d38bafead9b96930d5dbebbe082",
+          "src/runtime.rs": "3c79ecd37efd4eebe80f2c2b21c0384a0c7400cf558c164825955e949f879f23",
+          "tools/csharp-benchmark/obj/Benchmark.csproj.nuget.dgspec.json": "a97f8f71f32813c3b46cb9bec35b837661865ee414da70d152bf34e03c83c7d0",
+          "tools/csharp-benchmark/obj/Benchmark.csproj.nuget.g.props": "09f445681efe453afe3a0b5ec31cd2812069c607c97d72cb84cb46cfcf835a4c",
+          "tools/csharp-benchmark/obj/Benchmark.csproj.nuget.g.targets": "b14461e0cb1be3f77fcf9fe2fdd62889325ca92523d0f606980ed59eb5c4aa1c",
+          "tools/csharp-benchmark/obj/project.assets.json": "5d33fc6e3b11375815cbe26809b07b982aba5ab89083333fd4c3c123f6761181",
+          "tools/csharp-benchmark/obj/project.nuget.cache": "2ee1c3169099e9cc8599d8560e51a9437c2e032fe80d2b7e80ad9c0d23d69e1b",
+          "tools/csharp-profile/obj/Sdcb.SimdPaddleOCR.Benchmarks.csproj.nuget.dgspec.json": "23be9950a0bc04b4a09dc976cddd8189246f2782e4c598127331f039724f50fe",
+          "tools/csharp-profile/obj/Sdcb.SimdPaddleOCR.Benchmarks.csproj.nuget.g.props": "09f445681efe453afe3a0b5ec31cd2812069c607c97d72cb84cb46cfcf835a4c",
+          "tools/csharp-profile/obj/Sdcb.SimdPaddleOCR.Benchmarks.csproj.nuget.g.targets": "b14461e0cb1be3f77fcf9fe2fdd62889325ca92523d0f606980ed59eb5c4aa1c",
+          "tools/csharp-profile/obj/project.assets.json": "286114f8a04f63b517c3edb3fc6d0705ed036885382f9e1d35bf7ad5912b4e69",
+          "tools/csharp-profile/obj/project.nuget.cache": "4367d849c0e6e3951de143bcb031ded00edef404562cb9b3489e564e516066fb",
+          "tools/csharp-qualification/obj/Qualification.csproj.nuget.dgspec.json": "f7870ec47249ba1268a0f98695efd8cf3b5cbb64d1fe75dff7cec7cad99e7384",
+          "tools/csharp-qualification/obj/Qualification.csproj.nuget.g.props": "09f445681efe453afe3a0b5ec31cd2812069c607c97d72cb84cb46cfcf835a4c",
+          "tools/csharp-qualification/obj/Qualification.csproj.nuget.g.targets": "b14461e0cb1be3f77fcf9fe2fdd62889325ca92523d0f606980ed59eb5c4aa1c",
+          "tools/csharp-qualification/obj/project.assets.json": "5033b95249bcf3c52912e744b095ef72197a35e0578e0d8b099b503b1afa1b75",
+          "tools/csharp-qualification/obj/project.nuget.cache": "43f114fc1caae390dfe6aaee049f510c08236589b4dbec2e9d07f47f350d8845",
+          "tools/csharp-reference/obj/Reference.csproj.nuget.dgspec.json": "88c41f11e93d88da50b4bf9ca71e8eb1b55e1e96333c97c3a69ca5265e972646",
+          "tools/csharp-reference/obj/Reference.csproj.nuget.g.props": "09f445681efe453afe3a0b5ec31cd2812069c607c97d72cb84cb46cfcf835a4c",
+          "tools/csharp-reference/obj/Reference.csproj.nuget.g.targets": "b14461e0cb1be3f77fcf9fe2fdd62889325ca92523d0f606980ed59eb5c4aa1c",
+          "tools/csharp-reference/obj/project.assets.json": "d0ddce9bbac8c43cf723631607aae58dab534c0e05ebfb5843a01f6cd0821574",
+          "tools/csharp-reference/obj/project.nuget.cache": "f65086eddd636871900a06ecc75ae831e7f04103bfb335c7fcaf34903f5c9c75"
+        },
+        "removed_files": []
+      }
+    },
+    "retained": {
+      "label": "bounded 9x9 dispatch, ARM threshold and shared graph indexes",
+      "fingerprint": {
+        "sha256": "b0fddcd1c454041574461f2aba725bea71676dd6c29ada00bf8727de2b57b09b",
+        "file_delta_from": "diagnostic_v1",
+        "changed_or_added_files": {
+          "src/runtime/nhwc/neon_depthwise/strip.rs": "77a014f11d4bc144b1dabb1cd655409e19300e59c66025c5cc88d99bc33b1572",
+          "src/runtime/nhwc/neon_depthwise.rs": "a176168a9b10302a34b9f128be71b78a8372b3457a8ea406a6f54591daab54ad",
+          "src/runtime/nhwc.rs": "734602df43bbc1ea4c4dc83742a56895d94e6a674802847c02c001e89a661769"
+        },
+        "removed_files": []
+      }
+    }
+  },
+  "source_fingerprint_recipe": "SHA256 of Python json.dumps(file_sha256_mapping, sort_keys=True).encode(); mappings cover src/examples/tools plus Cargo.toml, Cargo.lock, rust-toolchain.toml; exclude target paths and docs. Raw source manifests preserved without recomputing or merging versions. For a delta version, copy file_delta_from files, remove removed_files, then apply changed_or_added_files to reconstruct the exact full mapping.",
+  "result_fingerprint_recipe": "SHA256 of UTF-8 json.dumps(parsed_owned_result, ensure_ascii=False, sort_keys=True, separators=(comma, colon)); OCR text/geometry payload omitted here, preserved in linked raw worker JSON. output_exact compares the complete parsed owned results.",
+  "path_note": "Paths are repository-relative where possible. raw_job_sha256 hashes the archived original job bytes, which contain local absolute paths; normalized job representations here are descriptive.",
+  "provenance": {
+    "started_utc": "2026-10-17T04:49:17.649210+00:00",
+    "base_commit": "577db456c761fd7b813885ee832aa686106e66a6",
+    "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+    "machine": "Apple M4",
+    "policy": "One warmup and three measured runs per case; native release builds; serial measurement; 60 seconds performance execution per version excluding builds; preserve all fixed samples."
+  },
+  "pinned_inputs": {
+    "manifest": {
+      "path": "tests/baseline/manifest.json",
+      "sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e"
+    },
+    "settings": {
+      "cpu_threads": 1,
+      "kernel_policy": "auto",
+      "layout": "auto",
+      "fusion": true,
+      "direction_classification": true,
+      "classifier_threshold": 0.0,
+      "recognition_batch_size": 1,
+      "adaptive_width": true,
+      "target_width": 320,
+      "detector_limit": 960,
+      "bitmap_threshold": 0.2,
+      "unclip_ratio": 1.4,
+      "max_candidates": 3000,
+      "use_dilation": false
+    },
+    "models": [
+      {
+        "id": "tiny",
+        "det": "det.onnx",
+        "rec": "rec.onnx",
+        "dictionary": "ppocr_keys.txt",
+        "cls": "cls.onnx",
+        "box_threshold": 0.4
+      },
+      {
+        "id": "small",
+        "det": "small_det.onnx",
+        "rec": "small_rec.onnx",
+        "dictionary": "rec_keys.txt",
+        "cls": "cls.onnx",
+        "box_threshold": 0.45
+      },
+      {
+        "id": "medium",
+        "det": "medium_det.onnx",
+        "rec": "medium_rec.onnx",
+        "dictionary": "rec_keys.txt",
+        "cls": "cls.onnx",
+        "box_threshold": 0.45
+      }
+    ],
+    "assets": [
+      {
+        "file": "cls.onnx",
+        "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2"
+      },
+      {
+        "file": "det.onnx",
+        "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8"
+      },
+      {
+        "file": "medium_det.onnx",
+        "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1"
+      },
+      {
+        "file": "medium_rec.onnx",
+        "sha256": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba"
+      },
+      {
+        "file": "ppocr_keys.txt",
+        "sha256": "46e1b34ef45684cb46d75ac76d355341fe7f0a2c38d6ee02e63ae6b3878019fc",
+        "sha256_crlf": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82"
+      },
+      {
+        "file": "rec_keys.txt",
+        "sha256": "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
+        "sha256_crlf": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6"
+      },
+      {
+        "file": "rec.onnx",
+        "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6"
+      },
+      {
+        "file": "small_det.onnx",
+        "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e"
+      },
+      {
+        "file": "small_rec.onnx",
+        "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+      }
+    ],
+    "fixtures": [
+      {
+        "id": "imgs_00006737",
+        "file": "corpus/imgs_00006737.jpg",
+        "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00006737.jpg",
+        "sha256": "4425af33dd163cf73bdff502bd35ee527e9bdd5725501db1da78bfdae9f538f4",
+        "transform": "identity",
+        "base": null,
+        "width": 896,
+        "height": 528,
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73"
+      },
+      {
+        "id": "imgs_00018069",
+        "file": "corpus/imgs_00018069.jpg",
+        "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00018069.jpg",
+        "sha256": "769bce39ef8baccd4db0cd36cdf80952dca7a6fa041aac4763938ebf1b875b8b",
+        "transform": "identity",
+        "base": null,
+        "width": 430,
+        "height": 267,
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463"
+      },
+      {
+        "id": "imgs_1",
+        "file": "corpus/imgs_1.jpg",
+        "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/1.jpg",
+        "sha256": "1b3978f3708bc31e3acfe603b052531a480db87ebaa1460559ee7d3eb1160593",
+        "transform": "identity",
+        "base": null,
+        "width": 720,
+        "height": 1150,
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63"
+      }
+    ]
+  },
+  "diagnostic_v1": {
+    "commands": [
+      {
+        "label": "arm-strip",
+        "command": [
+          "target/release/build/simd-paddle-ocr-rs/4fd96d27d42f1192/out/simd_paddle_ocr_rs-4fd96d27d42f1192",
+          "runtime::nhwc::neon_depthwise::tests::benchmark::arm64_depthwise_strip_fixed_diagnostic",
+          "--ignored",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "binary_sha256": "7467cd56c6191edd839e1c19fa299aa821dfada4434d4105adb10dc2f288da69",
+        "elapsed_seconds": 0.9625107079999999,
+        "exit_code": 0
+      },
+      {
+        "label": "threshold",
+        "command": [
+          "target/release/build/simd-paddle-ocr-rs/4fd96d27d42f1192/out/simd_paddle_ocr_rs-4fd96d27d42f1192",
+          "pixel_kernels::threshold_tests::threshold_fixed_diagnostic",
+          "--ignored",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "binary_sha256": "7467cd56c6191edd839e1c19fa299aa821dfada4434d4105adb10dc2f288da69",
+        "elapsed_seconds": 0.01872925000000003,
+        "exit_code": 0
+      },
+      {
+        "label": "plan",
+        "command": [
+          "target/release/build/simd-paddle-ocr-rs/4fd96d27d42f1192/out/simd_paddle_ocr_rs-4fd96d27d42f1192",
+          "runtime::optimized::tests::performance::cold_physical_plan_bind",
+          "--ignored",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "binary_sha256": "7467cd56c6191edd839e1c19fa299aa821dfada4434d4105adb10dc2f288da69",
+        "elapsed_seconds": 0.06474416699999996,
+        "exit_code": 0
+      }
+    ],
+    "elapsed_seconds": 1.045984125,
+    "all_exit_zero": true,
+    "arm_depthwise": {
+      "control": "existing all-taps 2-pixel x32-channel NEON leaf",
+      "policies": [
+        "current",
+        "full-row strip",
+        "64-pixel strip"
+      ],
+      "sample_order": "ABC, CBA, ABC; one warmup for each policy before sampling",
+      "warmups_per_shape_policy": 1,
+      "measured_calls_per_shape_policy": 3,
+      "threads": 1,
+      "external_timeout_seconds": 30,
+      "rows": [
+        {
+          "calls_per_sample": 1,
+          "current_ms": [
+            7.089583,
+            7.138208,
+            7.095666
+          ],
+          "diagnostic": "arm64_depthwise_strip_fixed",
+          "exact_output_bits": true,
+          "kernel": [
+            7,
+            7
+          ],
+          "order": "ABC,CBA,ABC",
+          "shape_nchw": [
+            1,
+            96,
+            152,
+            240
+          ],
+          "strip_64px_ms": [
+            8.089875,
+            8.307375,
+            8.28
+          ],
+          "strip_full_row_ms": [
+            9.042,
+            9.163667,
+            8.893666
+          ],
+          "threads": 1,
+          "warmups_per_policy": 1,
+          "median_ms": {
+            "current_ms": 7.095666,
+            "strip_full_row_ms": 9.042,
+            "strip_64px_ms": 8.28
+          },
+          "bounded_median_latency_reduction_percent": -16.690949094841834
+        },
+        {
+          "calls_per_sample": 1,
+          "current_ms": [
+            46.012834000000005,
+            45.045916,
+            44.958916
+          ],
+          "diagnostic": "arm64_depthwise_strip_fixed",
+          "exact_output_bits": true,
+          "kernel": [
+            9,
+            9
+          ],
+          "order": "ABC,CBA,ABC",
+          "shape_nchw": [
+            1,
+            256,
+            240,
+            152
+          ],
+          "strip_64px_ms": [
+            35.275375,
+            35.3015,
+            35.326499999999996
+          ],
+          "strip_full_row_ms": [
+            34.564541999999996,
+            34.504917000000006,
+            34.532167
+          ],
+          "threads": 1,
+          "warmups_per_policy": 1,
+          "median_ms": {
+            "current_ms": 45.045916,
+            "strip_full_row_ms": 34.532167,
+            "strip_64px_ms": 35.3015
+          },
+          "bounded_median_latency_reduction_percent": 21.632185257371617
+        },
+        {
+          "calls_per_sample": 1,
+          "current_ms": [
+            12.073291,
+            11.743791,
+            11.7645
+          ],
+          "diagnostic": "arm64_depthwise_strip_fixed",
+          "exact_output_bits": true,
+          "kernel": [
+            9,
+            9
+          ],
+          "order": "ABC,CBA,ABC",
+          "shape_nchw": [
+            1,
+            256,
+            120,
+            76
+          ],
+          "strip_64px_ms": [
+            9.597208,
+            9.635292,
+            9.72675
+          ],
+          "strip_full_row_ms": [
+            9.506374999999998,
+            9.469999999999999,
+            9.516208
+          ],
+          "threads": 1,
+          "warmups_per_policy": 1,
+          "median_ms": {
+            "current_ms": 11.7645,
+            "strip_full_row_ms": 9.506374999999998,
+            "strip_64px_ms": 9.635292
+          },
+          "bounded_median_latency_reduction_percent": 18.09858472523269
+        }
+      ],
+      "decision": "retain bounded strips only for 9x9, cout>=256, unit stride/dilation, oh>=64, ow>=64; reject 7x7 and full-row heap scratch",
+      "internal_assertion_timeout_seconds": 60
+    },
+    "threshold": {
+      "policies": [
+        "Original",
+        "Deferred",
+        "Packed",
+        "Selected"
+      ],
+      "sample_order": "original/deferred/packed/selected, rotating start by one policy per sample",
+      "warmups_per_shape_policy": 1,
+      "measured_calls_per_shape_policy": 3,
+      "external_timeout_seconds": 10,
+      "input_pattern": "((i*101 + (i/width)*37)%1009) as f32 / 1008; strict threshold 0.3",
+      "rows": [
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 320,
+          "kernel": "Portable",
+          "median_us": 29.291,
+          "policy": "Original",
+          "single_call_samples_us": [
+            29.291,
+            29.334,
+            28.5
+          ],
+          "warmups": 1,
+          "width": 320
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 320,
+          "kernel": "Portable",
+          "median_us": 26.708,
+          "policy": "Deferred",
+          "single_call_samples_us": [
+            26.708,
+            26.75,
+            26.0
+          ],
+          "warmups": 1,
+          "width": 320
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 320,
+          "kernel": "Portable",
+          "median_us": 16.375,
+          "policy": "Packed",
+          "single_call_samples_us": [
+            16.541,
+            16.375,
+            16.25
+          ],
+          "warmups": 1,
+          "width": 320
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 320,
+          "kernel": "Portable",
+          "median_us": 13.125,
+          "policy": "Selected",
+          "single_call_samples_us": [
+            13.167,
+            13.125,
+            12.875
+          ],
+          "warmups": 1,
+          "width": 320
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 960,
+          "kernel": "Portable",
+          "median_us": 256.45799999999997,
+          "policy": "Original",
+          "single_call_samples_us": [
+            256.375,
+            272.25,
+            256.45799999999997
+          ],
+          "warmups": 1,
+          "width": 960
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 960,
+          "kernel": "Portable",
+          "median_us": 233.625,
+          "policy": "Deferred",
+          "single_call_samples_us": [
+            233.917,
+            233.583,
+            233.625
+          ],
+          "warmups": 1,
+          "width": 960
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 960,
+          "kernel": "Portable",
+          "median_us": 143.959,
+          "policy": "Packed",
+          "single_call_samples_us": [
+            144.292,
+            143.916,
+            143.959
+          ],
+          "warmups": 1,
+          "width": 960
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 960,
+          "kernel": "Portable",
+          "median_us": 117.375,
+          "policy": "Selected",
+          "single_call_samples_us": [
+            114.708,
+            117.875,
+            117.375
+          ],
+          "warmups": 1,
+          "width": 960
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 1537,
+          "kernel": "Portable",
+          "median_us": 659.083,
+          "policy": "Original",
+          "single_call_samples_us": [
+            659.083,
+            660.583,
+            657.959
+          ],
+          "warmups": 1,
+          "width": 1536
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 1537,
+          "kernel": "Portable",
+          "median_us": 609.4159999999999,
+          "policy": "Deferred",
+          "single_call_samples_us": [
+            612.917,
+            609.4159999999999,
+            598.542
+          ],
+          "warmups": 1,
+          "width": 1536
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 1537,
+          "kernel": "Portable",
+          "median_us": 369.458,
+          "policy": "Packed",
+          "single_call_samples_us": [
+            396.75,
+            369.20799999999997,
+            369.458
+          ],
+          "warmups": 1,
+          "width": 1536
+        },
+        {
+          "diagnostic": "threshold_fixed",
+          "height": 1537,
+          "kernel": "Portable",
+          "median_us": 293.833,
+          "policy": "Selected",
+          "single_call_samples_us": [
+            302.5,
+            293.833,
+            293.833
+          ],
+          "warmups": 1,
+          "width": 1536
+        }
+      ],
+      "decision": "Selected ARM SIMD byte narrowing retained; packed table and deferred-only controls remain test-only; x86 production unchanged",
+      "internal_assertion_timeout_seconds": 10
+    },
+    "physical_plan_bind": {
+      "baseline_command": {
+        "command": [
+          "target/cpu-adoption-20261017-followup/build-baseline/release/build/simd-paddle-ocr-rs/4fd96d27d42f1192/out/simd_paddle_ocr_rs-4fd96d27d42f1192",
+          "runtime::optimized::tests::performance::cold_physical_plan_bind",
+          "--ignored",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "binary_sha256": "4e35ebba1ef3f5db12ba1517f9113ddcd17b789e2a09a02aa4ee869de15161f8",
+        "elapsed_seconds": 0.9307336669999999,
+        "exit_code": 0
+      },
+      "candidate_command": {
+        "label": "plan",
+        "command": [
+          "target/release/build/simd-paddle-ocr-rs/4fd96d27d42f1192/out/simd_paddle_ocr_rs-4fd96d27d42f1192",
+          "runtime::optimized::tests::performance::cold_physical_plan_bind",
+          "--ignored",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "binary_sha256": "7467cd56c6191edd839e1c19fa299aa821dfada4434d4105adb10dc2f288da69",
+        "elapsed_seconds": 0.06474416699999996,
+        "exit_code": 0
+      },
+      "warmup_binds_per_model": 1,
+      "measured_samples_per_model": 3,
+      "binds_per_sample": 16,
+      "total_binds_per_version": 98,
+      "measured_inference_runs": 0,
+      "timed_scope": "Plan::bind and result drop, including fixed metadata assertions; exclude model load/compile/weight packing/logical shape propagation/activation allocation",
+      "rows": [
+        {
+          "backend": "NeonFma",
+          "calls_per_sample": 16,
+          "fused_nodes": 180,
+          "measured_inference_runs": 0,
+          "measured_samples": 3,
+          "model": "small",
+          "nodes": 333,
+          "ns_per_bind": [
+            61138.0625,
+            49765.625,
+            49377.5625
+          ],
+          "physical_steps": 141,
+          "sample_ns": [
+            978209,
+            796250,
+            790041
+          ],
+          "warmup_calls": 1,
+          "width": 128,
+          "baseline_samples": {
+            "backend": "NeonFma",
+            "calls_per_sample": 16,
+            "fused_nodes": 180,
+            "measured_inference_runs": 0,
+            "measured_samples": 3,
+            "model": "small",
+            "nodes": 333,
+            "ns_per_bind": [
+              178885.375,
+              170729.125,
+              158973.9375
+            ],
+            "physical_steps": 141,
+            "sample_ns": [
+              2862166,
+              2731666,
+              2543583
+            ],
+            "warmup_calls": 1,
+            "width": 128
+          },
+          "median_latency_reduction_percent": 70.85112162321455
+        },
+        {
+          "backend": "NeonFma",
+          "calls_per_sample": 16,
+          "fused_nodes": 191,
+          "measured_inference_runs": 0,
+          "measured_samples": 3,
+          "model": "medium",
+          "nodes": 352,
+          "ns_per_bind": [
+            55192.6875,
+            53739.625,
+            53901.0625
+          ],
+          "physical_steps": 148,
+          "sample_ns": [
+            883083,
+            859834,
+            862417
+          ],
+          "warmup_calls": 1,
+          "width": 640,
+          "baseline_samples": {
+            "backend": "NeonFma",
+            "calls_per_sample": 16,
+            "fused_nodes": 191,
+            "measured_inference_runs": 0,
+            "measured_samples": 3,
+            "model": "medium",
+            "nodes": 352,
+            "ns_per_bind": [
+              135723.9375,
+              133802.0625,
+              136664.0625
+            ],
+            "physical_steps": 148,
+            "sample_ns": [
+              2171583,
+              2140833,
+              2186625
+            ],
+            "warmup_calls": 1,
+            "width": 640
+          },
+          "median_latency_reduction_percent": 60.28625201063002
+        }
+      ],
+      "baseline_process_elapsed_includes_conservative_hash_overhead": true,
+      "external_timeout_seconds": 30,
+      "internal_assertion_timeout_seconds": 30
+    },
+    "production_dispatch_warning": "These are forced policy comparisons under diagnostic_v1 source, not a benchmark of the final production dispatch. Retained pipeline results below validate the final source separately."
+  },
+  "retained_changes": [
+    {
+      "name": "ARM64 bounded depthwise strips",
+      "dispatch": "9x9, cout>=256, sh=sw=dh=dw=1, oh>=64, ow>=64, with existing NEON/depthwise/packed-span validation",
+      "scratch_bytes_per_invocation": 8192,
+      "heap_scratch_in_production": false,
+      "preserves": "ordered KY/KX FMA, bias first, scalar MUL/ADD tails, partial bands, padding and fused global store indices"
+    },
+    {
+      "name": "shared graph use indexes",
+      "compiled_metadata": "CSR consumer indexes (including duplicate operands) and producer indexes shared by CompiledModel Arc",
+      "preserves": "prefix-aware exclusivity, selected outputs, shape-specific fusion legality, reserved gapped semantic members and normalized tracing"
+    },
+    {
+      "name": "ARM threshold SIMD mask narrowing",
+      "mechanism": "retain validity/any masks in SIMD registers and narrow comparison lanes directly to bitmap bytes",
+      "preserves": "strict greater-than semantics, finite-input rejection and scalar tails",
+      "x86_production_changed": false
+    }
+  ],
+  "final_pipeline": {
+    "completed": true,
+    "protocol": "one first batch, one warmup, three measured batches; balanced version order; serialized; 60s aggregate execution per version; native release/default features; macOS unbound",
+    "executables": {
+      "baseline": {
+        "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_benchmark",
+        "sha256": "3b6212e4b0ed4b2e7e9d844f96a3f9e9cc26edc2039ec22a78e336c95527c72e"
+      },
+      "candidate": {
+        "path": "target/release/examples/cpu_benchmark",
+        "sha256": "182207b0e6633ab3df64a8ed71f85945d462e6c698a88b1daeed2df97116d624"
+      }
+    },
+    "elapsed_seconds": {
+      "baseline": 25.90684562500001,
+      "candidate": 26.088923582999996
+    },
+    "cases": [
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "tiny",
+          "fixture": "imgs_1",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_1.bgr",
+          "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+          "width": 720,
+          "height": 1150,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "baseline",
+          "candidate"
+        ],
+        "measurements": {
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 18.598917,
+            "first_inference_ms": 56.133500000000005,
+            "warmup_ms": 46.556833,
+            "samples_ms": [
+              47.308084,
+              47.656334,
+              47.403292
+            ],
+            "process_cpu": {
+              "first_inference_ms": 242.294,
+              "warmup_ms": 225.644,
+              "samples_ms": [
+                225.828,
+                222.37,
+                221.62
+              ]
+            },
+            "peak_resident_bytes": 72466432,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "0093584082feee21bbd0e97fcee86cf72b81fd2c70dc40fec8ca0f3b9d0eb4fe",
+            "result_summary": {
+              "id": "imgs_1",
+              "detected_count": 3,
+              "detector_resized_width": 608,
+              "detector_resized_height": 960
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_1-t8-c1-baseline.json",
+              "sha256": "86985047fd8fd17de6e8845d6fa6de22415a6f62bf3d883c699cb6e32987f8d5"
+            },
+            "median_ms": 47.403292,
+            "range_ms": [
+              47.308084,
+              47.656334
+            ]
+          },
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 14.965666,
+            "first_inference_ms": 55.916917,
+            "warmup_ms": 47.330083,
+            "samples_ms": [
+              46.495584,
+              47.149416,
+              47.00425
+            ],
+            "process_cpu": {
+              "first_inference_ms": 245.35100000000003,
+              "warmup_ms": 226.306,
+              "samples_ms": [
+                224.31799999999998,
+                219.606,
+                219.54299999999998
+              ]
+            },
+            "peak_resident_bytes": 72335360,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "0093584082feee21bbd0e97fcee86cf72b81fd2c70dc40fec8ca0f3b9d0eb4fe",
+            "result_summary": {
+              "id": "imgs_1",
+              "detected_count": 3,
+              "detector_resized_width": 608,
+              "detector_resized_height": 960
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_1-t8-c1-candidate.json",
+              "sha256": "8b25b712541bdf9c3d29bfec1cbfc3070d9af725dada606374cb02558ad26d65"
+            },
+            "median_ms": 47.00425,
+            "range_ms": [
+              46.495584,
+              47.149416
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9915819770491888,
+        "ranges_overlap": false,
+        "raw_job_sha256": "4513f694ad32f2cfb4628a68388bf8890ecf21bc6987e072f609c0d019af80cf",
+        "median_latency_reduction_percent": 0.8418022950811177
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "tiny",
+          "fixture": "imgs_00018069",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "candidate",
+          "baseline"
+        ],
+        "measurements": {
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 6.6348329999999995,
+            "first_inference_ms": 76.499708,
+            "warmup_ms": 74.834625,
+            "samples_ms": [
+              75.239125,
+              76.015125,
+              74.747625
+            ],
+            "process_cpu": {
+              "first_inference_ms": 452.544,
+              "warmup_ms": 445.959,
+              "samples_ms": [
+                443.84200000000004,
+                444.102,
+                446.764
+              ]
+            },
+            "peak_resident_bytes": 42336256,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 11257856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6977741,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "5a8266867929a45cc3b23231f3a4d45c23006539f3d7e737be2c32c285438c5f",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_00018069-t8-c1-candidate.json",
+              "sha256": "b10629bcecdde5849e83640ebef5b0e4abb11b4cee5f328cdeae37d6cc06e4d7"
+            },
+            "median_ms": 75.239125,
+            "range_ms": [
+              74.747625,
+              76.015125
+            ]
+          },
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 6.1685419999999995,
+            "first_inference_ms": 77.69095800000001,
+            "warmup_ms": 75.557417,
+            "samples_ms": [
+              75.776209,
+              76.85125,
+              75.673084
+            ],
+            "process_cpu": {
+              "first_inference_ms": 452.47700000000003,
+              "warmup_ms": 445.827,
+              "samples_ms": [
+                449.69399999999996,
+                446.446,
+                450.355
+              ]
+            },
+            "peak_resident_bytes": 42369024,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 11257856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6977741,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "5a8266867929a45cc3b23231f3a4d45c23006539f3d7e737be2c32c285438c5f",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_00018069-t8-c1-baseline.json",
+              "sha256": "419645f5d8f5d9e62375eb439a607647094eb588e1cd510dfb120bc62561c91d"
+            },
+            "median_ms": 75.776209,
+            "range_ms": [
+              75.673084,
+              76.85125
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9929122344982976,
+        "ranges_overlap": true,
+        "raw_job_sha256": "b42eb8a1776ae6453e98be92a67e3dabd48e52b9137c2abd135f57c4f4e79503",
+        "median_latency_reduction_percent": 0.7087765501702425
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "tiny",
+          "fixture": "imgs_00006737",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00006737.bgr",
+          "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+          "width": 896,
+          "height": 528,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "baseline",
+          "candidate"
+        ],
+        "measurements": {
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 5.929625,
+            "first_inference_ms": 92.597792,
+            "warmup_ms": 88.398917,
+            "samples_ms": [
+              87.232333,
+              85.471167,
+              87.434125
+            ],
+            "process_cpu": {
+              "first_inference_ms": 505.672,
+              "warmup_ms": 492.723,
+              "samples_ms": [
+                488.594,
+                488.728,
+                490.336
+              ]
+            },
+            "peak_resident_bytes": 75726848,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40650752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9737457,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "6ec587064a9e94f8f581ef5f9bae910474f488e83f9994e755e4d3100733cf1c",
+            "result_summary": {
+              "id": "imgs_00006737",
+              "detected_count": 31,
+              "detector_resized_width": 896,
+              "detector_resized_height": 544
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_00006737-t8-c1-baseline.json",
+              "sha256": "391b1f17042acedfca11a5090b7eb1e8df4ac187b83a659e5b962f568d027193"
+            },
+            "median_ms": 87.232333,
+            "range_ms": [
+              85.471167,
+              87.434125
+            ]
+          },
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 6.373958,
+            "first_inference_ms": 89.76575000000001,
+            "warmup_ms": 88.319584,
+            "samples_ms": [
+              87.39574999999999,
+              86.150583,
+              85.98625
+            ],
+            "process_cpu": {
+              "first_inference_ms": 492.451,
+              "warmup_ms": 489.46099999999996,
+              "samples_ms": [
+                483.767,
+                491.88300000000004,
+                491.096
+              ]
+            },
+            "peak_resident_bytes": 75612160,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40650752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9737457,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "6ec587064a9e94f8f581ef5f9bae910474f488e83f9994e755e4d3100733cf1c",
+            "result_summary": {
+              "id": "imgs_00006737",
+              "detected_count": 31,
+              "detector_resized_width": 896,
+              "detector_resized_height": 544
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_00006737-t8-c1-candidate.json",
+              "sha256": "1dfb4d450ec292b04719538dbbe22f6eb515dc19d5625f0adb3429b82c0ccf20"
+            },
+            "median_ms": 86.150583,
+            "range_ms": [
+              85.98625,
+              87.39574999999999
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9875992081972633,
+        "ranges_overlap": true,
+        "raw_job_sha256": "f70f73b2bd23cd1acca129576878160ac050037df010f712224dd09b6141f73f",
+        "median_latency_reduction_percent": 1.2400791802736677
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "small",
+          "fixture": "imgs_1",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_1.bgr",
+          "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+          "width": 720,
+          "height": 1150,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "candidate",
+          "baseline"
+        ],
+        "measurements": {
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 30.116,
+            "first_inference_ms": 124.601958,
+            "warmup_ms": 122.274833,
+            "samples_ms": [
+              121.319333,
+              123.16125,
+              122.482417
+            ],
+            "process_cpu": {
+              "first_inference_ms": 540.6410000000001,
+              "warmup_ms": 542.292,
+              "samples_ms": [
+                540.116,
+                542.787,
+                539.895
+              ]
+            },
+            "peak_resident_bytes": 146194432,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 60413952,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6240532,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "34d478f02bb60d47cbbabde1d160c633424c9acde9be683897bfa5fbf604e969",
+            "result_summary": {
+              "id": "imgs_1",
+              "detected_count": 2,
+              "detector_resized_width": 608,
+              "detector_resized_height": 960
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_1-t8-c1-candidate.json",
+              "sha256": "d5289ed91be8d70dcb3801b416752b93ef24cc429689634cf0da39e3e4c5d51b"
+            },
+            "median_ms": 122.482417,
+            "range_ms": [
+              121.319333,
+              123.16125
+            ]
+          },
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 20.183542,
+            "first_inference_ms": 125.178167,
+            "warmup_ms": 123.58554099999999,
+            "samples_ms": [
+              122.987292,
+              125.04691700000001,
+              124.874084
+            ],
+            "process_cpu": {
+              "first_inference_ms": 543.714,
+              "warmup_ms": 545.332,
+              "samples_ms": [
+                543.322,
+                547.802,
+                547.7109999999999
+              ]
+            },
+            "peak_resident_bytes": 146030592,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 60413952,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6240532,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "34d478f02bb60d47cbbabde1d160c633424c9acde9be683897bfa5fbf604e969",
+            "result_summary": {
+              "id": "imgs_1",
+              "detected_count": 2,
+              "detector_resized_width": 608,
+              "detector_resized_height": 960
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_1-t8-c1-baseline.json",
+              "sha256": "96e8a9bbf84be758942b0a7e5743fc83e7ff55d72b71f0785fd9a8fe28fd3b1b"
+            },
+            "median_ms": 124.874084,
+            "range_ms": [
+              122.987292,
+              125.04691700000001
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9808473710205554,
+        "ranges_overlap": true,
+        "raw_job_sha256": "6950f6220725bd2229e2c834a6ac938a1db6bcc4afe622859abafc63bd42161b",
+        "median_latency_reduction_percent": 1.9152628979444586
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "small",
+          "fixture": "imgs_00018069",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "baseline",
+          "candidate"
+        ],
+        "measurements": {
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 19.961291,
+            "first_inference_ms": 235.662333,
+            "warmup_ms": 229.076292,
+            "samples_ms": [
+              230.896875,
+              227.524416,
+              230.50662499999999
+            ],
+            "process_cpu": {
+              "first_inference_ms": 1381.767,
+              "warmup_ms": 1373.499,
+              "samples_ms": [
+                1360.545,
+                1367.067,
+                1360.4750000000001
+              ]
+            },
+            "peak_resident_bytes": 108380160,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 19802112,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 12002678,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "9c34ff5f12ce8c32fac4eaed28d2860a41998fedaf9ae97cafbc456ad0b201d2",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_00018069-t8-c1-baseline.json",
+              "sha256": "b94d5b3b6aced4da20d2fb9f2aebeb1cdfd7f396df4d42f7ae4c4553c5c41dd7"
+            },
+            "median_ms": 230.50662499999999,
+            "range_ms": [
+              227.524416,
+              230.896875
+            ]
+          },
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 20.649375000000003,
+            "first_inference_ms": 231.24824999999998,
+            "warmup_ms": 224.021375,
+            "samples_ms": [
+              230.139125,
+              229.834,
+              229.781166
+            ],
+            "process_cpu": {
+              "first_inference_ms": 1355.521,
+              "warmup_ms": 1366.144,
+              "samples_ms": [
+                1361.492,
+                1354.887,
+                1353.157
+              ]
+            },
+            "peak_resident_bytes": 108134400,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 19802112,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 12002678,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "9c34ff5f12ce8c32fac4eaed28d2860a41998fedaf9ae97cafbc456ad0b201d2",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_00018069-t8-c1-candidate.json",
+              "sha256": "c391838f7883304348f89d5e948183dc54bcd892c8c9fb36816dbe7b59f563d9"
+            },
+            "median_ms": 229.834,
+            "range_ms": [
+              229.781166,
+              230.139125
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9970819710713305,
+        "ranges_overlap": true,
+        "raw_job_sha256": "68e416808c7dc7416e950cac04ec5514c1567452fe8e5a9b7186cc24ce2cae61",
+        "median_latency_reduction_percent": 0.2918028928669547
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "small",
+          "fixture": "imgs_00006737",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00006737.bgr",
+          "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+          "width": 896,
+          "height": 528,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "candidate",
+          "baseline"
+        ],
+        "measurements": {
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 20.547959000000002,
+            "first_inference_ms": 281.063333,
+            "warmup_ms": 278.181709,
+            "samples_ms": [
+              278.284959,
+              274.950625,
+              274.482917
+            ],
+            "process_cpu": {
+              "first_inference_ms": 1528.195,
+              "warmup_ms": 1515.081,
+              "samples_ms": [
+                1531.86,
+                1523.5030000000002,
+                1543.3539999999998
+              ]
+            },
+            "peak_resident_bytes": 163758080,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 71264256,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 15408398,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "0f50d00b79fa99b098790fc30a9c4d82aaf02b0bc01995ffb4d3fccb26e4111e",
+            "result_summary": {
+              "id": "imgs_00006737",
+              "detected_count": 33,
+              "detector_resized_width": 896,
+              "detector_resized_height": 544
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_00006737-t8-c1-candidate.json",
+              "sha256": "5b0f8f0fe74bd346946ce5d816ea6d09cce4fff5f4f232ae37a59ca85836bce7"
+            },
+            "median_ms": 274.950625,
+            "range_ms": [
+              274.482917,
+              278.284959
+            ]
+          },
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 19.642,
+            "first_inference_ms": 286.56462500000004,
+            "warmup_ms": 278.92558299999996,
+            "samples_ms": [
+              273.847208,
+              276.227667,
+              278.292792
+            ],
+            "process_cpu": {
+              "first_inference_ms": 1537.707,
+              "warmup_ms": 1541.952,
+              "samples_ms": [
+                1537.0620000000001,
+                1538.6229999999998,
+                1532.0040000000001
+              ]
+            },
+            "peak_resident_bytes": 163856384,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 71264256,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 15408398,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "0f50d00b79fa99b098790fc30a9c4d82aaf02b0bc01995ffb4d3fccb26e4111e",
+            "result_summary": {
+              "id": "imgs_00006737",
+              "detected_count": 33,
+              "detector_resized_width": 896,
+              "detector_resized_height": 544
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_00006737-t8-c1-baseline.json",
+              "sha256": "0bffb35532a56ffb6928617604718042e25aad5cb638ff9c123972a4177cb3a2"
+            },
+            "median_ms": 276.227667,
+            "range_ms": [
+              273.847208,
+              278.292792
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9953768497780492,
+        "ranges_overlap": true,
+        "raw_job_sha256": "d7b2c4def14d430c4fea797357b371f61e93b421ce8ad1afa5440339dd33c6a7",
+        "median_latency_reduction_percent": 0.46231502219508114
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "medium",
+          "fixture": "imgs_1",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_1.bgr",
+          "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+          "width": 720,
+          "height": 1150,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "baseline",
+          "candidate"
+        ],
+        "measurements": {
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 117.74062500000001,
+            "first_inference_ms": 377.381708,
+            "warmup_ms": 386.479875,
+            "samples_ms": [
+              390.363584,
+              481.00095799999997,
+              391.07175
+            ],
+            "process_cpu": {
+              "first_inference_ms": 2239.56,
+              "warmup_ms": 2302.781,
+              "samples_ms": [
+                2352.728,
+                2487.843,
+                2345.295
+              ]
+            },
+            "peak_resident_bytes": 470728704,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 163952640,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6281328,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "a8d42f4e246e333b8761ba2c4f6be1cc50b46f592acad7c419512303135079c2",
+            "result_summary": {
+              "id": "imgs_1",
+              "detected_count": 2,
+              "detector_resized_width": 608,
+              "detector_resized_height": 960
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_1-t8-c1-baseline.json",
+              "sha256": "1e7ab8953193146e49d6e9c68db3ed19e49d1363d63007947aba0f1aae59a520"
+            },
+            "median_ms": 391.07175,
+            "range_ms": [
+              390.363584,
+              481.00095799999997
+            ]
+          },
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 97.916333,
+            "first_inference_ms": 381.139583,
+            "warmup_ms": 377.629833,
+            "samples_ms": [
+              370.26575,
+              366.990708,
+              368.470959
+            ],
+            "process_cpu": {
+              "first_inference_ms": 2224.681,
+              "warmup_ms": 2202.826,
+              "samples_ms": [
+                2205.7129999999997,
+                2212.08,
+                2209.436
+              ]
+            },
+            "peak_resident_bytes": 470499328,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 163952640,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6281328,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "a8d42f4e246e333b8761ba2c4f6be1cc50b46f592acad7c419512303135079c2",
+            "result_summary": {
+              "id": "imgs_1",
+              "detected_count": 2,
+              "detector_resized_width": 608,
+              "detector_resized_height": 960
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_1-t8-c1-candidate.json",
+              "sha256": "a2fa8c4d9099176225f2da62dab32af3a54e629ccf0df13292e4789afed8ad22"
+            },
+            "median_ms": 368.470959,
+            "range_ms": [
+              366.990708,
+              370.26575
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9422080705139146,
+        "ranges_overlap": false,
+        "raw_job_sha256": "b07b39a72b49eda91968b1440e153c91e0cce8a1b5e588882f5abf3ff5adff5c",
+        "median_latency_reduction_percent": 5.779192948608536
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "medium",
+          "fixture": "imgs_00018069",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "candidate",
+          "baseline"
+        ],
+        "measurements": {
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 95.778125,
+            "first_inference_ms": 776.2240419999999,
+            "warmup_ms": 754.095917,
+            "samples_ms": [
+              780.316458,
+              757.596333,
+              766.490959
+            ],
+            "process_cpu": {
+              "first_inference_ms": 4573.59,
+              "warmup_ms": 4596.669999999999,
+              "samples_ms": [
+                4633.505999999999,
+                4660.992,
+                4615.4580000000005
+              ]
+            },
+            "peak_resident_bytes": 352419840,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 39790592,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 11337408,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "1077ba97dd0620e3258d14fc9d9d432e6bed23797998e1d8adc1c2e0ac3b523d",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_00018069-t8-c1-candidate.json",
+              "sha256": "b84d94533e7892b4f117f43a6640a467cc7ecbd01c4f9ce6a7d85815a9461691"
+            },
+            "median_ms": 766.490959,
+            "range_ms": [
+              757.596333,
+              780.316458
+            ]
+          },
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 85.76895800000001,
+            "first_inference_ms": 774.83175,
+            "warmup_ms": 756.6036670000001,
+            "samples_ms": [
+              754.7445,
+              762.380375,
+              778.867917
+            ],
+            "process_cpu": {
+              "first_inference_ms": 4580.406,
+              "warmup_ms": 4604.123,
+              "samples_ms": [
+                4616.073,
+                4611.2609999999995,
+                4727.079
+              ]
+            },
+            "peak_resident_bytes": 352485376,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 39790592,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 11337408,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "1077ba97dd0620e3258d14fc9d9d432e6bed23797998e1d8adc1c2e0ac3b523d",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_00018069-t8-c1-baseline.json",
+              "sha256": "6edf5c78038a0c29f652507a58a4c72bd0e80c79e1fca7472abdb9d56b1a8a7a"
+            },
+            "median_ms": 762.380375,
+            "range_ms": [
+              754.7445,
+              778.867917
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 1.0053917757261261,
+        "ranges_overlap": true,
+        "raw_job_sha256": "5791fcd8d286da3df79c9ed836d5400dcd0138237fd6890fde1a73dd4f9e0780",
+        "median_latency_reduction_percent": -0.5391775726126147
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "medium",
+          "fixture": "imgs_00006737",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00006737.bgr",
+          "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+          "width": 896,
+          "height": 528,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "baseline",
+          "candidate"
+        ],
+        "measurements": {
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 84.89025,
+            "first_inference_ms": 996.523458,
+            "warmup_ms": 1010.6460420000001,
+            "samples_ms": [
+              979.969709,
+              1002.5486669999999,
+              1010.3782080000001
+            ],
+            "process_cpu": {
+              "first_inference_ms": 6035.505,
+              "warmup_ms": 5996.609,
+              "samples_ms": [
+                6056.054999999999,
+                6053.938999999999,
+                6119.6900000000005
+              ]
+            },
+            "peak_resident_bytes": 481804288,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 167192576,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 15994310,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "466bbc70105666f7c921878be31dd66a476e599d6f793c9fb303682580a7eb68",
+            "result_summary": {
+              "id": "imgs_00006737",
+              "detected_count": 31,
+              "detector_resized_width": 896,
+              "detector_resized_height": 544
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_00006737-t8-c1-baseline.json",
+              "sha256": "97b0e672d352b378ace0ca4bfb49f01a088c8a14520c494147ffb2cf697a2ab5"
+            },
+            "median_ms": 1002.5486669999999,
+            "range_ms": [
+              979.969709,
+              1010.3782080000001
+            ]
+          },
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 88.69137500000001,
+            "first_inference_ms": 990.273666,
+            "warmup_ms": 974.055333,
+            "samples_ms": [
+              985.560458,
+              970.6680829999999,
+              1009.626709
+            ],
+            "process_cpu": {
+              "first_inference_ms": 6036.148,
+              "warmup_ms": 6110.311000000001,
+              "samples_ms": [
+                6109.979,
+                6119.355,
+                6131.6990000000005
+              ]
+            },
+            "peak_resident_bytes": 481198080,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 167192576,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 15994310,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "466bbc70105666f7c921878be31dd66a476e599d6f793c9fb303682580a7eb68",
+            "result_summary": {
+              "id": "imgs_00006737",
+              "detected_count": 31,
+              "detector_resized_width": 896,
+              "detector_resized_height": 544
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_00006737-t8-c1-candidate.json",
+              "sha256": "2b612b95045ba05911fd75a517724f9021168d9c7ba0c6b0e80aac9ccb1e20f2"
+            },
+            "median_ms": 985.560458,
+            "range_ms": [
+              970.6680829999999,
+              1009.626709
+            ]
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9830549782178306,
+        "ranges_overlap": true,
+        "raw_job_sha256": "1e027fd6b3a9360cfa79ad5969af80a47340144ae3f05c2746e485817ae660dc",
+        "median_latency_reduction_percent": 1.694502178216939
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "tiny",
+          "fixture": "imgs_00018069",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 2,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "candidate",
+          "baseline"
+        ],
+        "measurements": {
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 6.3896250000000006,
+            "first_inference_ms": 140.60675,
+            "warmup_ms": 131.010042,
+            "samples_ms": [
+              120.995709,
+              137.817708,
+              118.771792
+            ],
+            "process_cpu": {
+              "first_inference_ms": 791.254,
+              "warmup_ms": 741.797,
+              "samples_ms": [
+                805.045,
+                681.6179999999999,
+                812.563
+              ]
+            },
+            "peak_resident_bytes": 57688064,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 20467712,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 12394554,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "5a8266867929a45cc3b23231f3a4d45c23006539f3d7e737be2c32c285438c5f",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_00018069-t8-c2-candidate.json",
+              "sha256": "0ee5717205d8254785ee0872cb609b73fbbbb9bbcea4bac248a192ad391f06b8"
+            },
+            "median_ms": 120.995709,
+            "range_ms": [
+              118.771792,
+              137.817708
+            ],
+            "throughput_images_per_second": 16.529511802769797
+          },
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 6.511083,
+            "first_inference_ms": 123.365459,
+            "warmup_ms": 133.165583,
+            "samples_ms": [
+              121.124209,
+              123.278292,
+              120.119167
+            ],
+            "process_cpu": {
+              "first_inference_ms": 861.625,
+              "warmup_ms": 760.922,
+              "samples_ms": [
+                818.845,
+                819.361,
+                818.468
+              ]
+            },
+            "peak_resident_bytes": 57835520,
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 20467712,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 12394554,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "result_sha256": "5a8266867929a45cc3b23231f3a4d45c23006539f3d7e737be2c32c285438c5f",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/tiny-imgs_00018069-t8-c2-baseline.json",
+              "sha256": "bca265df1f9c2643f9a080345861ced9ce3f9524a9dbcc798a2e64594afb987e"
+            },
+            "median_ms": 121.124209,
+            "range_ms": [
+              120.119167,
+              123.278292
+            ],
+            "throughput_images_per_second": 16.511975735585608
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 0.9989391055589887,
+        "ranges_overlap": true,
+        "raw_job_sha256": "532a0c1f4d05b7b3275a6dc31a9128d7452bd9e23ede8ce7af3a5736076fb6fb",
+        "median_latency_reduction_percent": 0.10608944410113175
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "small",
+          "fixture": "imgs_00018069",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 2,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "baseline",
+          "candidate"
+        ],
+        "measurements": {
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 19.559083,
+            "first_inference_ms": 479.36395799999997,
+            "warmup_ms": 372.0255,
+            "samples_ms": [
+              481.93775,
+              370.591334,
+              372.517334
+            ],
+            "process_cpu": {
+              "first_inference_ms": 2053.541,
+              "warmup_ms": 2692.2000000000003,
+              "samples_ms": [
+                2045.986,
+                2701.863,
+                2692.869
+              ]
+            },
+            "peak_resident_bytes": 135659520,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 37556224,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 22439436,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "9c34ff5f12ce8c32fac4eaed28d2860a41998fedaf9ae97cafbc456ad0b201d2",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_00018069-t8-c2-baseline.json",
+              "sha256": "a52c735622ae56c1106de97a402981ff2e19f46c50bf14f00a82598848a7c33d"
+            },
+            "median_ms": 372.517334,
+            "range_ms": [
+              370.591334,
+              481.93775
+            ],
+            "throughput_images_per_second": 5.36887768019944
+          },
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 21.108583,
+            "first_inference_ms": 369.398083,
+            "warmup_ms": 366.152,
+            "samples_ms": [
+              377.8735,
+              376.729333,
+              369.938667
+            ],
+            "process_cpu": {
+              "first_inference_ms": 2676.5840000000003,
+              "warmup_ms": 2680.908,
+              "samples_ms": [
+                2703.469,
+                2660.027,
+                2685.515
+              ]
+            },
+            "peak_resident_bytes": 135217152,
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 37556224,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 22439436,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "result_sha256": "9c34ff5f12ce8c32fac4eaed28d2860a41998fedaf9ae97cafbc456ad0b201d2",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/small-imgs_00018069-t8-c2-candidate.json",
+              "sha256": "177cac1aa90d59ddc93dd26c1b71774eed171bd13f1d3331fcf6d5a2c63404df"
+            },
+            "median_ms": 376.729333,
+            "range_ms": [
+              369.938667,
+              377.8735
+            ],
+            "throughput_images_per_second": 5.308851275459349
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 1.0113068537100611,
+        "ranges_overlap": true,
+        "raw_job_sha256": "8dcb59b7cd14e90b22741dd813618f6a9b8c05635f1de2d9cef47c9f4af7b63e",
+        "median_latency_reduction_percent": -1.1306853710061127
+      },
+      {
+        "job": {
+          "manifest": "tests/baseline/manifest.json",
+          "models": "../SimdPaddleOCR/models",
+          "model": "medium",
+          "fixture": "imgs_00018069",
+          "pixels": "target/cpu-adoption-20261017-followup/jobs/imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 2,
+          "runs": 3,
+          "affinity": "unbound"
+        },
+        "order": [
+          "candidate",
+          "baseline"
+        ],
+        "measurements": {
+          "candidate": {
+            "language": "rust",
+            "load_compile_ms": 88.644167,
+            "first_inference_ms": 1325.3417080000002,
+            "warmup_ms": 1353.5623329999999,
+            "samples_ms": [
+              1656.017458,
+              1313.773584,
+              1337.708459
+            ],
+            "process_cpu": {
+              "first_inference_ms": 9851.52,
+              "warmup_ms": 9874.309000000001,
+              "samples_ms": [
+                8144.482999999999,
+                9918.735999999999,
+                9905.1
+              ]
+            },
+            "peak_resident_bytes": 396443648,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 77533184,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 21063616,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "1077ba97dd0620e3258d14fc9d9d432e6bed23797998e1d8adc1c2e0ac3b523d",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_00018069-t8-c2-candidate.json",
+              "sha256": "4ed9ab0bcb51ed4d25b62fd4115257fc12f6630139ff8d24567139b32cc85951"
+            },
+            "median_ms": 1337.708459,
+            "range_ms": [
+              1313.773584,
+              1656.017458
+            ],
+            "throughput_images_per_second": 1.4950940816320277
+          },
+          "baseline": {
+            "language": "rust",
+            "load_compile_ms": 84.363333,
+            "first_inference_ms": 1650.107375,
+            "warmup_ms": 1341.363709,
+            "samples_ms": [
+              1315.000291,
+              1317.493334,
+              1310.446959
+            ],
+            "process_cpu": {
+              "first_inference_ms": 8130.254000000001,
+              "warmup_ms": 9927.68,
+              "samples_ms": [
+                9952.629,
+                9915.528999999999,
+                10017.045
+              ]
+            },
+            "peak_resident_bytes": 397000704,
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 77533184,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 21063616,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "result_sha256": "1077ba97dd0620e3258d14fc9d9d432e6bed23797998e1d8adc1c2e0ac3b523d",
+            "result_summary": {
+              "id": "imgs_00018069",
+              "detected_count": 69,
+              "detector_resized_width": 416,
+              "detector_resized_height": 256
+            },
+            "raw_output": {
+              "path": "target/cpu-adoption-20261017-followup/final-comparison/medium-imgs_00018069-t8-c2-baseline.json",
+              "sha256": "0c2eed7dbe69c6debfc47969ba9a3ca64842f5b02e75f020cf02cd8fc3689d1c"
+            },
+            "median_ms": 1315.000291,
+            "range_ms": [
+              1310.446959,
+              1317.493334
+            ],
+            "throughput_images_per_second": 1.5209122109616324
+          }
+        },
+        "output_exact": true,
+        "median_ratio": 1.017268564999884,
+        "ranges_overlap": true,
+        "raw_job_sha256": "cbc1ac304c6973404d60c5b523b0f81497af546905b97f49378698ceb4fa25cd",
+        "median_latency_reduction_percent": -1.726856499988405
+      }
+    ],
+    "case_count": 12,
+    "latency_cells": 9,
+    "throughput_cells": 3,
+    "workers": 8,
+    "concurrency_latency": 1,
+    "concurrency_throughput": 2,
+    "first_batches_per_version": 12,
+    "warmup_batches_per_version": 12,
+    "measured_batches_per_version": 36,
+    "measured_requests_per_version": 45,
+    "total_requests_including_first_warmup_per_version": 75,
+    "all_outputs_exact": true,
+    "retained_activation_and_workspace_diagnostics_identical_per_pair": true,
+    "peak_resident_candidate_over_baseline_range": [
+      0.9967391304347826,
+      1.0011219566924716
+    ],
+    "interpretation": "Medium sparse median 391.07175 to 368.470959 ms (5.78% lower), disjoint sampled ranges; Tiny sparse 0.84% lower with disjoint sampled ranges, small magnitude. Other latency cells and all throughput cells overlap; no general pipeline speedup claim."
+  },
+  "budget": {
+    "seconds_per_code_version": 60,
+    "builds_excluded": true,
+    "no_adaptive_sampling_or_retries": true,
+    "serialized_performance_processes": true,
+    "pipeline_process_timeout_seconds": 20,
+    "baseline_final_pipeline_seconds": 25.90684562500001,
+    "baseline_plan_diagnostic_seconds": 0.9307336669999999,
+    "baseline_total_performance_seconds": 26.837579292000008,
+    "diagnostic_v1_total_performance_seconds": 1.045984125,
+    "retained_total_performance_seconds": 26.088923582999996,
+    "correctness_not_counted_as_performance_execution_seconds": 230.231355917
+  },
+  "validation": {
+    "status": "passed",
+    "library_counts": {
+      "default_features": 333,
+      "no_default_features": 323,
+      "profiling": 334,
+      "ignored_diagnostics": 12
+    },
+    "integration_tests_passed": 29,
+    "integration_tests_ignored": 1,
+    "doctests_passed": 5,
+    "check_commands": [
+      {
+        "name": "integration-contracts",
+        "command": [
+          "cargo",
+          "test",
+          "--release",
+          "--locked",
+          "--test",
+          "baseline_contract",
+          "--test",
+          "benchmark_contract",
+          "--test",
+          "qualification_contract",
+          "--test",
+          "harness_contract"
+        ],
+        "elapsed_seconds": 4.466097625,
+        "exit_code": 0
+      },
+      {
+        "name": "doctests",
+        "command": [
+          "cargo",
+          "test",
+          "--release",
+          "--locked",
+          "--doc"
+        ],
+        "elapsed_seconds": 0.34787966699999995,
+        "exit_code": 0
+      },
+      {
+        "name": "serial-library",
+        "command": [
+          "cargo",
+          "test",
+          "--release",
+          "--locked",
+          "--no-default-features",
+          "--lib"
+        ],
+        "elapsed_seconds": 37.089146875,
+        "exit_code": 0
+      },
+      {
+        "name": "profiling-library",
+        "command": [
+          "cargo",
+          "test",
+          "--release",
+          "--locked",
+          "--features",
+          "profiling",
+          "--lib"
+        ],
+        "elapsed_seconds": 51.518215792,
+        "exit_code": 0
+      },
+      {
+        "name": "all-targets",
+        "command": [
+          "cargo",
+          "check",
+          "--locked",
+          "--all-targets",
+          "--all-features"
+        ],
+        "elapsed_seconds": 4.148525082999996,
+        "exit_code": 0
+      },
+      {
+        "name": "x86-cross-compile",
+        "command": [
+          "cargo",
+          "check",
+          "--locked",
+          "--target",
+          "x86_64-apple-darwin",
+          "--all-targets",
+          "--all-features"
+        ],
+        "elapsed_seconds": 7.108712917000005,
+        "exit_code": 0
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--all-targets",
+          "--all-features"
+        ],
+        "elapsed_seconds": 3.2199462500000067,
+        "exit_code": 0
+      },
+      {
+        "name": "format",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "elapsed_seconds": 0.4571727919999944,
+        "exit_code": 0
+      },
+      {
+        "name": "whitespace",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "elapsed_seconds": 0.02012200000000064,
+        "exit_code": 0
+      }
+    ],
+    "all_completed_checks_exit_zero": true,
+    "clippy_warnings": "Existing architecture/harness warnings plus three benign new diagnostic-style warnings (constant release assertion and range-indexed sample loops); not warning-free. Measured source frozen without subsequent lint edits.",
+    "live_csharp_qualification": {
+      "status": "passed",
+      "completed_requests": 213,
+      "case_count": 213,
+      "coverage": "full",
+      "models": [
+        "tiny",
+        "small",
+        "medium"
+      ],
+      "profiles": [
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_00006737",
+            "imgs_00009282",
+            "imgs_00015504",
+            "imgs_00018069",
+            "imgs_00056221",
+            "imgs_00057937",
+            "imgs_00059985",
+            "imgs_00077949",
+            "imgs_00111002",
+            "imgs_00207393",
+            "imgs_1",
+            "imgs_11",
+            "imgs_12",
+            "imgs_en_254",
+            "imgs_en_img_10",
+            "imgs_en_img_11",
+            "imgs_en_img_12",
+            "imgs_en_img_195",
+            "imgs_en_img623",
+            "imgs_11_rotate90",
+            "imgs_11_rotate180",
+            "blank"
+          ],
+          "format": "Bgr24",
+          "id": "default-parallel",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 1,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 1,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "serial",
+          "line_workers": 1,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 1,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 2,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 2,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "workers-2",
+          "line_workers": 2,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 2,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 4,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 4,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "workers-4",
+          "line_workers": 4,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 4,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 2,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "batch-2",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 4,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "batch-4",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": true,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737",
+            "imgs_11_rotate90",
+            "imgs_11_rotate180",
+            "blank"
+          ],
+          "format": "Bgr24",
+          "id": "alignment",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Rgb24",
+          "id": "rgb-padded",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 13,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgra32",
+          "id": "bgra-padded",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 13,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Rgba32",
+          "id": "rgba-padded",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 13,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": false,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_11_rotate90",
+            "imgs_11_rotate180",
+            "blank"
+          ],
+          "format": "Bgr24",
+          "id": "cls-off",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": false,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "fixed-width",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": true,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "default-thresholds",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": true,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737"
+          ],
+          "format": "Bgr24",
+          "id": "dilation",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_1",
+            "imgs_00018069",
+            "imgs_00006737",
+            "imgs_1"
+          ],
+          "format": "Bgr24",
+          "id": "reuse",
+          "line_workers": 0,
+          "max_image_pixels": 40000000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        },
+        {
+          "adaptive_width": true,
+          "batch_size": 1,
+          "capacity": 0,
+          "capture": false,
+          "classification": true,
+          "default_thresholds": false,
+          "detector_threads": 0,
+          "dilation": false,
+          "fixtures": [
+            "imgs_00018069",
+            "imgs_00018069",
+            "imgs_00006737",
+            "imgs_1",
+            "imgs_00018069"
+          ],
+          "format": "Bgr24",
+          "id": "recovery",
+          "line_workers": 0,
+          "max_image_pixels": 600000,
+          "padding": 0,
+          "preprocess_workers": 0,
+          "target_width": 320
+        }
+      ],
+      "differences": [],
+      "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+      "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+      "rust_head": "577db456c761fd7b813885ee832aa686106e66a6",
+      "rust_source_sha256": "7f7fd42a9c012abc5e5a9dfaf074e927cb7f0c7cadeb866ccd5c01df6e70e751",
+      "source_hash_paths": [
+        "src",
+        "tools/baseline",
+        "tools/harness",
+        "tools/qualification",
+        "tools/csharp-qualification",
+        "examples/cpu_qualify.rs",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        ".cargo",
+        "build.rs"
+      ],
+      "rust_executable_sha256": "36f3ab1e487d58f4f1581d177660e856cf3bfd2bc02c5d8f93a75a945c2eebcd",
+      "csharp_adapter_sha256": "9b08342e44eac4fed5116a5e805b296735642e985aef63ec6c9ef6e2476fdde5",
+      "fingerprint_scope_note": "Qualification uses its recorded source_hash_paths and own fingerprint recipe, distinct from the broader pipeline source manifest; the retained production source stayed frozen.",
+      "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+      "dotnet_sdk": "10.0.303",
+      "dotnet_runtime": "10.0.11",
+      "build": "standard release; default features; automatic SIMD/layout; fusion enabled",
+      "elapsed_seconds": 227.886313916,
+      "case_timeout_seconds": 120,
+      "suite_timeout_seconds": 3600,
+      "process": {
+        "command": [
+          "target/release/examples/cpu_qualify"
+        ],
+        "elapsed_seconds": 230.231355917,
+        "exit_code": 0
+      },
+      "raw_run": {
+        "path": "target/qualification/1792213146233-51112/run.json",
+        "sha256": "63b502027821e929e3d5d02e52b1f22da8744441e56c94c52649710274b4a650"
+      },
+      "raw_differences": {
+        "path": "target/qualification/1792213146233-51112/differences.json",
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+      },
+      "raw_log": {
+        "path": "target/cpu-adoption-20261017-followup/final-qualification.log",
+        "sha256": "c72c4b7d2f76bbade9078b3a1c4ad5ed94497e08a6d864f82e4cffa40f7b26fd"
+      }
+    },
+    "raw_library_log": "target/cpu-adoption-20261017-followup/final-library-tests.log",
+    "raw_other_logs": [
+      "target/cpu-adoption-20261017-followup/final-serial-library.log",
+      "target/cpu-adoption-20261017-followup/final-profiling-library.log",
+      "target/cpu-adoption-20261017-followup/final-integration-contracts.log",
+      "target/cpu-adoption-20261017-followup/final-doctests.log"
+    ]
+  },
+  "not_adopted": {
+    "arm_7x7_strips": "bounded median 16.69% slower in the measured 96-channel case",
+    "full_row_heap_strips": "slightly faster than bounded 64-pixel controls on the two 9x9 cases, but variable scratch size; final uses fixed 8192-byte scratch",
+    "avx512_input_descriptors_and_tiles": "deferred; no AVX-512 execution hardware available locally",
+    "arena_base_alignment": "not adopted; incremental gain with current native loads unproven",
+    "x86_threshold": "production path unchanged without native measurement"
+  },
+  "limits": [
+    "One physical Apple M4; unbound macOS scheduling; one warmup and three fixed samples per case.",
+    "Disjoint sampled ranges do not establish statistical significance or steady state.",
+    "Only nine latency and three concurrent-throughput cells measured; no serial pipeline or full platform performance matrix.",
+    "Kernel and planning improvements do not imply comparable whole-pipeline savings.",
+    "No native x86 or other ARM CPU performance validation."
+  ],
+  "local_raw_artifacts": {
+    "provenance.json": {
+      "path": "target/cpu-adoption-20261017-followup/provenance.json",
+      "sha256": "baf0d59e4a2b34209590086cd801cbdd1ba6856dd9e3c31203e5b5264038a9f1"
+    },
+    "diagnostic-source-v1.json": {
+      "path": "target/cpu-adoption-20261017-followup/diagnostic-source-v1.json",
+      "sha256": "1b5ecfb82fde48558f6715f52e62c53271d42ed39f4437bab8839709c63a0fb9"
+    },
+    "diagnostics-v1.json": {
+      "path": "target/cpu-adoption-20261017-followup/diagnostics-v1.json",
+      "sha256": "2218cbf73c10f043b95fbad60057af8fcb2c2d7c0233ea7fd0d34c065047285c"
+    },
+    "arm-strip-diagnostic-v1.log": {
+      "path": "target/cpu-adoption-20261017-followup/arm-strip-diagnostic-v1.log",
+      "sha256": "aa47955ad4211e36921ca9b2e356d62b3956a8b8c2278da5583ca3202a938d91"
+    },
+    "threshold-diagnostic-v1.log": {
+      "path": "target/cpu-adoption-20261017-followup/threshold-diagnostic-v1.log",
+      "sha256": "fc0f8c906c2122cc63d0ff12b3ecfad92d59c90093710cabbba0e6b55dc38fd4"
+    },
+    "plan-diagnostic-v1.log": {
+      "path": "target/cpu-adoption-20261017-followup/plan-diagnostic-v1.log",
+      "sha256": "cc22d05e943d2f26e29df9a7d005e48e170715778d8af4e828c9d82ee9e279f2"
+    },
+    "baseline-plan-diagnostic.json": {
+      "path": "target/cpu-adoption-20261017-followup/baseline-plan-diagnostic.json",
+      "sha256": "f0d604c3791ef71efec1109f629e1594638971fe0fcbd8109104a3f09fff9d1b"
+    },
+    "baseline-plan-diagnostic.log": {
+      "path": "target/cpu-adoption-20261017-followup/baseline-plan-diagnostic.log",
+      "sha256": "99bee205ac2aa2eb05e0089caad5fe29891b23748ae7ae18119ed4b0c4aa03d2"
+    },
+    "retained-source.json": {
+      "path": "target/cpu-adoption-20261017-followup/retained-source.json",
+      "sha256": "c67b41dba80479ccbb18b0dd7666b080a0a28e1d7b5ad4fa47d052489c69df99"
+    },
+    "final-comparison/report.json": {
+      "path": "target/cpu-adoption-20261017-followup/final-comparison/report.json",
+      "sha256": "b509b1e5f8f7e5f2037237ec12f16448864c18348e059b7b7a25796d9d781648"
+    },
+    "final-comparison.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-comparison.log",
+      "sha256": "e7319813381fde5b0379a59165c7a9a387d2aa97c98496eca1d80afc23c1660e"
+    },
+    "compare.py": {
+      "path": "target/cpu-adoption-20261017-followup/compare.py",
+      "sha256": "5bab521dcd4e33af78cd29dc5b4571b16541ab366ff78c74501a4bd8e6598a7a"
+    },
+    "final-checks.json": {
+      "path": "target/cpu-adoption-20261017-followup/final-checks.json",
+      "sha256": "2a173357c4e600485f03cd606eb23a8f2e7fa5cceadb75c0e44693981985c546"
+    },
+    "final-qualification-process.json": {
+      "path": "target/cpu-adoption-20261017-followup/final-qualification-process.json",
+      "sha256": "4787aef68253068a20018d0e46a67f43ee6218d7ae85471f75886cb3ae387681"
+    },
+    "final-qualification.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-qualification.log",
+      "sha256": "c72c4b7d2f76bbade9078b3a1c4ad5ed94497e08a6d864f82e4cffa40f7b26fd"
+    },
+    "final-library-tests.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-library-tests.log",
+      "sha256": "9b783d2ca004f355ab4857e1d33732026991c9fd269c6755c8abd3a3985bde5b"
+    },
+    "final-serial-library.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-serial-library.log",
+      "sha256": "b4f6302986ca72269008dae4ac67bfc738e7df67318816f60f003a5665ab8c53"
+    },
+    "final-profiling-library.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-profiling-library.log",
+      "sha256": "0ff7075ac572170d9eae19e3a731fa2e13348a355b3d9b3639437470672bb96a"
+    },
+    "final-integration-contracts.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-integration-contracts.log",
+      "sha256": "7237c464653194d603fbf798ec70885596c33f0801cf39d090e461c88921bffb"
+    },
+    "final-doctests.log": {
+      "path": "target/cpu-adoption-20261017-followup/final-doctests.log",
+      "sha256": "56cf65eceeaeb4931322c1be9029354acc09ddc9ee8b22aa5802af34630ef164"
+    }
+  }
+}

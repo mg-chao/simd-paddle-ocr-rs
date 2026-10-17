@@ -1,15 +1,53 @@
 //! ARM64 packed depthwise convolution with two-pixel, 32-channel FMA tiles.
 //!
-//! Horizontal interiors are proved once per output pair. Each native tile
-//! retains its sixteen accumulators through the ordered KY/KX reduction;
-//! border pixels and short channel blocks use the checked shared readers.
+//! Horizontal interiors are proved before each native reduction. Register
+//! tiles retain all KY/KX accumulators; large 9x9 detector stages instead pass
+//! one kernel row across bounded contiguous strips. Border pixels and short
+//! channel blocks use the checked shared readers.
 use super::*;
 use std::arch::aarch64::*;
+
+mod strip;
 
 /// A safe, optional fast path. The caller retains the general depthwise
 /// implementation whenever geometry, storage, or packed weights do not fit.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn try_execute(
+    p: &Conv,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    packed: Option<&PackedMatrix>,
+    output: &mut [f32],
+    first: usize,
+    store: &impl StoreTransform,
+) -> bool {
+    if use_bounded_strip(p) {
+        try_execute_policy::<true, 64>(p, input, weights, bias, packed, output, first, store)
+    } else {
+        try_execute_policy::<false, 0>(p, input, weights, bias, packed, output, first, store)
+    }
+}
+
+/// Native measurements favor row strips for the large 9x9 detector stages.
+/// Keep the existing register tile for shorter kernels and smaller planes,
+/// where scratch traffic or a shorter input-row stride can outweigh reuse.
+pub(super) fn use_bounded_strip(p: &Conv) -> bool {
+    p.kh == 9
+        && p.kw == 9
+        && p.cout >= 256
+        && p.sh == 1
+        && p.sw == 1
+        && p.dh == 1
+        && p.dw == 1
+        && p.oh >= 64
+        && p.ow >= 64
+}
+
+/// Keep the original all-taps leaf available as an exact paired control while
+/// validating the row-strip traversal against real detector shapes.
+#[allow(clippy::too_many_arguments)]
+fn try_execute_policy<const STRIP: bool, const PIXELS: usize>(
     p: &Conv,
     input: &[f32],
     weights: &[f32],
@@ -66,6 +104,26 @@ pub(super) fn try_execute(
     {
         return false;
     }
+    if STRIP && p.kh >= 6 {
+        strip::execute::<PIXELS>(p, input, weights, bias, packed, output, first, store);
+    } else {
+        execute_current(p, input, weights, bias, packed, output, first, store);
+    }
+    true
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_current(
+    p: &Conv,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    first: usize,
+    store: &impl StoreTransform,
+) {
+    let taps = p.kh * p.kw;
     let interior = horizontal_interior(p);
     let pixels = output.len() / p.cout;
     let full_channels = p.cout / 32 * 32;
@@ -184,7 +242,6 @@ pub(super) fn try_execute(
         }
         local += count;
     }
-    true
 }
 
 fn horizontal_interior(p: &Conv) -> std::ops::Range<usize> {
@@ -444,6 +501,8 @@ mod tests {
     use super::*;
     use std::simd::num::SimdFloat;
 
+    mod benchmark;
+
     fn values(length: usize, seed: usize) -> Vec<f32> {
         (0..length)
             .map(|i| ((i * 37 + seed * 17) % 101) as f32 / 79. - 0.625)
@@ -532,6 +591,16 @@ mod tests {
     }
 
     fn check(p: &Conv, bias_enabled: bool, store: &impl StoreTransform) {
+        check_policy::<false, 0>(p, bias_enabled, store);
+        check_policy::<true, 0>(p, bias_enabled, store);
+        check_policy::<true, 64>(p, bias_enabled, store);
+    }
+
+    fn check_policy<const STRIP: bool, const PIXELS: usize>(
+        p: &Conv,
+        bias_enabled: bool,
+        store: &impl StoreTransform,
+    ) {
         let input = values(p.batch * p.height * p.width * p.cin, 3);
         let weights = values(p.cout * p.kh * p.kw, 5);
         let bias = if bias_enabled {
@@ -546,7 +615,7 @@ mod tests {
             .map(|(i, value)| store.scalar(value, i))
             .collect::<Vec<_>>();
         let mut output = vec![f32::NAN; expected.len()];
-        assert!(try_execute(
+        assert!(try_execute_policy::<STRIP, PIXELS>(
             p,
             &input,
             &weights,
@@ -560,7 +629,7 @@ mod tests {
         for band in [1, 3, 8, 19] {
             output.fill(f32::NAN);
             for (chunk, destination) in output.chunks_mut(band * p.cout).enumerate() {
-                assert!(try_execute(
+                assert!(try_execute_policy::<STRIP, PIXELS>(
                     p,
                     &input,
                     &weights,
@@ -583,6 +652,8 @@ mod tests {
             plan([2, 35, 7, 19], [5, 5], [2, 2], [1, 1], [2; 4]),
             plan([1, 52, 5, 17], [3, 3], [1, 1], [2, 2], [2; 4]),
             plan([2, 67, 9, 31], [7, 7], [2, 2], [1, 2], [3, 7, 3, 5]),
+            plan([1, 35, 13, 53], [9, 9], [1, 1], [1, 1], [4; 4]),
+            plan([1, 96, 17, 65], [7, 7], [1, 1], [1, 1], [3; 4]),
             plan([1, 40, 1, 5], [9, 9], [1, 1], [1, 1], [4; 4]),
             plan([1, 36, 3, 1], [3, 3], [1, 1], [1, 1], [1; 4]),
             plan([1, 64, 3, 2], [1, 1], [1, 1], [1, 1], [0; 4]),
@@ -606,6 +677,7 @@ mod tests {
     fn neon_depthwise_preserves_global_residual_indices_and_unused_single_tap_dilation() {
         for mut p in [
             plan([2, 35, 5, 17], [3, 3], [1, 1], [1, 1], [1; 4]),
+            plan([2, 67, 9, 31], [7, 7], [2, 2], [1, 2], [3, 7, 3, 5]),
             plan([1, 67, 3, 17], [1, 1], [1, 1], [1, 1], [0; 4]),
         ] {
             if p.kh == 1 && p.kw == 1 {
@@ -615,6 +687,60 @@ mod tests {
             let residual = values(p.batch * p.oh * p.ow * p.cout, 11);
             check(&p, true, &ResidualRelu(&residual));
         }
+    }
+
+    #[test]
+    fn neon_depthwise_selects_bounded_strips_only_for_large_unit_stride_9x9_planes() {
+        let p = plan([1, 256, 64, 80], [9, 9], [1, 1], [1, 1], [4; 4]);
+        assert!(use_bounded_strip(&p));
+        assert_eq!(
+            crate::runtime::nhwc::selection(&BoundKind::Conv(p.clone()), Backend::NeonFma, true),
+            ("nhwc_depthwise_neon_strip64", Backend::NeonFma)
+        );
+        for field in 0..9 {
+            let mut excluded = p.clone();
+            match field {
+                0 => excluded.kh = 7,
+                1 => excluded.kw = 7,
+                2 => excluded.cout = 255,
+                3 => excluded.oh = 63,
+                4 => excluded.ow = 63,
+                5 => excluded.sh = 2,
+                6 => excluded.sw = 2,
+                7 => excluded.dh = 2,
+                8 => excluded.dw = 2,
+                _ => unreachable!(),
+            }
+            assert!(!use_bounded_strip(&excluded), "excluded field {field}");
+        }
+
+        let input = values(p.batch * p.height * p.width * p.cin, 3);
+        let weights = values(p.cout * p.kh * p.kw, 5);
+        let bias = values(p.cout, 7);
+        let packed = pack(&p, &weights);
+        let mut expected = vec![0.; p.batch * p.oh * p.ow * p.cout];
+        let mut actual = expected.clone();
+        assert!(try_execute_policy::<false, 0>(
+            &p,
+            &input,
+            &weights,
+            &bias,
+            Some(&packed),
+            &mut expected,
+            0,
+            &IdentityStore,
+        ));
+        assert!(try_execute(
+            &p,
+            &input,
+            &weights,
+            &bias,
+            Some(&packed),
+            &mut actual,
+            0,
+            &IdentityStore,
+        ));
+        assert_bits(&actual, &expected);
     }
 
     #[test]

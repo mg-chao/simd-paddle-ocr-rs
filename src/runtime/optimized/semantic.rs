@@ -31,19 +31,6 @@ pub(super) fn groups(
         return Vec::new();
     }
     let nodes = &compiled.instructions[..count];
-    let tensors = logical.shapes.len();
-    let mut consumer = vec![None; tensors];
-    let mut repeated = vec![false; tensors];
-    let mut producer = vec![None; tensors];
-    for (index, node) in nodes.iter().enumerate() {
-        producer[node.output.0] = Some(index);
-        for &input in &node.inputs {
-            if consumer[input.0].replace(index).is_some() {
-                // Two uses in one Add are a self-add, and also prevent fusion.
-                repeated[input.0] = true;
-            }
-        }
-    }
     let mut occupied = vec![false; count];
     let mut result = Vec::new();
     for (start, base) in nodes.iter().enumerate() {
@@ -59,8 +46,10 @@ pub(super) fn groups(
             epilogues: Vec::new(),
         };
         let mut current = base.output;
-        while current != selected && !repeated[current.0] {
-            let Some(next) = consumer[current.0] else {
+        while current != selected {
+            // Duplicate operands and later branches count as separate uses;
+            // consumers beyond the selected execution prefix do not.
+            let Some(next) = compiled.graph_uses.unique_consumer(current, count) else {
                 break;
             };
             if next <= group.end || occupied[next] {
@@ -78,7 +67,9 @@ pub(super) fn groups(
                         break;
                     };
                     if other == current
-                        || producer[other.0]
+                        || compiled
+                            .graph_uses
+                            .producer(other)
                             .is_some_and(|p| p >= next || group.members.contains(&p))
                         || !compatible_add(compiled, logical, other, output_shape)
                     {

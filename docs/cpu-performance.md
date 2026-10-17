@@ -145,3 +145,8 @@ These raw-tensor graph measurements are separate from OCR latency. Recognition
 graphs run the full dense head, while production OCR normally uses compact CTC
 projection. The [2026-10-17 adoption record](windows-cpu-validation.md#nhwc-concatenation-and-binary-alias-adoption-2026-10-17)
 preserves both graph and real OCR comparisons, including their differing results.
+
+The [ARM64 follow-up record](macos-arm64-followup-optimization.md) covers selective
+9x9 depthwise row strips, SIMD detector threshold output, and shared graph-use
+indexes. It separates fixed-count stage diagnostics from a twelve-cell comparison
+against the frozen Rust baseline and preserves overlapping timing ranges.

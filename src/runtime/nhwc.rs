@@ -219,6 +219,17 @@ pub(super) fn selection(
     backend: Backend,
     packed: bool,
 ) -> (&'static str, Backend) {
+    #[cfg(target_arch = "aarch64")]
+    if let BoundKind::Conv(p) = kind
+        && backend == Backend::NeonFma
+        && packed
+        && p.cpg == 1
+        && p.cout == p.cin
+        && p.opg == 1
+        && neon_depthwise::use_bounded_strip(p)
+    {
+        return ("nhwc_depthwise_neon_strip64", backend);
+    }
     match kind {
         BoundKind::Conv(p) if p.cpg == 1 && p.cout == p.cin && p.opg == 1 => (
             if backend == Backend::NeonFma && packed && p.cout >= 32 {

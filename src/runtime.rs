@@ -265,12 +265,70 @@ enum Op {
     },
 }
 
+/// Shape-independent dataflow shared by every session and shape binding.
+/// Consumers are stored in source order, including repeated operands such as
+/// Add(x, x), so prefix queries retain the same exclusivity rules as a scan.
+struct GraphUses {
+    offsets: Vec<usize>,
+    consumers: Vec<usize>,
+    producers: Vec<usize>,
+}
+impl GraphUses {
+    fn new(instructions: &[Instruction], tensors: usize) -> Self {
+        let mut offsets = vec![0; tensors + 1];
+        for instruction in instructions {
+            for input in &instruction.inputs {
+                offsets[input.0 + 1] += 1;
+            }
+        }
+        for index in 1..offsets.len() {
+            offsets[index] += offsets[index - 1];
+        }
+        let mut consumers = vec![0; offsets[tensors]];
+        let mut cursor = offsets[..tensors].to_vec();
+        let mut producers = vec![usize::MAX; tensors];
+        for (index, instruction) in instructions.iter().enumerate() {
+            producers[instruction.output.0] = index;
+            for input in &instruction.inputs {
+                consumers[cursor[input.0]] = index;
+                cursor[input.0] += 1;
+            }
+        }
+        Self {
+            offsets,
+            consumers,
+            producers,
+        }
+    }
+    fn consumers(&self, id: TensorId) -> &[usize] {
+        &self.consumers[self.offsets[id.0]..self.offsets[id.0 + 1]]
+    }
+    fn producer(&self, id: TensorId) -> Option<usize> {
+        let index = self.producers[id.0];
+        (index != usize::MAX).then_some(index)
+    }
+    fn unique_consumer(&self, id: TensorId, count: usize) -> Option<usize> {
+        let (first, rest) = self.consumers(id).split_first()?;
+        if *first >= count || rest.first().is_some_and(|&next| next < count) {
+            None
+        } else {
+            Some(*first)
+        }
+    }
+    fn used_after(&self, id: TensorId, end: usize, count: usize) -> bool {
+        let uses = self.consumers(id);
+        let after = uses.partition_point(|&index| index <= end);
+        uses.get(after).is_some_and(|&index| index < count)
+    }
+}
+
 /// Immutable instructions over one owned model; constants are never copied.
 pub struct CompiledModel {
     model: Arc<Model>,
     instructions: Vec<Instruction>,
     shape_program: ShapeProgram,
     last_use: Vec<isize>,
+    graph_uses: GraphUses,
     input: TensorId,
     output: TensorId,
     options: CompileOptions,
@@ -343,11 +401,13 @@ impl CompiledModel {
         }
         last_use[output.0] = graph.nodes.len() as isize;
         let shape_program = ShapeProgram::compile(&model)?;
+        let graph_uses = GraphUses::new(&instructions, graph.tensors.len());
         let mut compiled = Self {
             model,
             instructions,
             shape_program,
             last_use,
+            graph_uses,
             input,
             output,
             options,

@@ -131,6 +131,73 @@ fn adjacent_use_checks_include_consumers_after_a_reserved_boundary() {
 }
 
 #[test]
+fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
+    let mut parts = constants();
+    parts.extend([
+        node("Conv", &["x", "w"], "c", attr("kernel_shape", &[1, 1])),
+        node("Mul", &["x", "scale"], "gap", vec![]),
+        node("Add", &["c", "bias"], "biased", vec![]),
+        node("Relu", &["biased"], "activated", vec![]),
+        node("Add", &["c", "activated"], "joined", vec![]),
+        node("Add", &["joined", "gap"], "y", vec![]),
+    ]);
+    let model = model(parts, &[-1, 2, -1, -1], &[-1, 2, -1, -1]);
+    let values = input();
+    let mut reference = session(model.clone(), CompileOptions::reference(), &INPUT_SHAPE);
+    let mut expected = Vec::new();
+    reference
+        .run_with_trace(&values, |event| {
+            expected.push(event.values.to_vec());
+            Ok(())
+        })
+        .unwrap();
+    for options in options() {
+        let compiled = Arc::new(CompiledModel::compile(model.clone(), options).unwrap());
+        let mut full =
+            Session::new_serial(compiled.clone(), &INPUT_SHAPE, ExecutionLimits::default())
+                .unwrap();
+        let mut prefix = Session::new_prefix(
+            compiled.clone(),
+            &INPUT_SHAPE,
+            ExecutionLimits::default(),
+            3,
+        )
+        .unwrap();
+        // The suffix's second use of c prevents full-graph fusion, but must
+        // not prevent the prefix from fusing Conv -> Add -> Relu across a gap.
+        assert!(Arc::ptr_eq(&full.compiled, &prefix.compiled));
+        assert_eq!(full.statistics().fused_nodes, 0);
+        assert_eq!(prefix.statistics().fused_nodes, 2);
+        compare(&expected[5], full.run(&values).unwrap().data());
+        compare(&expected[3], prefix.run(&values).unwrap().data());
+
+        // A selected intermediate remains available even when binding more
+        // instructions than its producer; do not absorb it into an epilogue.
+        let selected = compiled.instructions[2].output;
+        let mut selected_session = Session::new_selected(
+            compiled.clone(),
+            &INPUT_SHAPE,
+            ExecutionLimits::default(),
+            4,
+            selected,
+        )
+        .unwrap();
+        assert_eq!(selected_session.statistics().fused_nodes, 1);
+        compare(&expected[2], selected_session.run(&values).unwrap().data());
+        let graph_before = format!("{:?}", compiled.model.graph());
+        let mut traced = 0;
+        full.run_with_trace(&values, |event| {
+            compare(&expected[event.index], event.values);
+            traced += 1;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(traced, expected.len());
+        assert_eq!(graph_before, format!("{:?}", compiled.model.graph()));
+    }
+}
+
+#[test]
 fn externally_consumed_gapped_intermediates_remain_materialized() {
     let mut parts = constants();
     parts.extend([

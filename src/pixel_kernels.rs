@@ -524,7 +524,14 @@ pub(crate) fn binarize(
     if kernel == PixelKernel::Scalar {
         binarize_scalar(prediction, bitmap, threshold)
     } else {
-        binarize_vector::<4>(prediction, bitmap, threshold)
+        #[cfg(target_arch = "aarch64")]
+        {
+            binarize_portable(prediction, bitmap, threshold)
+        }
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            binarize_vector::<4>(prediction, bitmap, threshold)
+        }
     }
 }
 fn binarize_scalar(prediction: &[f32], bitmap: &mut [u8], threshold: f32) -> ImageResult<bool> {
@@ -540,6 +547,92 @@ fn binarize_scalar(prediction: &[f32], bitmap: &mut [u8], threshold: f32) -> Ima
     }
     Ok(any)
 }
+// Each index expands eight comparison bits into eight 0/1 bytes. Byte arrays
+// keep the lane order independent of the machine's integer endianness.
+#[cfg(test)]
+const BITMAP_MASK_EXPAND: [[u8; 8]; 256] = {
+    let mut table = [[0; 8]; 256];
+    let mut mask = 0;
+    while mask < table.len() {
+        let mut lane = 0;
+        while lane < 8 {
+            table[mask][lane] = ((mask >> lane) & 1) as u8;
+            lane += 1;
+        }
+        mask += 1;
+    }
+    table
+};
+
+#[cfg(test)]
+#[inline(always)]
+fn store_bitmap_mask<const N: usize>(bitmap: &mut [u8], mask: u64) {
+    // The concrete callers use 4, 8, or 16 lanes. The four-lane form is also
+    // useful for comparing this lookup path with portable byte-mask stores.
+    if N == 4 {
+        bitmap[..4].copy_from_slice(&BITMAP_MASK_EXPAND[(mask & 15) as usize][..4]);
+    } else {
+        for offset in (0..N).step_by(8) {
+            let bytes = &BITMAP_MASK_EXPAND[((mask >> offset) & 255) as usize];
+            bitmap[offset..offset + 8].copy_from_slice(bytes);
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline(always)]
+fn binarize_portable(prediction: &[f32], bitmap: &mut [u8], threshold: f32) -> ImageResult<bool> {
+    let end = prediction.len() / 4 * 4;
+    let mut any = std::simd::Mask::<i32, 4>::splat(false);
+    let mut invalid = std::simd::Mask::<i32, 4>::splat(false);
+    for offset in (0..end).step_by(4) {
+        let values = Simd::<f32, 4>::from_slice(&prediction[offset..offset + 4]);
+        invalid |= !values.is_finite();
+        let mask = values.simd_gt(Simd::splat(threshold));
+        any |= mask;
+        // NEON can narrow four comparison lanes directly to bytes. Retaining
+        // masks in SIMD registers also avoids a scalar bitmask extraction on
+        // every group of four detector pixels.
+        mask.cast::<i8>()
+            .select(Simd::<u8, 4>::splat(1), Simd::splat(0))
+            .copy_to_slice(&mut bitmap[offset..offset + 4]);
+    }
+    if invalid.any() {
+        return Err(ImageError::new(
+            "detector output contains a nonfinite value",
+        ));
+    }
+    Ok(binarize_scalar(&prediction[end..], &mut bitmap[end..], threshold)? || any.any())
+}
+
+#[cfg(test)]
+#[inline(always)]
+fn binarize_packed_vector<const N: usize>(
+    prediction: &[f32],
+    bitmap: &mut [u8],
+    threshold: f32,
+) -> ImageResult<bool> {
+    let end = prediction.len() / N * N;
+    let mut any = false;
+    let mut invalid = std::simd::Mask::<i32, N>::splat(false);
+    for offset in (0..end).step_by(N) {
+        let values = Simd::<f32, N>::from_slice(&prediction[offset..offset + N]);
+        invalid |= !values.is_finite();
+        let mask = values.simd_gt(Simd::splat(threshold)).to_bitmask();
+        any |= mask != 0;
+        store_bitmap_mask::<N>(&mut bitmap[offset..offset + N], mask);
+    }
+    // Keep validity checks in SIMD registers throughout the map traversal.
+    if invalid.any() {
+        return Err(ImageError::new(
+            "detector output contains a nonfinite value",
+        ));
+    }
+    Ok(binarize_scalar(&prediction[end..], &mut bitmap[end..], threshold)? || any)
+}
+// Preserve the established implementations on CPUs not measured by the
+// ARM64 optimization diagnostic.
+#[cfg(not(target_arch = "aarch64"))]
 #[inline(always)]
 fn binarize_vector<const N: usize>(
     prediction: &[f32],
@@ -1037,3 +1130,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "pixel_kernels/threshold_tests.rs"]
+mod threshold_tests;

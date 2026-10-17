@@ -271,10 +271,12 @@ fn closed(
         if instruction.output == selected {
             return false;
         }
-        if compiled.instructions[..first]
-            .iter()
-            .chain(compiled.instructions[end + 1..count].iter())
-            .any(|n| n.inputs.contains(&instruction.output))
+        // Compilation validates source order: a produced tensor cannot have a
+        // consumer before this group. Only later uses inside this execution
+        // prefix can require an intermediate to remain materialized.
+        if compiled
+            .graph_uses
+            .used_after(instruction.output, end, count)
         {
             return false;
         }

@@ -3,6 +3,57 @@
 use super::*;
 
 #[test]
+#[ignore = "local release diagnostic: two recognition shapes, one warm-up and three fixed samples"]
+fn cold_physical_plan_bind() {
+    const CALLS: usize = 16;
+    let deadline = std::time::Instant::now();
+    for (model, width) in [("small", 128), ("medium", 640)] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../SimdPaddleOCR/models")
+            .join(format!("{model}_rec.onnx"));
+        let compiled = CompiledModel::new(Arc::new(Model::load_path(&path).unwrap())).unwrap();
+        let logical = bind(&compiled, &[1, 3, 48, width], ExecutionLimits::default()).unwrap();
+        let count = compiled.instructions.len();
+        // Only physical planning is timed. Compilation, weight packing, shape
+        // propagation and arena allocation are outside every measured sample.
+        let warmup = Plan::bind(&compiled, &logical, count, compiled.output).unwrap();
+        let expected = (warmup.steps.len(), warmup.fused, warmup.elements);
+        std::hint::black_box(warmup);
+        let mut sample_ns = [0u128; 3];
+        for elapsed in &mut sample_ns {
+            let started = std::time::Instant::now();
+            for _ in 0..CALLS {
+                let plan = Plan::bind(&compiled, &logical, count, compiled.output).unwrap();
+                assert_eq!((plan.steps.len(), plan.fused, plan.elements), expected);
+                std::hint::black_box(plan);
+            }
+            *elapsed = started.elapsed().as_nanos();
+            assert!(
+                deadline.elapsed() < std::time::Duration::from_secs(30),
+                "fixed physical-planning diagnostic exceeded thirty seconds"
+            );
+        }
+        println!(
+            "cold_physical_plan_bind {}",
+            serde_json::json!({
+                "model": model,
+                "width": width,
+                "backend": format!("{:?}", compiled.backend),
+                "nodes": count,
+                "physical_steps": expected.0,
+                "fused_nodes": expected.1,
+                "warmup_calls": 1,
+                "measured_samples": 3,
+                "calls_per_sample": CALLS,
+                "sample_ns": sample_ns,
+                "ns_per_bind": sample_ns.map(|ns| ns as f64 / CALLS as f64),
+                "measured_inference_runs": 0,
+            })
+        );
+    }
+}
+
+#[test]
 #[ignore = "local release diagnostic: two recognition widths, one warm-up and one instrumented pass"]
 fn recognition_backbone_physical_steps() {
     #[cfg(windows)]
