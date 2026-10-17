@@ -181,6 +181,7 @@ fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
                         partial[tile..tile + ROWS].copy_from_slice(&sums);
                         continue;
                     }
+                    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
                     if let (Some(taps), Some(inputs)) = (&taps, fields[tile / ROWS].as_ref()) {
                         let panel =
                             &packed.data()[(block * inner + k0) * 16..(block * inner + end) * 16];

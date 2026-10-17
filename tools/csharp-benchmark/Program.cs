@@ -9,14 +9,19 @@ using Sdcb.SimdPaddleOCR;
 
 // No profiling switches, timers inside production code, image decode, or JSON work
 // in the measured region. The parent pins inputs, provenance, build, and deadlines.
-if (args.Length != 1 || !OperatingSystem.IsWindows() || !Environment.Is64BitProcess)
-    throw new ArgumentException("Benchmark requires Windows x64 and one job JSON path");
-JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
+JsonSerializerOptions json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+if (args.Length == 1 && args[0] == "--probe-process-metrics")
+{
+    Console.WriteLine(JsonSerializer.Serialize(ProcessMetrics.Probe(), json));
+    return;
+}
+if (args.Length != 1 || !ProcessMetrics.SupportedHost)
+    throw new ArgumentException("Benchmark requires Windows x64 or 64-bit macOS and one job JSON path");
 Job job = JsonSerializer.Deserialize<Job>(File.ReadAllBytes(args[0]), json)!;
 if (job.Threads is not (1 or 8) || job.Concurrency is not (1 or 2) || job.Runs is < 1 or > 3 || Environment.ProcessorCount != job.Threads)
     throw new InvalidDataException("invalid worker budget or DOTNET_PROCESSOR_COUNT");
 using Process benchmarkProcess = Process.GetCurrentProcess();
-benchmarkProcess.ProcessorAffinity = unchecked((IntPtr)(long)Convert.ToUInt64(job.Affinity, 16));
+ProcessMetrics.Configure(benchmarkProcess, job.Affinity, job.Threads);
 byte[] pixels = File.ReadAllBytes(job.Pixels);
 if (pixels.Length != checked(job.Width * job.Height * 3) || Convert.ToHexStringLower(SHA256.HashData(pixels)) != job.PixelSha256)
     throw new InvalidDataException("predecoded BGR24 integrity failure");
@@ -53,12 +58,12 @@ using PaddleOcrAll ocr = new(models, new PaddleOcrOptions
     },
 });
 double loadCompileMs = load.Elapsed.TotalMilliseconds;
-Console.Error.WriteLine($".NET={Environment.Version}; CPU={Environment.ProcessorCount}; line={ocr.EffectiveLineWorkerCount}; affinity={job.Affinity}; AVX2={System.Runtime.Intrinsics.X86.Avx2.IsSupported}; FMA={System.Runtime.Intrinsics.X86.Fma.IsSupported}; AVX512={System.Runtime.Intrinsics.X86.Avx512F.IsSupported}; owned CPU results; no profiling");
+Console.Error.WriteLine($".NET={Environment.Version}; architecture={RuntimeInformation.ProcessArchitecture}; CPU={Environment.ProcessorCount}; line={ocr.EffectiveLineWorkerCount}; affinity={job.Affinity}; AVX2={System.Runtime.Intrinsics.X86.Avx2.IsSupported}; FMA={System.Runtime.Intrinsics.X86.Fma.IsSupported}; AVX512={System.Runtime.Intrinsics.X86.Avx512F.IsSupported}; owned CPU results; no profiling");
 (double Milliseconds, double ProcessCpuMilliseconds, OwnedResult[] Results) Batch()
 {
     PaddleOcrResult[] results = new PaddleOcrResult[job.Concurrency];
     Exception? failure = null;
-    TimeSpan cpuStart = benchmarkProcess.TotalProcessorTime;
+    TimeSpan cpuStart = ProcessMetrics.ProcessCpuTime(benchmarkProcess);
     Stopwatch watch = Stopwatch.StartNew();
     if (job.Concurrency == 1) results[0] = ocr.Run(pixels, job.Width, job.Height, job.Width * 3, ImagePixelFormat.Bgr24);
     else
@@ -77,7 +82,7 @@ Console.Error.WriteLine($".NET={Environment.Version}; CPU={Environment.Processor
     // Rust's owned aggregate output, including the joined text string.
     OwnedResult[] owned = results.Select(result => new OwnedResult(result, result.Text)).ToArray();
     double elapsed = watch.Elapsed.TotalMilliseconds;
-    double cpuElapsed = (benchmarkProcess.TotalProcessorTime - cpuStart).TotalMilliseconds;
+    double cpuElapsed = (ProcessMetrics.ProcessCpuTime(benchmarkProcess) - cpuStart).TotalMilliseconds;
     if (!double.IsFinite(cpuElapsed) || cpuElapsed < 0) throw new InvalidDataException("invalid process CPU time");
     GC.KeepAlive(owned);
     return (elapsed, cpuElapsed, owned);
@@ -120,7 +125,7 @@ for (int index = 0; index < job.Runs; index++)
     finalResults = measured.Results;
 }
 // Capture official peak before reflection, projection, JSON or diagnostic allocation.
-ulong peakPrivateBytes = WindowsMemory.PeakCommit();
+var peak = ProcessMetrics.PeakMemory();
 object Project(OwnedResult owned)
 {
     PaddleOcrResult result = owned.Value;
@@ -142,32 +147,12 @@ Console.WriteLine(JsonSerializer.Serialize(new
     Language = "csharp", LoadCompileMs = loadCompileMs, FirstInferenceMs = firstInferenceMs, WarmupMs = warmupMs,
     SamplesMs = samplesMs,
     ProcessCpu = new { FirstInferenceMs = firstCpuMs, WarmupMs = warmupCpuMs, SamplesMs = samplesCpuMs },
-    PeakPrivateBytes = peakPrivateBytes, Diagnostics = diagnostics, Result = Project(finalResults[0]),
+    peak.PeakPrivateBytes, peak.PeakResidentBytes, Diagnostics = diagnostics, Result = Project(finalResults[0]),
 }, json));
 
 record Job(string Manifest, string Models, string Model, string Fixture, string Pixels, string PixelSha256,
     int Width, int Height, int Threads, int Concurrency, int Runs, string Affinity);
 record OwnedResult(PaddleOcrResult Value, string Text);
-
-static class WindowsMemory
-{
-    [StructLayout(LayoutKind.Sequential)]
-    struct Counters
-    {
-        public uint Size, Faults;
-        public nuint PeakWorkingSet, WorkingSet, PeakPagedPool, PagedPool, PeakNonpagedPool, NonpagedPool,
-            Pagefile, PeakPagefile, Private;
-    }
-    [DllImport("psapi.dll", SetLastError = true)]
-    static extern bool GetProcessMemoryInfo(IntPtr process, ref Counters counters, uint size);
-    public static ulong PeakCommit()
-    {
-        Counters counters = new() { Size = (uint)Marshal.SizeOf<Counters>() };
-        if (!GetProcessMemoryInfo(Process.GetCurrentProcess().Handle, ref counters, counters.Size))
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
-        return (ulong)counters.PeakPagefile;
-    }
-}
 
 // Pinned-reference diagnostics only: count reachable native activation capacities,
 // primitive request arrays and cached packs after all measured work. These are

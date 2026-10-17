@@ -30,7 +30,7 @@ fn main() {
     }
 }
 fn usage() -> &'static str {
-    "cargo run --release --locked --example cpu_benchmark -- [--model tiny|small|medium|all] [--threads 1|8|all] [--fixture ID[,ID]] [--workload latency|throughput|all] [--order balanced|rust-first|csharp-first] [--runs 1..3] [--budget-seconds N] [--case-timeout-seconds N] [--affinity HEX] [--models-dir PATH] [--reference-root PATH]\nDefaults: all models, 1 and 8 threads, three representative fixtures, both workloads, balanced canonical model/thread/fixture order, 3 samples, one warm-up, 60 seconds total per implementation (build excluded). Balanced order is independent of workload and filtering; a single case has one recorded order, not repeated processes. Full qualification requires an explicit larger bounded budget. Windows x64, standard release/default features, no profiling."
+    "cargo run --release --locked --example cpu_benchmark -- [--model tiny|small|medium|all] [--threads 1|8|all] [--fixture ID[,ID]] [--workload latency|throughput|all] [--order balanced|rust-first|csharp-first] [--runs 1..3] [--budget-seconds N] [--case-timeout-seconds N] [--affinity HEX] [--models-dir PATH] [--reference-root PATH]\nDefaults: all models, 1 and 8 threads, three representative fixtures, both workloads, balanced canonical model/thread/fixture order, 3 samples, one warm-up, 60 seconds total per implementation (build excluded). Balanced order is independent of workload and filtering; a single case has one recorded order, not repeated processes. Full qualification requires an explicit larger bounded budget. Windows x64 or 64-bit macOS; macOS uses unpinned scheduling and peak resident bytes; --affinity is Windows-only. Standard release/default features, no profiling."
 }
 fn run() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
@@ -42,8 +42,11 @@ fn run() -> Result<()> {
         let path = args.get(1).ok_or("missing worker job")?;
         return rust_worker(&read_json(Path::new(path))?);
     }
-    if !cfg!(all(windows, target_arch = "x86_64")) {
-        return Err("benchmark qualification requires physical Windows x64".into());
+    if !cfg!(any(
+        all(windows, target_arch = "x86_64"),
+        all(target_os = "macos", target_pointer_width = "64")
+    )) {
+        return Err("benchmark requires physical Windows x64 or 64-bit macOS".into());
     }
     if cfg!(debug_assertions) || !cfg!(feature = "parallel") || cfg!(feature = "profiling") {
         return Err("use --release, default features, and no profiling".into());
@@ -114,6 +117,11 @@ fn run() -> Result<()> {
     if !["tiny", "small", "medium", "all"].contains(&selected_model.as_str()) {
         return Err("unknown model".into());
     }
+    // Validate native scheduling before building adapters or launching any work.
+    let affinities = thread_counts
+        .iter()
+        .map(|&threads| benchmark::platform::affinity(threads, explicit_affinity))
+        .collect::<Result<Vec<_>>>()?;
     let manifest_path = root.join("tests/baseline/manifest.json");
     let manifest: Manifest = read_json(&manifest_path)?;
     manifest.validate()?;
@@ -138,11 +146,37 @@ fn run() -> Result<()> {
     );
     provenance.insert("manifest_sha256".into(), hash(&fs::read(&manifest_path)?));
     provenance.insert("csharp_head".into(), manifest.reference_commit.clone());
+    provenance.insert("cpu".into(), cpu_description()?);
     provenance.insert(
-        "cpu".into(),
-        std::env::var("PROCESSOR_IDENTIFIER").unwrap_or_default(),
+        "platform".into(),
+        format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
     );
-    provenance.insert("measurement".into(),"standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; peak process private commit before diagnostics".into());
+    provenance.insert(
+        "host_available_parallelism".into(),
+        std::thread::available_parallelism()?.to_string(),
+    );
+    provenance.insert("scheduling".into(), if cfg!(target_os = "macos") {
+        "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+    } else { "matched Windows process affinity masks" }.into());
+    provenance.insert("memory_metric".into(), if cfg!(target_os = "macos") {
+        "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages"
+    } else { "peak private commit: GetProcessMemoryInfo.PeakPagefileUsage in both workers" }.into());
+    provenance.insert("measurement".into(),"standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics".into());
+    #[cfg(target_os = "macos")]
+    {
+        provenance.insert(
+            "macos_version".into(),
+            harness::command_text(&mut Command::new("sw_vers"))?,
+        );
+        provenance.insert(
+            "power_source".into(),
+            harness::command_text(Command::new("pmset").args(["-g", "batt"]))?,
+        );
+        provenance.insert(
+            "power_settings".into(),
+            harness::command_text(Command::new("pmset").args(["-g", "custom"]))?,
+        );
+    }
     provenance.insert("case_timeout_seconds".into(), timeout.to_string());
     provenance.insert(
         "execution_order_strategy".into(),
@@ -154,7 +188,8 @@ fn run() -> Result<()> {
     );
     provenance.insert(
         "process_cpu_measurement".into(),
-        "GetProcessTimes kernel+user across all process threads for each first/warm/measured batch; diagnostic only; one warm-up does not establish steady state".into(),
+        if cfg!(target_os = "macos") { "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only" }
+        else { "GetProcessTimes kernel+user across all process threads for each first/warm/measured batch; diagnostic only" }.into(),
     );
     for (name, program, arguments) in [
         ("rustc", "rustc", vec!["-Vv"]),
@@ -174,22 +209,13 @@ fn run() -> Result<()> {
                 .current_dir(root.join("tools/csharp-benchmark")),
         )?,
     );
-    #[cfg(windows)]
-    let available = benchmark::windows::allowed_affinity()?;
-    #[cfg(not(windows))]
-    let available = 0;
     let mut cases = vec![];
     for model in manifest
         .models
         .iter()
         .filter(|m| selected_model == "all" || m.id == selected_model)
     {
-        for &threads in &thread_counts {
-            let affinity =
-                explicit_affinity.unwrap_or(benchmark::select_affinity(available, threads)?);
-            if affinity & !available != 0 {
-                return Err("explicit affinity is outside the parent process affinity".into());
-            }
+        for (&threads, affinity) in thread_counts.iter().zip(&affinities) {
             for fixture in &fixtures {
                 let frame = frames
                     .iter()
@@ -210,7 +236,7 @@ fn run() -> Result<()> {
                         threads,
                         concurrency,
                         runs,
-                        affinity: format!("{affinity:x}"),
+                        affinity: affinity.clone(),
                     };
                     job.validate()?;
                     let languages = order_strategy.languages(&job)?;
@@ -223,7 +249,7 @@ fn run() -> Result<()> {
         }
     }
     let mut report = Report {
-        schema_version: 1,
+        schema_version: 2,
         status: "inconclusive".into(),
         provenance,
         budget_seconds_per_language: budget,
@@ -354,6 +380,18 @@ fn source_tree_hash(root: &Path) -> Result<String> {
         ],
     )
 }
+fn cpu_description() -> Result<String> {
+    #[cfg(target_os = "macos")]
+    {
+        return harness::command_text(
+            Command::new("/usr/sbin/sysctl").args(["-n", "machdep.cpu.brand_string"]),
+        );
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(std::env::var("PROCESSOR_IDENTIFIER").unwrap_or_default())
+    }
+}
 fn run_worker(
     command: &mut Command,
     output: &Path,
@@ -399,10 +437,7 @@ fn run_worker(
 }
 fn rust_worker(job: &Job) -> Result<()> {
     job.validate()?;
-    #[cfg(windows)]
-    benchmark::windows::set_affinity(u64::from_str_radix(&job.affinity, 16)?)?;
-    #[cfg(not(windows))]
-    return Err("Windows worker required".into());
+    benchmark::platform::configure(&job.affinity)?;
     let pixels = fs::read(&job.pixels)?;
     if hash(&pixels) != job.pixel_sha256 || pixels.len() != job.width * job.height * 3 {
         return Err("predecoded BGR24 integrity failure".into());
@@ -472,8 +507,7 @@ fn rust_worker(job: &Job) -> Result<()> {
         PixelFormat::Bgr24,
     )?;
     let batch = |requests: &mut Vec<simd_paddle_ocr_rs::ocr::Ocr>| -> Result<_> {
-        #[cfg(windows)]
-        let cpu_start = benchmark::windows::process_cpu_time()?;
+        let cpu_start = benchmark::platform::process_cpu_time()?;
         let start = Instant::now();
         let results = if requests.len() == 1 {
             vec![requests[0].run(image, false)?.try_to_owned()?]
@@ -501,14 +535,11 @@ fn rust_worker(job: &Job) -> Result<()> {
             })?
         };
         let elapsed = start.elapsed().as_secs_f64() * 1000.;
-        #[cfg(windows)]
-        let cpu_elapsed = benchmark::windows::process_cpu_time()?
+        let cpu_elapsed = benchmark::platform::process_cpu_time()?
             .checked_sub(cpu_start)
             .ok_or("process CPU time moved backwards")?
             .as_secs_f64()
             * 1000.;
-        #[cfg(not(windows))]
-        let cpu_elapsed = 0.;
         for result in &results {
             std::hint::black_box(result);
         }
@@ -537,10 +568,7 @@ fn rust_worker(job: &Job) -> Result<()> {
         samples_cpu_ms.push(cpu_elapsed);
         final_results = results;
     }
-    #[cfg(windows)]
-    let peak_private_bytes = benchmark::windows::peak_private()?;
-    #[cfg(not(windows))]
-    let peak_private_bytes = 0;
+    let (peak_private_bytes, peak_resident_bytes) = benchmark::platform::peak_memory()?;
     let mut diagnostics = BTreeMap::new();
     let models = std::iter::once(counters.detection.as_ref())
         .chain(std::iter::once(counters.recognition.as_ref()))
@@ -612,6 +640,7 @@ fn rust_worker(job: &Job) -> Result<()> {
             samples_ms: samples_cpu_ms,
         }),
         peak_private_bytes,
+        peak_resident_bytes,
         diagnostics,
         result,
     };

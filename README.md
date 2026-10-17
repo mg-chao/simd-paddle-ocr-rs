@@ -5,6 +5,10 @@ dispatch. Detection, perspective cropping, optional orientation classification,
 CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 The pinned `nightly-2026-09-08` toolchain is selected by `rust-toolchain.toml`.
 
+For native Apple Silicon setup, OCR commands, and local correctness checks, see
+[macOS CPU support](docs/macos-cpu-validation.md). Automatic dispatch uses the
+four-lane portable SIMD backend on ARM64; no Rosetta or GPU runtime is required.
+
 ## Run OCR
 
 Acquire the shipped model files from the pinned reference checkout, then run
@@ -49,6 +53,10 @@ performance parity claim.
 
 Recorded local checks and completion status are in
 [Windows CPU validation](docs/windows-cpu-validation.md).
+
+The benchmark also supports macOS with native CPU-time and peak-resident-memory
+counters. See the [focused Apple M4 comparison](docs/macos-cpu-performance.md)
+for measured Rust/C# latency, memory, sample counts, and scheduling limits.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

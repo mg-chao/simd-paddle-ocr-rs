@@ -222,6 +222,7 @@ tile_kernel!(tile_fma, "avx,fma", true);
 
 /// The AVX policies use two eight-lane vectors per row. Keep each broadcast
 /// next to both updates instead of keeping six broadcasts live across halves.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 fn wide<const LANES: usize, const FUSED: bool>(
@@ -239,6 +240,7 @@ fn wide<const LANES: usize, const FUSED: bool>(
 
 /// A zero fixed group selects production's shape policy. Test-only controls
 /// instantiate 48 directly; the six-row ISA reduction remains the same leaf.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>(

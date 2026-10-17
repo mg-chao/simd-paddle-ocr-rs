@@ -199,6 +199,7 @@ impl Taps {
     }
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[inline(always)]
 fn multiply_add<const LANES: usize, const FUSED: bool>(
     value: Simd<f32, LANES>,
@@ -213,6 +214,7 @@ fn multiply_add<const LANES: usize, const FUSED: bool>(
 }
 
 /// Called only from the guarded eight-lane AVX dense entry points.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[inline(always)]
 pub(super) unsafe fn accumulate<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
     inputs: &TileInputs<'_>,
@@ -333,6 +335,7 @@ pub(super) unsafe fn accumulate_portable<const LANES: usize, const OFFSET: usize
 
 macro_rules! tile {
     ($name:ident, $features:literal, $fused:literal) => {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         #[target_feature(enable = $features)]
         #[inline(never)]
         unsafe fn $name<const LANES: usize, const VECTORS: usize, R: Reader>(

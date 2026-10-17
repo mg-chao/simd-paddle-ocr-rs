@@ -3944,6 +3944,24 @@ mod tests {
         );
     }
 
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    #[test]
+    fn non_x86_auto_uses_portable_simd_and_rejects_all_x86_policies() {
+        assert_eq!(select_backend(KernelPolicy::Auto), Ok(Backend::Portable4));
+        assert_eq!(
+            select_backend(KernelPolicy::Portable4),
+            Ok(Backend::Portable4)
+        );
+        for policy in [
+            KernelPolicy::Avx,
+            KernelPolicy::AvxFma,
+            KernelPolicy::Avx2Fma,
+            KernelPolicy::Avx512,
+        ] {
+            assert!(select_backend(policy).is_err(), "{policy:?}");
+        }
+    }
+
     #[test]
     fn isa_ladder_forcing_and_projection_shape_guards_are_explicit() {
         for (features, expected) in [

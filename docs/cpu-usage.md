@@ -7,6 +7,9 @@ Correctness qualification and performance qualification are separate; consult
 the [baseline guide](cpu-baseline.md) for recorded validation and reproducible
 comparison commands.
 
+Native Apple Silicon setup and local verification are documented in
+[macOS CPU support](macos-cpu-validation.md).
+
 ## Toolchain and model files
 
 Build with `nightly-2026-09-08`, pinned in `rust-toolchain.toml`, because the
@@ -242,5 +245,7 @@ Default recognition is height 48 with adaptive width rounded up to 32 and no
 320-pixel upper cap. Use `RecognizerOptions { adaptive_width: false,
 target_width: 320, ..Default::default() }` for fixed width. The default detector
 limit is 960 and its inferred box threshold is 0.4 for tiny, 0.45 for the other
-shipped bundles. AVX-512 and additional platforms require their own physical
-machine qualification; the Windows x64 gate does not establish those results.
+shipped bundles. Each CPU/backend and operating system requires its own physical
+machine qualification; the Windows x64 gate does not establish macOS or AVX-512
+results. See [macOS CPU support](macos-cpu-validation.md) for the Apple Silicon
+validation scope.
