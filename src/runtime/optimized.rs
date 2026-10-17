@@ -1018,18 +1018,18 @@ impl State {
                     kind: BoundKind::Conv(p),
                     ..
                 } = &step.op
-                && nhwc::packed_pointwise_eligible(
-                    compiled.backend,
-                    p,
-                    compiled.conv_packed.contains_key(index),
-                )
+                && compiled.conv_packed.contains_key(index)
             {
-                tile_elements = tile_elements.max(nhwc::pointwise::sme_scratch_elements(
-                    compiled.backend,
-                    p.batch * p.oh * p.ow,
-                    p.cin,
-                    p.cout,
-                ));
+                if nhwc::packed_pointwise_eligible(compiled.backend, p, true) {
+                    tile_elements = tile_elements.max(nhwc::pointwise::sme_scratch_elements(
+                        compiled.backend,
+                        p.batch * p.oh * p.ow,
+                        p.cin,
+                        p.cout,
+                    ));
+                }
+                tile_elements =
+                    tile_elements.max(nhwc::dense::sme_scratch_elements(compiled.backend, p));
             }
             if step
                 .inputs

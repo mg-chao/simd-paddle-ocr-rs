@@ -1,13 +1,13 @@
 use super::*;
 use std::simd::num::SimdFloat;
 
-fn values(length: usize, seed: usize) -> Vec<f32> {
+pub(super) fn values(length: usize, seed: usize) -> Vec<f32> {
     (0..length)
         .map(|i| ((i * 31 + seed * 17) % 103) as f32 / 79. - 0.625)
         .collect()
 }
 
-fn plan(cin: usize, cout: usize, kernel: usize, dilation: usize) -> Conv {
+pub(super) fn plan(cin: usize, cout: usize, kernel: usize, dilation: usize) -> Conv {
     let padding = (kernel - 1) * dilation / 2;
     Conv {
         batch: 2,
@@ -30,7 +30,7 @@ fn plan(cin: usize, cout: usize, kernel: usize, dilation: usize) -> Conv {
     }
 }
 
-fn pack(p: &Conv, weights: &[f32]) -> PackedMatrix {
+pub(super) fn pack(p: &Conv, weights: &[f32]) -> PackedMatrix {
     let inner = p.cin * p.kh * p.kw;
     let matrix = (0..inner * p.cout)
         .map(|index| weights[index % p.cout * inner + index / p.cout])
@@ -40,7 +40,7 @@ fn pack(p: &Conv, weights: &[f32]) -> PackedMatrix {
 
 // Independent logical convolution, with bias first and an ascending
 // IC/KY/KX FMA chain. Production readers and packed panels are not involved.
-fn oracle(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32]) -> Vec<f32> {
+pub(super) fn oracle(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32]) -> Vec<f32> {
     let mut result = vec![0.; p.batch * p.oh * p.ow * p.cout];
     for n in 0..p.batch {
         for y in 0..p.oh {
@@ -76,7 +76,7 @@ fn oracle(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32]) -> Vec<f32> {
     result
 }
 
-fn assert_bits(actual: &[f32], expected: &[f32]) {
+pub(super) fn assert_bits(actual: &[f32], expected: &[f32]) {
     assert_eq!(actual.len(), expected.len());
     for (index, (actual, expected)) in actual.iter().zip(expected).enumerate() {
         assert_eq!(actual.to_bits(), expected.to_bits(), "index={index}");

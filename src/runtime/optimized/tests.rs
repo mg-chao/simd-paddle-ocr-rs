@@ -3,6 +3,8 @@ mod alias;
 mod concat;
 mod elementwise_alias;
 mod nchw_epilogue;
+#[cfg(target_arch = "aarch64")]
+mod neon_epilogue;
 mod performance;
 mod placement;
 mod selection_policy;

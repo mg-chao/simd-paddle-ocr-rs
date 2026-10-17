@@ -303,6 +303,7 @@ fn selected_activation_math_reaches_bound_generic_and_tail_stores() {
     ];
     for policy in [
         simd::KernelPolicy::Portable4,
+        simd::KernelPolicy::NeonFma,
         simd::KernelPolicy::Avx,
         simd::KernelPolicy::AvxFma,
         simd::KernelPolicy::Avx2Fma,
@@ -311,7 +312,9 @@ fn selected_activation_math_reaches_bound_generic_and_tail_stores() {
         let Ok(backend) = simd::select_backend(policy) else {
             continue;
         };
-        let (positive, negative) = if backend.uses_fma() {
+        // NEON preserves the reference's nonfused Erf polynomial even though
+        // its convolution reductions use FMA.
+        let (positive, negative) = if backend.uses_fma() && backend != simd::Backend::NeonFma {
             (0x3ef0a176, 0xbe2aef68)
         } else {
             (0x3ef0a177, 0xbe2aef66)

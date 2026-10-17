@@ -7,7 +7,7 @@ use super::simd::StoreTransform;
 use super::*;
 use std::simd::{Simd, StdFloat};
 mod concat;
-mod dense;
+pub(super) mod dense;
 mod misc;
 #[cfg(target_arch = "aarch64")]
 mod neon_depthwise;
@@ -273,7 +273,9 @@ pub(super) fn selection(
                     "nhwc_pointwise_6x16_group8"
                 }
             } else {
-                if backend == Backend::Portable4 {
+                if dense::sme_scratch_elements(backend, p) > 0 {
+                    "nhwc_dense_sme32x32_or_neon"
+                } else if backend == Backend::Portable4 {
                     "nhwc_dense_6x8_pair2_k512"
                 } else {
                     "nhwc_dense_6x16_k512"
@@ -415,6 +417,22 @@ pub(super) fn execute<'a>(
                     threads.max(1).min(workspaces.len()),
                     store,
                 );
+                return Ok(());
+            }
+            if let Some(panel) = packed
+                && dense::try_sme(
+                    compiled.backend,
+                    p,
+                    a,
+                    bias,
+                    panel,
+                    out,
+                    cpu,
+                    threads.max(1).min(workspaces.len()),
+                    workspaces,
+                    store,
+                )
+            {
                 return Ok(());
             }
             let workers = conv_row_workers(p, threads.min(cpu.capacity()).min(workspaces.len()));

@@ -22,7 +22,7 @@ fn policies() -> Vec<KernelPolicy> {
     }
     policies
 }
-fn input_layout_at(request: &Session, index: usize) -> Layout {
+pub(super) fn input_layout_at(request: &Session, index: usize) -> Layout {
     let state = request.optimized.as_ref().unwrap();
     let step = state
         .plan
@@ -466,12 +466,21 @@ fn check_neon_narrow_session(cin: usize, cout: usize, kernel: usize, stride: usi
     let mut fused = request(true);
     assert_eq!(input_layout_at(&fused, 2), Layout::Nhwc);
     assert_eq!(fused.statistics().store_fused_steps, 1);
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    let spatial_sme = kernel == 3 && std::arch::is_aarch64_feature_detected!("sme");
+    #[cfg(not(all(target_arch = "aarch64", target_os = "macos")))]
+    let spatial_sme = false;
+    let family = if spatial_sme {
+        "nhwc_dense_sme32x32_or_neon"
+    } else {
+        "nhwc_dense_6x16_k512"
+    };
     assert!(
         fused
             .statistics()
             .specialized_kernels
             .iter()
-            .any(|kernel| { kernel.family == "nhwc_dense_6x16_k512" && kernel.store_fused })
+            .any(|kernel| kernel.family == family && kernel.store_fused)
     );
     let input = values(batch * cin * height * width, 19);
     for budget in [1, 2] {
@@ -963,5 +972,78 @@ fn sme_convolution_reserves_reuses_and_accounts_for_request_scratch() {
             );
             assert!(request.retained_scratch_bytes() >= retained);
         }
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+#[test]
+fn spatial_sme_reserves_and_reuses_accounted_scratch_across_shapes() {
+    if !std::arch::is_aarch64_feature_detected!("sme") {
+        return;
+    }
+    let channels = 64;
+    let model = model(
+        vec![
+            tensor(
+                "w",
+                &[channels, channels, 3, 3],
+                &vec![0.125; channels * channels * 9],
+            ),
+            node("Relu", &["x"], "positive", vec![]),
+            node(
+                "Conv",
+                &["positive", "w"],
+                "y",
+                [attr("kernel_shape", &[3, 3]), attr("pads", &[1, 1, 1, 1])].concat(),
+            ),
+        ],
+        &[-1, channels as i64, -1, -1],
+        &[-1, channels as i64, -1, -1],
+    );
+    let shape = [2, channels, 5, 17];
+    let threads = if cfg!(feature = "parallel") { 4 } else { 1 };
+    let mut reference = session(model.clone(), CompileOptions::reference(), &shape);
+    let mut request = session(model, CompileOptions::default(), &shape);
+    request
+        .set_execution_context(Arc::new(CpuContext::new(threads).unwrap()), threads)
+        .unwrap();
+    let before = request.retained_scratch_bytes();
+    let mut addresses = None;
+    let mut retained = None;
+    for width in [17, 9, 17] {
+        let shape = [2, channels, 5, width];
+        reference.reshape(&shape).unwrap();
+        request.reshape(&shape).unwrap();
+        let input = vec![0.25; shape.iter().product()];
+        let expected = reference.run(&input).unwrap().data().to_vec();
+        assert_eq!(request.run(&input).unwrap().data(), expected);
+        assert!(
+            request
+                .statistics()
+                .specialized_kernels
+                .iter()
+                .any(|s| s.family == "nhwc_dense_sme32x32_or_neon")
+        );
+        let state = request.optimized.as_ref().unwrap();
+        assert_eq!(state.workspaces.len(), threads);
+        assert!(
+            state
+                .workspaces
+                .iter()
+                .all(|s| s.len() == 64 * channels * 9)
+        );
+        let current: Vec<_> = state.workspaces.iter().map(Vec::as_ptr).collect();
+        assert!(
+            request.retained_scratch_bytes() - before
+                >= threads * 64 * channels * 9 * size_of::<f32>()
+        );
+        if let Some(expected) = &addresses {
+            assert_eq!(&current, expected);
+        }
+        if let Some(expected) = retained {
+            assert_eq!(request.retained_scratch_bytes(), expected);
+        }
+        addresses = Some(current);
+        retained = Some(request.retained_scratch_bytes());
     }
 }

@@ -46,17 +46,12 @@ pub(super) unsafe fn execute(
                 let sums =
                     unsafe { pointwise_tile(row_inputs(input, tile, count, inner), panel, seed) };
                 for (r, values) in sums.iter().take(count - tile).enumerate() {
-                    for (v, &sum) in values.iter().enumerate() {
-                        store_row(
-                            sum,
-                            output,
-                            group + tile + r,
-                            column + v * 4,
-                            columns,
-                            first,
-                            store,
-                        );
-                    }
+                    // Bind and apply the fused store once for the complete
+                    // channel panel; the reduction remains four NEON vectors.
+                    let sum = Simd::<f32, 16>::from_array(std::array::from_fn(|channel| {
+                        values[channel / 4][channel % 4]
+                    }));
+                    store_row(sum, output, group + tile + r, column, columns, first, store);
                 }
             }
         }

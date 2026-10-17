@@ -12,9 +12,9 @@ use std::arch::aarch64::{
 };
 use std::arch::asm;
 
-pub(super) const GROUP: usize = 64;
+pub(in crate::runtime::nhwc) const GROUP: usize = 64;
 
-pub(super) fn available() -> bool {
+pub(in crate::runtime::nhwc) fn available() -> bool {
     std::arch::is_aarch64_feature_detected!("sme")
 }
 
@@ -109,77 +109,113 @@ pub(super) fn try_execute(
             count,
             scratch,
         );
-        for (block, panels) in packed.data().chunks(inner * 32).enumerate() {
-            let column = block * 32;
-            let seed: [f32; 32] =
-                std::array::from_fn(|v| bias.get(column + v).copied().unwrap_or(0.));
-            let mut t = 0;
-            while t < count {
-                if count - t > 16 && panels.len() == inner * 32 {
-                    let mut sums = [0f32; 1024];
-                    // SAFETY: two full packed input/weight panels and fixed
-                    // arrays cover all four tiles. Each panel has inner*16
-                    // values, including duplicated input rows at the tail.
-                    if !unsafe {
-                        tile32(
-                            scratch[t * inner..].as_ptr(),
-                            panels.as_ptr(),
-                            seed.as_ptr(),
-                            sums.as_mut_ptr(),
-                            inner,
-                        )
-                    } {
-                        return false;
-                    }
-                    for r in 0..(count - t).min(32) {
-                        for v in 0..8 {
-                            let tile = r / 16 * 2 + v / 4;
-                            let offset = tile * 256 + r % 16 * 16 + v % 4 * 4;
-                            store_row(
-                                Simd::<f32, 4>::from_slice(&sums[offset..]),
-                                output,
-                                group + t + r,
-                                column + v * 4,
-                                columns,
-                                first,
-                                store,
-                            );
-                        }
-                    }
-                    t += 32;
-                    continue;
+        if !packed_group(
+            scratch,
+            bias,
+            packed,
+            &mut output[group * columns..(group + count) * columns],
+            first + group,
+            inner,
+            columns,
+            count,
+            store,
+        ) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Consume one K-major group using the common guarded SME tiles. Both the
+/// pointwise and spatial packers retain IC/KY/KX reduction order and pad row
+/// tails to sixteen; only the valid output rows are stored.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::runtime::nhwc) fn packed_group(
+    scratch: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    first: usize,
+    inner: usize,
+    columns: usize,
+    count: usize,
+    store: &impl StoreTransform,
+) -> bool {
+    assert!((1..=GROUP).contains(&count));
+    assert!(scratch.len() >= count.div_ceil(16) * 16 * inner);
+    assert!(packed.matches(inner, columns));
+    assert_eq!(output.len(), count * columns);
+    for (block, panels) in packed.data().chunks(inner * 32).enumerate() {
+        let column = block * 32;
+        let seed: [f32; 32] = std::array::from_fn(|v| bias.get(column + v).copied().unwrap_or(0.));
+        let mut t = 0;
+        while t < count {
+            if count - t > 16 && panels.len() == inner * 32 {
+                let mut sums = [0f32; 1024];
+                // SAFETY: two full packed input/weight panels and fixed
+                // arrays cover all four tiles. Each panel has inner*16
+                // values, including duplicated input rows at the tail.
+                if !unsafe {
+                    tile32(
+                        scratch[t * inner..].as_ptr(),
+                        panels.as_ptr(),
+                        seed.as_ptr(),
+                        sums.as_mut_ptr(),
+                        inner,
+                    )
+                } {
+                    return false;
                 }
-                for (panel_index, panel) in panels.chunks_exact(inner * 16).enumerate() {
-                    let mut sums = [0f32; 256];
-                    // SAFETY: checked full input/weight panels and fixed local
-                    // arrays cover all loads and stores; available() detected SME.
-                    if !unsafe {
-                        tile(
-                            scratch[t * inner..].as_ptr(),
-                            panel.as_ptr(),
-                            seed[panel_index * 16..].as_ptr(),
-                            sums.as_mut_ptr(),
-                            inner,
-                        )
-                    } {
-                        return false;
-                    }
-                    for r in 0..(count - t).min(16) {
-                        for v in 0..4 {
-                            store_row(
-                                Simd::<f32, 4>::from_slice(&sums[r * 16 + v * 4..]),
-                                output,
-                                group + t + r,
-                                column + panel_index * 16 + v * 4,
-                                columns,
-                                first,
-                                store,
-                            );
-                        }
+                // Each ZA row is sixteen contiguous channels. Apply the
+                // fused recipe once per row instead of dispatching it for
+                // four separate NEON vectors; LLVM lowers the wider value
+                // to native vectors without changing lane arithmetic.
+                for r in 0..(count - t).min(32) {
+                    for v in 0..2 {
+                        let tile = r / 16 * 2 + v;
+                        let offset = tile * 256 + r % 16 * 16;
+                        store_row(
+                            Simd::<f32, 16>::from_slice(&sums[offset..]),
+                            output,
+                            t + r,
+                            column + v * 16,
+                            columns,
+                            first,
+                            store,
+                        );
                     }
                 }
-                t += 16;
+                t += 32;
+                continue;
             }
+            for (panel_index, panel) in panels.chunks_exact(inner * 16).enumerate() {
+                let mut sums = [0f32; 256];
+                // SAFETY: checked full input/weight panels and fixed local
+                // arrays cover all loads and stores; available() detected SME.
+                if !unsafe {
+                    tile(
+                        scratch[t * inner..].as_ptr(),
+                        panel.as_ptr(),
+                        seed[panel_index * 16..].as_ptr(),
+                        sums.as_mut_ptr(),
+                        inner,
+                    )
+                } {
+                    return false;
+                }
+                for r in 0..(count - t).min(16) {
+                    store_row(
+                        Simd::<f32, 16>::from_slice(&sums[r * 16..]),
+                        output,
+                        t + r,
+                        column + panel_index * 16,
+                        columns,
+                        first,
+                        store,
+                    );
+                }
+            }
+            t += 16;
         }
     }
     true
@@ -375,7 +411,7 @@ unsafe fn tile32(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k:
 /// Split exclusive output slices recursively. Rayon join uses stack jobs;
 /// no per-call Vec of bands or heap-allocated scoped job list is needed.
 #[cfg(feature = "parallel")]
-fn sme_bands(
+pub(in crate::runtime::nhwc) fn sme_bands(
     output: &mut [f32],
     columns: usize,
     bands: PointwiseBands,

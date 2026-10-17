@@ -175,7 +175,7 @@ fn row_inputs(input: &[f32], tile: usize, count: usize, inner: usize) -> [&[f32]
 }
 
 #[inline(always)]
-fn store_row<const LANES: usize>(
+pub(super) fn store_row<const LANES: usize>(
     sum: Simd<f32, LANES>,
     output: &mut [f32],
     row: usize,
@@ -567,7 +567,7 @@ mod large_channel_tests;
 mod tests;
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
-mod sme;
+pub(super) mod sme;
 
 /// Reserve packing for convolutions with amortized SME overhead, using the
 /// same crossover as execution so newly admitted layers have enough scratch.

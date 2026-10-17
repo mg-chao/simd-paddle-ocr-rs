@@ -86,6 +86,18 @@ and recognition scheduling targets, and preserves the local benchmark evidence.
 The [SME packing and crossover optimization](docs/macos-arm64-sme-packing-optimization.md)
 extends acceleration to smaller pointwise layers, with measured page latency
 reductions, exact output checks, and a documented Tiny workspace tradeoff.
+The [pipeline analysis after SME packing](docs/macos-sme-packing-pipeline-analysis.md)
+details the current stage latencies, fused-operator costs, recognition worker
+imbalance, and remaining optimization priorities on the physical Apple M4.
+The [ARM64 fused-store optimization](docs/macos-arm64-panel-store-optimization.md)
+reduces repeated activation and residual work in NEON/SME convolution stores,
+with measured page latency improvements and unchanged retained memory.
+The [pipeline analysis after fused stores](docs/macos-panel-store-pipeline-analysis.md)
+records current stage latencies, remaining convolution costs, recognition worker
+imbalance, and workload-specific optimization priorities on the physical Apple M4.
+The [spatial SME optimization](docs/macos-arm64-spatial-sme-optimization.md)
+accelerates eligible 3×3 convolutions with bounded reusable scratch, with measured
+sparse-page gains, exact output validation, and documented timing and memory limits.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

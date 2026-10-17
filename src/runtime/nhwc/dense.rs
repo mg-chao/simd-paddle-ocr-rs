@@ -1,9 +1,59 @@
-//! Packed six-row / sixteen-column NHWC convolution. A group of eight tiles
-//! walks each coefficient panel together. Dense reductions use 512-K blocks;
-//! pointwise uses a separate direct-store microkernel. All partials are fixed-size local
-//! storage, so no 32-by-K im2row tensor or hot heap allocation is needed.
+//! Ordered NHWC spatial convolution with bounded worker storage.
+//! Eligible macOS ARM64 3x3 layers pack sixty-four receptive fields for SME.
+//! The fallback uses six-row / sixteen-column tiles and 512-K reduction blocks;
+//! neither path materializes an image-sized im2col tensor.
 use super::*;
 mod interior;
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+mod sme;
+
+/// Reuse one bounded receptive-field panel per worker. Small channels retain
+/// the direct NEON kernel, where packing cannot be amortized across outputs.
+pub(in crate::runtime) fn sme_scratch_elements(backend: Backend, p: &Conv) -> usize {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    if backend == Backend::NeonFma
+        && p.cpg == p.cin
+        && p.cin >= 32
+        && p.cout >= 16
+        && p.kh == 3
+        && p.kw == 3
+        && p.batch.saturating_mul(p.oh).saturating_mul(p.ow) >= 32
+        && super::pointwise::sme::available()
+    {
+        return p
+            .cin
+            .checked_mul(9 * super::pointwise::sme::GROUP)
+            .unwrap_or(0);
+    }
+    let _ = (backend, p);
+    0
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn try_sme(
+    backend: Backend,
+    p: &Conv,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    cpu: &CpuContext,
+    threads: usize,
+    workspaces: &mut [Vec<f32>],
+    store: &impl StoreTransform,
+) -> bool {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    if sme_scratch_elements(backend, p) > 0 {
+        sme::execute_bands(
+            p, input, bias, packed, output, cpu, threads, workspaces, store,
+        );
+        return true;
+    }
+    let _ = (
+        backend, p, input, bias, packed, output, cpu, threads, workspaces, store,
+    );
+    false
+}
 
 const ROWS: usize = 6;
 const GROUP_ROWS: usize = ROWS * 8;
@@ -276,6 +326,24 @@ fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
                 }
             }
             for (row, sums) in partial[..count].iter().enumerate() {
+                if cfg!(target_arch = "aarch64") && LANES == 4 && VECTORS == 4 && FUSED {
+                    // The complete panel shares one activation/residual
+                    // recipe. Widen only the store, preserving every ordered
+                    // NEON reduction and the existing masked channel tail.
+                    let sum = Simd::<f32, 16>::from_array(std::array::from_fn(|channel| {
+                        sums[channel / 4][channel % 4]
+                    }));
+                    super::pointwise::store_row(
+                        sum,
+                        output,
+                        group + row,
+                        block * 16,
+                        p.cout,
+                        first,
+                        store,
+                    );
+                    continue;
+                }
                 for (v, &sum) in sums.iter().enumerate() {
                     let column = block * 16 + v * LANES;
                     if column < p.cout {
@@ -299,3 +367,5 @@ fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
 mod neon_tests;
 #[cfg(test)]
 mod portable_tests;
+#[cfg(test)]
+mod selection_tests;
