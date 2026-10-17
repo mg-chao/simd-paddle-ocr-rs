@@ -5,6 +5,10 @@ implements Optimization 1 and records separate baseline/candidate measurements
 across sparse/mixed pages, all three model sizes and concurrent requests. The
 numbers and recommendations below describe the original analysis revision.
 
+The [Optimization 3 implementation](#optimization-3-detector-upsampling-on-windows-avx2fma)
+at the end of this document records the subsequent detector change, measured
+against `b446afd` with Optimizations 1 and 2 already present.
+
 This analysis was performed on 2026-10-17 (Asia/Shanghai) against production commit `4c88abc2daaff3e93867c0fe7e099a304dafa039`. The machine identifies as an AMD Ryzen 9 5950X; Windows exposes 12 enabled cores / 24 logical processors and approximately 64 GiB RAM. All page measurements used eight logical CPUs with mask `0xff`, automatic SIMD/layout, fusion, adaptive REC widths, batch size one, classification enabled, and alignment capture disabled. This mask is eight logical processors, not a claim of eight separate physical cores. The host uses the AVX2/FMA path; this run does not validate ARM64 or AVX-512.
 
 The [durable raw evidence](reports/windows-x64-2026-10-17-stage-analysis.json) records samples, stage counters, hashes, output checks, memory capacities, and diagnostic output. Full worker results remain in `target/cpu-benchmark/1792221478849-17784`; investigation files are in `target/stage-analysis-20261017`.
@@ -110,4 +114,104 @@ cargo build --release --locked --features profiling --example cpu_profile
 cargo test --release --locked --features profiling --lib runtime::optimized::tests::performance::recognition_backbone_physical_steps -- --exact --ignored --nocapture --test-threads=1
 cargo build --release --locked --example cpu_scheduling_probe
 ./target/release/examples/cpu_scheduling_probe.exe tiny imgs_00018069
+```
+
+## Optimization 3: detector upsampling on Windows AVX2/FMA
+
+Implemented on 2026-10-17 against `b446afd`. The chosen change removes temporary
+tile writes and scalar scattering from the detector's packed 2×2, stride-two
+transposed convolution. Four source pixels share each coefficient walk and write
+directly to their exclusive output positions, applying the fused store transform
+as vectors. The implementation reuses the original GEMM reduction, preserving
+bias-first, ascending-input-channel FMA arithmetic. Models, detector resolution,
+thresholds, orientation and recognition settings are unchanged.
+
+The [kernel](../src/runtime/nhwc/transpose.rs) is selected only for Windows x64
+AVX2/FMA packed multi-channel transpose convolutions. Other policies retain their
+existing paths. Partial channel vectors use bounded scalar stores; source-pixel
+tails and worker bands remain disjoint. Existing workspace capacity is retained,
+so this change reduces traffic without claiming a retained-memory reduction.
+
+The decision follows a complete fused DET step profile on the actual `imgs_1`
+pixels, using `[1,3,960,608]`, eight logical CPUs and affinity `ff`. The old Tiny
+16→16 transpose was its largest individual step (3.516 ms). The corresponding
+Small and Medium layers were also expensive. Across the complete old detector,
+1×1 convolutions totaled 8.861 / 28.554 / 141.150 ms for Tiny / Small / Medium;
+optimizing this upsampling layer does not remove those remaining costs.
+
+| Profiled layer, ms | Baseline | Direct output | Reduction |
+|---|---:|---:|---:|
+| Tiny 16→16 transpose, node 236 | 3.5162 | 1.0822 | 69.2% |
+| Small 24→24 transpose, node 236 | 5.5656 | 2.1357 | 61.6% |
+| Medium 64→64 transpose, node 222 | 15.5709 | 6.1619 | 60.4% |
+
+These are single measured, instrumented passes after one warm-up per model and
+version. Total physical-step time changed from 33.1062→29.6661 ms for Tiny,
+79.2005→76.7515 ms for Small, and 294.9548→275.0140 ms for Medium. Step timings
+include worker waits and timer overhead, but exclude some session orchestration.
+They must not be pooled with the following ordinary release measurements.
+
+The uninstrumented comparison used frozen baseline and rebuilt candidate
+executables, matching input/model hashes, automatic layout/fusion, and the same
+eight-logical-CPU configuration. Raw DET used deterministic F32 input with one
+warm-up and three measured calls. Complete owned OCR used the same predecoded
+BGR24 sparse page, one separately recorded cold inference, one warm-up, and three
+measured calls. Version order was baseline/candidate for Tiny, candidate/baseline
+for Small, and baseline/candidate for Medium. Builds were idle during timing.
+
+| Model | DET graph median, baseline→candidate ms | Complete OCR median, baseline→candidate ms | OCR latency reduction |
+|---|---:|---:|---:|
+| Tiny | 36.9221→32.6516 | 49.9202→43.8308 | **12.2%** |
+| Small | 74.5906→77.5239 | 104.0515→105.1410 | −1.1%; inconclusive |
+| Medium | 286.4283→282.1205 | 400.6078→380.9916 | **4.9%** |
+
+| Model | Complete OCR baseline samples, ms | Candidate samples, ms |
+|---|---|---|
+| Tiny | 57.3221, 49.9202, 49.2653 | 43.8308, 44.1668, 43.0103 |
+| Small | 106.3083, 104.0515, 103.1422 | 105.1410, 121.6993, 99.5011 |
+| Medium | 396.4054, 400.6078, 402.6811 | 380.9916, 387.4477, 380.7825 |
+
+Tiny and Medium complete-OCR sample ranges are separated. Small's graph and OCR
+ranges overlap; their medians were 3.9% and 1.1% slower, respectively. Therefore
+the faster Small transpose does **not** establish a full-page improvement.
+Medium's raw-graph ranges also overlap. All samples, including outliers, are
+retained; unchanged code was not rerun for cleaner numbers.
+
+Every cross-version raw DET output SHA-256 matched, as did every complete owned
+OCR result, including coordinates, scores and metadata. Retained activation and
+workspace capacities were identical. Validation on this physical host passed
+14 baseline kernel checks, 44 candidate NHWC checks (four timing diagnostics
+remained ignored), and the separate fused-store integration check. The new
+bitwise comparison covers five geometries, bias present/absent, channel and pixel
+tails, two batches, four row-band sizes, fused residual/ReLU stores and guard
+sentinels. All six step profiles matched their own warm-up output bits.
+
+The [durable evidence](reports/windows-x64-2026-10-17-detector-optimization.json)
+contains source/executable/model hashes, all physical steps, raw graph samples,
+complete OCR outputs, memory diagnostics and execution accounting. Frozen
+executables and raw logs are in `target/detector-optimization-20261017`.
+Total performance process execution was **7.69 seconds baseline / 7.06 seconds
+candidate**, excluding builds and correctness checks. Graph/OCR processes had
+15-second deadlines, the three-model profile had a 20-second deadline, and the
+comparison harness had a 40-second per-version aggregate limit within the
+60-second overall budget. No remote runner or VM was used.
+
+This is a measured improvement for the tested Windows AVX2/FMA workloads, not a
+global optimum or full corpus/throughput qualification. ARM64 and AVX-512 were
+not measured. The existing Windows `UNBOUND_AFFINITY` example warning is unrelated.
+
+Reproduction uses the same commands for each frozen source version; preserve
+executables before rebuilding the other version and compare hashes and complete
+outputs before interpreting timing:
+
+```powershell
+cargo test --release --locked --lib runtime::nhwc -- --test-threads=1
+cargo test --release --locked --lib runtime::optimized::tests::convolution_store_programs_preserve_order_tails_and_worker_bands -- --exact --test-threads=1
+cargo build --release --locked --example cpu_adoption_probe --example cpu_benchmark
+# Once per version: all three detectors, one warm-up and one timed pass each.
+cargo test --release --locked --lib runtime::optimized::tests::performance::sparse_detector_production_steps -- --exact --ignored --nocapture --test-threads=1
+# Once per model/version: use small_det.onnx or medium_det.onnx for other presets.
+./target/release/examples/cpu_adoption_probe.exe --model ../SimdPaddleOCR/models/det.onnx --shape 1,3,960,608 --threads 8 --budget-seconds 15
+# Existing worker job specifies the predecoded pixels, model, settings and runs.
+./target/release/examples/cpu_benchmark.exe _worker target/detector-optimization-20261017/tiny-sparse.job.json
 ```

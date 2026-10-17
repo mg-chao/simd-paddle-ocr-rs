@@ -3,6 +3,157 @@
 use super::*;
 
 #[test]
+#[ignore = "local release diagnostic: three detectors, one warm-up and one instrumented production pass"]
+fn sparse_detector_production_steps() {
+    #[cfg(windows)]
+    unsafe {
+        unsafe extern "system" {
+            fn GetCurrentProcess() -> *mut std::ffi::c_void;
+            fn GetProcessAffinityMask(
+                process: *mut std::ffi::c_void,
+                allowed: *mut usize,
+                system: *mut usize,
+            ) -> i32;
+            fn SetProcessAffinityMask(process: *mut std::ffi::c_void, mask: usize) -> i32;
+        }
+        let (mut allowed, mut system) = (0usize, 0usize);
+        let process = GetCurrentProcess();
+        assert_ne!(
+            GetProcessAffinityMask(process, &mut allowed, &mut system),
+            0
+        );
+        assert!(allowed.count_ones() >= 8);
+        let mut mask = 0;
+        for _ in 0..8 {
+            let bit = allowed.isolate_lowest_one();
+            mask |= bit;
+            allowed &= !bit;
+        }
+        assert_ne!(SetProcessAffinityMask(process, mask), 0);
+    }
+    let deadline = std::time::Instant::now();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let pixels = ::image::open(root.join("tests/baseline/corpus/imgs_1.jpg"))
+        .unwrap()
+        .to_rgb8();
+    let image = crate::image::ImageView::new(
+        pixels.as_raw(),
+        pixels.width() as usize,
+        pixels.height() as usize,
+        0,
+        crate::image::PixelFormat::Rgb24,
+    )
+    .unwrap();
+    let size = crate::preprocess::compute_det_size(image.width(), image.height(), 960).unwrap();
+    let mut input = vec![0.; 3 * size.width * size.height];
+    crate::preprocess::det(
+        image,
+        size.width,
+        size.height,
+        &mut input,
+        &mut crate::preprocess::ResizeWorkspace::default(),
+    )
+    .unwrap();
+    let cpu = Arc::new(CpuContext::new(8).unwrap());
+    for (model, file) in [
+        ("tiny", "det.onnx"),
+        ("small", "small_det.onnx"),
+        ("medium", "medium_det.onnx"),
+    ] {
+        let compiled = Arc::new(
+            CompiledModel::new(Arc::new(
+                Model::load_path(root.join("../SimdPaddleOCR/models").join(file)).unwrap(),
+            ))
+            .unwrap(),
+        );
+        let mut session = Session::new(
+            compiled.clone(),
+            cpu.clone(),
+            &[1, 3, size.height, size.width],
+            ExecutionOptions {
+                intra_op_threads: 8,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let expected = session.run(&input).unwrap().data().to_vec();
+        let state = session.optimized.as_mut().unwrap();
+        state.step_timings = Some(Vec::with_capacity(state.plan.steps.len()));
+        let actual = session.run(&input).unwrap();
+        assert_eq!(actual.data().len(), expected.len());
+        assert!(
+            actual
+                .data()
+                .iter()
+                .zip(&expected)
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
+        let state = session.optimized.as_ref().unwrap();
+        let timings = state.step_timings.as_ref().unwrap();
+        assert_eq!(timings.len(), state.plan.steps.len());
+        let mut rows = Vec::new();
+        let mut groups = std::collections::BTreeMap::<String, f64>::new();
+        for (step, time) in state.plan.steps.iter().zip(timings) {
+            let (family, description) = match &step.op {
+                Operation::Native {
+                    index,
+                    kind: BoundKind::Conv(p),
+                    ..
+                } => (
+                    format!("Conv {}x{} groups={}", p.kh, p.kw, p.cin / p.cpg),
+                    format!(
+                        "node={index} Conv {}->{} k{}x{} stride={}x{} groups={}",
+                        p.cin,
+                        p.cout,
+                        p.kh,
+                        p.kw,
+                        p.sh,
+                        p.sw,
+                        p.cin / p.cpg
+                    ),
+                ),
+                Operation::Native { index, .. } => (
+                    compiled.model.graph().nodes[*index].op_type().to_owned(),
+                    format!(
+                        "node={index} {}",
+                        compiled.model.graph().nodes[*index].op_type()
+                    ),
+                ),
+                Operation::Convert => ("Convert".into(), "Convert".into()),
+                Operation::Activation(_) => ("Activation".into(), "Activation".into()),
+                Operation::LayerNorm { .. } => ("LayerNorm".into(), "LayerNorm".into()),
+                Operation::View => ("View".into(), "View".into()),
+            };
+            let ms = time.as_secs_f64() * 1000.;
+            *groups.entry(family).or_default() += ms;
+            rows.push(serde_json::json!({ "ms": ms, "description": description,
+                "inputs": step.inputs.iter().map(|&id| state.plan.values[id].shape.dimensions().to_vec()).collect::<Vec<_>>(),
+                "output": state.plan.values[step.output].shape.dimensions(),
+                "layout": format!("{:?}", state.plan.values[step.output].layout),
+            }));
+        }
+        rows.sort_by(|a, b| {
+            b["ms"]
+                .as_f64()
+                .unwrap()
+                .total_cmp(&a["ms"].as_f64().unwrap())
+        });
+        println!(
+            "detector_production_steps {}",
+            serde_json::json!({
+                "model": model, "fixture": "imgs_1", "shape": [1, 3, size.height, size.width], "threads": 8,
+                "backend": format!("{:?}", compiled.backend), "total_step_ms": timings.iter().map(|v| v.as_secs_f64()*1000.).sum::<f64>(),
+                "groups_ms": groups, "steps": rows, "outputs_exactly_equal": true,
+            })
+        );
+        assert!(
+            deadline.elapsed().as_secs() < 20,
+            "fixed detector diagnostic exceeded twenty seconds"
+        );
+    }
+}
+
+#[test]
 #[ignore = "local release diagnostic: two recognition shapes, one warm-up and three fixed samples"]
 fn cold_physical_plan_bind() {
     const CALLS: usize = 16;

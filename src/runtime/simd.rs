@@ -963,7 +963,7 @@ fn scalar_matmul(
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-fn projection_tile<
+pub(super) fn projection_tile<
     const LANES: usize,
     const VECTORS: usize,
     const FUSED: bool,

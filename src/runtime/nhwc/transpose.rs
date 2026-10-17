@@ -1,6 +1,100 @@
-//! Single-channel 2x2/stride-two transpose convolution. Vector lanes own
-//! independent source pixels, preserving bias-first and input-channel order.
+//! Non-overlapping 2x2/stride-two transpose convolutions. Packed tiles write
+//! directly to exclusive output-row pairs; single-channel lanes own pixels.
 use super::*;
+
+/// Four source pixels share each packed coefficient walk. The existing GEMM
+/// reduction is inlined here, with its bias-first ascending-channel FMA order;
+/// only the destination changes from scratch to the final interleaved image.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+#[target_feature(enable = "avx2,fma")]
+#[allow(clippy::too_many_arguments)]
+pub(super) unsafe fn packed_direct(
+    p: &kernels::ConvTranspose,
+    input: &[f32],
+    bias: &[f32],
+    panels: &[PackedMatrix; 4],
+    output: &mut [f32],
+    first_row: usize,
+    store: &impl StoreTransform,
+) {
+    assert!(p.cin > 0 && p.cout > 0 && p.width > 0);
+    assert!(output.len().is_multiple_of(4 * p.width * p.cout));
+    let pixels = output.len() / (4 * p.cout);
+    let first = first_row * p.width;
+    assert!(first + pixels <= p.batch * p.height * p.width);
+    assert_eq!(input.len(), p.batch * p.height * p.width * p.cin);
+    assert!(bias.is_empty() || bias.len() == p.cout);
+    assert!(panels.iter().all(|panel| panel.matches(p.cin, p.cout)));
+    let input = &input[first * p.cin..(first + pixels) * p.cin];
+    let mut pixel = 0;
+    while pixel + 4 <= pixels {
+        direct_tile::<4>(p, input, bias, panels, output, first_row, pixel, store);
+        pixel += 4;
+    }
+    while pixel < pixels {
+        direct_tile::<1>(p, input, bias, panels, output, first_row, pixel, store);
+        pixel += 1;
+    }
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn direct_tile<const ROWS: usize>(
+    p: &kernels::ConvTranspose,
+    input: &[f32],
+    bias: &[f32],
+    panels: &[PackedMatrix; 4],
+    output: &mut [f32],
+    first_row: usize,
+    pixel: usize,
+    store: &impl StoreTransform,
+) {
+    let destinations: [usize; ROWS] = std::array::from_fn(|r| {
+        let local = pixel + r;
+        (local / p.width * 4 * p.width + local % p.width * 2) * p.cout
+    });
+    for (tap, panel) in panels.iter().enumerate() {
+        let tap_offset = (tap / 2 * 2 * p.width + tap % 2) * p.cout;
+        for block in 0..p.cout.div_ceil(16) {
+            let sums = simd::projection_tile::<8, 2, true, ROWS, true>(
+                input,
+                panel.data(),
+                bias,
+                pixel,
+                block,
+                p.cin,
+                p.cout,
+            );
+            for (r, vectors) in sums.into_iter().enumerate() {
+                for (v, sum) in vectors.into_iter().enumerate() {
+                    let channel = block * 16 + v * 8;
+                    if channel >= p.cout {
+                        continue;
+                    }
+                    let at = destinations[r] + tap_offset + channel;
+                    let global = first_row * 4 * p.width * p.cout + at;
+                    if channel + 8 <= p.cout {
+                        store
+                            .vector_channel(sum, global, channel)
+                            .copy_to_slice(&mut output[at..at + 8]);
+                    } else {
+                        // A partial vector must not read a fused residual or
+                        // channel operand beyond this pixel's actual extent.
+                        for (lane, value) in sum
+                            .to_array()
+                            .into_iter()
+                            .take(p.cout - channel)
+                            .enumerate()
+                        {
+                            output[at + lane] = store.scalar(value, global + lane);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn single(
@@ -104,3 +198,6 @@ fn kernel<const LANES: usize, const FUSED: bool>(
         }
     }
 }
+
+#[cfg(all(test, target_os = "windows", target_arch = "x86_64"))]
+mod tests;

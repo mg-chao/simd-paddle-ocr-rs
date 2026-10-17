@@ -168,3 +168,9 @@ candidate across seven cases. On the adopted implementation, the scheduling
 probe's automatic and explicit-eight configurations select the same recognition
 policy for eligible pages; use separate revisions to reproduce the old/new
 comparison.
+
+The [detector upsampling record](windows-cpu-stage-analysis.md#optimization-3-detector-upsampling-on-windows-avx2fma)
+documents direct packed transpose stores on Windows x64 AVX2/FMA. It preserves
+per-step profiles, frozen-baseline graph and OCR comparisons, exact output
+checks, and the inconclusive Small full-page result alongside the Tiny/Medium
+improvements.
