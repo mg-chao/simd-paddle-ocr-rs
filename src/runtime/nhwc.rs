@@ -128,7 +128,7 @@ fn pointwise_execute(
     );
 }
 
-fn packed_pointwise_eligible(_backend: Backend, p: &Conv, packed: bool) -> bool {
+pub(super) fn packed_pointwise_eligible(_backend: Backend, p: &Conv, packed: bool) -> bool {
     // Scalar reaches the same existing pointwise math through dense::execute;
     // share the reference six-pixel worker partition as well.
     packed
@@ -257,7 +257,11 @@ pub(super) fn selection(
                 && p.oh == p.height
                 && p.ow == p.width
             {
-                if pointwise::inline_avx2_eligible(backend, p.cin, p.cout) {
+                if pointwise::sme_scratch_elements(backend, p.batch * p.oh * p.ow, p.cin, p.cout)
+                    > 0
+                {
+                    "nhwc_pointwise_sme16x16_or_neon"
+                } else if pointwise::inline_avx2_eligible(backend, p.cin, p.cout) {
                     "nhwc_pointwise_6x16_inline"
                 } else if backend == Backend::Portable4 {
                     "nhwc_pointwise_6x8_pair2_group8"
@@ -384,6 +388,21 @@ pub(super) fn execute<'a>(
             if let Some(panel) =
                 packed.filter(|_| packed_pointwise_eligible(compiled.backend, p, true))
             {
+                if pointwise::try_sme(
+                    compiled.backend,
+                    a,
+                    bias,
+                    panel,
+                    out,
+                    p.cin,
+                    p.cout,
+                    cpu,
+                    threads.max(1).min(workspaces.len()),
+                    workspaces,
+                    store,
+                ) {
+                    return Ok(());
+                }
                 pointwise_execute(
                     compiled.backend,
                     a,

@@ -1014,6 +1014,28 @@ impl State {
                 .first()
                 .is_some_and(|&id| self.plan.values[id].layout == Layout::Nhwc)
                 && let Operation::Native {
+                    index,
+                    kind: BoundKind::Conv(p),
+                    ..
+                } = &step.op
+                && nhwc::packed_pointwise_eligible(
+                    compiled.backend,
+                    p,
+                    compiled.conv_packed.contains_key(index),
+                )
+            {
+                tile_elements = tile_elements.max(nhwc::pointwise::sme_scratch_elements(
+                    compiled.backend,
+                    p.batch * p.oh * p.ow,
+                    p.cin,
+                    p.cout,
+                ));
+            }
+            if step
+                .inputs
+                .first()
+                .is_some_and(|&id| self.plan.values[id].layout == Layout::Nhwc)
+                && let Operation::Native {
                     kind: BoundKind::BatchNormalization { channels, .. },
                     ..
                 } = &step.op

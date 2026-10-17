@@ -906,3 +906,53 @@ fn neon_canonical_fallback_preserves_fused_store_results_and_statistics() {
                 && kernel.store_fused)
     );
 }
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+#[test]
+fn sme_convolution_reserves_reuses_and_accounts_for_request_scratch() {
+    if !std::arch::is_aarch64_feature_detected!("sme") {
+        return;
+    }
+    let channels = 384;
+    let shape = [1, channels, 1, 65];
+    let input: Vec<_> = (0..shape.iter().product())
+        .map(|i| ((i % 31) as f32 - 15.) / 32.)
+        .collect();
+    let model = single_conv(channels, channels, 1, 1);
+    let mut reference = session(model.clone(), CompileOptions::reference(), &shape);
+    let expected = reference.run(&input).unwrap().data().to_vec();
+    let mut request = session(model, CompileOptions::default(), &shape);
+    let before = request.retained_scratch_bytes();
+    assert_eq!(request.run(&input).unwrap().data(), expected);
+    assert!(
+        request
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|s| s.family == "nhwc_pointwise_sme16x16_or_neon")
+    );
+    let state = request.optimized.as_ref().unwrap();
+    assert_eq!(state.workspaces[0].len(), 64 * channels);
+    let address = state.workspaces[0].as_ptr();
+    let retained = request.retained_scratch_bytes();
+    // The run also materializes a canonical output buffer. Packing storage
+    // must be included in the reported scratch total alongside that buffer.
+    assert!(retained - before >= 64 * channels * size_of::<f32>());
+    for width in [33, 65] {
+        request.reshape(&[1, channels, 1, width]).unwrap();
+        let input = vec![0.25; channels * width];
+        assert!(
+            request
+                .run(&input)
+                .unwrap()
+                .data()
+                .iter()
+                .all(|&v| v == 24.)
+        );
+        assert_eq!(
+            request.optimized.as_ref().unwrap().workspaces[0].as_ptr(),
+            address
+        );
+        assert!(request.retained_scratch_bytes() >= retained);
+    }
+}

@@ -1,3 +1,7 @@
+#![cfg_attr(
+    all(target_arch = "aarch64", target_os = "macos"),
+    feature(stdarch_aarch64_feature_detection)
+)]
 #![feature(portable_simd)]
 #![deny(unsafe_op_in_unsafe_fn)]
 

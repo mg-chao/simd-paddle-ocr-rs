@@ -1,9 +1,12 @@
-//! Full-K, six-row pointwise matrix product with direct final stores.
+//! Ordered pointwise matrix products with direct final stores.
 //!
 //! Each input row is sliced before reduction. Zipped row/panel iterators keep
 //! indexing checks outside K, and paired low/high updates shorten broadcast
 //! lifetimes while all twelve AVX accumulators remain live. No convolution
-//! origins or reduction-block scratch is needed. Short Windows x64 AVX2
+//! origins or reduction-block scratch is needed by the baseline kernels.
+//! Large macOS ARM64 convolutions can use a guarded SME tile with request-local
+//! input packing; unsupported hardware or thread state retains the NEON path.
+//! Short Windows x64 AVX2
 //! reductions inline a register-contained loop to avoid per-tile ABI overhead;
 //! larger reductions keep the isolated AVX tile.
 use super::*;
@@ -562,3 +565,86 @@ fn narrow<const LANES: usize, const FUSED: bool>(
 mod large_channel_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+mod sme;
+
+/// Reserve packing only for channel-heavy convolutions with amortized SME
+/// overhead. The measured targets are 384/768 and 512/1024-channel products.
+pub(in crate::runtime) fn sme_scratch_elements(
+    backend: Backend,
+    rows: usize,
+    inner: usize,
+    columns: usize,
+) -> usize {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    if backend == Backend::NeonFma
+        && rows >= 32
+        && inner >= 384
+        && columns >= 384
+        && sme::available()
+    {
+        return inner.checked_mul(sme::GROUP).unwrap_or(0);
+    }
+    let _ = (backend, rows, inner, columns);
+    0
+}
+
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+#[allow(clippy::too_many_arguments)]
+pub(super) fn execute_with_scratch(
+    backend: Backend,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    first: usize,
+    inner: usize,
+    columns: usize,
+    scratch: &mut [f32],
+    store: &impl StoreTransform,
+) {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    if sme_scratch_elements(backend, output.len() / columns, inner, columns) > 0
+        && sme::try_execute(
+            input, bias, packed, output, first, inner, columns, scratch, store,
+        )
+    {
+        return;
+    }
+    let _ = scratch;
+    execute(
+        backend, input, bias, packed, output, first, inner, columns, store,
+    );
+}
+
+/// Isolate SME workspace dispatch so every unaffected kernel retains its
+/// original row-band closure and call path.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn try_sme(
+    backend: Backend,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    inner: usize,
+    columns: usize,
+    cpu: &CpuContext,
+    threads: usize,
+    workspaces: &mut [Vec<f32>],
+    store: &impl StoreTransform,
+) -> bool {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    if sme_scratch_elements(backend, output.len() / columns, inner, columns) > 0
+        && !workspaces.is_empty()
+    {
+        sme::execute_bands(
+            backend, input, bias, packed, output, inner, columns, cpu, threads, workspaces, store,
+        );
+        return true;
+    }
+    let _ = (
+        backend, input, bias, packed, output, inner, columns, cpu, threads, workspaces, store,
+    );
+    false
+}
