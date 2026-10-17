@@ -4,44 +4,47 @@
 use crate::tensor::{DType, Dim, Shape, ShapeSpec, Tensor, TensorData, TensorError};
 use std::{collections::BTreeMap, fmt, io::BufRead};
 
-#[derive(Debug, Clone)]
-pub struct ImportError(String);
-impl ImportError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
-    }
-}
-impl fmt::Display for ImportError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-impl std::error::Error for ImportError {}
+crate::error::stage_error!(ImportError, InvalidModel);
+
 impl From<TensorError> for ImportError {
     fn from(error: TensorError) -> Self {
-        Self::new(error.to_string())
+        Self::caused_by(error.kind(), "tensor", error)
     }
 }
 impl From<std::io::Error> for ImportError {
     fn from(error: std::io::Error) -> Self {
-        Self::new(error.to_string())
+        Self::caused_by(crate::error::ErrorKind::Io, "I/O", error)
     }
 }
 type Result<T> = std::result::Result<T, ImportError>;
 
 fn push<T>(values: &mut Vec<T>, value: T) -> Result<()> {
-    values
-        .try_reserve(1)
-        .map_err(|error| ImportError::new(format!("metadata allocation failed: {error}")))?;
+    values.try_reserve(1).map_err(|error| {
+        ImportError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "metadata allocation failed",
+            error,
+        )
+    })?;
     values.push(value);
     Ok(())
 }
+
+pub const MAX_SHAPE_NODES: usize = 64;
 
 #[derive(Debug, Clone)]
 pub struct LoadLimits {
     pub max_input_bytes: u64,
     pub max_depth: usize,
     pub max_rank: usize,
+    /// Maximum source graph nodes, independent of protobuf nesting.
+    pub max_graph_nodes: usize,
+    /// Maximum combined dynamic shape dependency nodes; at most MAX_SHAPE_NODES.
+    pub max_shape_nodes: usize,
+    /// Maximum bytes in the normalization constant store, including generated weights.
+    pub max_constant_bytes: usize,
+    /// Cumulative coefficient bytes an import may generate through optimization.
+    pub max_generated_bytes: usize,
 }
 impl Default for LoadLimits {
     fn default() -> Self {
@@ -49,6 +52,10 @@ impl Default for LoadLimits {
             max_input_bytes: 1 << 30,
             max_depth: 64,
             max_rank: 8,
+            max_graph_nodes: 100_000,
+            max_shape_nodes: MAX_SHAPE_NODES,
+            max_constant_bytes: 1 << 30,
+            max_generated_bytes: 1 << 30,
         }
     }
 }
@@ -112,9 +119,13 @@ struct WireReader<R> {
 }
 impl<R: BufRead> WireReader<R> {
     fn new(input: R, limits: LoadLimits) -> Result<Self> {
-        if limits.max_input_bytes == 0 || limits.max_depth == 0 || limits.max_rank > 8 {
+        if limits.max_input_bytes == 0
+            || limits.max_depth == 0
+            || limits.max_rank > 8
+            || limits.max_shape_nodes > MAX_SHAPE_NODES
+        {
             return Err(ImportError::new(
-                "loader limits require positive bytes/depth and rank <= 8",
+                "loader limits require positive bytes/depth, rank <= 8 and shape nodes <= 64",
             ));
         }
         Ok(Self {
@@ -145,7 +156,10 @@ impl<R: BufRead> WireReader<R> {
     }
     fn byte(&mut self) -> Result<u8> {
         self.check_count(1)?;
-        let buffer = self.input.fill_buf().map_err(ImportError::from)?;
+        let buffer = self
+            .input
+            .fill_buf()
+            .map_err(|e| ImportError::from(e).context(format!("ONNX byte {}", self.position)))?;
         let Some(&value) = buffer.first() else {
             return Err(self.error("truncated protobuf"));
         };
@@ -171,7 +185,12 @@ impl<R: BufRead> WireReader<R> {
         if self.ends.last().is_some_and(|&end| self.position == end) {
             return Ok(None);
         }
-        if self.input.fill_buf().map_err(ImportError::from)?.is_empty() {
+        if self
+            .input
+            .fill_buf()
+            .map_err(|e| ImportError::from(e).context(format!("ONNX byte {}", self.position)))?
+            .is_empty()
+        {
             if self.ends.is_empty() {
                 return Ok(None);
             }
@@ -187,7 +206,13 @@ impl<R: BufRead> WireReader<R> {
         let length = self.varint()?;
         self.check_count(length)?;
         if self.ends.len() >= self.limits.max_depth {
-            return Err(self.error("message nesting limit exceeded"));
+            return Err(ImportError::with_kind(
+                crate::error::ErrorKind::ResourceLimit,
+                format!(
+                    "ONNX byte {}: message nesting limit exceeded",
+                    self.position
+                ),
+            ));
         }
         let end = self.position + length;
         self.ends.push(end);
@@ -203,7 +228,9 @@ impl<R: BufRead> WireReader<R> {
         self.check_count(destination.len() as u64)?;
         let mut offset = 0;
         while offset < destination.len() {
-            let input = self.input.fill_buf().map_err(ImportError::from)?;
+            let input = self.input.fill_buf().map_err(|e| {
+                ImportError::from(e).context(format!("ONNX byte {}", self.position))
+            })?;
             if input.is_empty() {
                 return Err(self.error("truncated bytes"));
             }
@@ -229,13 +256,19 @@ impl<R: BufRead> WireReader<R> {
         // long length on a truncated stream must not trigger a large allocation.
         while bytes.len() < length {
             let position = self.position;
-            let input = self.input.fill_buf().map_err(ImportError::from)?;
+            let input = self.input.fill_buf().map_err(|e| {
+                ImportError::from(e).context(format!("ONNX byte {}", self.position))
+            })?;
             if input.is_empty() {
                 return Err(self.error("truncated bytes"));
             }
             let count = input.len().min(length - bytes.len());
             bytes.try_reserve(count).map_err(|error| {
-                ImportError::new(format!("ONNX byte {position}: allocation failed: {error}"))
+                ImportError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    format!("ONNX byte {position}: allocation failed"),
+                    error,
+                )
             })?;
             bytes.extend_from_slice(&input[..count]);
             self.input.consume(count);
@@ -244,13 +277,20 @@ impl<R: BufRead> WireReader<R> {
         Ok(bytes)
     }
     fn string(&mut self) -> Result<String> {
-        String::from_utf8(self.bytes()?)
-            .map_err(|error| self.error(format!("invalid UTF-8: {error}")))
+        String::from_utf8(self.bytes()?).map_err(|error| {
+            ImportError::caused_by(
+                crate::error::ErrorKind::InvalidModel,
+                format!("ONNX byte {}: invalid UTF-8", self.position),
+                error,
+            )
+        })
     }
     fn skip_count(&mut self, mut count: u64) -> Result<()> {
         self.check_count(count)?;
         while count != 0 {
-            let input = self.input.fill_buf().map_err(ImportError::from)?;
+            let input = self.input.fill_buf().map_err(|e| {
+                ImportError::from(e).context(format!("ONNX byte {}", self.position))
+            })?;
             if input.is_empty() {
                 return Err(self.error("truncated skipped field"));
             }
@@ -344,6 +384,9 @@ pub fn parse<R: BufRead>(input: R, limits: &LoadLimits) -> Result<RawModel> {
                     }
                 }
                 reader.leave(end)?;
+                if domain == "ai.onnx" {
+                    domain.clear();
+                }
                 if version <= 0 || opsets.insert(domain, version).is_some() {
                     return Err(reader.error("invalid or duplicate opset import"));
                 }
@@ -376,6 +419,12 @@ fn parse_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGraph> {
         match (field, wire) {
             (1, 2) => {
                 let end = reader.enter()?;
+                if graph.nodes.len() >= reader.limits.max_graph_nodes {
+                    return Err(ImportError::with_kind(
+                        crate::error::ErrorKind::ResourceLimit,
+                        "graph node limit exceeded",
+                    ));
+                }
                 let node = parse_node(reader, graph.nodes.len())?;
                 reader.leave(end)?;
                 push(&mut graph.nodes, node)?;
@@ -596,8 +645,13 @@ fn parse_tensor<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawTensor> {
             DType::I32 if floats.is_empty() && integers64.is_empty() => {
                 // Protobuf int32 negatives use sign-extended 10-byte varints.
                 let mut data = Vec::new();
-                data.try_reserve_exact(integers32.len())
-                    .map_err(|e| reader.error(format!("typed tensor allocation failed: {e}")))?;
+                data.try_reserve_exact(integers32.len()).map_err(|e| {
+                    ImportError::caused_by(
+                        crate::error::ErrorKind::Allocation,
+                        format!("ONNX byte {}: typed tensor allocation", reader.position),
+                        e,
+                    )
+                })?;
                 for value in integers32 {
                     data.push(i32::try_from(value).map_err(|_| {
                         reader.error(format!("tensor {name} int32 value out of range"))
@@ -607,8 +661,13 @@ fn parse_tensor<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawTensor> {
             }
             DType::U8 if floats.is_empty() && integers64.is_empty() => {
                 let mut data = Vec::new();
-                data.try_reserve_exact(integers32.len())
-                    .map_err(|e| reader.error(format!("typed tensor allocation failed: {e}")))?;
+                data.try_reserve_exact(integers32.len()).map_err(|e| {
+                    ImportError::caused_by(
+                        crate::error::ErrorKind::Allocation,
+                        format!("ONNX byte {}: typed tensor allocation", reader.position),
+                        e,
+                    )
+                })?;
                 for value in integers32 {
                     data.push(u8::try_from(value).map_err(|_| {
                         reader.error(format!("tensor {name} u8 value out of range"))

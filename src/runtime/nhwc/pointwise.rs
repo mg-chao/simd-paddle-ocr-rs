@@ -307,7 +307,7 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>
 
 /// Both halves of a paired diagnostic enter the same checked native wrapper.
 /// `FIXED_GROUP=48` is the old policy; zero is the production adaptive policy.
-#[cfg(test)]
+#[cfg(all(test, any(target_arch = "x86", target_arch = "x86_64")))]
 pub(super) fn execute_group_control<const FIXED_GROUP: usize>(
     input: &[f32],
     bias: &[f32],

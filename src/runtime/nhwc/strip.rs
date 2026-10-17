@@ -37,7 +37,7 @@ pub(super) fn execute<const LANES: usize, const FUSED: bool>(
 
 /// Paired diagnostic control: preserve the previous strip boundaries while
 /// sharing every reduction, packed-panel read and final store with production.
-#[cfg(test)]
+#[cfg(all(test, any(target_arch = "x86", target_arch = "x86_64")))]
 pub(super) fn execute_control<const SEGMENT: bool>(
     p: &Conv,
     input: &[f32],

@@ -1,16 +1,17 @@
 //! Deterministic column sharding of packed CTC units. Workers own contiguous
 //! vocabulary panels and compact row winners; no dense vocabulary output exists.
-use super::{
-    Backend, PackedMatrix, avx512_available, compact_projection_tile, compact_scalar_tail,
-    update_winner,
-};
+use super::{Backend, PackedMatrix, avx512_available};
+#[cfg(any(target_arch = "x86_64", test))]
+use super::{compact_projection_tile, compact_scalar_tail, update_winner};
 use crate::cpu::CpuContext;
 
+#[cfg(any(target_arch = "x86_64", test))]
 #[derive(Clone, Copy)]
 struct Winner {
     score: f32,
     index: usize,
 }
+#[cfg(any(target_arch = "x86_64", test))]
 impl Default for Winner {
     fn default() -> Self {
         Self {
@@ -22,12 +23,21 @@ impl Default for Winner {
 
 #[derive(Default)]
 pub(crate) struct ArgMaxWorkspace {
+    #[cfg(any(target_arch = "x86_64", test))]
     partials: Vec<Winner>,
 }
 impl ArgMaxWorkspace {
     pub(crate) fn retained_bytes(&self) -> usize {
-        self.partials.capacity() * size_of::<Winner>()
+        #[cfg(any(target_arch = "x86_64", test))]
+        {
+            self.partials.capacity() * size_of::<Winner>()
+        }
+        #[cfg(not(any(target_arch = "x86_64", test)))]
+        {
+            0
+        }
     }
+    #[cfg(any(target_arch = "x86_64", test))]
     fn reserve(&mut self, rows: usize, workers: usize) -> Result<(), &'static str> {
         let count = rows
             .checked_mul(workers)
@@ -92,10 +102,10 @@ pub(crate) fn try_compact_columns(
     if workers <= 1 {
         return Ok(false);
     }
-    workspace.reserve(rows, workers)?;
     #[cfg(target_arch = "x86_64")]
     // SAFETY: runtime detection above guards the target-feature entry.
     unsafe {
+        workspace.reserve(rows, workers)?;
         execute_avx512(
             input,
             bias,
@@ -111,7 +121,10 @@ pub(crate) fn try_compact_columns(
         Ok(true)
     }
     #[cfg(not(target_arch = "x86_64"))]
-    Err("AVX-512 CTC backend requires x86-64")
+    {
+        let _ = workspace;
+        Err("AVX-512 CTC backend requires x86-64")
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -134,6 +147,7 @@ unsafe fn execute_avx512(
     )
 }
 
+#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn execute<const LANES: usize, const VECTORS: usize, const FMA: bool>(
@@ -215,6 +229,7 @@ unsafe fn shard_avx512(
     shard::<16, 1, true>(input, bias, packed, winners, inner, columns, begin, end)
 }
 
+#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn shard<const LANES: usize, const VECTORS: usize, const FMA: bool>(
@@ -272,6 +287,7 @@ fn shard<const LANES: usize, const VECTORS: usize, const FMA: bool>(
     Ok(())
 }
 
+#[cfg(any(target_arch = "x86_64", test))]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn row_block<const LANES: usize, const VECTORS: usize, const FMA: bool, const ROWS: usize>(

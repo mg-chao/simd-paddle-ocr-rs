@@ -1,24 +1,11 @@
 //! Checked, contiguous tensor storage. No inference or layout conversion lives here.
 
 use serde::{Deserialize, Serialize};
-use std::{fmt, mem::size_of};
+use std::mem::size_of;
 
 pub const MAX_RANK: usize = 8;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TensorError(String);
-
-impl TensorError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
-    }
-}
-impl fmt::Display for TensorError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-impl std::error::Error for TensorError {}
+crate::error::stage_error!(TensorError, InvalidInput);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -198,11 +185,18 @@ impl<T> Tensor<T> {
     }
 }
 impl<T: Default + Clone> Tensor<T> {
-    pub fn zeros(shape: Shape) -> Result<Self, TensorError> {
+    /// Fill each element with `T::default()`; this need not be numeric zero.
+    pub fn defaulted(shape: Shape) -> Result<Self, TensorError> {
         shape.bytes_for(size_of::<T>())?;
         let mut data = Vec::new();
         data.try_reserve_exact(shape.element_count())
-            .map_err(|error| TensorError::new(format!("tensor allocation failed: {error}")))?;
+            .map_err(|error| {
+                TensorError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "tensor allocation failed",
+                    error,
+                )
+            })?;
         data.resize(shape.element_count(), T::default());
         Ok(Self { shape, data })
     }
@@ -339,9 +333,13 @@ impl TensorData {
             convert: impl Fn([u8; N]) -> T,
         ) -> Result<Vec<T>, TensorError> {
             let mut values = Vec::new();
-            values
-                .try_reserve_exact(bytes.len() / N)
-                .map_err(|error| TensorError::new(format!("tensor allocation failed: {error}")))?;
+            values.try_reserve_exact(bytes.len() / N).map_err(|error| {
+                TensorError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "tensor allocation failed",
+                    error,
+                )
+            })?;
             for chunk in bytes.as_chunks::<N>().0 {
                 let mut fixed = [0; N];
                 fixed.copy_from_slice(chunk);
@@ -409,7 +407,7 @@ mod tests {
     fn owned_tensor_and_exclusive_view() {
         let shape = Shape::new(&[2, 3]).unwrap();
         assert!(Tensor::from_vec(shape, vec![0f32; 5]).is_err());
-        let mut tensor = Tensor::<f32>::zeros(shape).unwrap();
+        let mut tensor = Tensor::<f32>::defaulted(shape).unwrap();
         tensor
             .view_mut()
             .reshape(Shape::new(&[6]).unwrap())

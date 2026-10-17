@@ -1018,7 +1018,11 @@ impl State {
             self.workspaces
                 .try_reserve(workers.saturating_sub(self.workspaces.len()))
                 .map_err(|e| {
-                    RuntimeError::new(format!("packing scratch allocation failed: {e}"))
+                    RuntimeError::caused_by(
+                        crate::error::ErrorKind::Allocation,
+                        "packing scratch allocation failed",
+                        e,
+                    )
                 })?;
             while self.workspaces.len() < workers {
                 self.workspaces.push(Vec::new());
@@ -1377,7 +1381,7 @@ impl State {
                         kind,
                         epilogues,
                     } => {
-                        let operator = compiled.model.graph().nodes[*index].op_type.as_str();
+                        let operator = compiled.model.graph().nodes[*index].op_type();
                         let nhwc = step
                             .inputs
                             .first()
@@ -1449,7 +1453,7 @@ impl State {
                 };
                 match &s.op {
                     Operation::Native { index, kind, .. } => (
-                        compiled.model.graph().nodes[*index].op_type.as_str(),
+                        compiled.model.graph().nodes[*index].op_type(),
                         layout,
                         (self.plan.values[s.inputs[0]].layout == Layout::Nhwc
                             && (compiled.conv_packed.contains_key(index)

@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod performance;
 fn backends() -> Vec<Backend> {
     let mut result = vec![Backend::Scalar, Backend::Portable4];

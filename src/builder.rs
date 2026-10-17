@@ -54,17 +54,17 @@ impl OcrModelSet {
         detection: impl AsRef<Path>,
         recognition: impl AsRef<Path>,
         dictionary: impl AsRef<Path>,
-        classification: Option<impl AsRef<Path>>,
+        classification: Option<&Path>,
     ) -> ImageResult<Self> {
         fn load(path: impl AsRef<Path>, stage: &str) -> ImageResult<Arc<Model>> {
             Model::load_path(path)
                 .map(Arc::new)
-                .map_err(|e| ImageError::new(format!("{stage} model: {e}")))
+                .map_err(|e| ImageError::caused_by(e.kind(), format!("{stage} model"), e))
         }
         let detection = load(detection, "detection")?;
         let recognition = load(recognition, "recognition")?;
-        let bytes =
-            std::fs::read(dictionary).map_err(|e| ImageError::new(format!("dictionary: {e}")))?;
+        let bytes = std::fs::read(dictionary)
+            .map_err(|e| ImageError::caused_by(crate::error::ErrorKind::Io, "dictionary", e))?;
         let dictionary = Arc::new(Dictionary::from_utf8(&bytes)?);
         let classification = classification
             .map(|path| load(path, "classification"))
@@ -77,23 +77,23 @@ impl OcrModelSet {
         ))
     }
     /// Readers are consumed and released during parsing; they need not be seekable.
-    pub fn from_readers<D: BufRead, R: BufRead, K: BufRead, C: BufRead>(
+    pub fn from_readers<D: BufRead, R: BufRead, K: BufRead>(
         detection: D,
         recognition: R,
         mut dictionary: K,
-        classification: Option<C>,
+        classification: Option<&mut dyn BufRead>,
     ) -> ImageResult<Self> {
         fn load(reader: impl BufRead, stage: &str) -> ImageResult<Arc<Model>> {
             Model::load_reader(reader)
                 .map(Arc::new)
-                .map_err(|e| ImageError::new(format!("{stage} model: {e}")))
+                .map_err(|e| ImageError::caused_by(e.kind(), format!("{stage} model"), e))
         }
         let detection = load(detection, "detection")?;
         let recognition = load(recognition, "recognition")?;
         let mut bytes = Vec::new();
         dictionary
             .read_to_end(&mut bytes)
-            .map_err(|e| ImageError::new(format!("dictionary: {e}")))?;
+            .map_err(|e| ImageError::caused_by(crate::error::ErrorKind::Io, "dictionary", e))?;
         let dictionary = Arc::new(Dictionary::from_utf8(&bytes)?);
         let classification = classification
             .map(|reader| load(reader, "classification"))
@@ -118,7 +118,9 @@ impl OcrModelSet {
             directory.join(det),
             directory.join(rec),
             directory.join(dict),
-            classification.then(|| directory.join("cls.onnx")),
+            classification
+                .then(|| directory.join("cls.onnx"))
+                .as_deref(),
         )
     }
     pub fn builder(self) -> OcrBuilder {
@@ -264,7 +266,7 @@ mod tests {
             BufReader::with_capacity(11, Chunks(&det)),
             BufReader::with_capacity(13, Chunks(&rec)),
             BufReader::new(Chunks(b"A\n")),
-            None::<&[u8]>,
+            None,
         )
         .unwrap();
         let cpu = CpuContext::serial();
@@ -304,17 +306,16 @@ mod tests {
     #[test]
     fn reader_errors_identify_the_failed_stage() {
         let (det, rec) = crate::ocr::tests::synthetic_sources();
-        let error =
-            OcrModelSet::from_readers(&b"invalid"[..], &rec[..], &b"A\n"[..], None::<&[u8]>)
-                .err()
-                .expect("invalid detector must fail");
+        let error = OcrModelSet::from_readers(&b"invalid"[..], &rec[..], &b"A\n"[..], None)
+            .err()
+            .expect("invalid detector must fail");
         assert!(error.to_string().contains("detection model:"));
-        let error = OcrModelSet::from_readers(&det[..], &rec[..], &b"\xff"[..], None::<&[u8]>)
+        let error = OcrModelSet::from_readers(&det[..], &rec[..], &b"\xff"[..], None)
             .err()
             .expect("invalid UTF-8 dictionary must fail");
         assert!(error.to_string().contains("UTF-8"));
         let error =
-            OcrModelSet::from_readers(&det[..], &rec[..], &b"A\n"[..], Some(&b"invalid"[..]))
+            OcrModelSet::from_readers(&det[..], &rec[..], &b"A\n"[..], Some(&mut &b"invalid"[..]))
                 .err()
                 .expect("invalid optional classifier must fail");
         assert!(error.to_string().contains("classification model:"));

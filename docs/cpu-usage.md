@@ -86,7 +86,17 @@ cropping's vertical-line rotation still applies.
 
 `OcrModelSet::from_paths` accepts explicit model filenames, and `from_readers`
 accepts non-seekable buffered streams. Parsing releases the raw ONNX input and
-shares immutable models/dictionaries through `Arc`.
+shares immutable models/dictionaries through `Arc`. The optional classifier is
+`Option<&Path>` for paths and `Option<&mut dyn BufRead>` for readers, so `None`
+needs no type annotation. For example:
+
+```rust,no_run
+use simd_paddle_ocr_rs::OcrModelSet;
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let models = OcrModelSet::from_paths("det.onnx", "rec.onnx", "keys.txt", None)?;
+# Ok(())
+# }
+```
 
 ## Run an image
 
@@ -243,14 +253,31 @@ allocations. Kernels retain reusable scratch and requests retain high-water
 capacities; the `retained_*_bytes()` APIs expose these capacities. Kernel
 scratch is already included in retained workspace bytes, so do not add it
 twice. Low-level `Model::load_*_with_limits` accepts `onnx::LoadLimits` for
-input-byte, nesting and rank limits.
+input-byte, protobuf nesting, tensor rank, graph-node and shape-program limits.
+Defaults are 1 GiB of input, nesting depth 64, rank 8, 100,000 source nodes and
+64 combined shape-program nodes. The shape-node limit may be tightened below 64.
+`max_constant_bytes` caps the normalization constant store (default 1 GiB), and
+`max_generated_bytes` caps cumulative generated coefficients (default 1 GiB).
+Generated arrays are reserved fallibly before rewriting the graph. An optional
+rewrite that exceeds either budget is skipped; oversized source constants are
+rejected. Branch merging also requires the merged dense kernel to contain no
+more coefficients than its source kernels. These limits are separate from
+process memory: protobuf metadata, small shape-program copies, allocator
+capacity and concurrent imports also use memory.
 
 Recognition result caches retain one UTF-8 buffer and compact alignment offsets
 per line. Shorter text, capture toggles and smaller pages retain the high-water
 capacity for later reuse. Inactive line caches are included in retained
 workspace accounting and the engine's idle-cache budget.
 
-This importer/runtime supports the OCR subset used by the shipped bundles.
+This importer/runtime supports the OCR subset used by the shipped bundles,
+with declared standard-domain source opsets 7 through 18. Domains, opsets,
+attribute names and source topology are checked before nodes can be erased.
+Resize supports spatial scales 2, 4 and 8 with nearest/asymmetric/floor
+sampling; opset 11+ defaults are half_pixel/round_prefer_floor, which this
+runtime rejects unless the model explicitly selects the supported modes.
+Resize 10 uses its legacy asymmetric/floor defaults. GlobalAveragePool reduces
+all spatial axes of a rank-three-through-eight input.
 Graphs require one F32 input and output and supported normalized operators;
 arbitrary ONNX graphs are not guaranteed to load. Detection requires a
 `[1, 1, H, W]` probability map matching input spatial dimensions. Recognition
@@ -269,3 +296,46 @@ shipped bundles. Each CPU/backend and operating system requires its own physical
 machine qualification; the Windows x64 gate does not establish macOS or AVX-512
 results. See [macOS CPU support](macos-cpu-validation.md) for the Apple Silicon
 validation scope.
+
+## Import policy and API migration
+
+Import performs optional BN folding and convolution-branch merging by default.
+These rewrites can change floating-point rounding. For an independent arithmetic
+reference, disable both import rewrites and execution optimizations:
+
+```rust,no_run
+use simd_paddle_ocr_rs::model::{LoadOptions, Model, OptimizationPolicy};
+use simd_paddle_ocr_rs::runtime::{CompileOptions, CompiledModel};
+use std::sync::Arc;
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let model = Model::load_path_with_options("det.onnx", &LoadOptions {
+    optimization: OptimizationPolicy::PreserveArithmetic,
+    ..Default::default()
+})?;
+let compiled = CompiledModel::compile(Arc::new(model), CompileOptions::reference())?;
+# Ok(())
+# }
+```
+
+`CompileOptions::reference()` alone preserves the arithmetic of an already
+imported model. Structural alias removal and shape lowering still occur in
+both import modes.
+
+The normalized graph now stores `Node::operator: Operator`; use `op_type()`
+for its name and match the enum for its parameters. This replaces the separate
+`op_type` and `EffectiveAttributes` fields. Classifier and recognizer heads
+share the same structural validator.
+
+Construct `CpuBudgets` with `CpuOptions::resolve`, and read values through
+accessors such as `line_workers()`. `OrientedLines` and `OwnedOrientedLines`
+provide checked `new` constructors, `metadata()` and `pixels()` accessors, and
+an immutable borrowed view. Iteration includes every validated line; only an
+out-of-range `get` returns `None`. Their storage fields are private.
+
+`Tensor::defaulted` replaces the generic `Tensor::zeros`: it fills elements
+with `T::default()`, which is not necessarily numeric zero. The public error
+types expose `kind()` and retain concrete causes through `Error::source()`;
+inspect kinds and sources rather than comparing error strings. Errors remain
+cloneable but no longer implement equality. The shared CPU context caches
+only successful initialization, allowing a later call to retry a transient
+pool-creation failure.

@@ -137,14 +137,14 @@ fn neutral_spatial_defaults_preserve_typed_parameters() {
             }
         }
         let model = normalize_node(node(op_type, &attributes)).unwrap();
-        match &model.graph.nodes[0].attributes {
-            EffectiveAttributes::ConvTranspose(parameters) => {
+        match &model.graph.nodes[0].operator {
+            Operator::ConvTranspose(parameters) => {
                 assert_eq!(parameters.kernel_shape, [2, 2]);
                 assert_eq!(parameters.dilations, [1, 1]);
                 assert_eq!(parameters.pads, [0; 4]);
                 assert_eq!(parameters.group, 1);
             }
-            EffectiveAttributes::Pool(parameters) => {
+            Operator::MaxPool(parameters) | Operator::AveragePool(parameters) => {
                 assert_eq!(parameters.kernel_shape, [2, 2]);
                 assert_eq!(parameters.pads, [0; 4]);
                 assert_eq!(parameters.ceil_mode, 0);
@@ -163,10 +163,7 @@ fn data_slice_rejects_attribute_form_parameters() {
         assert!(error.to_string().contains(name));
     }
     let model = normalize_node(node("Slice", &[])).unwrap();
-    assert!(matches!(
-        model.graph.nodes[0].attributes,
-        EffectiveAttributes::Slice
-    ));
+    assert!(matches!(model.graph.nodes[0].operator, Operator::Slice));
 }
 
 #[test]
@@ -257,9 +254,9 @@ fn supported_padding_is_normalized_without_dropping_other_semantics() {
             ],
         ))
         .unwrap();
-        let pads = match &model.graph.nodes[0].attributes {
-            EffectiveAttributes::Conv(a) => a.pads,
-            EffectiveAttributes::Pool(a) => a.pads,
+        let pads = match &model.graph.nodes[0].operator {
+            Operator::Conv(a) => a.pads,
+            Operator::MaxPool(a) | Operator::AveragePool(a) => a.pads,
             _ => panic!("wrong effective attributes"),
         };
         assert_eq!(pads, [0, 0, 1, 1]);
@@ -297,7 +294,7 @@ fn supported_padding_is_normalized_without_dropping_other_semantics() {
 }
 
 #[test]
-fn documented_resize_defaults_do_not_change_effective_sampling() {
+fn resize_defaults_follow_the_declared_opset() {
     let model = normalize_node(node(
         "Resize",
         &[
@@ -314,11 +311,13 @@ fn documented_resize_defaults_do_not_change_effective_sampling() {
         ],
     ))
     .unwrap();
-    let EffectiveAttributes::Resize(attributes) = &model.graph.nodes[0].attributes else {
+    let Operator::Resize(attributes) = &model.graph.nodes[0].operator else {
         panic!("expected resize attributes");
     };
     assert_eq!(attributes.scales, [1.0, 1.0, 2.0, 2.0]);
     assert_eq!(attributes.mode, b"nearest");
+    assert_eq!(attributes.coordinate_transformation_mode, b"half_pixel");
+    assert_eq!(attributes.nearest_mode, b"round_prefer_floor");
 }
 
 #[test]

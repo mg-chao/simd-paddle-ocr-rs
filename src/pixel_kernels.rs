@@ -10,8 +10,11 @@ use std::simd::{
 pub(crate) enum PixelKernel {
     Scalar,
     Portable,
+    #[cfg(any(target_arch = "x86_64", test))]
     Avx,
+    #[cfg(any(target_arch = "x86_64", test))]
     Avx2,
+    #[cfg(any(target_arch = "x86_64", test))]
     Avx512,
 }
 impl PixelKernel {
@@ -40,7 +43,9 @@ impl PixelKernel {
         match self {
             Self::Scalar => 1,
             Self::Portable => 2,
+            #[cfg(any(target_arch = "x86_64", test))]
             Self::Avx | Self::Avx2 => 4,
+            #[cfg(any(target_arch = "x86_64", test))]
             Self::Avx512 => 8,
         }
     }
@@ -56,7 +61,7 @@ impl PixelKernel {
                 std::arch::is_x86_feature_detected!("avx512f")
                     && std::arch::is_x86_feature_detected!("avx2")
             }
-            #[cfg(not(target_arch = "x86_64"))]
+            #[cfg(all(not(target_arch = "x86_64"), test))]
             _ => false,
         }
     }
@@ -71,8 +76,11 @@ impl PixelKernel {
         [
             Self::Scalar,
             Self::Portable,
+            #[cfg(any(target_arch = "x86_64", test))]
             Self::Avx,
+            #[cfg(any(target_arch = "x86_64", test))]
             Self::Avx2,
+            #[cfg(any(target_arch = "x86_64", test))]
             Self::Avx512,
         ]
         .into_iter()
@@ -183,9 +191,11 @@ fn horizontal_portable<const N: usize>(
     offsets: &[usize],
     coefficients: &[[i32; 2]],
     destination: &mut [[i32; 3]],
-    gather: bool,
+    _gather: bool,
 ) {
+    #[cfg(target_arch = "x86_64")]
     let bpp = image.format().bytes_per_pixel();
+    #[cfg(target_arch = "x86_64")]
     let row = &image.pixels()[y * image.stride()..y * image.stride() + source_width * bpp];
     let end = width / N * N;
     for x in (0..end).step_by(N) {
@@ -193,7 +203,7 @@ fn horizontal_portable<const N: usize>(
         let right: [usize; N] = left.map(|sx| (sx + 1).min(source_width - 1));
         let pixels = |positions: [usize; N]| -> [[i32; N]; 3] {
             #[cfg(target_arch = "x86_64")]
-            if gather {
+            if _gather {
                 let mut packed = [0u32; N];
                 for first in (0..N).step_by(8) {
                     let positions = std::array::from_fn(|lane| positions[first + lane] * bpp);

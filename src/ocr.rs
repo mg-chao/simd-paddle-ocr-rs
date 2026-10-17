@@ -241,8 +241,12 @@ pub enum OcrTrace<'a> {
     },
     Result(OcrView<'a>),
 }
-fn allocation(error: impl std::fmt::Display) -> ImageError {
-    ImageError::new(format!("OCR result allocation failed: {error}"))
+fn allocation(error: std::collections::TryReserveError) -> ImageError {
+    ImageError::caused_by(
+        crate::error::ErrorKind::Allocation,
+        "OCR result allocation failed",
+        error,
+    )
 }
 
 pub struct Ocr {
@@ -314,7 +318,7 @@ impl Ocr {
             ),
         )?;
         extractor.set_execution_context(cpu.clone(), cpu_options)?;
-        recognizer.set_execution_context(cpu.clone(), budgets.recognizer_base_threads)?;
+        recognizer.set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         Ok(Self {
             extractor,
             recognizer,
@@ -427,11 +431,11 @@ impl Ocr {
         )?;
         self.extractor.set_execution_context(cpu.clone(), options)?;
         self.recognizer
-            .set_execution_context(cpu.clone(), budgets.recognizer_base_threads)?;
+            .set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         for worker in &mut self.workers {
             worker
                 .recognizer
-                .set_execution_context(cpu.clone(), budgets.recognizer_base_threads)?;
+                .set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         }
         self.cpu = cpu;
         self.cpu_options = options;
@@ -630,7 +634,7 @@ impl Ocr {
             self.extractor.extract_profiled::<PROFILE>(image, profile)?
         };
         let storage_timer = Timer::<PROFILE>::start();
-        let count = oriented.lines.len();
+        let count = oriented.len();
         let metadata_bytes = count
             .checked_mul(size_of::<LineRecord>())
             .filter(|&n| n <= self.options.max_total_result_bytes)
@@ -774,10 +778,10 @@ impl Ocr {
                 .saturating_add(recognition_timer.elapsed());
         }
         self.detected_count = count;
-        self.detector_resized_width = oriented.resized_width;
-        self.detector_resized_height = oriented.resized_height;
-        self.width_ratio = oriented.width_ratio;
-        self.height_ratio = oriented.height_ratio;
+        self.detector_resized_width = oriented.resized_width();
+        self.detector_resized_height = oriented.resized_height();
+        self.width_ratio = oriented.width_ratio();
+        self.height_ratio = oriented.height_ratio();
         let output = self.view();
         if TRACE {
             observer.borrow_mut()(OcrTrace::Result(output))?;
@@ -812,7 +816,7 @@ fn recognize_parallel<const PROFILE: bool>(
     result_budget: usize,
     profile: &mut StageProfile,
 ) -> ImageResult<()> {
-    let count = lines.lines.len();
+    let count = lines.len();
     order.clear();
     order.try_reserve_exact(count).map_err(allocation)?;
     order.extend(0..count);
@@ -822,11 +826,11 @@ fn recognize_parallel<const PROFILE: bool>(
     if results.len() < count {
         results.resize_with(count, || Mutex::new(RecognitionSlot::new()));
     }
-    sort_recognition_order(order, template, lines.lines);
+    sort_recognition_order(order, template, lines.metadata());
     let mut units = 0;
     let mut position = 0;
     while position < count {
-        position = recognition_unit_end(order, position, batch_size, template, lines.lines);
+        position = recognition_unit_end(order, position, batch_size, template, lines.metadata());
         units += 1;
     }
     *budgets = budgets.for_recognition_units(
@@ -834,7 +838,7 @@ fn recognize_parallel<const PROFILE: bool>(
         automatic_line_workers,
         template.compiled().backend() == crate::runtime::Backend::NeonFma,
     );
-    let active = budgets.line_workers.min(units).max(1);
+    let active = budgets.line_workers().min(units).max(1);
     workers
         .try_reserve(active.saturating_sub(workers.len()))
         .map_err(allocation)?;
@@ -860,7 +864,7 @@ fn recognize_parallel<const PROFILE: bool>(
         order,
         batch_size,
         template,
-        lines.lines,
+        lines.metadata(),
     )?;
     let result_bytes = AtomicUsize::new(0);
     let budget_exceeded = AtomicBool::new(false);
@@ -2006,21 +2010,33 @@ pub(crate) mod tests {
         // Classification can rotate crop pixels by 180 degrees without changing
         // the recognition shape. Ownership and high-water storage must survive
         // that orientation change, including when the contents change.
-        let mut oriented = parallel
+        let oriented = parallel
             .extractor
             .extract(image)
             .unwrap()
             .try_to_owned()
             .unwrap();
-        for line in &mut oriented.lines {
+        let geometry = oriented.as_view();
+        let mut metadata = oriented.metadata().to_vec();
+        let mut pixels = oriented.pixels().to_vec();
+        for line in &mut metadata {
             crate::crop::rotate180(
-                &mut oriented.pixels[line.offset..line.offset + line.bytes],
+                &mut pixels[line.offset..line.offset + line.bytes],
                 line.width,
                 line.height,
             )
             .unwrap();
             line.applied_rotation_degrees = 180;
         }
+        let oriented = crate::lines::OwnedOrientedLines::new(
+            geometry.resized_width(),
+            geometry.resized_height(),
+            geometry.width_ratio(),
+            geometry.height_ratio(),
+            metadata,
+            pixels,
+        )
+        .unwrap();
         let rotated_expected: Vec<_> = oriented
             .as_view()
             .iter()

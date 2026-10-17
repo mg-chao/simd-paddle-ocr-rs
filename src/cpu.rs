@@ -6,7 +6,7 @@ use std::{
     marker::PhantomData,
     rc::Rc,
     sync::{
-        Arc, Mutex, MutexGuard, OnceLock,
+        Arc, Mutex, MutexGuard,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -75,16 +75,16 @@ pub struct CpuOptions {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CpuBudgets {
-    pub capacity: usize,
-    pub line_workers: usize,
-    pub preprocess_workers: usize,
-    pub detector_threads: usize,
-    pub recognizer_base_threads: usize,
+    capacity: usize,
+    line_workers: usize,
+    preprocess_workers: usize,
+    detector_threads: usize,
+    recognizer_base_threads: usize,
 }
 impl CpuOptions {
     pub fn resolve(self, capacity: usize, channels_last: bool) -> ImageResult<CpuBudgets> {
-        if capacity == 0 {
-            return Err(ImageError::new("CPU capacity must be positive"));
+        if !(1..=1024).contains(&capacity) {
+            return Err(ImageError::new("CPU capacity must be within 1..=1024"));
         }
         let lines = if self.line_workers == 0 {
             capacity.min(4)
@@ -114,6 +114,22 @@ pub(crate) fn cap_stage_threads(requested: usize, capacity: usize) -> usize {
     requested.min(capacity).min(16)
 }
 impl CpuBudgets {
+    pub fn capacity(self) -> usize {
+        self.capacity
+    }
+    pub fn line_workers(self) -> usize {
+        self.line_workers
+    }
+    pub fn preprocess_workers(self) -> usize {
+        self.preprocess_workers
+    }
+    pub fn detector_threads(self) -> usize {
+        self.detector_threads
+    }
+    pub fn recognizer_base_threads(self) -> usize {
+        self.recognizer_base_threads
+    }
+
     /// Native ARM recognition benefits from more independent lines instead of
     /// nested two-worker kernels when a complete eight-line wave is available.
     /// Depend only on page geometry and configuration, never on request timing:
@@ -186,6 +202,22 @@ impl std::fmt::Debug for CpuContext {
             .finish_non_exhaustive()
     }
 }
+// Only successful construction is cached; serialize initializers to avoid
+// temporarily creating multiple process-wide pools under concurrent callers.
+fn shared_context(
+    cache: &Mutex<Option<Arc<CpuContext>>>,
+    initialize: impl FnOnce() -> RuntimeResult<CpuContext>,
+) -> RuntimeResult<Arc<CpuContext>> {
+    let mut cached = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(context) = cached.as_ref() {
+        return Ok(context.clone());
+    }
+    let context = Arc::new(initialize()?);
+    *cached = Some(context.clone());
+    Ok(context)
+}
 impl CpuContext {
     pub fn new(capacity: usize) -> RuntimeResult<Self> {
         if capacity == 0 || capacity > 1024 {
@@ -199,7 +231,13 @@ impl CpuContext {
                         .num_threads(capacity)
                         .thread_name(|i| format!("simd-ocr-{i}"))
                         .build()
-                        .map_err(|e| RuntimeError::new(format!("CPU pool creation: {e}")))?,
+                        .map_err(|e| {
+                            RuntimeError::caused_by(
+                                crate::error::ErrorKind::Allocation,
+                                "CPU pool creation",
+                                e,
+                            )
+                        })?,
                 )
             } else {
                 None
@@ -234,10 +272,8 @@ impl CpuContext {
     }
     /// Default engines and requests share one process-wide worker capacity.
     pub fn shared_default() -> RuntimeResult<Arc<Self>> {
-        static DEFAULT: OnceLock<RuntimeResult<Arc<CpuContext>>> = OnceLock::new();
-        DEFAULT
-            .get_or_init(|| Self::automatic().map(Arc::new))
-            .clone()
+        static DEFAULT: Mutex<Option<Arc<CpuContext>>> = Mutex::new(None);
+        shared_context(&DEFAULT, Self::automatic)
     }
     pub fn serial() -> Arc<Self> {
         Arc::new(Self::new(1).expect("inline CPU context needs no resources"))
@@ -371,6 +407,34 @@ impl CpuContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shared_initialization_retries_failure_and_publishes_one_success() {
+        let cache = Mutex::new(None);
+        let error =
+            shared_context(&cache, || Err(RuntimeError::new("transient failure"))).unwrap_err();
+        assert!(error.to_string().contains("transient failure"));
+        let calls = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            let handles = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        shared_context(&cache, || {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            CpuContext::new(1)
+                        })
+                        .unwrap()
+                    })
+                })
+                .collect::<Vec<_>>();
+            let contexts = handles
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .collect::<Vec<_>>();
+            assert!(contexts.iter().all(|c| Arc::ptr_eq(c, &contexts[0])));
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
 
     #[test]
     fn automatic_neon_recognition_expands_only_complete_eight_unit_waves() {

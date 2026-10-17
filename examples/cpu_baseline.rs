@@ -509,7 +509,7 @@ fn rust_worker(manifest_path: &Path, models: &Path, model_id: &str) -> Result<()
         models.join(&model.det),
         models.join(&model.rec),
         models.join(&model.dictionary),
-        Some(models.join(&model.cls)),
+        Some(&models.join(&model.cls)),
     )?;
     let mut ocr = models
         .builder()

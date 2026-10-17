@@ -87,12 +87,12 @@ fn recognition_backbone_physical_steps() {
         let compiled =
             Arc::new(CompiledModel::new(Arc::new(Model::load_path(path).unwrap())).unwrap());
         let graph = compiled.model.graph();
-        assert_eq!(graph.nodes.last().unwrap().op_type, "Softmax");
+        assert_eq!(graph.nodes.last().unwrap().op_type(), "Softmax");
         let mut head = graph.nodes.len() - 2;
-        if graph.nodes[head].op_type == "Add" {
+        if graph.nodes[head].op_type() == "Add" {
             head -= 1;
         }
-        assert_eq!(graph.nodes[head].op_type, "MatMul");
+        assert_eq!(graph.nodes[head].op_type(), "MatMul");
         let feature = graph.nodes[head].inputs[0].unwrap();
         let last = graph.nodes[..head]
             .iter()
@@ -144,8 +144,8 @@ fn recognition_backbone_physical_steps() {
                     ),
                 ),
                 Operation::Native { index, .. } => (
-                    graph.nodes[*index].op_type.clone(),
-                    format!("node={index} {}", graph.nodes[*index].op_type),
+                    graph.nodes[*index].op_type().to_owned(),
+                    format!("node={index} {}", graph.nodes[*index].op_type()),
                 ),
                 Operation::Convert => ("Convert".into(), "Convert".into()),
                 Operation::Activation(_) => ("Activation".into(), "Activation".into()),
@@ -270,7 +270,7 @@ fn sparse_detector_physical_steps() {
                 ),
                 Operation::Native { index, .. } => format!(
                     "node={index} {}",
-                    compiled.model.graph().nodes[*index].op_type
+                    compiled.model.graph().nodes[*index].op_type()
                 ),
                 _ => format!("output={:?}", whole.values[step.output].shape.dimensions()),
             };
@@ -307,12 +307,12 @@ fn recognition_cached_arena_rebind() {
     let compiled =
         Arc::new(CompiledModel::new(Arc::new(Model::load_path(&path).unwrap())).unwrap());
     let graph = compiled.model.graph();
-    assert_eq!(graph.nodes.last().unwrap().op_type, "Softmax");
+    assert_eq!(graph.nodes.last().unwrap().op_type(), "Softmax");
     let mut head = graph.nodes.len() - 2;
-    if graph.nodes[head].op_type == "Add" {
+    if graph.nodes[head].op_type() == "Add" {
         head -= 1;
     }
-    assert_eq!(graph.nodes[head].op_type, "MatMul");
+    assert_eq!(graph.nodes[head].op_type(), "MatMul");
     let feature = graph.nodes[head].inputs[0].unwrap();
     let last = graph.nodes[..head]
         .iter()

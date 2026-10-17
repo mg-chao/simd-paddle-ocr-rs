@@ -78,6 +78,7 @@ macro_rules! native {
 native!(avx, "avx", false);
 native!(avx_fma, "avx,fma", true);
 native!(avx2, "avx2,fma", true);
+#[cfg(target_arch = "x86_64")]
 #[inline(always)]
 fn madd<const FMA: bool>(
     value: Simd<f32, 8>,
@@ -90,6 +91,7 @@ fn madd<const FMA: bool>(
         value * weight + sum
     }
 }
+#[cfg(target_arch = "x86_64")]
 #[inline(always)]
 fn run<const FMA: bool>(
     input: &[f32],

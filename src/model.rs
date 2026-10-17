@@ -11,6 +11,22 @@ use std::{
     path::Path,
 };
 
+use crate::error::ErrorKind;
+
+/// Arithmetic rewrites change floating-point rounding and are optional.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OptimizationPolicy {
+    #[default]
+    Optimized,
+    PreserveArithmetic,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct LoadOptions {
+    pub limits: LoadLimits,
+    pub optimization: OptimizationPolicy,
+}
+
 type Result<T> = std::result::Result<T, ImportError>;
 fn error(message: impl Into<String>) -> ImportError {
     ImportError::new(message)
@@ -54,11 +70,22 @@ pub struct ResizeAttributes {
 
 /// Typed operator parameters consumed by the CPU runtime.
 #[derive(Clone, Debug)]
-pub enum EffectiveAttributes {
-    None,
+pub enum Operator {
+    Add,
+    Mul,
+    Div,
+    Sub,
+    Pow,
+    Sqrt,
+    Erf,
+    Relu,
+    MatMul,
+    Sigmoid,
+    GlobalAveragePool,
     Conv(ConvAttributes),
     ConvTranspose(ConvAttributes),
-    Pool(PoolAttributes),
+    MaxPool(PoolAttributes),
+    AveragePool(PoolAttributes),
     BatchNormalization {
         epsilon: f32,
         momentum: f32,
@@ -68,9 +95,11 @@ pub enum EffectiveAttributes {
         alpha: f32,
         beta: f32,
     },
-    Axes(Vec<i64>),
+    Squeeze(Vec<i64>),
+    Unsqueeze(Vec<i64>),
     Transpose(Vec<i64>),
-    Axis(i64),
+    Softmax(i64),
+    Concat(i64),
     ReduceMean {
         axes: Vec<i64>,
         keepdims: i64,
@@ -87,13 +116,50 @@ pub enum EffectiveAttributes {
 pub struct Node {
     pub key: String,
     pub name: String,
-    pub op_type: String,
     pub domain: String,
     pub opset: i64,
     pub source_indices: Vec<usize>,
     pub inputs: Vec<Option<TensorId>>,
     pub outputs: Vec<Option<TensorId>>,
-    pub attributes: EffectiveAttributes,
+    pub operator: Operator,
+}
+
+impl Operator {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Add => "Add",
+            Self::Mul => "Mul",
+            Self::Div => "Div",
+            Self::Sub => "Sub",
+            Self::Pow => "Pow",
+            Self::Sqrt => "Sqrt",
+            Self::Erf => "Erf",
+            Self::Relu => "Relu",
+            Self::MatMul => "MatMul",
+            Self::Sigmoid => "Sigmoid",
+            Self::GlobalAveragePool => "GlobalAveragePool",
+            Self::Slice => "Slice",
+            Self::Conv(..) => "Conv",
+            Self::ConvTranspose(..) => "ConvTranspose",
+            Self::MaxPool(..) => "MaxPool",
+            Self::AveragePool(..) => "AveragePool",
+            Self::Squeeze(..) => "Squeeze",
+            Self::Unsqueeze(..) => "Unsqueeze",
+            Self::Transpose(..) => "Transpose",
+            Self::Softmax(..) => "Softmax",
+            Self::Concat(..) => "Concat",
+            Self::Resize(..) => "Resize",
+            Self::BatchNormalization { .. } => "BatchNormalization",
+            Self::HardSigmoid { .. } => "HardSigmoid",
+            Self::ReduceMean { .. } => "ReduceMean",
+            Self::Reshape { .. } => "Reshape",
+        }
+    }
+}
+impl Node {
+    pub fn op_type(&self) -> &'static str {
+        self.operator.name()
+    }
 }
 
 #[derive(Debug)]
@@ -163,19 +229,44 @@ impl Model {
         Self::load_bytes_with_limits(bytes, &LoadLimits::default())
     }
     pub fn load_path_with_limits(path: impl AsRef<Path>, limits: &LoadLimits) -> Result<Self> {
-        let path = path.as_ref();
-        let file = File::open(path).map_err(|e| error(format!("{}: {e}", path.display())))?;
-        if file.metadata().map_err(|e| error(e.to_string()))?.len() > limits.max_input_bytes {
-            return Err(error("model exceeds max_input_bytes"));
-        }
-        Self::load_reader_with_limits(BufReader::with_capacity(64 * 1024, file), limits)
+        Self::load_path_with_options(
+            path,
+            &LoadOptions {
+                limits: limits.clone(),
+                ..Default::default()
+            },
+        )
     }
     pub fn load_bytes_with_limits(bytes: &[u8], limits: &LoadLimits) -> Result<Self> {
         Self::load_reader_with_limits(Cursor::new(bytes), limits)
     }
     pub fn load_reader_with_limits<R: BufRead>(reader: R, limits: &LoadLimits) -> Result<Self> {
-        let raw = onnx::parse(reader, limits)?;
-        normalize(raw, limits)
+        Self::load_reader_with_options(
+            reader,
+            &LoadOptions {
+                limits: limits.clone(),
+                ..Default::default()
+            },
+        )
+    }
+    pub fn load_path_with_options(path: impl AsRef<Path>, options: &LoadOptions) -> Result<Self> {
+        let path = path.as_ref();
+        let file = File::open(path).map_err(|e| ImportError::from(e).context(path.display()))?;
+        if file.metadata()?.len() > options.limits.max_input_bytes {
+            return Err(ImportError::with_kind(
+                ErrorKind::ResourceLimit,
+                "model exceeds max_input_bytes",
+            ));
+        }
+        Self::load_reader_with_options(BufReader::with_capacity(64 * 1024, file), options)
+            .map_err(|e| e.context(path.display()))
+    }
+    pub fn load_bytes_with_options(bytes: &[u8], options: &LoadOptions) -> Result<Self> {
+        Self::load_reader_with_options(Cursor::new(bytes), options)
+    }
+    pub fn load_reader_with_options<R: BufRead>(reader: R, options: &LoadOptions) -> Result<Self> {
+        let raw = onnx::parse(reader, &options.limits)?;
+        normalize_with_policy(raw, &options.limits, options.optimization)
     }
     pub fn normalized_weight_bytes(&self) -> u64 {
         self.graph
@@ -263,14 +354,17 @@ fn set_attr(node: &mut RawNode, name: &str, value: AttributeValue) {
 }
 
 fn unsupported_attribute(node: &RawNode, name: &str) -> ImportError {
-    error(format!(
-        "{} ({}): unsupported attribute {name} or value for the OCR CPU subset",
-        node.name, node.op_type
-    ))
+    ImportError::with_kind(
+        ErrorKind::Unsupported,
+        format!(
+            "{} ({}): unsupported attribute {name} or value for the OCR CPU subset",
+            node.name, node.op_type
+        ),
+    )
 }
 
 /// Validate before transformations can erase source semantics. Attributes stored in
-/// EffectiveAttributes are checked by their typed readers and the runtime; other
+/// Operator are checked by their typed readers and the runtime; other
 /// attributes are accepted only when they are documented neutral ONNX defaults.
 /// This is an OCR operator subset, not a general ONNX schema validator.
 fn validate_attributes(node: &RawNode) -> Result<()> {
@@ -377,7 +471,7 @@ fn validate_attributes(node: &RawNode) -> Result<()> {
     Ok(())
 }
 
-fn effective(node: &RawNode, opset: i64) -> Result<EffectiveAttributes> {
+fn effective(node: &RawNode, opset: i64) -> Result<Operator> {
     Ok(match node.op_type.as_str() {
         "Conv" | "ConvTranspose" => {
             let attrs = ConvAttributes {
@@ -408,34 +502,40 @@ fn effective(node: &RawNode, opset: i64) -> Result<EffectiveAttributes> {
                 )));
             }
             if node.op_type == "Conv" {
-                EffectiveAttributes::Conv(attrs)
+                Operator::Conv(attrs)
             } else {
-                EffectiveAttributes::ConvTranspose(attrs)
+                Operator::ConvTranspose(attrs)
             }
         }
-        "AveragePool" | "MaxPool" => EffectiveAttributes::Pool(PoolAttributes {
-            kernel_shape: array_attr(node, "kernel_shape", &[])?,
-            strides: array_attr(node, "strides", &[1, 1])?,
-            pads: array_attr(node, "pads", &[0, 0, 0, 0])?,
-            ceil_mode: int_attr(node, "ceil_mode", 0)?,
-            count_include_pad: int_attr(node, "count_include_pad", 0)?,
-        }),
-        "BatchNormalization" => EffectiveAttributes::BatchNormalization {
+        "AveragePool" | "MaxPool" => {
+            let attributes = PoolAttributes {
+                kernel_shape: array_attr(node, "kernel_shape", &[])?,
+                strides: array_attr(node, "strides", &[1, 1])?,
+                pads: array_attr(node, "pads", &[0, 0, 0, 0])?,
+                ceil_mode: int_attr(node, "ceil_mode", 0)?,
+                count_include_pad: int_attr(node, "count_include_pad", 0)?,
+            };
+            if node.op_type == "MaxPool" {
+                Operator::MaxPool(attributes)
+            } else {
+                Operator::AveragePool(attributes)
+            }
+        }
+        "BatchNormalization" => Operator::BatchNormalization {
             epsilon: float_attr(node, "epsilon", 1e-5)?,
             momentum: float_attr(node, "momentum", 0.9)?,
             training_mode: int_attr(node, "training_mode", 0)?,
         },
-        "HardSigmoid" => EffectiveAttributes::HardSigmoid {
+        "HardSigmoid" => Operator::HardSigmoid {
             alpha: float_attr(node, "alpha", 0.2)?,
             beta: float_attr(node, "beta", 0.5)?,
         },
-        "Squeeze" | "Unsqueeze" => EffectiveAttributes::Axes(ints_attr(node, "axes", &[])?),
-        "Transpose" => EffectiveAttributes::Transpose(ints_attr(node, "perm", &[])?),
-        "Softmax" => {
-            EffectiveAttributes::Axis(int_attr(node, "axis", if opset >= 13 { -1 } else { 1 })?)
-        }
-        "Concat" => EffectiveAttributes::Axis(int_attr(node, "axis", 1)?),
-        "ReduceMean" => EffectiveAttributes::ReduceMean {
+        "Squeeze" => Operator::Squeeze(ints_attr(node, "axes", &[])?),
+        "Unsqueeze" => Operator::Unsqueeze(ints_attr(node, "axes", &[])?),
+        "Transpose" => Operator::Transpose(ints_attr(node, "perm", &[])?),
+        "Softmax" => Operator::Softmax(int_attr(node, "axis", if opset >= 13 { -1 } else { 1 })?),
+        "Concat" => Operator::Concat(int_attr(node, "axis", 1)?),
+        "ReduceMean" => Operator::ReduceMean {
             axes: ints_attr(node, "axes", &[])?,
             keepdims: int_attr(node, "keepdims", 1)?,
             noop_with_empty_axes: int_attr(node, "noop_with_empty_axes", 0)?,
@@ -450,29 +550,49 @@ fn effective(node: &RawNode, opset: i64) -> Result<EffectiveAttributes> {
                     )));
                 }
             };
-            EffectiveAttributes::Resize(ResizeAttributes {
+            Operator::Resize(ResizeAttributes {
                 scales,
                 mode: bytes_attr(node, "mode", b"nearest")?,
                 coordinate_transformation_mode: bytes_attr(
                     node,
                     "coordinate_transformation_mode",
-                    b"asymmetric",
+                    if opset >= 11 {
+                        b"half_pixel"
+                    } else {
+                        b"asymmetric"
+                    },
                 )?,
-                nearest_mode: bytes_attr(node, "nearest_mode", b"floor")?,
+                nearest_mode: bytes_attr(
+                    node,
+                    "nearest_mode",
+                    if opset >= 11 {
+                        b"round_prefer_floor"
+                    } else {
+                        b"floor"
+                    },
+                )?,
             })
         }
-        "Reshape" => EffectiveAttributes::Reshape {
+        "Reshape" => Operator::Reshape {
             allowzero: int_attr(node, "allowzero", 0)?,
         },
         "Slice" => {
             if let Some(attribute) = node.attributes.first() {
                 return Err(unsupported_attribute(node, &attribute.name));
             }
-            EffectiveAttributes::Slice
+            Operator::Slice
         }
-        "Add" | "Mul" | "Div" | "Erf" | "Relu" | "MatMul" | "Sigmoid" | "Sub" | "Pow" | "Sqrt" => {
-            EffectiveAttributes::None
-        }
+        "Add" => Operator::Add,
+        "Mul" => Operator::Mul,
+        "Div" => Operator::Div,
+        "Sub" => Operator::Sub,
+        "Pow" => Operator::Pow,
+        "Sqrt" => Operator::Sqrt,
+        "Erf" => Operator::Erf,
+        "Relu" => Operator::Relu,
+        "MatMul" => Operator::MatMul,
+        "Sigmoid" => Operator::Sigmoid,
+        "GlobalAveragePool" => Operator::GlobalAveragePool,
         _ => {
             return Err(error(format!(
                 "unsupported retained ONNX operator {} at {}",
@@ -493,12 +613,20 @@ struct Constant {
 struct Constants {
     items: Vec<Option<Constant>>,
     index: HashMap<String, usize>,
+    bytes: usize,
+    generated: usize,
+    byte_limit: usize,
+    generated_limit: usize,
 }
 impl Constants {
-    fn new(tensors: Vec<RawTensor>) -> Result<Self> {
+    fn new(tensors: Vec<RawTensor>, limits: &LoadLimits) -> Result<Self> {
         let mut s = Self {
             items: vec![],
             index: HashMap::new(),
+            bytes: 0,
+            generated: 0,
+            byte_limit: limits.max_constant_bytes,
+            generated_limit: limits.max_generated_bytes,
         };
         for t in tensors {
             s.insert(t.name.clone(), original(&t.name), t.data)?;
@@ -509,9 +637,28 @@ impl Constants {
         if self.index.contains_key(&name) {
             return Err(error(format!("duplicate initializer {name}")));
         }
+        let bytes = data.shape().byte_count(data.dtype())?;
+        self.bytes = self
+            .bytes
+            .checked_add(bytes)
+            .filter(|&n| n <= self.byte_limit)
+            .ok_or_else(|| {
+                ImportError::with_kind(ErrorKind::ResourceLimit, "constant byte limit exceeded")
+            })?;
         self.index.insert(name.clone(), self.items.len());
         self.items.push(Some(Constant { name, key, data }));
         Ok(())
+    }
+    fn can_generate(&self, elements: usize) -> bool {
+        elements.checked_mul(4).is_some_and(|bytes| {
+            self.bytes
+                .checked_add(bytes)
+                .is_some_and(|n| n <= self.byte_limit)
+                && self
+                    .generated
+                    .checked_add(bytes)
+                    .is_some_and(|n| n <= self.generated_limit)
+        })
     }
     fn get(&self, name: &str) -> Option<&Constant> {
         self.index.get(name).and_then(|&i| self.items[i].as_ref())
@@ -578,16 +725,37 @@ fn i64_tensor(dims: &[usize], values: Vec<i64>) -> Result<TensorData> {
     )?))
 }
 
-fn resolve(name: &str, aliases: &HashMap<String, String>) -> Result<String> {
-    let mut name = name.to_string();
-    let mut seen = HashSet::new();
-    while let Some(next) = aliases.get(&name) {
-        if !seen.insert(name.clone()) {
-            return Err(error(format!("Identity alias cycle involving {name}")));
+// Resolve every alias once, iteratively. Each edge is visited at most once.
+fn canonical_aliases(aliases: HashMap<String, String>) -> Result<HashMap<String, String>> {
+    let mut resolved = HashMap::<String, String>::new();
+    for start in aliases.keys() {
+        if resolved.contains_key(start) {
+            continue;
         }
-        name = next.clone();
+        let mut path = Vec::new();
+        let mut visiting = HashSet::new();
+        let mut current = start.as_str();
+        let target = loop {
+            if let Some(target) = resolved.get(current) {
+                break target.clone();
+            }
+            let Some(next) = aliases.get(current) else {
+                break current.to_owned();
+            };
+            if !visiting.insert(current) {
+                return Err(error(format!("Identity alias cycle involving {current}")));
+            }
+            path.push(current);
+            current = next;
+        };
+        for name in path {
+            resolved.insert(name.to_owned(), target.clone());
+        }
     }
-    Ok(name)
+    Ok(resolved)
+}
+fn resolve(name: &str, aliases: &HashMap<String, String>) -> String {
+    aliases.get(name).map_or(name, String::as_str).to_owned()
 }
 fn metadata_sources(
     name: &str,
@@ -595,24 +763,41 @@ fn metadata_sources(
     nodes: &[RawNode],
     producer: &HashMap<String, usize>,
     seen: &mut BTreeSet<usize>,
-) {
-    if name == data_input {
-        return;
-    }
-    let Some(&i) = producer.get(name) else {
-        return;
-    };
-    let n = &nodes[i];
-    if !seen.insert(i) {
-        return;
-    }
-    if n.op_type != "Shape" {
-        for input in &n.inputs {
-            metadata_sources(input, data_input, nodes, producer, seen);
+    limit: usize,
+) -> Result<()> {
+    let mut pending = vec![name];
+    while let Some(name) = pending.pop() {
+        if name == data_input {
+            continue;
+        }
+        let Some(&i) = producer.get(name) else {
+            continue;
+        };
+        if !seen.insert(i) {
+            continue;
+        }
+        if seen.len() > limit {
+            return Err(ImportError::with_kind(
+                ErrorKind::ResourceLimit,
+                "shape dependency node limit exceeded",
+            ));
+        }
+        let node = &nodes[i];
+        if node.op_type != "Shape" {
+            pending.extend(node.inputs.iter().map(String::as_str));
         }
     }
+    Ok(())
 }
+#[cfg(test)]
 fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
+    normalize_with_policy(raw, limits, OptimizationPolicy::Optimized)
+}
+fn normalize_with_policy(
+    raw: RawModel,
+    limits: &LoadLimits,
+    policy: OptimizationPolicy,
+) -> Result<Model> {
     let RawModel {
         ir_version,
         opsets,
@@ -626,10 +811,35 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
         outputs,
         value_info,
     } = graph;
-    let mut constants = Constants::new(initializers)?;
+    if nodes.len() > limits.max_graph_nodes {
+        return Err(ImportError::with_kind(
+            ErrorKind::ResourceLimit,
+            "graph node limit exceeded",
+        ));
+    }
+    let mut constants = Constants::new(initializers, limits)?;
     let mut aliases = HashMap::new();
     let mut producer = HashMap::new();
     for (i, n) in nodes.iter().enumerate() {
+        if !domain_key(&n.domain).is_empty() {
+            return Err(ImportError::with_kind(
+                ErrorKind::Unsupported,
+                format!("unsupported operator domain {} at {}", n.domain, n.name),
+            ));
+        }
+        let opset = opsets.get(domain_key(&n.domain)).copied().unwrap_or(0);
+        if !(7..=18).contains(&opset)
+            || (n.op_type == "Resize" && opset < 10)
+            || (n.op_type == "Erf" && opset < 9)
+        {
+            return Err(ImportError::with_kind(
+                ErrorKind::Unsupported,
+                format!(
+                    "unsupported or missing opset {opset} for {} at {} (supported source opsets: 7..=18)",
+                    n.op_type, n.name
+                ),
+            ));
+        }
         let mut attrs = HashSet::new();
         for a in &n.attributes {
             if !attrs.insert(&a.name) {
@@ -654,8 +864,33 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
             aliases.insert(n.outputs[0].clone(), n.inputs[0].clone());
         }
     }
-    for name in aliases.keys() {
-        resolve(name, &aliases)?;
+    let aliases = canonical_aliases(aliases)?;
+    // Validate source topology and names before any node is erased or folded.
+    let mut available = inputs
+        .iter()
+        .map(|v| v.name.clone())
+        .chain(constants.index.keys().cloned())
+        .collect::<HashSet<_>>();
+    for n in &nodes {
+        for input in n.inputs.iter().filter(|n| !n.is_empty()) {
+            if !available.contains(input) {
+                return Err(error(format!(
+                    "{} has unresolved or non-topological input {input}",
+                    n.name
+                )));
+            }
+        }
+        for output in n.outputs.iter().filter(|n| !n.is_empty()) {
+            if !available.insert(output.clone()) {
+                return Err(error(format!("duplicate tensor definition {output}")));
+            }
+        }
+    }
+    // Canonical names are used by every semantic lowering and shape recipe.
+    for n in &mut nodes {
+        for input in &mut n.inputs {
+            *input = resolve(input, &aliases);
+        }
     }
     // Constant tensors are moved out of attributes before any metadata node copy.
     let mut constant_forms = HashMap::<usize, (String, Option<String>)>::new();
@@ -707,22 +942,29 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
         .iter()
         .filter(|v| constants.get(&v.name).is_none())
         .map(|v| resolve(&v.name, &aliases))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     let output_names = outputs
         .iter()
         .map(|v| resolve(&v.name, &aliases))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     if input_names.len() != 1 || output_names.len() != 1 {
         return Err(error("only one-input/one-output OCR graphs are supported"));
     }
     let mut recipes = vec![];
     for node in &nodes {
         if node.op_type == "Reshape" && node.inputs.len() > 1 {
-            let shape_input = resolve(&node.inputs[1], &aliases)?;
+            let shape_input = resolve(&node.inputs[1], &aliases);
             if constants.get(&shape_input).is_none() {
-                let data_input = resolve(&node.inputs[0], &aliases)?;
+                let data_input = resolve(&node.inputs[0], &aliases);
                 let mut sources = BTreeSet::new();
-                metadata_sources(&shape_input, &data_input, &nodes, &producer, &mut sources);
+                metadata_sources(
+                    &shape_input,
+                    &data_input,
+                    &nodes,
+                    &producer,
+                    &mut sources,
+                    limits.max_shape_nodes,
+                )?;
                 recipes.push(ShapeRecipe {
                     node_key: node_key(node),
                     data_input: original(&data_input),
@@ -738,6 +980,12 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
         .flat_map(|r| &r.source_indices)
         .copied()
         .collect::<HashSet<_>>();
+    if metadata_indices.len() > limits.max_shape_nodes {
+        return Err(ImportError::with_kind(
+            ErrorKind::ResourceLimit,
+            "combined shape dependency node limit exceeded",
+        ));
+    }
     let mut metadata_nodes = nodes
         .iter()
         .filter(|n| metadata_indices.contains(&n.source_indices[0]))
@@ -748,6 +996,7 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
             let constant = constants
                 .get(&node.outputs[0])
                 .expect("promoted Constant exists");
+            validate_shape_constant(&constant.data)?;
             if !matches!(constant.data.dtype(), DType::I32 | DType::I64) {
                 return Err(error("shape-program Constant must be integer typed"));
             }
@@ -776,6 +1025,7 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
     let mut metadata_constants = vec![];
     for name in metadata_names {
         let c = constants.get(&name).expect("collected existing constant");
+        validate_shape_constant(&c.data)?;
         let data = match &c.data {
             TensorData::I64(t) => TensorData::I64(Tensor::from_vec(t.shape(), t.data().to_vec())?),
             TensorData::I32(t) => TensorData::I32(Tensor::from_vec(t.shape(), t.data().to_vec())?),
@@ -796,21 +1046,23 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
             continue;
         }
         let origin = node.source_indices[0];
-        if node.op_type == "GlobalAveragePool" {
-            node.op_type = "ReduceMean".into();
-            node.attributes.clear();
-            set_attr(&mut node, "axes", AttributeValue::Ints(vec![2, 3]));
-            set_attr(&mut node, "keepdims", AttributeValue::Int(1));
-        } else if node.op_type == "Reshape" && node.inputs.len() > 1 {
-            if constants
-                .get(&resolve(&node.inputs[1], &aliases)?)
-                .is_none()
-            {
+        if node.op_type == "Reshape" && node.inputs.len() > 1 {
+            if constants.get(&resolve(&node.inputs[1], &aliases)).is_none() {
                 node.inputs.truncate(1);
             }
-        } else if node.op_type == "Resize" && node.inputs.len() >= 3 {
-            // C# checks the direct initializer name here; aliases are resolved afterward.
-            if let Some(scales) = constants.f32(&node.inputs[2])
+        } else if node.op_type == "Resize" {
+            let opset = opsets[domain_key(&node.domain)];
+            if node.inputs.len() > 4 || node.inputs.get(3).is_some_and(|name| !name.is_empty()) {
+                return Err(ImportError::with_kind(
+                    ErrorKind::Unsupported,
+                    format!("{}: Resize sizes input is unsupported", node.name),
+                ));
+            }
+            let scales_index = if opset == 10 { 1 } else { 2 };
+            if let Some(scales) = node
+                .inputs
+                .get(scales_index)
+                .and_then(|name| constants.f32(name))
                 && scales.len() == 4
             {
                 let scales = scales.to_vec();
@@ -823,7 +1075,7 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
             && node.inputs.len() > 1
             && attribute(&node, "axes").is_none()
         {
-            let name = resolve(&node.inputs[1], &aliases)?;
+            let name = resolve(&node.inputs[1], &aliases);
             let axes = constants.ints(&name).ok_or_else(|| {
                 error(format!(
                     "{} axes input {name} is not constant integer",
@@ -841,20 +1093,22 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
             .inputs
             .iter()
             .map(|name| resolve(name, &aliases))
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Vec<_>>();
         node.outputs = node
             .outputs
             .iter()
             .map(|name| resolve(name, &aliases))
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Vec<_>>();
         transformed.push(WorkNode {
             key: format!("node:{origin}"),
             origin,
             raw: node,
         });
     }
-    fold_bn(&mut transformed, &mut constants, &output_names)?;
-    merge_branches(&mut transformed, &mut constants, &output_names)?;
+    if policy == OptimizationPolicy::Optimized {
+        fold_bn(&mut transformed, &mut constants, &output_names)?;
+        merge_branches(&mut transformed, &mut constants, &output_names)?;
+    }
     let mut needed = output_names.iter().cloned().collect::<HashSet<_>>();
     let mut keep = vec![false; transformed.len()];
     for (i, node) in transformed.iter().enumerate().rev() {
@@ -1010,13 +1264,12 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
         frozen_nodes.push(Node {
             key: work.key,
             name: n.name,
-            op_type: n.op_type,
             domain: n.domain.clone(),
             opset: *opsets.get(domain_key(&n.domain)).unwrap_or(&0),
             source_indices: n.source_indices,
             inputs: ids(&n.inputs)?,
             outputs: ids(&n.outputs)?,
-            attributes,
+            operator: attributes,
         });
     }
     for name in &output_names {
@@ -1027,7 +1280,7 @@ fn normalize(raw: RawModel, limits: &LoadLimits) -> Result<Model> {
     let mut shape_data_sources = HashMap::new();
     for node in &shape_metadata.nodes {
         if node.op_type == "Shape" && node.inputs.len() == 1 {
-            let source = resolve(&node.inputs[0], &aliases)?;
+            let source = resolve(&node.inputs[0], &aliases);
             if let Some(&id) = index.get(&source) {
                 shape_data_sources.insert(node.inputs[0].clone(), id);
             }
@@ -1160,8 +1413,14 @@ fn fold_bn(nodes: &mut Vec<WorkNode>, constants: &mut Constants, outputs: &[Stri
         };
         let channels = gamma.len();
         let per_channel = weights.len() / channels;
-        let mut folded_weights = vec![0f32; weights.len()];
-        let mut folded_bias = vec![0f32; channels];
+        let Some(elements) = weights.len().checked_add(channels) else {
+            continue;
+        };
+        if !constants.can_generate(elements) {
+            continue;
+        }
+        let mut folded_weights = allocate_f32(weights.len())?;
+        let mut folded_bias = allocate_f32(channels)?;
         for channel in 0..channels {
             // Keep the reference's individual F32 operations, with no fused multiply-add.
             let variance_epsilon = variance[channel] + epsilon;
@@ -1195,6 +1454,7 @@ fn fold_bn(nodes: &mut Vec<WorkNode>, constants: &mut Constants, outputs: &[Stri
             nodes[ci].raw.source_indices.clone(),
             nodes[bi].raw.source_indices.clone(),
         ]);
+        constants.generated += elements * 4;
         constants.insert(
             weight_name.clone(),
             weight_key,
@@ -1355,17 +1615,30 @@ fn merge_branches(
             let kw = first.kernel_w.max(second.kernel_w);
             let dims = [first.output_channels, first.input_channels, kh, kw];
             let len = Shape::new(&dims)?.element_count();
-            let mut weights = vec![0f32; len];
+            // Never turn sparse orthogonal branches into a larger dense kernel.
+            if len > first.weights.len().saturating_add(second.weights.len()) {
+                continue;
+            }
+            let bias_len = if first.bias.is_some() || second.bias.is_some() {
+                first.output_channels
+            } else {
+                0
+            };
+            let Some(elements) = len.checked_add(bias_len) else {
+                continue;
+            };
+            if !constants.can_generate(elements) {
+                continue;
+            }
+            let mut weights = allocate_f32(len)?;
             accumulate(&mut weights, &first, kh, kw);
             accumulate(&mut weights, &second, kh, kw);
-            let bias = if first.bias.is_some() || second.bias.is_some() {
-                Some(
-                    (0..first.output_channels)
-                        .map(|i| {
-                            first.bias.map_or(0.0, |b| b[i]) + second.bias.map_or(0.0, |b| b[i])
-                        })
-                        .collect::<Vec<_>>(),
-                )
+            let bias = if bias_len != 0 {
+                let mut bias = allocate_f32(bias_len)?;
+                for (i, value) in bias.iter_mut().enumerate() {
+                    *value = first.bias.map_or(0.0, |b| b[i]) + second.bias.map_or(0.0, |b| b[i]);
+                }
+                Some(bias)
             } else {
                 None
             };
@@ -1381,6 +1654,7 @@ fn merge_branches(
                 nodes[si].raw.source_indices.clone(),
                 nodes[ai].raw.source_indices.clone(),
             ]);
+            constants.generated += elements * 4;
             constants.insert(
                 weight_name.clone(),
                 format!("generated:branch_weight:{add_origin}"),
@@ -1440,8 +1714,32 @@ fn prune_constants(nodes: &[WorkNode], constants: &mut Constants, outputs: &[Str
         .collect::<HashSet<_>>();
     for item in &mut constants.items {
         if item.as_ref().is_some_and(|c| !used.contains(&c.name)) {
-            *item = None;
+            let removed = item.take().expect("present constant");
+            constants.bytes -= removed
+                .data
+                .shape()
+                .byte_count(removed.data.dtype())
+                .expect("validated tensor bytes");
         }
     }
     // Keep the names reserved, preserving C# UniqueName collision behavior.
+}
+
+fn allocate_f32(len: usize) -> Result<Vec<f32>> {
+    let mut values = Vec::new();
+    values.try_reserve_exact(len).map_err(|e| {
+        ImportError::caused_by(ErrorKind::Allocation, "generated coefficient allocation", e)
+    })?;
+    values.resize(len, 0.0);
+    Ok(values)
+}
+
+fn validate_shape_constant(data: &TensorData) -> Result<()> {
+    if data.shape().rank() > 1 || data.shape().element_count() > crate::tensor::MAX_RANK {
+        return Err(ImportError::with_kind(
+            ErrorKind::ResourceLimit,
+            "shape constants require at most eight values in a scalar or vector",
+        ));
+    }
+    Ok(())
 }

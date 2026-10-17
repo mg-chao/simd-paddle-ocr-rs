@@ -63,7 +63,7 @@ fn run() -> Result<()> {
         directory.join(&spec.det),
         directory.join(&spec.rec),
         directory.join(&spec.dictionary),
-        Some(directory.join(&spec.cls)),
+        Some(&directory.join(&spec.cls)),
     )?;
     let mut ocr = models
         .builder()

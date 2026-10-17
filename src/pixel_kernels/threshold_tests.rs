@@ -180,12 +180,11 @@ fn run_variant(
 
 #[test]
 #[ignore = "local release diagnostic: three maps, one warm-up and three single calls per policy; external timeout 10s"]
-fn threshold_fixed_diagnostic() {
+fn threshold_fixed_diagnostic() -> Result<(), &'static str> {
+    if cfg!(debug_assertions) {
+        return Err("run this diagnostic in release mode");
+    }
     use std::{hint::black_box, time::Instant};
-    assert!(
-        !cfg!(debug_assertions),
-        "run this diagnostic in release mode"
-    );
     let started = Instant::now();
     let mut kernels = vec![PixelKernel::Portable];
     let selected = PixelKernel::selected();
@@ -205,12 +204,12 @@ fn threshold_fixed_diagnostic() {
                 Variant::Packed,
                 Variant::Selected,
             ];
-            let mut samples = [[0.; 3]; 4];
+            let mut samples = [[0.; 4]; 3];
             for variant in variants {
                 assert!(run_variant(variant, kernel, &values, &mut bitmap, 0.3).unwrap());
                 assert_eq!(bitmap, expected, "{kernel:?}/{variant:?}");
             }
-            for sample in 0..3 {
+            for (sample, timings) in samples.iter_mut().enumerate() {
                 // Rotate order to reduce systematic first/last-policy bias.
                 for order in 0..variants.len() {
                     let policy = (order + sample) % variants.len();
@@ -223,7 +222,7 @@ fn threshold_fixed_diagnostic() {
                         black_box(0.3),
                     )
                     .unwrap();
-                    samples[policy][sample] = start.elapsed().as_secs_f64() * 1e6;
+                    timings[policy] = start.elapsed().as_secs_f64() * 1e6;
                     black_box(&bitmap);
                     assert!(any);
                     assert!(
@@ -232,7 +231,8 @@ fn threshold_fixed_diagnostic() {
                     );
                 }
             }
-            for (variant, samples) in variants.into_iter().zip(samples) {
+            for (policy, variant) in variants.into_iter().enumerate() {
+                let samples = samples.map(|sample| sample[policy]);
                 let mut sorted = samples;
                 sorted.sort_by(f64::total_cmp);
                 println!(
@@ -251,4 +251,5 @@ fn threshold_fixed_diagnostic() {
             }
         }
     }
+    Ok(())
 }

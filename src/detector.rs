@@ -3,7 +3,7 @@ use crate::profile::{StageProfile, Timer};
 use crate::{
     db,
     image::{ImageError, ImageResult, ImageView, resize_vec},
-    model::EffectiveAttributes,
+    model::Operator,
     preprocess::{self, ResizeWorkspace},
     runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
     tensor::Shape,
@@ -69,9 +69,13 @@ pub struct DetectionView<'a> {
 impl DetectionView<'_> {
     pub fn try_to_owned(self) -> ImageResult<OwnedDetection> {
         let mut boxes = Vec::new();
-        boxes
-            .try_reserve_exact(self.boxes.len())
-            .map_err(|e| ImageError::new(format!("detection copy allocation failed: {e}")))?;
+        boxes.try_reserve_exact(self.boxes.len()).map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "detection copy allocation failed",
+                e,
+            )
+        })?;
         boxes.extend_from_slice(self.boxes);
         Ok(OwnedDetection {
             boxes,
@@ -149,7 +153,7 @@ impl Detector {
                 .graph()
                 .nodes
                 .iter()
-                .find(|n| matches!(n.attributes, EffectiveAttributes::Conv(_)))
+                .find(|n| matches!(n.operator, Operator::Conv(_)))
                 .and_then(|n| n.inputs.get(1).copied().flatten())
                 .and_then(|id| compiled.model().graph().tensors[id.0].constant.as_ref())
                 .and_then(|w| w.dimensions().first().copied());
@@ -337,14 +341,14 @@ impl Detector {
                 threads,
                 nhwc,
             )
-            .map_err(|e| RuntimeError::new(e.to_string()))?;
+            .map_err(RuntimeError::from)?;
             preprocessing_ns = timer.elapsed();
             if TRACE {
                 observer.borrow_mut()(DetectionTrace::Input {
                     shape: input_shape,
                     values: input,
                 })
-                .map_err(|e| RuntimeError::new(e.to_string()))?;
+                .map_err(RuntimeError::from)?;
             }
             Ok(())
         };
@@ -353,8 +357,7 @@ impl Detector {
             self.session.run_with_input_and_trace(
                 |input| fill(input, false),
                 |node| {
-                    observer.borrow_mut()(DetectionTrace::Node(node))
-                        .map_err(|e| RuntimeError::new(e.to_string()))
+                    observer.borrow_mut()(DetectionTrace::Node(node)).map_err(RuntimeError::from)
                 },
             )?
         } else {

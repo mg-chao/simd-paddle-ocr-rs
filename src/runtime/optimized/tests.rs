@@ -518,7 +518,27 @@ fn channel_pool_and_resize_row_shards_match_one_thread() {
                 [2, 17, 64, 65],
                 vec![
                     tensor("scales", &[4], &[1., 1., 2., 2.]),
-                    node("Resize", &["x", "", "scales"], "y", vec![]),
+                    node(
+                        "Resize",
+                        &["x", "", "scales"],
+                        "y",
+                        [
+                            blob(
+                                5,
+                                &[
+                                    blob(1, b"coordinate_transformation_mode"),
+                                    num(20, 3),
+                                    blob(4, b"asymmetric"),
+                                ]
+                                .concat(),
+                            ),
+                            blob(
+                                5,
+                                &[blob(1, b"nearest_mode"), num(20, 3), blob(4, b"floor")].concat(),
+                            ),
+                        ]
+                        .concat(),
+                    ),
                 ],
                 [2, 17, 128, 130],
             )

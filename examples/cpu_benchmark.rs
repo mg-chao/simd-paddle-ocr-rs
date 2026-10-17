@@ -383,9 +383,9 @@ fn source_tree_hash(root: &Path) -> Result<String> {
 fn cpu_description() -> Result<String> {
     #[cfg(target_os = "macos")]
     {
-        return harness::command_text(
+        harness::command_text(
             Command::new("/usr/sbin/sysctl").args(["-n", "machdep.cpu.brand_string"]),
-        );
+        )
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -455,7 +455,7 @@ fn rust_worker(job: &Job) -> Result<()> {
         models.join(&spec.det),
         models.join(&spec.rec),
         models.join(&spec.dictionary),
-        Some(models.join(&spec.cls)),
+        Some(&models.join(&spec.cls)),
     )?;
     let counters = models.clone();
     let capacity = job.threads;

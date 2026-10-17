@@ -68,9 +68,13 @@ pub fn estimate<'a>(
     let transform = CropTransform::new(detection)?;
     let scale = tensor_width as f64 / content_width as f64 / time_steps as f64;
     let mut result = Vec::new();
-    result
-        .try_reserve_exact(spans.len())
-        .map_err(|e| ImageError::new(format!("character-box allocation: {e}")))?;
+    result.try_reserve_exact(spans.len()).map_err(|e| {
+        ImageError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "character-box allocation",
+            e,
+        )
+    })?;
     for (index, span) in spans.iter().enumerate() {
         if span.start_column >= time_steps
             || span.end_column <= span.start_column

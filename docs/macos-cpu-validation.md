@@ -134,6 +134,59 @@ tolerances were unchanged. The
 [machine-readable report](reports/macos-arm64-2026-10-17-correctness.json)
 records the source fingerprint, commands, counts, and local artifact paths.
 
+## Refactor and warning cleanup validation
+
+Validated on the physical Apple M4, macOS 27.0.1 (26A434), on 2026-10-17
+(Asia/Shanghai), using the pinned Rust nightly and .NET SDK 10.0.303. The Rust
+refactor and subsequent warning cleanup were tested together in the working
+tree. Architecture-specific helpers now follow their dispatch compilation
+guards; portable correctness tests remain available on ARM64.
+
+- `cargo clippy --locked --all-targets` passed with zero warnings for both
+  `--all-features` and `--no-default-features`, on the native target and with
+  `--target x86_64-apple-darwin`. Native release checks also passed for both
+  feature selections with `-- -D warnings`.
+- Focused release correctness checks passed: eight pixel-kernel tests,
+  32 NCHW tests, and five compact-column projection tests. Performance
+  diagnostics remained ignored.
+- `cargo test --release --locked -- --test-threads=1` passed 384 tests:
+  334 library tests, 45 integration tests, and five doctests. Ten tests were
+  ignored by the normal suite.
+- `cargo test --release --locked --no-default-features --lib -- --test-threads=1`
+  passed 324 tests, with nine diagnostics ignored. An x86-only control test
+  that previously returned immediately on ARM64 is now excluded there, along
+  with its three x86-only performance diagnostics.
+- `cargo run --release --locked --example cpu_baseline -- verify` passed all
+  66 model/fixture combinations: 22 fixtures each for tiny, small, and medium.
+  Each case ran once per implementation, with one CPU worker, automatic SIMD,
+  no warm-up, and no performance sampling. The harness bounds were 120 seconds
+  per case and 1,800 seconds for the suite.
+- All 198 comparisons passed: saved expectations versus Rust, saved
+  expectations versus live C#, and live C# versus Rust. Text, line order,
+  counts, labels, rotations, and integer dimensions matched exactly. Coordinates
+  met the existing 0.5-pixel absolute tolerance; scores met
+  `1e-4 + 1e-4 * abs(expected)`. Goldens, asset hashes, and tolerances were
+  unchanged.
+
+| Model | Cases | Detected lines | Largest coordinate delta (px) | Largest score delta |
+| --- | ---: | ---: | ---: | ---: |
+| tiny | 22 | 448 | 0.000045313 | 0.000053439 |
+| small | 22 | 439 | 0.000049414 | 0.000054421 |
+| medium | 22 | 452 | 0.000052735 | 0.000070315 |
+
+Deltas compare saved expectations with Rust results. Local evidence is in
+[`run.json`](../target/baseline/1792218963566-verify-62511/run.json) and
+[`differences.json`](../target/baseline/1792218963566-verify-62511/differences.json),
+alongside all 66 Rust results, 66 C# results, and worker/build logs. The run
+status is `passed` and the differences array is empty.
+
+Execution was native ARM64; the x86 checks establish compilation only. This
+pass did not repeat the separate 213-request configuration qualification or
+make performance measurements. The pinned C# checkout remained clean; its
+successful reference build emitted three existing `CS0649` warnings for Vulkan
+interop fields. Rust compilation and Clippy emitted no warnings. Formatting
+and `git diff --check` also passed.
+
 ## Scope and limitations
 
 The matched `cpu_benchmark` runner now supports macOS with explicit unbound

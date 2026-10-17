@@ -99,7 +99,7 @@ pub(super) fn execute<const PIXELS: usize>(
                 }
             }
             for (row, values) in strip.iter().enumerate() {
-                for (vector, lanes) in values.chunks_exact(4).enumerate() {
+                for (vector, lanes) in values.as_chunks::<4>().0.iter().enumerate() {
                     let c = channel + vector * 4;
                     let at = (local + prefix + row) * p.cout + c;
                     store

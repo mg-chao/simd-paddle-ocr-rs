@@ -66,12 +66,12 @@ fn arm64_depthwise_strip_fixed_diagnostic() {
         assert_bits(&outputs[1], &outputs[0]);
         assert_bits(&outputs[2], &outputs[0]);
         let mut samples_ms = [[0.; 3]; 3];
-        for sample in 0..3 {
+        for (sample, timings) in samples_ms.iter_mut().enumerate() {
             for policy in if sample == 1 { [2, 1, 0] } else { [0, 1, 2] } {
                 assert!(budget.elapsed() < Duration::from_secs(60));
                 let timer = Instant::now();
                 call(policy, std::hint::black_box(&mut outputs[policy]));
-                samples_ms[policy][sample] = timer.elapsed().as_secs_f64() * 1000.;
+                timings[policy] = timer.elapsed().as_secs_f64() * 1000.;
                 assert_bits(&outputs[1], &outputs[0]);
                 assert_bits(&outputs[2], &outputs[0]);
             }
@@ -86,9 +86,9 @@ fn arm64_depthwise_strip_fixed_diagnostic() {
                 "warmups_per_policy": 1,
                 "calls_per_sample": 1,
                 "order": "ABC,CBA,ABC",
-                "current_ms": samples_ms[0],
-                "strip_full_row_ms": samples_ms[1],
-                "strip_64px_ms": samples_ms[2],
+                "current_ms": samples_ms.map(|sample| sample[0]),
+                "strip_full_row_ms": samples_ms.map(|sample| sample[1]),
+                "strip_64px_ms": samples_ms.map(|sample| sample[2]),
                 "exact_output_bits": true,
             })
         );

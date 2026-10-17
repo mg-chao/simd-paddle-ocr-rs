@@ -39,6 +39,8 @@ impl Default for CompileOptions {
     }
 }
 impl CompileOptions {
+    /// Disable execution rewrites. Pair with `OptimizationPolicy::PreserveArithmetic`
+    /// at import time to also preserve source BN and branch arithmetic.
     pub fn reference() -> Self {
         Self {
             kernels: KernelPolicy::Scalar,
@@ -146,29 +148,23 @@ fn kernel_selections<'a>(
 }
 
 use crate::{
-    model::{EffectiveAttributes, Model, Node, TensorId},
+    model::{Model, Node, Operator, TensorId},
     tensor::{DType, Dim, Shape, ShapeSpec, TensorData, TensorError, TensorView},
 };
 use kernels::{BoundKind, BoundStep};
 use shapes::ShapeProgram;
 use std::{fmt, sync::Arc};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeError(String);
-impl RuntimeError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
-    }
-}
-impl fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-impl std::error::Error for RuntimeError {}
+crate::error::stage_error!(RuntimeError, Execution);
+
 impl From<TensorError> for RuntimeError {
     fn from(value: TensorError) -> Self {
-        Self::new(value.to_string())
+        Self::caused_by(value.kind(), "tensor", value)
+    }
+}
+impl From<crate::image::ImageError> for RuntimeError {
+    fn from(value: crate::image::ImageError) -> Self {
+        Self::caused_by(value.kind(), "image stage", value)
     }
 }
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -250,6 +246,7 @@ enum Op {
     Resize {
         factor: usize,
     },
+    GlobalAveragePool,
     ReduceMean {
         axes: Vec<i64>,
         keepdims: bool,
@@ -558,10 +555,12 @@ impl CompiledModel {
     }
 }
 
-fn node_error(index: usize, node: &Node, message: impl fmt::Display) -> RuntimeError {
-    RuntimeError::new(format!(
-        "node {index} '{}' ({}, {}): {message}",
-        node.name, node.op_type, node.key
+fn node_error(index: usize, node: &Node, message: impl Into<RuntimeError>) -> RuntimeError {
+    message.into().context(format!(
+        "node {index} '{}' ({}, {})",
+        node.name,
+        node.op_type(),
+        node.key
     ))
 }
 fn integer_values(data: &TensorData) -> RuntimeResult<Vec<i64>> {
@@ -616,46 +615,43 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             Ok(())
         }
     };
-    let kind = match (&*node.op_type, &node.attributes) {
-        ("Add", EffectiveAttributes::None)
-        | ("Mul", EffectiveAttributes::None)
-        | ("Div", EffectiveAttributes::None)
-        | ("Sub", EffectiveAttributes::None) => {
+    let kind = match &node.operator {
+        Operator::Add | Operator::Mul | Operator::Div | Operator::Sub => {
             require_inputs(2)?;
             if graph.tensors[b.unwrap().0].dtype != DType::F32 {
                 return Err(fail("second data input must be F32"));
             }
-            match node.op_type.as_str() {
-                "Add" => Op::Add,
-                "Mul" => Op::Mul,
-                "Div" => Op::Div,
+            match node.operator {
+                Operator::Add => Op::Add,
+                Operator::Mul => Op::Mul,
+                Operator::Div => Op::Div,
                 _ => Op::Sub,
             }
         }
-        ("Pow", EffectiveAttributes::None) => {
+        Operator::Pow => {
             require_inputs(2)?;
             match &graph.tensors[b.unwrap().0].constant {
                 Some(TensorData::F32(t)) if t.data() == [2.0] => Op::Square,
                 _ => return Err(fail("Pow supports constant scalar exponent two only")),
             }
         }
-        ("Sqrt", EffectiveAttributes::None) => {
+        Operator::Sqrt => {
             require_inputs(1)?;
             Op::Sqrt
         }
-        ("Relu", EffectiveAttributes::None) => {
+        Operator::Relu => {
             require_inputs(1)?;
             Op::Relu
         }
-        ("Erf", EffectiveAttributes::None) | ("Sigmoid", EffectiveAttributes::None) => {
+        Operator::Erf | Operator::Sigmoid => {
             require_inputs(1)?;
-            if node.op_type == "Erf" {
+            if matches!(node.operator, Operator::Erf) {
                 Op::Erf
             } else {
                 Op::Sigmoid
             }
         }
-        ("HardSigmoid", EffectiveAttributes::HardSigmoid { alpha, beta }) => {
+        Operator::HardSigmoid { alpha, beta } => {
             require_inputs(1)?;
             if !alpha.is_finite() || !beta.is_finite() {
                 return Err(fail("nonfinite HardSigmoid parameter"));
@@ -665,7 +661,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 beta: *beta,
             }
         }
-        ("Conv", EffectiveAttributes::Conv(attributes)) => {
+        Operator::Conv(attributes) => {
             if !(2..=3).contains(&node.inputs.len()) || b.is_none() {
                 return Err(fail("Conv requires data, weights and optional bias"));
             }
@@ -675,7 +671,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             }
             Op::Conv(attributes.clone())
         }
-        ("ConvTranspose", EffectiveAttributes::ConvTranspose(attributes)) => {
+        Operator::ConvTranspose(attributes) => {
             if !(2..=3).contains(&node.inputs.len()) || b.is_none() {
                 return Err(fail(
                     "ConvTranspose requires data, weights and optional bias",
@@ -697,7 +693,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             }
             Op::ConvTranspose
         }
-        ("MaxPool", EffectiveAttributes::Pool(attributes)) => {
+        Operator::MaxPool(attributes) => {
             require_inputs(1)?;
             if attributes.kernel_shape != [2, 2]
                 || attributes.strides != [1, 1]
@@ -711,7 +707,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             }
             Op::MaxPool
         }
-        ("AveragePool", EffectiveAttributes::Pool(attributes)) => {
+        Operator::AveragePool(attributes) => {
             require_inputs(1)?;
             if attributes.kernel_shape != [3, 2]
                 || attributes.strides != [3, 2]
@@ -725,14 +721,11 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             }
             Op::AveragePool
         }
-        (
-            "BatchNormalization",
-            EffectiveAttributes::BatchNormalization {
-                epsilon,
-                momentum,
-                training_mode,
-            },
-        ) => {
+        Operator::BatchNormalization {
+            epsilon,
+            momentum,
+            training_mode,
+        } => {
             require_inputs(5)?;
             if !epsilon.is_finite()
                 || *epsilon < 0.0
@@ -748,18 +741,18 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             }
             Op::BatchNormalization { epsilon: *epsilon }
         }
-        ("Squeeze", EffectiveAttributes::Axes(axes)) => {
+        Operator::Squeeze(axes) => {
             require_inputs(1)?;
             Op::Squeeze { axes: axes.clone() }
         }
-        ("Unsqueeze", EffectiveAttributes::Axes(axes)) => {
+        Operator::Unsqueeze(axes) => {
             require_inputs(1)?;
             if axes.is_empty() {
                 return Err(fail("Unsqueeze requires nonempty axes"));
             }
             Op::Unsqueeze { axes: axes.clone() }
         }
-        ("Transpose", EffectiveAttributes::Transpose(permutation)) => {
+        Operator::Transpose(permutation) => {
             require_inputs(1)?;
             if permutation.is_empty() {
                 return Err(fail("Transpose requires an explicit permutation"));
@@ -768,7 +761,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 permutation: permutation.clone(),
             }
         }
-        ("Concat", EffectiveAttributes::Axis(axis)) => {
+        Operator::Concat(axis) => {
             if node.inputs.iter().any(Option::is_none)
                 || node
                     .inputs
@@ -780,7 +773,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             }
             Op::Concat { axis: *axis }
         }
-        ("Resize", EffectiveAttributes::Resize(attributes)) => {
+        Operator::Resize(attributes) => {
             require_inputs(1)?;
             if attributes.mode != b"nearest"
                 || attributes.coordinate_transformation_mode != b"asymmetric"
@@ -789,8 +782,13 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 || attributes.scales[..2] != [1.0, 1.0]
                 || attributes.scales[2] != attributes.scales[3]
             {
-                return Err(fail(
-                    "Resize requires nearest/asymmetric/floor spatial-only equal scales",
+                return Err(node_error(
+                    index,
+                    node,
+                    RuntimeError::with_kind(
+                        crate::error::ErrorKind::Unsupported,
+                        "Resize requires nearest/asymmetric/floor spatial-only equal scales",
+                    ),
                 ));
             }
             let factor = match attributes.scales[2] {
@@ -801,14 +799,15 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
             };
             Op::Resize { factor }
         }
-        (
-            "ReduceMean",
-            EffectiveAttributes::ReduceMean {
-                axes,
-                keepdims,
-                noop_with_empty_axes,
-            },
-        ) => {
+        Operator::GlobalAveragePool => {
+            require_inputs(1)?;
+            Op::GlobalAveragePool
+        }
+        Operator::ReduceMean {
+            axes,
+            keepdims,
+            noop_with_empty_axes,
+        } => {
             require_inputs(1)?;
             if !matches!(keepdims, 0 | 1) || !matches!(noop_with_empty_axes, 0 | 1) {
                 return Err(fail("ReduceMean flags must be 0 or 1"));
@@ -819,7 +818,7 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 noop: *noop_with_empty_axes == 1,
             }
         }
-        ("Reshape", EffectiveAttributes::Reshape { allowzero }) => {
+        Operator::Reshape { allowzero } => {
             if !matches!(allowzero, 0 | 1) {
                 return Err(fail("Reshape allowzero must be 0 or 1"));
             }
@@ -841,14 +840,14 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 target,
             }
         }
-        ("MatMul", EffectiveAttributes::None) => {
+        Operator::MatMul => {
             require_inputs(2)?;
             if graph.tensors[b.unwrap().0].dtype != DType::F32 {
                 return Err(fail("MatMul second data input must be F32"));
             }
             Op::MatMul
         }
-        ("Slice", EffectiveAttributes::Slice) => {
+        Operator::Slice => {
             if !(3..=5).contains(&node.inputs.len()) {
                 return Err(fail("Slice requires constant input-form parameters"));
             }
@@ -875,12 +874,9 @@ fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instr
                 parameter(4)?,
             )?)
         }
-        ("Softmax", EffectiveAttributes::Axis(axis)) => {
+        Operator::Softmax(axis) => {
             require_inputs(1)?;
             Op::Softmax { axis: *axis }
-        }
-        _ => {
-            return Err(fail("unsupported operator/attributes in CPU runtime"));
         }
     };
     Ok(Instruction {
@@ -1063,7 +1059,7 @@ impl Session {
                     .enumerate()
                     .map(|(i, _)| {
                         (
-                            self.compiled.model.graph().nodes[i].op_type.as_str(),
+                            self.compiled.model.graph().nodes[i].op_type(),
                             "canonical",
                             optimized::native_consumes_packed(
                                 &self.plan.steps[i].kind,
@@ -1085,7 +1081,7 @@ impl Session {
                             false,
                         );
                         (
-                            self.compiled.model.graph().nodes[index].op_type.as_str(),
+                            self.compiled.model.graph().nodes[index].op_type(),
                             family,
                             isa,
                             false,
@@ -1197,7 +1193,13 @@ impl Session {
         };
         buffers
             .try_reserve_exact(tensors.saturating_sub(buffers.len()))
-            .map_err(|e| RuntimeError::new(format!("activation table allocation failed: {e}")))?;
+            .map_err(|e| {
+                RuntimeError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "activation table allocation failed",
+                    e,
+                )
+            })?;
         check_retained_limit(&buffers, limits)?;
         Ok(Self {
             compiled,
@@ -1631,7 +1633,7 @@ impl Session {
                     index,
                     key: &node.key,
                     name: &node.name,
-                    op_type: &node.op_type,
+                    op_type: node.op_type(),
                     output_id: step.output,
                     shape,
                     layout: if shape.rank() == 4 {
@@ -1660,9 +1662,13 @@ impl Session {
 
 fn allocate(lengths: &[usize]) -> RuntimeResult<Vec<Vec<f32>>> {
     let mut buffers = Vec::new();
-    buffers
-        .try_reserve_exact(lengths.len())
-        .map_err(|e| RuntimeError::new(format!("activation table allocation failed: {e}")))?;
+    buffers.try_reserve_exact(lengths.len()).map_err(|e| {
+        RuntimeError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "activation table allocation failed",
+            e,
+        )
+    })?;
     for &length in lengths {
         buffers.push(allocate_buffer(length)?);
     }
@@ -1671,9 +1677,13 @@ fn allocate(lengths: &[usize]) -> RuntimeResult<Vec<Vec<f32>>> {
 
 fn allocate_buffer(length: usize) -> RuntimeResult<Vec<f32>> {
     let mut buffer = Vec::new();
-    buffer
-        .try_reserve_exact(length)
-        .map_err(|e| RuntimeError::new(format!("activation allocation failed: {e}")))?;
+    buffer.try_reserve_exact(length).map_err(|e| {
+        RuntimeError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "activation allocation failed",
+            e,
+        )
+    })?;
     buffer.resize(length, 0.0);
     Ok(buffer)
 }
@@ -1695,10 +1705,13 @@ fn capacity_bytes(buffers: &[Vec<f32>]) -> RuntimeResult<usize> {
 fn check_retained_limit(buffers: &[Vec<f32>], limits: ExecutionLimits) -> RuntimeResult<()> {
     let bytes = capacity_bytes(buffers)?;
     if bytes > limits.max_activation_bytes {
-        return Err(RuntimeError::new(format!(
-            "retained activation capacity needs {bytes} bytes, limit is {}",
-            limits.max_activation_bytes
-        )));
+        return Err(RuntimeError::with_kind(
+            crate::error::ErrorKind::ResourceLimit,
+            format!(
+                "retained activation capacity needs {bytes} bytes, limit is {}",
+                limits.max_activation_bytes
+            ),
+        ));
     }
     Ok(())
 }
@@ -1731,9 +1744,13 @@ fn rebind_buffers(
         }))?;
         let compact = proposed > limits.max_activation_bytes;
         let count = if compact { lengths.len() } else { slots };
-        prepared
-            .try_reserve_exact(count)
-            .map_err(|e| RuntimeError::new(format!("activation table allocation failed: {e}")))?;
+        prepared.try_reserve_exact(count).map_err(|e| {
+            RuntimeError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "activation table allocation failed",
+                e,
+            )
+        })?;
         for slot in 0..count {
             let length = lengths.get(slot).copied().unwrap_or(0);
             prepared.push(
@@ -1894,6 +1911,15 @@ fn bind_into(
                 Op::Slice(parameters) => kernels::bind_slice(a, parameters),
                 Op::Concat { axis } => kernels::bind_concat(&instruction.inputs, resolved, *axis),
                 Op::Resize { factor } => kernels::bind_resize(a, *factor),
+                Op::GlobalAveragePool => {
+                    if a.rank() < 3 {
+                        return Err(RuntimeError::new(
+                            "GlobalAveragePool requires at least one spatial dimension",
+                        ));
+                    }
+                    let axes = (2..a.rank()).map(|axis| axis as i64).collect::<Vec<_>>();
+                    kernels::bind_reduce(a, &axes, true, false)
+                }
                 Op::ReduceMean {
                     axes,
                     keepdims,
@@ -2049,10 +2075,13 @@ fn plan_slots_into(
         })
         .ok_or_else(|| RuntimeError::new("activation plan byte count overflow"))?;
     if bytes > limits.max_activation_bytes {
-        return Err(RuntimeError::new(format!(
-            "activation plan needs {bytes} bytes, limit is {}",
-            limits.max_activation_bytes
-        )));
+        return Err(RuntimeError::with_kind(
+            crate::error::ErrorKind::ResourceLimit,
+            format!(
+                "activation plan needs {bytes} bytes, limit is {}",
+                limits.max_activation_bytes
+            ),
+        ));
     }
     plan.activation_bytes = bytes;
     plan.naive_activation_bytes = naive;

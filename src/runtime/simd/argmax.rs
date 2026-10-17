@@ -23,6 +23,7 @@ impl<const LANES: usize> LaneWinners<LANES> {
         }
     }
 
+    #[cfg(any(target_arch = "x86_64", test))]
     pub(super) fn from_winner(index: usize, score: f32) -> Self {
         Self {
             values: Simd::splat(score),

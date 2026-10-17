@@ -2,8 +2,9 @@
 use crate::{
     image::{ImageError, ImageResult, ImageView},
     math::exp_f32,
-    model::{EffectiveAttributes, Graph, TensorId},
+    model::Graph,
     preprocess::{self, ResizeWorkspace},
+    projection::ProjectionHead,
     runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
     tensor::TensorData,
 };
@@ -47,87 +48,7 @@ pub(crate) enum ClassifierTrace<'a> {
     Public(ClassificationResult),
 }
 
-struct PublicHead {
-    feature: TensorId,
-    feature_node: usize,
-    weights: TensorId,
-    bias: Option<TensorId>,
-    inner: usize,
-}
-impl PublicHead {
-    fn compile(graph: &Graph) -> ImageResult<Self> {
-        let fail = || {
-            ImageError::new(
-                "classifier requires the shipped two-class MatMul/optional bias/Softmax head",
-            )
-        };
-        let softmax = graph.nodes.last().ok_or_else(fail)?;
-        if softmax.op_type != "Softmax"
-            || softmax.inputs.len() != 1
-            || softmax.outputs.as_slice() != [graph.outputs.first().copied()]
-        {
-            return Err(fail());
-        }
-        if !matches!(softmax.attributes, EffectiveAttributes::Axis(-1 | 1)) {
-            return Err(fail());
-        }
-        let mut head_index = graph.nodes.len().checked_sub(2).ok_or_else(fail)?;
-        let mut target = softmax.inputs[0].ok_or_else(fail)?;
-        let mut bias = None;
-        if graph.nodes[head_index].op_type == "Add" {
-            let add = &graph.nodes[head_index];
-            if add.inputs.len() != 2 || add.outputs.as_slice() != [Some(target)] {
-                return Err(fail());
-            }
-            head_index = head_index.checked_sub(1).ok_or_else(fail)?;
-            let output = graph.nodes[head_index]
-                .outputs
-                .first()
-                .copied()
-                .flatten()
-                .ok_or_else(fail)?;
-            let other = if add.inputs[0] == Some(output) {
-                add.inputs[1]
-            } else if add.inputs[1] == Some(output) {
-                add.inputs[0]
-            } else {
-                return Err(fail());
-            };
-            let id = other.ok_or_else(fail)?;
-            match &graph.tensors[id.0].constant {
-                Some(TensorData::F32(t)) if t.shape().dimensions() == [2] => {}
-                _ => return Err(fail()),
-            }
-            bias = Some(id);
-            target = output;
-        }
-        let matmul = &graph.nodes[head_index];
-        if matmul.op_type != "MatMul"
-            || matmul.inputs.len() != 2
-            || matmul.outputs.as_slice() != [Some(target)]
-        {
-            return Err(fail());
-        }
-        let feature = matmul.inputs[0].ok_or_else(fail)?;
-        let weights = matmul.inputs[1].ok_or_else(fail)?;
-        let inner = match &graph.tensors[weights.0].constant {
-            Some(TensorData::F32(t)) if t.shape().rank() == 2 && t.shape().dimensions()[1] == 2 => {
-                t.shape().dimensions()[0]
-            }
-            _ => return Err(fail()),
-        };
-        let feature_node = graph.nodes[..head_index]
-            .iter()
-            .position(|node| node.outputs.contains(&Some(feature)))
-            .ok_or_else(fail)?;
-        Ok(Self {
-            feature,
-            feature_node,
-            weights,
-            bias,
-            inner,
-        })
-    }
+impl ProjectionHead {
     fn evaluate(
         &self,
         graph: &Graph,
@@ -194,7 +115,7 @@ pub struct Classifier {
     compiled: Arc<CompiledModel>,
     session: Session,
     diagnostic: Option<Session>,
-    head: PublicHead,
+    head: ProjectionHead,
     resize: ResizeWorkspace,
     options: ClassifierOptions,
 }
@@ -215,7 +136,7 @@ impl Classifier {
                 "classifier max_image_pixels must be positive",
             ));
         }
-        let head = PublicHead::compile(compiled.model().graph())?;
+        let head = ProjectionHead::compile(compiled.model().graph(), 2, 2, "classifier")?;
         let session = Session::new_prefix(
             compiled.clone(),
             &[1, 3, 80, 160],
@@ -275,7 +196,7 @@ impl Classifier {
         let resize = &mut self.resize;
         let feature = self.session.run_with_layout_input(|input, nhwc| {
             width = preprocess::cls_with_layout(image, input, resize, nhwc)
-                .map_err(|e| RuntimeError::new(e.to_string()))?;
+                .map_err(RuntimeError::from)?;
             Ok(())
         })?;
         self.head
@@ -310,25 +231,23 @@ impl Classifier {
         let graph = self.compiled.model().graph();
         let probabilities = self.diagnostic.as_mut().unwrap().run_with_input_and_trace(
             |input| {
-                let actual = preprocess::cls(image, input, resize)
-                    .map_err(|e| RuntimeError::new(e.to_string()))?;
+                let actual = preprocess::cls(image, input, resize).map_err(RuntimeError::from)?;
                 width.set(actual);
                 observer.borrow_mut()(ClassifierTrace::Input {
                     values: input,
                     resized_width: actual,
                 })
-                .map_err(|e| RuntimeError::new(e.to_string()))?;
+                .map_err(RuntimeError::from)?;
                 Ok(())
             },
             |node| {
                 if node.output_id == head.feature {
                     public.set(Some(
                         head.evaluate(graph, node.values, width.get())
-                            .map_err(|e| RuntimeError::new(e.to_string()))?,
+                            .map_err(RuntimeError::from)?,
                     ));
                 }
-                observer.borrow_mut()(ClassifierTrace::Node(node))
-                    .map_err(|e| RuntimeError::new(e.to_string()))
+                observer.borrow_mut()(ClassifierTrace::Node(node)).map_err(RuntimeError::from)
             },
         )?;
         observer.borrow_mut()(ClassifierTrace::Probabilities(probabilities.data()))?;

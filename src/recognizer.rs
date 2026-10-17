@@ -2,8 +2,8 @@
 use crate::profile::{StageProfile, Timer};
 use crate::{
     image::{ImageError, ImageResult, ImageView, resize_vec},
-    model::{EffectiveAttributes, Graph, TensorId},
     preprocess::{self, ResizeWorkspace},
+    projection::ProjectionHead,
     runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
     tensor::{Shape, TensorData},
 };
@@ -23,8 +23,13 @@ impl Dictionary {
     /// Parse the native UTF-8 label file without trimming label content or
     /// collapsing empty/duplicate tokens. Blank and space are implicit classes.
     pub fn from_utf8(bytes: &[u8]) -> ImageResult<Self> {
-        let raw = std::str::from_utf8(bytes)
-            .map_err(|_| ImageError::new("dictionary is not valid UTF-8"))?;
+        let raw = std::str::from_utf8(bytes).map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::InvalidInput,
+                "dictionary is not valid UTF-8",
+                e,
+            )
+        })?;
         let raw = raw.strip_prefix('\u{feff}').unwrap_or(raw);
         let mut text = String::new();
         text.try_reserve_exact(raw.len()).map_err(allocation)?;
@@ -62,8 +67,12 @@ impl Dictionary {
         Some(&self.text[a..b])
     }
 }
-fn allocation(error: impl std::fmt::Display) -> ImageError {
-    ImageError::new(format!("recognition allocation failed: {error}"))
+fn allocation(error: std::collections::TryReserveError) -> ImageError {
+    ImageError::caused_by(
+        crate::error::ErrorKind::Allocation,
+        "recognition allocation failed",
+        error,
+    )
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -306,14 +315,6 @@ pub enum RecognitionTrace<'a> {
     Public(RecognitionView<'a>),
 }
 
-struct PublicHead {
-    feature: TensorId,
-    feature_node: usize,
-    weights: TensorId,
-    bias: Option<TensorId>,
-    inner: usize,
-    classes: usize,
-}
 /// Selection made by the last successful compact production projection.
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct ProjectionStatistics {
@@ -326,7 +327,7 @@ pub struct ProjectionStatistics {
     pub threads: usize,
     pub retained_scratch_bytes: usize,
 }
-impl PublicHead {
+impl ProjectionHead {
     #[allow(clippy::too_many_arguments)]
     fn project_parallel(
         &self,
@@ -434,83 +435,6 @@ impl PublicHead {
             }
             Backend::Avx512 => "Avx2Fma",
         }
-    }
-    fn compile(graph: &Graph, classes: usize) -> ImageResult<Self> {
-        let fail = || {
-            ImageError::new(
-                "recognizer requires a MatMul/optional bias/last-axis Softmax CTC head matching dictionary",
-            )
-        };
-        let softmax = graph.nodes.last().ok_or_else(fail)?;
-        if softmax.op_type != "Softmax"
-            || softmax.inputs.len() != 1
-            || softmax.outputs.as_slice() != [graph.outputs.first().copied()]
-            || !matches!(softmax.attributes, EffectiveAttributes::Axis(-1 | 2))
-        {
-            return Err(fail());
-        }
-        let mut index = graph.nodes.len().checked_sub(2).ok_or_else(fail)?;
-        let mut target = softmax.inputs[0].ok_or_else(fail)?;
-        let mut bias = None;
-        if graph.nodes[index].op_type == "Add" {
-            let add = &graph.nodes[index];
-            if add.inputs.len() != 2 || add.outputs.as_slice() != [Some(target)] {
-                return Err(fail());
-            }
-            index = index.checked_sub(1).ok_or_else(fail)?;
-            let output = graph.nodes[index]
-                .outputs
-                .first()
-                .copied()
-                .flatten()
-                .ok_or_else(fail)?;
-            let id = if add.inputs[0] == Some(output) {
-                add.inputs[1]
-            } else if add.inputs[1] == Some(output) {
-                add.inputs[0]
-            } else {
-                return Err(fail());
-            }
-            .ok_or_else(fail)?;
-            match &graph.tensors[id.0].constant {
-                Some(TensorData::F32(t)) if t.shape().dimensions() == [classes] => {}
-                _ => return Err(fail()),
-            }
-            bias = Some(id);
-            target = output;
-        }
-        let matmul = &graph.nodes[index];
-        if matmul.op_type != "MatMul"
-            || matmul.inputs.len() != 2
-            || matmul.outputs.as_slice() != [Some(target)]
-        {
-            return Err(fail());
-        }
-        let feature = matmul.inputs[0].ok_or_else(fail)?;
-        let weights = matmul.inputs[1].ok_or_else(fail)?;
-        let inner = match &graph.tensors[weights.0].constant {
-            Some(TensorData::F32(t))
-                if t.shape().rank() == 2 && t.shape().dimensions()[1] == classes =>
-            {
-                t.shape().dimensions()[0]
-            }
-            _ => return Err(fail()),
-        };
-        if inner == 0 {
-            return Err(fail());
-        }
-        let feature_node = graph.nodes[..index]
-            .iter()
-            .position(|n| n.outputs.contains(&Some(feature)))
-            .ok_or_else(fail)?;
-        Ok(Self {
-            feature,
-            feature_node,
-            weights,
-            bias,
-            inner,
-            classes,
-        })
     }
     fn project(
         &self,
@@ -810,7 +734,7 @@ pub struct Recognizer {
     dictionary: Arc<Dictionary>,
     options: RecognizerOptions,
     limits: ExecutionLimits,
-    head: PublicHead,
+    head: ProjectionHead,
     session: Session,
     diagnostic: Option<Session>,
     resize: ResizeWorkspace,
@@ -861,7 +785,12 @@ impl Recognizer {
         {
             return Err(ImageError::new("invalid recognizer options"));
         }
-        let head = PublicHead::compile(compiled.model().graph(), dictionary.class_count())?;
+        let head = ProjectionHead::compile(
+            compiled.model().graph(),
+            dictionary.class_count(),
+            3,
+            "recognizer",
+        )?;
         let width = if options.adaptive_width {
             32
         } else {
@@ -1086,9 +1015,9 @@ impl Recognizer {
         let feature = self.session.run_with_layout_input(|input, nhwc| {
             let timer = Timer::<PROFILE>::start();
             for (index, sample) in input.chunks_exact_mut(sample_elements).enumerate() {
-                let source = image(index).map_err(|e| RuntimeError::new(e.to_string()))?;
+                let source = image(index).map_err(RuntimeError::from)?;
                 preprocess::rec_with_layout(source, width, sample, resize, nhwc)
-                    .map_err(|e| RuntimeError::new(e.to_string()))?;
+                    .map_err(RuntimeError::from)?;
             }
             preprocessing_ns = timer.elapsed();
             Ok(())
@@ -1205,7 +1134,7 @@ impl Recognizer {
             let timer = Timer::<PROFILE>::start();
             let result = preprocess::rec_with_layout(image, size.tensor_width, input, resize, nhwc)
                 .map(|_| ())
-                .map_err(|e| RuntimeError::new(e.to_string()));
+                .map_err(RuntimeError::from);
             preprocessing_ns = timer.elapsed();
             result
         })?;
@@ -1296,7 +1225,7 @@ impl Recognizer {
         dictionary: &Dictionary,
         options: RecognizerOptions,
         limits: ExecutionLimits,
-        head: &PublicHead,
+        head: &ProjectionHead,
         diagnostic: &mut Option<Session>,
         indices: &mut Vec<usize>,
         scores: &mut Vec<f32>,
@@ -1337,19 +1266,19 @@ impl Recognizer {
         let shape = session.input_shape();
         let probabilities = session.run_with_input_and_trace(
             |input| {
-                fill(input).map_err(|e| RuntimeError::new(e.to_string()))?;
+                fill(input).map_err(RuntimeError::from)?;
                 observer.borrow_mut()(RecognitionTrace::Input {
                     shape,
                     values: input,
                     resized_width: size.resized_width,
                     tensor_width: size.tensor_width,
                 })
-                .map_err(|e| RuntimeError::new(e.to_string()))
+                .map_err(RuntimeError::from)
             },
             |node| {
                 if node.output_id == head.feature {
                     let feature_steps = Self::check_feature_shape(node.shape, head.inner)
-                        .map_err(|e| RuntimeError::new(e.to_string()))?;
+                        .map_err(RuntimeError::from)?;
                     if feature_steps != steps {
                         return Err(RuntimeError::new(
                             "recognizer feature and output time steps differ",
@@ -1361,11 +1290,10 @@ impl Recognizer {
                         &mut indices[..steps],
                         &mut scores[..steps],
                     )
-                    .map_err(|e| RuntimeError::new(e.to_string()))?;
+                    .map_err(RuntimeError::from)?;
                     projected.set(true);
                 }
-                observer.borrow_mut()(RecognitionTrace::Node(node))
-                    .map_err(|e| RuntimeError::new(e.to_string()))
+                observer.borrow_mut()(RecognitionTrace::Node(node)).map_err(RuntimeError::from)
             },
         )?;
         observer.borrow_mut()(RecognitionTrace::Probabilities {

@@ -371,7 +371,7 @@ fn a_fused_residual_does_not_start_a_segment_for_a_neutral_base_input() {
         .graph()
         .nodes
         .iter()
-        .map(|node| node.op_type.as_str())
+        .map(|node| node.op_type())
         .collect();
     assert_eq!(merged_ops, ["Conv"]);
     let parsed = model(
@@ -390,7 +390,7 @@ fn a_fused_residual_does_not_start_a_segment_for_a_neutral_base_input() {
         .graph()
         .nodes
         .iter()
-        .map(|node| node.op_type.as_str())
+        .map(|node| node.op_type())
         .collect();
     assert_eq!(preserved_ops, ["Conv", "Relu", "Conv", "Add"]);
     let input: Vec<_> = (0..3 * 17).map(|i| (i as f32 - 25.) / 32.).collect();

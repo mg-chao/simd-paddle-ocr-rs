@@ -151,16 +151,15 @@ impl Measurement {
         {
             return Err("incomplete or invalid benchmark measurement".into());
         }
-        if let Some(cpu) = &self.process_cpu {
-            if cpu.samples_ms.len() != job.runs
+        if let Some(cpu) = &self.process_cpu
+            && (cpu.samples_ms.len() != job.runs
                 || cpu
                     .samples_ms
                     .iter()
                     .chain([&cpu.first_inference_ms, &cpu.warmup_ms])
-                    .any(|v| !v.is_finite() || *v < 0.)
-            {
-                return Err("incomplete or invalid process CPU measurement".into());
-            }
+                    .any(|v| !v.is_finite() || *v < 0.))
+        {
+            return Err("incomplete or invalid process CPU measurement".into());
         }
         self.result.validate()?;
         Ok(())
@@ -176,7 +175,7 @@ pub fn median(values: &[f64]) -> f64 {
     if n == 0 {
         return f64::NAN;
     }
-    if n % 2 == 0 {
+    if n.is_multiple_of(2) {
         (values[n / 2 - 1] + values[n / 2]) / 2.
     } else {
         values[n / 2]

@@ -160,7 +160,7 @@ pub(super) struct ShapeProgram {
 impl ShapeProgram {
     pub(super) fn compile(model: &Model) -> RuntimeResult<Self> {
         let metadata = model.shape_metadata();
-        if metadata.nodes.len() > 64 {
+        if metadata.nodes.len() > crate::onnx::MAX_SHAPE_NODES {
             return Err(RuntimeError::new(
                 "shape program exceeds 64-instruction limit",
             ));
@@ -329,7 +329,7 @@ impl ShapeProgram {
                 .enumerate()
                 .find(|(_, n)| n.key == recipe.node_key)
                 .ok_or_else(|| RuntimeError::new("shape recipe has no retained node"))?;
-            if node.op_type != "Reshape"
+            if node.op_type() != "Reshape"
                 || node.inputs.len() != 1
                 || node.inputs[0].is_none_or(|id| graph.tensors[id.0].key != recipe.data_input)
             {
@@ -351,7 +351,9 @@ impl ShapeProgram {
             }
         }
         for (index, node) in graph.nodes.iter().enumerate() {
-            if node.op_type == "Reshape" && node.inputs.len() == 1 && !targets.contains_key(&index)
+            if node.op_type() == "Reshape"
+                && node.inputs.len() == 1
+                && !targets.contains_key(&index)
             {
                 return Err(RuntimeError::new(format!(
                     "node {index} '{}': dynamic Reshape has no evaluable shape recipe",
