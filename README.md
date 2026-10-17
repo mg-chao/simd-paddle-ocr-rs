@@ -80,6 +80,12 @@ recognition worker completion times, and the remaining optimization priorities.
 The [SME tile and crossover follow-up](docs/macos-arm64-sme-tile-optimization.md)
 records further Small/Medium gains, unchanged retained memory, exact output
 checks, and the measured Tiny timing limitations.
+The [pipeline analysis after SME tiling](docs/macos-sme-tile-pipeline-analysis.md)
+details all stages after those changes, identifies the remaining convolution
+and recognition scheduling targets, and preserves the local benchmark evidence.
+The [SME packing and crossover optimization](docs/macos-arm64-sme-packing-optimization.md)
+extends acceleration to smaller pointwise layers, with measured page latency
+reductions, exact output checks, and a documented Tiny workspace tradeoff.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

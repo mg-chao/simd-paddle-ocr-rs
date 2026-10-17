@@ -35,13 +35,21 @@ fn sme_crossover_preserves_platform_backend_and_small_shape_fallbacks() {
     for (rows, inner, columns, expected) in [
         (31, 384, 384, false),
         (32, 384, 384, true),
-        (192, 191, 384, false),
-        (192, 192, 383, false),
+        (31, 96, 192, false),
+        (32, 96, 192, true),
+        (384, 95, 192, false),
+        (384, 96, 191, false),
+        (384, 96, 192, true),
+        (384, 192, 96, true),
+        (192, 191, 384, true),
+        (192, 192, 383, true),
         (192, 192, 384, true),
         (192, 384, 192, true),
         (1920, 256, 512, true),
         (1920, 512, 256, true),
-        (1920, 128, 256, false),
+        (1920, 128, 256, true),
+        (1920, 256, 128, true),
+        (1920, 64, 128, false),
     ] {
         for backend in backends() {
             let selected = available && backend == Backend::NeonFma && expected;

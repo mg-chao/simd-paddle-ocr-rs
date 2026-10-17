@@ -1,6 +1,6 @@
 # Current Apple M4 OCR pipeline latency and optimization analysis
 
-The subsequent [SME tile and crossover optimization](macos-arm64-sme-tile-optimization.md) implements the convolution recommendations and records the resulting gains and limitations. Measurements below describe revision `52ed1be` before that follow-up.
+The subsequent [SME tile and crossover optimization](macos-arm64-sme-tile-optimization.md) implements the convolution recommendations and records the resulting gains and limitations. Measurements below describe revision `52ed1be` before that follow-up. The [current pipeline analysis](macos-sme-tile-pipeline-analysis.md) measures the remaining bottlenecks after those changes.
 
 At revision `52ed1be343384c18bb24053599f8fd4928b56b2d`, detection remains the main cost on sparse pages, while recognition dominates dense pages. Detector inference accounts for **68.2–77.2%** of sparse-page wall time. Recognition accounts for **58.6%, 79.0% and 85.4%** of dense Tiny, Small and Medium wall time. **The next useful work is convolution execution and recognition scheduling; DB geometry, CTC decoding and result copying have small absolute ceilings on these inputs.** Tiny dense orientation is a separate substantial target at **26.5%** of its profile.
 

@@ -9,7 +9,7 @@ fn sme_crossover_fixed() {
     assert!(!cfg!(debug_assertions), "use a release build");
     assert!(available(), "requires SME hardware");
     let started = std::time::Instant::now();
-    for (shape, (rows, inner, columns)) in [(192, 192, 384), (1920, 256, 512), (960, 512, 1024)]
+    for (shape, (rows, inner, columns)) in [(384, 96, 192), (4560, 128, 256), (960, 512, 1024)]
         .into_iter()
         .enumerate()
     {

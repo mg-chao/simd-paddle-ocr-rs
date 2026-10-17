@@ -2,6 +2,53 @@ use super::super::tests::{assert_bits, oracle, values};
 use super::*;
 
 #[test]
+fn sme_packing_preserves_bits_panel_layout_and_short_rows() {
+    for count in [1usize, 3, 4, 15, 16, 17, 31, 32, 33, 48, 63, 64] {
+        for inner in [1, 3, 4, 5, 7, 16, 95, 96, 97, 128, 513] {
+            let mut input: Vec<_> = (0..count * inner)
+                .map(|i| f32::from_bits((i as u32).wrapping_mul(0x9e3779b9)))
+                .collect();
+            // Include signed zeros, subnormals, infinities, and both quiet and
+            // signaling NaN payloads explicitly: packing must never compute.
+            for (value, bits) in input.iter_mut().zip([
+                0,
+                0x8000_0000,
+                1,
+                0x8000_0001,
+                0x7f80_0000,
+                0xff80_0000,
+                0x7fc0_1234,
+                0x7f80_1234,
+                0xff80_1234,
+            ]) {
+                *value = f32::from_bits(bits);
+            }
+            let sentinel = f32::from_bits(0x7fc0_1234);
+            let size = count.div_ceil(16) * 16 * inner;
+            let mut packed = vec![sentinel; size + 8];
+            pack_rows(&input, inner, count, &mut packed[4..4 + size]);
+            for first in (0..count).step_by(16) {
+                for k in 0..inner {
+                    for row in 0..16 {
+                        assert_eq!(
+                            packed[4 + first * inner + k * 16 + row].to_bits(),
+                            input[(first + row).min(count - 1) * inner + k].to_bits(),
+                            "count={count} inner={inner} first={first} k={k} row={row}",
+                        );
+                    }
+                }
+            }
+            assert!(
+                packed[..4]
+                    .iter()
+                    .chain(&packed[4 + size..])
+                    .all(|x| x.to_bits() == sentinel.to_bits())
+            );
+        }
+    }
+}
+
+#[test]
 fn sme_rows_preserve_order_tails_and_offsets() {
     if !available() {
         return;
@@ -14,6 +61,10 @@ fn sme_rows_preserve_order_tails_and_offsets() {
         (31, 191, 31),
         (32, 192, 32),
         (33, 193, 63),
+        (33, 96, 192),
+        (63, 192, 96),
+        (64, 128, 256),
+        (65, 256, 128),
         (63, 129, 65),
         (64, 384, 97),
         (65, 513, 17),

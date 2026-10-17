@@ -913,7 +913,15 @@ fn sme_convolution_reserves_reuses_and_accounts_for_request_scratch() {
     if !std::arch::is_aarch64_feature_detected!("sme") {
         return;
     }
-    for (channels, output_channels) in [(384, 384), (192, 384), (384, 192)] {
+    for (channels, output_channels) in [
+        (384, 384),
+        (192, 384),
+        (384, 192),
+        (96, 192),
+        (192, 96),
+        (128, 256),
+        (256, 128),
+    ] {
         let shape = [1, channels, 1, 65];
         let input: Vec<_> = (0..shape.iter().product())
             .map(|i| ((i % 31) as f32 - 15.) / 32.)

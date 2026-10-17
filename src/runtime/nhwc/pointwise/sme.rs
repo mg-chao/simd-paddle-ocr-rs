@@ -7,12 +7,70 @@
 #[cfg(feature = "parallel")]
 use super::super::PointwiseBands;
 use super::*;
+use std::arch::aarch64::{
+    vcombine_f32, vget_high_f32, vget_low_f32, vld1q_f32, vst1q_f32, vtrn1q_f32, vtrn2q_f32,
+};
 use std::arch::asm;
 
 pub(super) const GROUP: usize = 64;
 
 pub(super) fn available() -> bool {
     std::arch::is_aarch64_feature_detected!("sme")
+}
+
+/// Transpose sixteen input rows into each K-major panel. Four-by-four NEON
+/// transposes keep loads contiguous along K; short panels repeat their last
+/// row just like the computation's masked output tail. Only bit moves occur.
+fn pack_rows(input: &[f32], inner: usize, count: usize, scratch: &mut [f32]) {
+    assert!(inner > 0 && (1..=GROUP).contains(&count));
+    assert_eq!(input.len(), count * inner);
+    assert!(scratch.len() >= count.div_ceil(16) * 16 * inner);
+    for first in (0..count).step_by(16) {
+        let rows: [&[f32]; 16] = std::array::from_fn(|row| {
+            let start = (first + row).min(count - 1) * inner;
+            &input[start..start + inner]
+        });
+        let panel = &mut scratch[first * inner..(first + 16) * inner];
+        for row in (0..16).step_by(4) {
+            for k in (0..inner / 4 * 4).step_by(4) {
+                // SAFETY: this module is macOS ARM64 (NEON is baseline).
+                // Each checked row contains k..k+4, and each store writes
+                // four row lanes of one of the four in-bounds K columns.
+                unsafe {
+                    let a = vld1q_f32(rows[row].as_ptr().add(k));
+                    let b = vld1q_f32(rows[row + 1].as_ptr().add(k));
+                    let c = vld1q_f32(rows[row + 2].as_ptr().add(k));
+                    let d = vld1q_f32(rows[row + 3].as_ptr().add(k));
+                    let ab0 = vtrn1q_f32(a, b);
+                    let ab1 = vtrn2q_f32(a, b);
+                    let cd0 = vtrn1q_f32(c, d);
+                    let cd1 = vtrn2q_f32(c, d);
+                    let destination = panel.as_mut_ptr().add(k * 16 + row);
+                    vst1q_f32(
+                        destination,
+                        vcombine_f32(vget_low_f32(ab0), vget_low_f32(cd0)),
+                    );
+                    vst1q_f32(
+                        destination.add(16),
+                        vcombine_f32(vget_low_f32(ab1), vget_low_f32(cd1)),
+                    );
+                    vst1q_f32(
+                        destination.add(32),
+                        vcombine_f32(vget_high_f32(ab0), vget_high_f32(cd0)),
+                    );
+                    vst1q_f32(
+                        destination.add(48),
+                        vcombine_f32(vget_high_f32(ab1), vget_high_f32(cd1)),
+                    );
+                }
+            }
+        }
+        for k in inner / 4 * 4..inner {
+            for (row, values) in rows.iter().enumerate() {
+                panel[k * 16 + row] = values[k];
+            }
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -45,14 +103,12 @@ pub(super) fn try_execute(
     let input = &input[start..start.checked_add(length).expect("SME input end overflow")];
     for group in (0..rows).step_by(GROUP) {
         let count = (rows - group).min(GROUP);
-        for t in (0..count).step_by(16) {
-            let destination = &mut scratch[t * inner..(t + 16) * inner];
-            for k in 0..inner {
-                for r in 0..16 {
-                    destination[k * 16 + r] = input[(group + (t + r).min(count - 1)) * inner + k];
-                }
-            }
-        }
+        pack_rows(
+            &input[group * inner..(group + count) * inner],
+            inner,
+            count,
+            scratch,
+        );
         for (block, panels) in packed.data().chunks(inner * 32).enumerate() {
             let column = block * 32;
             let seed: [f32; 32] =

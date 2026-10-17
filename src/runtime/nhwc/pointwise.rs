@@ -569,22 +569,21 @@ mod tests;
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 mod sme;
 
-/// Reserve packing only for channel-heavy convolutions with amortized SME
-/// overhead. The measured targets are 384/768 and 512/1024-channel products.
+/// Reserve packing for convolutions with amortized SME overhead, using the
+/// same crossover as execution so newly admitted layers have enough scratch.
 pub(in crate::runtime) fn sme_scratch_elements(
     backend: Backend,
     rows: usize,
     inner: usize,
     columns: usize,
 ) -> usize {
-    // Packing is worthwhile for the measured 192<->384 and 256<->512
-    // recognition layers too. Keep short row bands and smaller channels on
-    // NEON so dispatch does not assume the same crossover for tiny products.
+    // The measured 96->192 recognition and 128->256 detector bands also
+    // benefit from SME. Keep shorter bands and smaller products on NEON.
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
     if backend == Backend::NeonFma
         && rows >= 32
-        && inner.min(columns) >= 192
-        && inner.max(columns) >= 384
+        && inner.min(columns) >= 96
+        && inner.max(columns) >= 192
         && sme::available()
     {
         return inner.checked_mul(sme::GROUP).unwrap_or(0);
