@@ -5,6 +5,11 @@ implements Optimization 1 and records separate baseline/candidate measurements
 across sparse/mixed pages, all three model sizes and concurrent requests. The
 numbers and recommendations below describe the original analysis revision.
 
+The subsequent [classification-disabled latency comparison](windows-no-cls-latency.md)
+measures the orientation toggle on revision `061c33b`: Tiny/dense latency falls
+from 69.2114 to 44.1710 ms with unchanged text; other fixtures expose the output
+tradeoffs when crops need orientation correction.
+
 The [Optimization 3 implementation](#optimization-3-detector-upsampling-on-windows-avx2fma)
 at the end of this document records the subsequent detector change, measured
 against `b446afd` with Optimizations 1 and 2 already present.

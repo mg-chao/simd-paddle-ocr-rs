@@ -132,6 +132,8 @@ impl CpuBudgets {
 
     /// AVX2/FMA and native ARM recognition benefit from independent lines
     /// instead of nested kernels when a complete eight-unit wave is available.
+    /// On Windows AVX2, dense pages on 24–31-thread contexts use sixteen
+    /// single-threaded owners to avoid three-way nested kernel scheduling.
     /// Depend only on page geometry and configuration, never on request timing:
     /// stable ownership keeps worker-private shape caches and arenas reusable.
     pub(crate) fn for_recognition_units(
@@ -147,9 +149,18 @@ impl CpuBudgets {
         {
             return self;
         }
+        let owners = if cfg!(all(target_os = "windows", target_arch = "x86_64"))
+            && backend == Backend::Avx2Fma
+            && (24..32).contains(&self.capacity)
+            && units >= 32
+        {
+            16
+        } else {
+            8
+        };
         Self {
-            line_workers: 8,
-            recognizer_base_threads: (self.capacity / 8).clamp(1, 8),
+            line_workers: owners,
+            recognizer_base_threads: (self.capacity / owners).clamp(1, 8),
             ..self
         }
     }
@@ -447,9 +458,9 @@ mod tests {
 
     #[test]
     fn automatic_recognition_expands_only_supported_complete_eight_unit_waves() {
-        for capacity in [1, 4, 7, 8, 10, 16, 24, 32] {
+        for capacity in [1, 4, 7, 8, 10, 16, 23, 32, 48] {
             let base = CpuOptions::default().resolve(capacity, true).unwrap();
-            for units in [0, 1, 4, 7, 8, 9, 69] {
+            for units in [0, 1, 4, 7, 8, 9, 31, 32, 33, 69] {
                 for backend in [Backend::NeonFma, Backend::Avx2Fma] {
                     assert_eq!(base.for_recognition_units(units, false, backend), base);
                     let selected = base.for_recognition_units(units, true, backend);
@@ -479,16 +490,49 @@ mod tests {
                 }
             }
         }
-        for line_workers in [1, 2, 4, 8, 16] {
+        for line_workers in [1, 2, 4, 8, 12, 16] {
             let explicit = CpuOptions {
                 line_workers,
                 ..Default::default()
             }
-            .resolve(8, true)
+            .resolve(24, true)
             .unwrap();
             for backend in [Backend::NeonFma, Backend::Avx2Fma] {
                 assert_eq!(explicit.for_recognition_units(69, false, backend), explicit);
             }
+        }
+    }
+
+    #[test]
+    fn dense_windows_avx2_ownership_has_bounded_capacity_and_geometry() {
+        let windows_avx2 = cfg!(all(target_os = "windows", target_arch = "x86_64"));
+        for (capacity, units, windows_owners) in [
+            (23, 32, 8),
+            (24, 31, 8),
+            (24, 32, 16),
+            (24, 69, 16),
+            (31, 32, 16),
+            (32, 32, 8),
+        ] {
+            let base = CpuOptions::default().resolve(capacity, true).unwrap();
+            let selected = base.for_recognition_units(units, true, Backend::Avx2Fma);
+            let owners = if windows_avx2 { windows_owners } else { 8 };
+            assert_eq!(selected.line_workers, owners);
+            assert_eq!(selected.recognizer_base_threads, capacity / owners);
+            assert_eq!(selected.preprocess_workers, base.preprocess_workers);
+            assert_eq!(selected.detector_threads, base.detector_threads);
+            for share in [1, 8, 16, capacity] {
+                assert!(
+                    selected.recognizer_threads_for_capacity(units, share) <= capacity / owners
+                );
+                assert_eq!(selected.line_workers, owners);
+            }
+            let neon = base.for_recognition_units(units, true, Backend::NeonFma);
+            assert_eq!(neon.line_workers, 8);
+            assert_eq!(
+                base.for_recognition_units(units, false, Backend::Avx2Fma),
+                base
+            );
         }
     }
 

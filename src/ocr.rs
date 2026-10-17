@@ -1960,6 +1960,136 @@ pub(crate) mod tests {
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 2);
     }
+    #[cfg(all(feature = "parallel", target_arch = "x86_64", target_os = "windows"))]
+    #[test]
+    fn automatic_sixteen_recognition_owners_reuse_storage_across_page_and_budget_changes() {
+        let mut serial = synthetic_ocr(CpuContext::serial());
+        if serial.recognizer.compiled().backend() != crate::runtime::Backend::Avx2Fma {
+            return;
+        }
+        let cpu = Arc::new(CpuContext::new(24).unwrap());
+        let mut parallel = serial.fork().unwrap();
+        parallel.set_cpu_context(cpu.clone()).unwrap();
+        let mut pixels = vec![0; 96 * 96 * 3];
+        for row in 0..6 {
+            for column in 0..6 {
+                let top = 5 + row * 15;
+                let left = 5 + column * 15;
+                for y in top..top + 6 {
+                    for x in left..left + 9 {
+                        pixels[(y * 96 + x) * 3..(y * 96 + x) * 3 + 3].fill(255);
+                    }
+                }
+            }
+        }
+        let dense = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+        let expected = serial.run(dense, true).unwrap().try_to_owned().unwrap();
+        assert_eq!(expected.lines.len(), 36);
+        assert!(expected.lines.iter().all(|line| {
+            !line.text.is_empty()
+                && line.recognition_tensor_width == expected.lines[0].recognition_tensor_width
+        }));
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);
+        assert_eq!(parallel.cpu_budgets().recognizer_base_threads(), 1);
+        assert_eq!(parallel.workers.len(), 16);
+        let storage = |request: &Ocr| {
+            request
+                .workers
+                .iter()
+                .map(|worker| {
+                    (
+                        worker.jobs.clone(),
+                        worker.jobs.as_ptr(),
+                        worker.jobs.capacity(),
+                        worker.recognizer.retained_activation_bytes(),
+                        worker.recognizer.retained_workspace_bytes(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let warmed = storage(&parallel);
+        let waiting = cpu.register_request();
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);
+        assert_eq!(storage(&parallel), warmed);
+        drop(waiting);
+
+        let sparse_pixels = two_lines();
+        let sparse = ImageView::new(&sparse_pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+        let sparse_expected = serial.run(sparse, true).unwrap().try_to_owned().unwrap();
+        assert_eq!(
+            parallel.run(sparse, true).unwrap().try_to_owned().unwrap(),
+            sparse_expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 4);
+        assert_eq!(parallel.workers.len(), 16);
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);
+
+        // Thirty-six lines become eighteen equal-width batches. The policy
+        // counts these indivisible jobs rather than the number of text boxes.
+        parallel.set_recognition_batch_size(2).unwrap();
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 8);
+        assert_eq!(parallel.workers.len(), 16);
+        assert_eq!(
+            parallel.workers[..8]
+                .iter()
+                .map(|worker| worker.jobs.len())
+                .sum::<usize>(),
+            18
+        );
+        assert!(
+            parallel.workers[..8]
+                .iter()
+                .flat_map(|worker| &worker.jobs)
+                .all(|job| job.len() == 2)
+        );
+        parallel.set_recognition_batch_size(1).unwrap();
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);
+        // Sparse and batched shapes may legitimately grow private buffers.
+        // After visiting those shapes, a failed result-budget attempt and its
+        // successful retry must retain the same owners and storage capacities.
+        let warmed = storage(&parallel);
+        let activation_bytes = parallel.retained_activation_bytes();
+        let workspace_bytes = parallel.retained_workspace_bytes();
+        let limit = parallel.options.max_total_result_bytes;
+        parallel.options.max_total_result_bytes =
+            expected.lines.len() * size_of::<LineRecord>() + expected.lines.len() - 1;
+        assert!(
+            parallel
+                .run(dense, true)
+                .unwrap_err()
+                .to_string()
+                .contains("max_total_result_bytes")
+        );
+        parallel.options.max_total_result_bytes = limit;
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);
+        assert_eq!(storage(&parallel), warmed);
+        assert_eq!(parallel.retained_activation_bytes(), activation_bytes);
+        assert_eq!(parallel.retained_workspace_bytes(), workspace_bytes);
+    }
     #[test]
     fn factory_drops_the_warm_request_and_shares_only_immutable_configuration() {
         let cpu = CpuContext::serial();

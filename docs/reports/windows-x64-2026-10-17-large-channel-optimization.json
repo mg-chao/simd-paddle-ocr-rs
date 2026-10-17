@@ -1,0 +1,2039 @@
+{
+  "schema_version": 1,
+  "status": "adopted; locally validated and benchmarked automatic Windows x64 AVX2 ownership policy",
+  "baseline_git_head": "061c33b60fd9d14f63119f19552bdc0278e2f083",
+  "local_date": "2026-10-17",
+  "host": [
+    {
+      "Name": "AMD Ryzen 9 5950X 16-Core Processor            ",
+      "NumberOfCores": 12,
+      "NumberOfLogicalProcessors": 24
+    }
+  ],
+  "build_contract": "physical Windows host; nightly-2026-09-08; release/default parallel features; no profiling; correctness before performance; no remote runner or VM",
+  "selected_candidate": {
+    "component": "automatic recognition ownership",
+    "platform": "Windows x64",
+    "backend": "AVX2/FMA",
+    "context_capacity_inclusive": [
+      24,
+      31
+    ],
+    "minimum_recognition_units": 32,
+    "owners": 16,
+    "otherwise": "retain existing eight-owner expansion or original ineligible policy",
+    "scope": "batch size remains one; native reduction, model settings and explicit owner overrides unchanged",
+    "final_validation": "final_automatic_validation and validation_checks below"
+  },
+  "inputs": {
+    "fixture": "imgs_00018069",
+    "width": 430,
+    "height": 267,
+    "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+    "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+    "asset_hashes": {
+      "cls.onnx": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+      "det.onnx": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+      "medium_det.onnx": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+      "medium_rec.onnx": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba",
+      "ppocr_keys.txt": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82",
+      "rec_keys.txt": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6",
+      "rec.onnx": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+      "small_det.onnx": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+      "small_rec.onnx": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+    },
+    "manifest_settings": {
+      "cpu_threads": 1,
+      "kernel_policy": "auto",
+      "layout": "auto",
+      "fusion": true,
+      "direction_classification": true,
+      "classifier_threshold": 0.0,
+      "recognition_batch_size": 1,
+      "adaptive_width": true,
+      "target_width": 320,
+      "detector_limit": 960,
+      "bitmap_threshold": 0.2,
+      "unclip_ratio": 1.4,
+      "max_candidates": 3000,
+      "use_dilation": false
+    },
+    "effective_cpu_contexts": {
+      "owner_page_comparisons": 24,
+      "packet_store_page_comparisons": 8,
+      "standalone_tile_comparison": 1,
+      "note": "manifest cpu_threads is a corpus default overridden by each experiment; actual contexts and affinities are recorded per experiment"
+    }
+  },
+  "tile_alternatives": {
+    "decision": "reject both alternatives; no broad kernel gain",
+    "scope": "one allowed logical CPU, synthetic identity-store matrix product, separate output buffers, one warm-up plus three single calls per variant per shape",
+    "order": [
+      [
+        0,
+        1,
+        2
+      ],
+      [
+        2,
+        1,
+        0
+      ],
+      [
+        1,
+        0,
+        2
+      ]
+    ],
+    "variant_ids": {
+      "0": "current six-by-sixteen",
+      "1": "eight-by-eight, each sixteen-column panel half separately",
+      "2": "four-by-twenty-four, three eight-lane vector accumulators per row"
+    },
+    "execution": {
+      "seconds": 0.2927207,
+      "deadline_seconds": 10,
+      "executable_sha256": "E7C89000C063BF1976AAC7951B01C856D43F234A1218FA5C11B6B8020B946712",
+      "calls_per_variant": 4,
+      "warmups": 1,
+      "measured": 3,
+      "shapes": 3
+    },
+    "raw_log_sha256": "12b5a3ad7b072ec54891f343dc3bc644f4aa5a8d713adbeb360d947896c38421",
+    "cases": [
+      {
+        "rows": 96,
+        "inner": 384,
+        "columns": 768,
+        "baseline_ms": [
+          0.5011,
+          0.42279999999999995,
+          0.4258
+        ],
+        "tile8_ms": [
+          0.6603,
+          0.5098,
+          0.5112
+        ],
+        "tile24_ms": [
+          0.5121,
+          0.467,
+          0.42069999999999996
+        ],
+        "equal_bits": true,
+        "warmups": 1,
+        "measured": 3,
+        "median_ms": {
+          "baseline_ms": 0.4258,
+          "tile8_ms": 0.5112,
+          "tile24_ms": 0.467
+        },
+        "latency_change_percent": {
+          "tile8_ms": 20.05636449037107,
+          "tile24_ms": 9.675904180366368
+        }
+      },
+      {
+        "rows": 960,
+        "inner": 512,
+        "columns": 1024,
+        "baseline_ms": [
+          7.5985000000000005,
+          7.5296,
+          7.5793
+        ],
+        "tile8_ms": [
+          9.5275,
+          9.3147,
+          9.206900000000001
+        ],
+        "tile24_ms": [
+          7.5950999999999995,
+          7.5717,
+          7.4512
+        ],
+        "equal_bits": true,
+        "warmups": 1,
+        "measured": 3,
+        "median_ms": {
+          "baseline_ms": 7.5793,
+          "tile8_ms": 9.3147,
+          "tile24_ms": 7.5717
+        },
+        "latency_change_percent": {
+          "tile8_ms": 22.896573562202317,
+          "tile24_ms": -0.10027311229269253
+        }
+      },
+      {
+        "rows": 480,
+        "inner": 1536,
+        "columns": 768,
+        "baseline_ms": [
+          8.7023,
+          8.2977,
+          8.2311
+        ],
+        "tile8_ms": [
+          9.9281,
+          9.952,
+          9.985199999999999
+        ],
+        "tile24_ms": [
+          8.2573,
+          8.3587,
+          8.2619
+        ],
+        "equal_bits": true,
+        "warmups": 1,
+        "measured": 3,
+        "median_ms": {
+          "baseline_ms": 8.2977,
+          "tile8_ms": 9.952,
+          "tile24_ms": 8.2619
+        },
+        "latency_change_percent": {
+          "tile8_ms": 19.936849970473737,
+          "tile24_ms": -0.43144485821372536
+        }
+      }
+    ],
+    "oracle_scope": "standalone probe supplies six geometry cases, bias and no bias, global fused indices and guard checks; measured variants report bit-identical outputs",
+    "reproduction": "Extract portable_sources to one directory. Run rustc --edition=2024 -O probe.rs -o probe.exe with pinned nightly; run probe.exe check before bounded probe.exe bench. Source normalization changes only three module paths.",
+    "portable_sources": {
+      "probe.rs": {
+        "original_bytes_sha256": "af96887bf80157811990ea859e352206db1f8c47ada6d9cb51fe059ff3613b82",
+        "portable_utf8_sha256": "af96887bf80157811990ea859e352206db1f8c47ada6d9cb51fe059ff3613b82",
+        "source": "#![feature(portable_simd)]\n#![allow(dead_code)]\nuse std::simd::{Simd, StdFloat};\n#[derive(Clone, Copy, PartialEq, Eq)]\nenum Backend { Scalar, Portable4, NeonFma, Avx, AvxFma, Avx2Fma, Avx512 }\ntrait StoreTransform: Sync {\n    fn scalar(&self, value: f32, index: usize) -> f32;\n    fn vector<const N: usize>(&self, value: Simd<f32,N>, index: usize) -> Simd<f32,N>;\n    fn vector_channel<const N: usize>(&self, value: Simd<f32,N>, index: usize, _: usize) -> Simd<f32,N> { self.vector(value,index) }\n}\nstruct IdentityStore;\nimpl StoreTransform for IdentityStore {\n    fn scalar(&self, v:f32,_:usize)->f32 {v}\n    fn vector<const N:usize>(&self,v:Simd<f32,N>,_:usize)->Simd<f32,N>{v}\n}\nstruct IndexStore;\nimpl StoreTransform for IndexStore {\n    fn scalar(&self,v:f32,i:usize)->f32 {(v+(i%97) as f32/127.).max(0.)}\n    fn vector<const N:usize>(&self,v:Simd<f32,N>,i:usize)->Simd<f32,N>{Simd::from_array(std::array::from_fn(|l|self.scalar(v[l],i+l)))}\n}\nstruct PackedMatrix { values:Vec<f32>, inner:usize, columns:usize }\nimpl PackedMatrix {\n    fn new(w:&[f32],k:usize,n:usize)->Self {\n        let mut values=vec![0.;k*n.div_ceil(16)*16];\n        for b in 0..n.div_ceil(16) {for j in 0..k {for l in 0..16 {if b*16+l<n {values[(b*k+j)*16+l]=w[j*n+b*16+l];}}}}\n        Self{values,inner:k,columns:n}\n    }\n    fn matches(&self,k:usize,n:usize)->bool {self.inner==k&&self.columns==n}\n    fn data(&self)->&[f32]{&self.values}\n}\n#[path=\"pointwise.rs\"] mod kernel;\nfn values(n:usize,seed:usize)->Vec<f32>{(0..n).map(|i|((i*37+seed*19)%113)as f32/71.-0.75).collect()}\nfn bits(a:&[f32],b:&[f32]){assert_eq!(a.len(),b.len());for(i,(x,y))in a.iter().zip(b).enumerate(){assert_eq!(x.to_bits(),y.to_bits(),\"output {i}: {x} vs {y}\");}}\nfn check(){\n    for (m,k,n) in [(1,3,7),(3,385,17),(7,513,25),(9,769,129),(95,17,33),(97,65,17)] {\n        let first=3;\n        let a=values((first+m)*k,11);let w=values(k*n,13);let p=PackedMatrix::new(&w,k,n);let b=values(n,17);\n        for bias in [b.as_slice(),&[]] {\n            let mut expected=vec![0.;m*n];\n            for r in 0..m {for c in 0..n {let mut v=bias.get(c).copied().unwrap_or(0.);for j in 0..k {v=a[(first+r)*k+j].mul_add(w[j*n+c],v);}expected[r*n+c]=IndexStore.scalar(v,(first+r)*n+c);}}\n            for variant in 0..3 {\n                let sentinel=f32::from_bits(0x7fc0_1234);let mut out=vec![sentinel;m*n+6];\n                kernel::probe(variant,&a,bias,&p,&mut out[3..3+m*n],first,k,n,&IndexStore);\n                bits(&out[3..3+m*n],&expected);\n                assert!(out[..3].iter().chain(&out[3+m*n..]).all(|v|v.to_bits()==sentinel.to_bits()));\n            }\n        }\n    }\n    println!(\"oracle checks passed: six geometries, bias/no bias, three variants, global fused indices and guards\");\n}\nfn pin(){\n    unsafe {\n        unsafe extern \"system\" {fn GetCurrentProcess()->*mut std::ffi::c_void; fn GetProcessAffinityMask(p:*mut std::ffi::c_void,a:*mut usize,s:*mut usize)->i32;fn SetProcessAffinityMask(p:*mut std::ffi::c_void,m:usize)->i32;}\n        let p=GetCurrentProcess();let(mut a,mut s)=(0,0);assert_ne!(GetProcessAffinityMask(p,&mut a,&mut s),0);assert_ne!(a,0);assert_ne!(SetProcessAffinityMask(p,a.isolate_lowest_one()),0);\n    }\n}\nfn bench(){\n    pin();let deadline=std::time::Instant::now();\n    for (m,k,n) in [(96,384,768),(960,512,1024),(480,1536,768)] {\n        let a=values(m*k,41);let w=values(k*n,43);let b=values(n,47);let p=PackedMatrix::new(&w,k,n);\n        let mut out=[vec![0.;m*n],vec![0.;m*n],vec![0.;m*n]];\n        for v in 0..3 {kernel::probe(v,&a,&b,&p,&mut out[v],0,k,n,&IdentityStore);}\n        bits(&out[0],&out[1]);bits(&out[0],&out[2]);let mut times=[[0.;3];3];\n        for sample in 0..3 {\n            for v in match sample {0=>[0,1,2],1=>[2,1,0],_=>[1,0,2]} {\n                let start=std::time::Instant::now();kernel::probe(v,&a,&b,&p,std::hint::black_box(&mut out[v]),0,k,n,&IdentityStore);times[v][sample]=start.elapsed().as_secs_f64()*1000.;\n            }\n            bits(&out[0],&out[1]);bits(&out[0],&out[2]);\n        }\n        println!(\"tile_probe {{\\\"rows\\\":{m},\\\"inner\\\":{k},\\\"columns\\\":{n},\\\"baseline_ms\\\":{:?},\\\"tile8_ms\\\":{:?},\\\"tile24_ms\\\":{:?},\\\"equal_bits\\\":true,\\\"warmups\\\":1,\\\"measured\\\":3}}\",times[0],times[1],times[2]);\n        assert!(deadline.elapsed().as_secs()<10);\n    }\n}\nfn main(){assert!(is_x86_feature_detected!(\"avx2\")&&is_x86_feature_detected!(\"fma\"));match std::env::args().nth(1).as_deref(){Some(\"check\")=>check(),Some(\"bench\")=>bench(),_=>panic!(\"use check or bench\")}}\n"
+      },
+      "pointwise.rs": {
+        "original_bytes_sha256": "2780bfc9098d2fd5736dfb1315353019897b418992fc06aef6b7d8c8abee5301",
+        "portable_utf8_sha256": "162cde187713e4057fd906903804d79517201b30284e1d77bdd801cc89e40c4c",
+        "source": "//! Full-K, six-row pointwise matrix product with direct final stores.\n//!\n//! Each input row is sliced before reduction. Zipped row/panel iterators keep\n//! indexing checks outside K, and paired low/high updates shorten broadcast\n//! lifetimes while all twelve AVX accumulators remain live. No convolution\n//! origins or reduction-block scratch is needed. Short Windows x64 AVX2\n//! reductions inline a register-contained loop to avoid per-tile ABI overhead;\n//! larger reductions keep the isolated AVX tile.\nuse super::*;\n#[cfg(all(target_arch = \"x86_64\", target_os = \"windows\"))]\n#[path = \"avx2.rs\"]\nmod avx2;\n#[cfg(target_arch = \"aarch64\")]\npub(super) mod neon;\n\nconst ROWS: usize = 6;\nconst GROUP_ROWS: usize = ROWS * 8;\n\n/// Short reductions amortize the Windows vector save/restore and tile-return\n/// boundary poorly. Larger reductions did not benefit in local measurements.\n/// Keep other ISAs/platforms and large full-K panels on their existing tiles.\npub(super) fn inline_avx2_eligible(\n    backend: Backend,\n    inner: usize,\n    columns: usize,\n) -> bool {\n    cfg!(all(target_arch = \"x86_64\", target_os = \"windows\"))\n        && backend == Backend::Avx2Fma\n        && (96..=192).contains(&inner)\n        && columns >= 128\n}\n\npub(super) fn avx_group_rows(inner: usize, columns: usize) -> usize {\n    // Reduce repeated weight-matrix traversals in channel-heavy recognition\n    // layers by reusing each full-K panel over twice as many six-row tiles.\n    // Keep the original group for smaller products.\n    if inner >= 384 && columns >= 384 {\n        GROUP_ROWS * 2\n    } else {\n        GROUP_ROWS\n    }\n}\n\n#[allow(clippy::too_many_arguments)]\npub(super) fn execute(\n    backend: Backend,\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    assert!(packed.matches(inner, columns));\n    assert_eq!(output.len() % columns, 0);\n    assert!(bias.is_empty() || bias.len() == columns);\n    let rows = output.len() / columns;\n    let start = first\n        .checked_mul(inner)\n        .expect(\"pointwise input offset overflow\");\n    let length = rows\n        .checked_mul(inner)\n        .expect(\"pointwise input size overflow\");\n    let input = &input[start\n        ..start\n            .checked_add(length)\n            .expect(\"pointwise input end overflow\")];\n    match backend {\n        Backend::Scalar => {\n            narrow::<1, false>(input, bias, packed, output, first, inner, columns, store)\n        }\n        Backend::Portable4 => portable(input, bias, packed, output, first, inner, columns, store),\n        Backend::NeonFma => {\n            #[cfg(target_arch = \"aarch64\")]\n            // SAFETY: CompiledModel validates the selected NEON/FMA policy;\n            // the checked input and packed spans cover every complete tile.\n            unsafe {\n                neon::execute(input, bias, packed, output, first, inner, columns, store)\n            }\n        }\n        Backend::Avx => {\n            #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n            // SAFETY: CompiledModel validates the selected AVX policy.\n            unsafe {\n                avx(input, bias, packed, output, first, inner, columns, store)\n            }\n        }\n        Backend::AvxFma => {\n            #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n            // SAFETY: CompiledModel validates AVX and FMA.\n            unsafe {\n                avx_fma(input, bias, packed, output, first, inner, columns, store)\n            }\n        }\n        Backend::Avx2Fma => {\n            #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n            // SAFETY: CompiledModel validates AVX2 and FMA.\n            unsafe {\n                #[cfg(all(target_arch = \"x86_64\", target_os = \"windows\"))]\n                if inline_avx2_eligible(backend, inner, columns) {\n                    avx2::execute(input, bias, packed, output, first, inner, columns, store);\n                    return;\n                }\n                avx2(input, bias, packed, output, first, inner, columns, store)\n            }\n        }\n        Backend::Avx512 => {\n            #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n            // SAFETY: CompiledModel validates AVX-512F, AVX2 and FMA.\n            unsafe {\n                avx512(input, bias, packed, output, first, inner, columns, store)\n            }\n        }\n    }\n}\n\nmacro_rules! x86_kernel {\n    ($name:ident, $features:literal, $kernel:ident, $parameter:literal, $fused:literal) => {\n        #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n        #[target_feature(enable = $features)]\n        #[allow(clippy::too_many_arguments)]\n        unsafe fn $name(\n            input: &[f32],\n            bias: &[f32],\n            packed: &PackedMatrix,\n            output: &mut [f32],\n            first: usize,\n            inner: usize,\n            columns: usize,\n            store: &impl StoreTransform,\n        ) {\n            $kernel::<$parameter, $fused>(\n                input, bias, packed, output, first, inner, columns, store,\n            );\n        }\n    };\n}\nx86_kernel!(avx, \"avx\", wide, 8, false);\nx86_kernel!(avx_fma, \"avx,fma\", wide, 8, true);\nx86_kernel!(avx2, \"avx2,fma\", wide, 8, true);\nx86_kernel!(avx512, \"avx512f,avx2,fma\", narrow, 16, true);\n\n#[inline(always)]\nfn accumulate<const LANES: usize, const FUSED: bool>(\n    value: Simd<f32, LANES>,\n    weights: Simd<f32, LANES>,\n    sum: Simd<f32, LANES>,\n) -> Simd<f32, LANES> {\n    if FUSED {\n        value.mul_add(weights, sum)\n    } else {\n        value * weights + sum\n    }\n}\n\n#[inline(always)]\nfn initial<const LANES: usize>(bias: &[f32], column: usize) -> Simd<f32, LANES> {\n    if column >= bias.len() {\n        Simd::splat(0.)\n    } else {\n        Simd::load_or_default(&bias[column..(column + LANES).min(bias.len())])\n    }\n}\n\n#[inline(always)]\nfn row_inputs(input: &[f32], tile: usize, count: usize, inner: usize) -> [&[f32]; ROWS] {\n    std::array::from_fn(|r| {\n        let start = (tile + r).min(count - 1) * inner;\n        &input[start..start + inner]\n    })\n}\n\n#[inline(always)]\nfn store_row<const LANES: usize>(\n    sum: Simd<f32, LANES>,\n    output: &mut [f32],\n    row: usize,\n    column: usize,\n    columns: usize,\n    first: usize,\n    store: &impl StoreTransform,\n) {\n    if column < columns {\n        let count = (columns - column).min(LANES);\n        let start = row * columns + column;\n        let values = store.vector_channel(sum, first * columns + start, column);\n        if count == LANES {\n            values.copy_to_slice(&mut output[start..start + LANES]);\n        } else {\n            output[start..start + count].copy_from_slice(&values.to_array()[..count]);\n        }\n    }\n}\n\n// A function boundary prevents LICM/register-pressure decisions from sinking\n// the caller's row-tail geometry back into the reduction loop. The fixed\n// return buffer is written once after K, and never read or written inside K.\nmacro_rules! tile_kernel {\n    ($name:ident, $features:literal, $fused:literal) => {\n        #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n        #[target_feature(enable = $features)]\n        #[inline(never)]\n        unsafe fn $name<const LANES: usize>(\n            rows: [&[f32]; ROWS],\n            panel: &[f32],\n            low: Simd<f32, LANES>,\n            high: Simd<f32, LANES>,\n        ) -> [[Simd<f32, LANES>; 2]; ROWS] {\n            const FUSED: bool = $fused;\n            let [p0, p1, p2, p3, p4, p5] = rows;\n            let (mut a0, mut b0) = (low, high);\n            let (mut a1, mut b1) = (low, high);\n            let (mut a2, mut b2) = (low, high);\n            let (mut a3, mut b3) = (low, high);\n            let (mut a4, mut b4) = (low, high);\n            let (mut a5, mut b5) = (low, high);\n            for ((((((x0, x1), x2), x3), x4), x5), w) in p0\n                .iter()\n                .zip(p1)\n                .zip(p2)\n                .zip(p3)\n                .zip(p4)\n                .zip(p5)\n                .zip(panel.chunks_exact(16))\n            {\n                let w0 = Simd::<f32, LANES>::from_slice(&w[..LANES]);\n                let w1 = Simd::<f32, LANES>::from_slice(&w[LANES..]);\n                let v = Simd::splat(*x0);\n                a0 = accumulate::<LANES, FUSED>(v, w0, a0);\n                b0 = accumulate::<LANES, FUSED>(v, w1, b0);\n                let v = Simd::splat(*x1);\n                a1 = accumulate::<LANES, FUSED>(v, w0, a1);\n                b1 = accumulate::<LANES, FUSED>(v, w1, b1);\n                let v = Simd::splat(*x2);\n                a2 = accumulate::<LANES, FUSED>(v, w0, a2);\n                b2 = accumulate::<LANES, FUSED>(v, w1, b2);\n                let v = Simd::splat(*x3);\n                a3 = accumulate::<LANES, FUSED>(v, w0, a3);\n                b3 = accumulate::<LANES, FUSED>(v, w1, b3);\n                let v = Simd::splat(*x4);\n                a4 = accumulate::<LANES, FUSED>(v, w0, a4);\n                b4 = accumulate::<LANES, FUSED>(v, w1, b4);\n                let v = Simd::splat(*x5);\n                a5 = accumulate::<LANES, FUSED>(v, w0, a5);\n                b5 = accumulate::<LANES, FUSED>(v, w1, b5);\n            }\n            [[a0, b0], [a1, b1], [a2, b2], [a3, b3], [a4, b4], [a5, b5]]\n        }\n    };\n}\ntile_kernel!(tile_avx, \"avx\", false);\ntile_kernel!(tile_fma, \"avx,fma\", true);\n\n/// The AVX policies use two eight-lane vectors per row. Keep each broadcast\n/// next to both updates instead of keeping six broadcasts live across halves.\n#[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n#[allow(clippy::too_many_arguments)]\n#[inline(always)]\nfn wide<const LANES: usize, const FUSED: bool>(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    wide_grouped::<LANES, FUSED, 0>(input, bias, packed, output, first, inner, columns, store);\n}\n\n/// A zero fixed group selects production's shape policy. Test-only controls\n/// can select a fixed group; the six-row ISA reduction remains the same leaf.\n#[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n#[allow(clippy::too_many_arguments)]\n#[inline(always)]\nfn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    debug_assert_eq!(LANES, 8);\n    let rows = output.len() / columns;\n    let group_rows = if FIXED_GROUP == 0 {\n        avx_group_rows(inner, columns)\n    } else {\n        FIXED_GROUP\n    };\n    for group in (0..rows).step_by(group_rows) {\n        let count = (rows - group).min(group_rows);\n        let input = &input[group * inner..(group + count) * inner];\n        for (block, panel) in packed.data().chunks_exact(inner * 16).enumerate() {\n            let column = block * 16;\n            let low = initial::<LANES>(bias, column);\n            let high = initial::<LANES>(bias, column + LANES);\n            for tile in (0..count).step_by(ROWS) {\n                let [p0, p1, p2, p3, p4, p5] = row_inputs(input, tile, count, inner);\n                // SAFETY: execute's guarded target-feature wrapper selected\n                // AVX or AVX+FMA, and row_inputs/panel slices are bounds checked.\n                let sums = unsafe {\n                    if FUSED {\n                        tile_fma([p0, p1, p2, p3, p4, p5], panel, low, high)\n                    } else {\n                        tile_avx([p0, p1, p2, p3, p4, p5], panel, low, high)\n                    }\n                };\n                for (r, &[low, high]) in sums.iter().take(count - tile).enumerate() {\n                    store_row(low, output, group + tile + r, column, columns, first, store);\n                    store_row(\n                        high,\n                        output,\n                        group + tile + r,\n                        column + LANES,\n                        columns,\n                        first,\n                        store,\n                    );\n                }\n            }\n        }\n    }\n}\n\n/// Both halves of a paired diagnostic enter the same checked native wrapper.\n/// Zero selects production; 48 is the old policy and 192 is a diagnostic only.\n#[cfg(all(test, any(target_arch = \"x86\", target_arch = \"x86_64\")))]\npub(super) fn execute_group_control<const FIXED_GROUP: usize>(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    inner: usize,\n    columns: usize,\n) {\n    assert!(matches!(FIXED_GROUP, 0 | 48 | 192));\n    assert!(simd::avx2_fma_available());\n    assert!(packed.matches(inner, columns));\n    assert_eq!(output.len() % columns, 0);\n    assert_eq!(input.len(), output.len() / columns * inner);\n    assert!(bias.is_empty() || bias.len() == columns);\n    #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\n    // SAFETY: the runtime guard above verifies AVX2 and FMA for both controls.\n    unsafe {\n        execute_group_control_avx2::<FIXED_GROUP>(input, bias, packed, output, inner, columns);\n    }\n}\n\n#[cfg(all(test, any(target_arch = \"x86\", target_arch = \"x86_64\")))]\n#[target_feature(enable = \"avx2,fma\")]\nunsafe fn execute_group_control_avx2<const FIXED_GROUP: usize>(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    inner: usize,\n    columns: usize,\n) {\n    wide_grouped::<8, true, FIXED_GROUP>(\n        input,\n        bias,\n        packed,\n        output,\n        0,\n        inner,\n        columns,\n        &IdentityStore,\n    );\n}\n\n/// Private descriptors establish the scalar input bounds before entering K.\n/// The caller keeps ROW < ROWS, tap < tap_count and channel < channels.\npub(super) trait PortableReader {\n    unsafe fn read<const ROW: usize>(&self, tap: usize, channel: usize) -> f32;\n}\n\nstruct PortableRows<'a>([&'a [f32]; ROWS]);\nimpl PortableReader for PortableRows<'_> {\n    #[inline(always)]\n    unsafe fn read<const ROW: usize>(&self, _: usize, channel: usize) -> f32 {\n        // SAFETY: row_inputs binds six full reduction spans. The paired tile\n        // checks its K interval before advancing the channel cursor.\n        unsafe { *self.0.get_unchecked(ROW).get_unchecked(channel) }\n    }\n}\n\n/// Two four-lane halves keep twelve independent SSE accumulators live. This\n/// boundary prevents the caller's tail/store metadata from entering K.\n///\n/// SAFETY: reader must describe six valid rows for tap_count/channels; its\n/// read contract must hold for every tap/channel in the checked K interval.\n#[inline(never)]\npub(super) unsafe fn portable_tile<const LANES: usize, const OFFSET: usize>(\n    reader: &impl PortableReader,\n    tap_count: usize,\n    channels: usize,\n    panel: &[f32],\n    k0: usize,\n    seeds: [[Simd<f32, LANES>; 2]; ROWS],\n) -> [[Simd<f32, LANES>; 2]; ROWS] {\n    assert_eq!(LANES, 4);\n    assert!(OFFSET == 0 || OFFSET == 8);\n    assert!(tap_count > 0);\n    assert_eq!(panel.len() % 16, 0);\n    assert!(k0.checked_add(panel.len() / 16).is_some_and(|end| {\n        channels\n            .checked_mul(tap_count)\n            .is_some_and(|inner| end <= inner)\n    }));\n    let [s0, s1, s2, s3, s4, s5] = seeds;\n    let (mut a0, mut b0) = (s0[0], s0[1]);\n    let (mut a1, mut b1) = (s1[0], s1[1]);\n    let (mut a2, mut b2) = (s2[0], s2[1]);\n    let (mut a3, mut b3) = (s3[0], s3[1]);\n    let (mut a4, mut b4) = (s4[0], s4[1]);\n    let (mut a5, mut b5) = (s5[0], s5[1]);\n    let (mut channel, mut tap) = (k0 / tap_count, k0 % tap_count);\n    for weights in panel.as_chunks::<16>().0 {\n        let w0 = Simd::from_slice(&weights[OFFSET..OFFSET + LANES]);\n        let w1 = Simd::from_slice(&weights[OFFSET + LANES..OFFSET + LANES * 2]);\n        macro_rules! update {\n            ($row:literal, $low:ident, $high:ident) => {\n                // SAFETY: descriptors bind the rows; the checked K interval\n                // and cursor keep the scalar input within the active range.\n                let value = Simd::splat(unsafe { reader.read::<$row>(tap, channel) });\n                $low = value * w0 + $low;\n                $high = value * w1 + $high;\n            };\n        }\n        update!(0, a0, b0);\n        update!(1, a1, b1);\n        update!(2, a2, b2);\n        update!(3, a3, b3);\n        update!(4, a4, b4);\n        update!(5, a5, b5);\n        tap += 1;\n        if tap == tap_count {\n            tap = 0;\n            channel += 1;\n        }\n    }\n    [[a0, b0], [a1, b1], [a2, b2], [a3, b3], [a4, b4], [a5, b5]]\n}\n\n#[allow(clippy::too_many_arguments)]\nfn portable(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    let rows = output.len() / columns;\n    for group in (0..rows).step_by(GROUP_ROWS) {\n        let count = (rows - group).min(GROUP_ROWS);\n        let input = &input[group * inner..(group + count) * inner];\n        for (block, panel) in packed.data().chunks_exact(inner * 16).enumerate() {\n            for pair in 0..2 {\n                let column = block * 16 + pair * 8;\n                if column >= columns {\n                    break;\n                }\n                let low = initial::<4>(bias, column);\n                let high = initial::<4>(bias, column + 4);\n                for tile in (0..count).step_by(ROWS) {\n                    let reader = PortableRows(row_inputs(input, tile, count, inner));\n                    // SAFETY: all rows cover inner coefficients, tap_count is\n                    // one, and panel covers exactly that complete K interval.\n                    let sums = unsafe {\n                        if pair == 0 {\n                            portable_tile::<4, 0>(&reader, 1, inner, panel, 0, [[low, high]; ROWS])\n                        } else {\n                            portable_tile::<4, 8>(&reader, 1, inner, panel, 0, [[low, high]; ROWS])\n                        }\n                    };\n                    for (r, &[low, high]) in sums.iter().take(count - tile).enumerate() {\n                        store_row(low, output, group + tile + r, column, columns, first, store);\n                        store_row(\n                            high,\n                            output,\n                            group + tile + r,\n                            column + 4,\n                            columns,\n                            first,\n                            store,\n                        );\n                    }\n                }\n            }\n        }\n    }\n}\n\n/// Scalar and sixteen-lane AVX-512 bodies retain six named rows too.\n/// Columns are independent reductions; the same body serves row/channel tails.\n#[allow(clippy::too_many_arguments)]\n#[inline(always)]\nfn narrow<const LANES: usize, const FUSED: bool>(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    let rows = output.len() / columns;\n    for group in (0..rows).step_by(GROUP_ROWS) {\n        let count = (rows - group).min(GROUP_ROWS);\n        let input = &input[group * inner..(group + count) * inner];\n        for (block, panel) in packed.data().chunks_exact(inner * 16).enumerate() {\n            for tile in (0..count).step_by(ROWS) {\n                let [p0, p1, p2, p3, p4, p5] = row_inputs(input, tile, count, inner);\n                for v in 0..16 / LANES {\n                    let column = block * 16 + v * LANES;\n                    if column >= columns {\n                        break;\n                    }\n                    let bias = initial::<LANES>(bias, column);\n                    let (mut a0, mut a1, mut a2, mut a3, mut a4, mut a5) =\n                        (bias, bias, bias, bias, bias, bias);\n                    for ((((((x0, x1), x2), x3), x4), x5), w) in p0\n                        .iter()\n                        .zip(p1)\n                        .zip(p2)\n                        .zip(p3)\n                        .zip(p4)\n                        .zip(p5)\n                        .zip(panel.as_chunks::<16>().0)\n                    {\n                        let w = Simd::from_slice(&w[v * LANES..(v + 1) * LANES]);\n                        a0 = accumulate::<LANES, FUSED>(Simd::splat(*x0), w, a0);\n                        a1 = accumulate::<LANES, FUSED>(Simd::splat(*x1), w, a1);\n                        a2 = accumulate::<LANES, FUSED>(Simd::splat(*x2), w, a2);\n                        a3 = accumulate::<LANES, FUSED>(Simd::splat(*x3), w, a3);\n                        a4 = accumulate::<LANES, FUSED>(Simd::splat(*x4), w, a4);\n                        a5 = accumulate::<LANES, FUSED>(Simd::splat(*x5), w, a5);\n                    }\n                    for (r, sum) in [a0, a1, a2, a3, a4, a5]\n                        .into_iter()\n                        .take(count - tile)\n                        .enumerate()\n                    {\n                        store_row(sum, output, group + tile + r, column, columns, first, store);\n                    }\n                }\n            }\n        }\n    }\n}\n\n#[cfg(all(test, target_arch = \"x86_64\"))]\nmod large_channel_tests;\n#[cfg(test)]\nmod tests;\n\n#[path = \"tile8.rs\"]\nmod tile8;\n\n#[path = \"tile24.rs\"]\nmod tile24;\n\npub(super) fn probe(v:usize,a:&[f32],b:&[f32],p:&PackedMatrix,o:&mut[f32],first:usize,k:usize,n:usize,s:&impl StoreTransform){\n    let rows=o.len()/n;\n    match v {\n        0=>execute(Backend::Avx2Fma,a,b,p,o,first,k,n,s),\n        1=>unsafe{tile8::execute(&a[first*k..(first+rows)*k],b,p,o,first,k,n,s)},\n        2=>unsafe{tile24::execute(&a[first*k..(first+rows)*k],b,p,o,first,k,n,s)},\n        _=>unreachable!()\n    }\n}\n"
+      },
+      "tile8.rs": {
+        "original_bytes_sha256": "7d4926d06cc324bcb60c285f37443c8f7ab1c2f9ca2d6c257c08342dc2261b66",
+        "portable_utf8_sha256": "7d4926d06cc324bcb60c285f37443c8f7ab1c2f9ca2d6c257c08342dc2261b66",
+        "source": "//! Eight-row AVX2 pointwise tiles over each eight-column packed-panel half.\n//!\n//! The narrower output tile trades extra scalar broadcasts for fewer weight\n//! loads per output and eight independent FMA chains. Both panel halves keep\n//! the existing sixteen-column packing and bias-first ascending-K reduction.\nuse super::*;\nuse std::arch::{asm, x86_64::__m256};\n\nconst TILE_ROWS: usize = 8;\n\nmacro_rules! tile8 {\n    ($rows:expr, $panel:expr, $initial:expr, $inner:expr) => {{\n        let rows: [&[f32]; TILE_ROWS] = $rows;\n        let panel: &[f32] = $panel;\n        // SAFETY: both vector types represent eight f32 lanes identically.\n        let initial = unsafe { std::mem::transmute::<Simd<f32, 8>, __m256>($initial) };\n        let mut a0 = initial;\n        let mut a1 = initial;\n        let mut a2 = initial;\n        let mut a3 = initial;\n        let mut a4 = initial;\n        let mut a5 = initial;\n        let mut a6 = initial;\n        let mut a7 = initial;\n        // SAFETY: execute establishes inner > 0 and eight full input rows.\n        // A panel-half starts at offset zero or eight in an inner * 16 span;\n        // its final eight-f32 load ends within that span. k advances from zero\n        // to inner without dereferencing beyond either checked allocation.\n        // Every accumulator has one ascending-K FMA chain, initialized with\n        // bias. Assembly writes only its declared registers and flags.\n        unsafe {\n            asm!(\n                \"xor {k:e}, {k:e}\",\n                \".p2align 4\",\n                \"2:\",\n                \"vmovups {w}, [{weights}]\",\n                \"vbroadcastss {v}, [{p0} + {k} * 4]\",\n                \"vfmadd231ps {a0}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p1} + {k} * 4]\",\n                \"vfmadd231ps {a1}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p2} + {k} * 4]\",\n                \"vfmadd231ps {a2}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p3} + {k} * 4]\",\n                \"vfmadd231ps {a3}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p4} + {k} * 4]\",\n                \"vfmadd231ps {a4}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p5} + {k} * 4]\",\n                \"vfmadd231ps {a5}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p6} + {k} * 4]\",\n                \"vfmadd231ps {a6}, {v}, {w}\",\n                \"vbroadcastss {v}, [{p7} + {k} * 4]\",\n                \"vfmadd231ps {a7}, {v}, {w}\",\n                \"inc {k}\",\n                \"add {weights}, 64\",\n                \"cmp {k}, {inner}\",\n                \"jb 2b\",\n                a0 = inout(ymm_reg) a0, a1 = inout(ymm_reg) a1,\n                a2 = inout(ymm_reg) a2, a3 = inout(ymm_reg) a3,\n                a4 = inout(ymm_reg) a4, a5 = inout(ymm_reg) a5,\n                a6 = inout(ymm_reg) a6, a7 = inout(ymm_reg) a7,\n                w = out(ymm_reg) _, v = out(ymm_reg) _,\n                p0 = in(reg) rows[0].as_ptr(), p1 = in(reg) rows[1].as_ptr(),\n                p2 = in(reg) rows[2].as_ptr(), p3 = in(reg) rows[3].as_ptr(),\n                p4 = in(reg) rows[4].as_ptr(), p5 = in(reg) rows[5].as_ptr(),\n                p6 = in(reg) rows[6].as_ptr(), p7 = in(reg) rows[7].as_ptr(),\n                weights = inout(reg) panel.as_ptr() => _,\n                inner = in(reg) $inner, k = out(reg) _,\n                options(nostack, readonly),\n            );\n        }\n        // SAFETY: arrays preserve the identical eight-f32 vector layout.\n        unsafe {\n            std::mem::transmute::<[__m256; TILE_ROWS], [Simd<f32, 8>; TILE_ROWS]>([\n                a0, a1, a2, a3, a4, a5, a6, a7,\n            ])\n        }\n    }};\n}\n\n/// Caller must establish AVX2/FMA; checked spans bound all assembly loads.\n#[target_feature(enable = \"avx2,fma\")]\n#[allow(clippy::too_many_arguments)]\npub(super) unsafe fn execute(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    assert!(inner > 0 && columns > 0 && packed.matches(inner, columns));\n    assert_eq!(output.len() % columns, 0);\n    assert!(bias.is_empty() || bias.len() == columns);\n    let rows = output.len() / columns;\n    assert_eq!(\n        input.len(),\n        rows.checked_mul(inner)\n            .expect(\"pointwise input size overflow\")\n    );\n    let group_rows = avx_group_rows(inner, columns);\n    for group in (0..rows).step_by(group_rows) {\n        let count = (rows - group).min(group_rows);\n        let input = &input[group * inner..(group + count) * inner];\n        for (block, panel) in packed.data().chunks_exact(inner * 16).enumerate() {\n            let column = block * 16;\n            for half in [0, 8] {\n                let column = column + half;\n                if column >= columns {\n                    continue;\n                }\n                let initial = initial::<8>(bias, column);\n                let panel = &panel[half..];\n                for tile in (0..count).step_by(TILE_ROWS) {\n                    // Duplicate the final valid input row in incomplete tiles;\n                    // only the valid row results reach the final epilogue.\n                    let inputs = std::array::from_fn(|r| {\n                        let start = (tile + r).min(count - 1) * inner;\n                        &input[start..start + inner]\n                    });\n                    let [a0, a1, a2, a3, a4, a5, a6, a7] =\n                        tile8!(inputs, panel, initial, inner);\n                    macro_rules! store {\n                        ($r:literal, $a:ident) => {\n                            if tile + $r < count {\n                                store_row(\n                                    $a,\n                                    output,\n                                    group + tile + $r,\n                                    column,\n                                    columns,\n                                    first,\n                                    store,\n                                );\n                            }\n                        };\n                    }\n                    store!(0, a0);\n                    store!(1, a1);\n                    store!(2, a2);\n                    store!(3, a3);\n                    store!(4, a4);\n                    store!(5, a5);\n                    store!(6, a6);\n                    store!(7, a7);\n                }\n            }\n        }\n    }\n}\n"
+      },
+      "tile24.rs": {
+        "original_bytes_sha256": "9367e45c50f27afd9039fc2a99b33e38265b5baacdbcb164c37f3c2c1e275c31",
+        "portable_utf8_sha256": "9367e45c50f27afd9039fc2a99b33e38265b5baacdbcb164c37f3c2c1e275c31",
+        "source": "//! Four-row by twenty-four-column AVX2 pointwise tiles.\n//!\n//! Twelve independent accumulators share four input broadcasts across three\n//! eight-column streams. The streams retain the established sixteen-column\n//! packed format, including its zero-padded final output-channel panel.\nuse super::*;\nuse std::arch::{asm, x86_64::__m256};\n\nconst TILE_ROWS: usize = 4;\nconst GROUP_ROWS: usize = 96;\n\nmacro_rules! tile24 {\n    ($rows:expr, $panels:expr, $initial:expr, $inner:expr) => {{\n        let rows: [&[f32]; TILE_ROWS] = $rows;\n        let panels: [&[f32]; 3] = $panels;\n        // SAFETY: both vector types represent eight f32 lanes identically.\n        let [low, middle, high] = unsafe {\n            std::mem::transmute::<[Simd<f32, 8>; 3], [__m256; 3]>($initial)\n        };\n        let (mut a0, mut b0, mut c0) = (low, middle, high);\n        let (mut a1, mut b1, mut c1) = (low, middle, high);\n        let (mut a2, mut b2, mut c2) = (low, middle, high);\n        let (mut a3, mut b3, mut c3) = (low, middle, high);\n        // SAFETY: execute establishes inner > 0, four complete input rows and\n        // three checked packed-half spans. k traverses 0..inner, while offset\n        // advances by sixteen floats per step. Each eight-f32 vector load\n        // therefore remains within its checked span. The assembly modifies\n        // only declared registers/flags and preserves bias-first ascending-K\n        // FMA order for every output. Twelve accumulators, three weight vectors\n        // and one broadcast use exactly the sixteen architectural YMM registers.\n        unsafe {\n            asm!(\n                \"xor {k:e}, {k:e}\",\n                \"xor {offset:e}, {offset:e}\",\n                \".p2align 4\",\n                \"2:\",\n                \"vmovups {w0}, [{weights0} + {offset}]\",\n                \"vmovups {w1}, [{weights1} + {offset}]\",\n                \"vmovups {w2}, [{weights2} + {offset}]\",\n                \"vbroadcastss {v}, [{p0} + {k} * 4]\",\n                \"vfmadd231ps {a0}, {v}, {w0}\",\n                \"vfmadd231ps {b0}, {v}, {w1}\",\n                \"vfmadd231ps {c0}, {v}, {w2}\",\n                \"vbroadcastss {v}, [{p1} + {k} * 4]\",\n                \"vfmadd231ps {a1}, {v}, {w0}\",\n                \"vfmadd231ps {b1}, {v}, {w1}\",\n                \"vfmadd231ps {c1}, {v}, {w2}\",\n                \"vbroadcastss {v}, [{p2} + {k} * 4]\",\n                \"vfmadd231ps {a2}, {v}, {w0}\",\n                \"vfmadd231ps {b2}, {v}, {w1}\",\n                \"vfmadd231ps {c2}, {v}, {w2}\",\n                \"vbroadcastss {v}, [{p3} + {k} * 4]\",\n                \"vfmadd231ps {a3}, {v}, {w0}\",\n                \"vfmadd231ps {b3}, {v}, {w1}\",\n                \"vfmadd231ps {c3}, {v}, {w2}\",\n                \"inc {k}\",\n                \"add {offset}, 64\",\n                \"cmp {k}, {inner}\",\n                \"jb 2b\",\n                a0 = inout(ymm_reg) a0, b0 = inout(ymm_reg) b0, c0 = inout(ymm_reg) c0,\n                a1 = inout(ymm_reg) a1, b1 = inout(ymm_reg) b1, c1 = inout(ymm_reg) c1,\n                a2 = inout(ymm_reg) a2, b2 = inout(ymm_reg) b2, c2 = inout(ymm_reg) c2,\n                a3 = inout(ymm_reg) a3, b3 = inout(ymm_reg) b3, c3 = inout(ymm_reg) c3,\n                w0 = out(ymm_reg) _, w1 = out(ymm_reg) _, w2 = out(ymm_reg) _,\n                v = out(ymm_reg) _,\n                p0 = in(reg) rows[0].as_ptr(), p1 = in(reg) rows[1].as_ptr(),\n                p2 = in(reg) rows[2].as_ptr(), p3 = in(reg) rows[3].as_ptr(),\n                weights0 = in(reg) panels[0].as_ptr(),\n                weights1 = in(reg) panels[1].as_ptr(),\n                weights2 = in(reg) panels[2].as_ptr(),\n                inner = in(reg) $inner, k = out(reg) _, offset = out(reg) _,\n                options(nostack, readonly),\n            );\n        }\n        // SAFETY: arrays preserve the identical eight-f32 vector layout.\n        unsafe {\n            std::mem::transmute::<[[__m256; 3]; TILE_ROWS], [[Simd<f32, 8>; 3]; TILE_ROWS]>([\n                [a0, b0, c0], [a1, b1, c1], [a2, b2, c2], [a3, b3, c3],\n            ])\n        }\n    }};\n}\n\n/// Caller must establish AVX2/FMA; checked spans bound all assembly loads.\n#[target_feature(enable = \"avx2,fma\")]\n#[allow(clippy::too_many_arguments)]\npub(super) unsafe fn execute(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    assert!(inner > 0 && columns > 0 && packed.matches(inner, columns));\n    assert_eq!(output.len() % columns, 0);\n    assert!(bias.is_empty() || bias.len() == columns);\n    let rows = output.len() / columns;\n    assert_eq!(\n        input.len(),\n        rows.checked_mul(inner)\n            .expect(\"pointwise input size overflow\")\n    );\n    let last_half = (columns - 1) / 8 * 8;\n    for group in (0..rows).step_by(GROUP_ROWS) {\n        let count = (rows - group).min(GROUP_ROWS);\n        let input = &input[group * inner..(group + count) * inner];\n        for column in (0..columns).step_by(24) {\n            // Invalid output halves reuse the last valid packed half as dummy\n            // input. store_row rejects their logical output-channel indices.\n            let panels = std::array::from_fn(|half| {\n                let channel = (column + half * 8).min(last_half);\n                let offset = channel / 16 * inner * 16 + channel % 16;\n                let length = (inner - 1) * 16 + 8;\n                &packed.data()[offset..offset + length]\n            });\n            let initial = [\n                initial::<8>(bias, column),\n                initial::<8>(bias, column + 8),\n                initial::<8>(bias, column + 16),\n            ];\n            for tile in (0..count).step_by(TILE_ROWS) {\n                // Only valid rows reach the final epilogue; the reduction may\n                // safely duplicate the last valid row of an incomplete tile.\n                let inputs = std::array::from_fn(|r| {\n                    let start = (tile + r).min(count - 1) * inner;\n                    &input[start..start + inner]\n                });\n                let [[a0, b0, c0], [a1, b1, c1], [a2, b2, c2], [a3, b3, c3]] =\n                    tile24!(inputs, panels, initial, inner);\n                macro_rules! store {\n                    ($r:literal, $a:ident, $b:ident, $c:ident) => {\n                        if tile + $r < count {\n                            let row = group + tile + $r;\n                            store_row($a, output, row, column, columns, first, store);\n                            store_row($b, output, row, column + 8, columns, first, store);\n                            store_row($c, output, row, column + 16, columns, first, store);\n                        }\n                    };\n                }\n                store!(0, a0, b0, c0);\n                store!(1, a1, b1, c1);\n                store!(2, a2, b2, c2);\n                store!(3, a3, b3, c3);\n            }\n        }\n    }\n}\n"
+      },
+      "avx2.rs": {
+        "original_bytes_sha256": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552",
+        "portable_utf8_sha256": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552",
+        "source": "//! Full-K AVX2 tiles with an inline, register-contained reduction loop.\nuse super::*;\nuse std::arch::{asm, x86_64::__m256};\n\n// Explicit register operands keep loop geometry and epilogue state outside K\n// without imposing a function/return-buffer boundary on every six-row tile.\nmacro_rules! tile {\n    ($rows:expr, $panel:expr, $low:expr, $high:expr, $inner:expr) => {{\n        let rows: [&[f32]; ROWS] = $rows;\n        let panel: &[f32] = $panel;\n        // SAFETY: both vector representations hold the same eight f32 lanes.\n        let (low, high) = unsafe {\n            (std::mem::transmute::<Simd<f32, 8>, __m256>($low),\n             std::mem::transmute::<Simd<f32, 8>, __m256>($high))\n        };\n        let (mut a0, mut b0) = (low, high);\n        let (mut a1, mut b1) = (low, high);\n        let (mut a2, mut b2) = (low, high);\n        let (mut a3, mut b3) = (low, high);\n        let (mut a4, mut b4) = (low, high);\n        let (mut a5, mut b5) = (low, high);\n        // SAFETY: the AVX2/FMA entry checks inner > 0. Each row contains inner\n        // floats; panel contains inner * 16. k starts at zero and advances to\n        // inner, so every scalar/vector load stays within its checked span.\n        // The assembly only reads memory, declares every modified register and\n        // flags, and performs the same bias-first ascending-K FMA chain.\n        unsafe {\n            asm!(\n                \"xor {k:e}, {k:e}\",\n                \".p2align 4\",\n                \"2:\",\n                \"vmovups {w0}, [{weights}]\",\n                \"vmovups {w1}, [{weights} + 32]\",\n                \"vbroadcastss {v}, [{p0} + {k} * 4]\",\n                \"vfmadd231ps {a0}, {v}, {w0}\",\n                \"vfmadd231ps {b0}, {v}, {w1}\",\n                \"vbroadcastss {v}, [{p1} + {k} * 4]\",\n                \"vfmadd231ps {a1}, {v}, {w0}\",\n                \"vfmadd231ps {b1}, {v}, {w1}\",\n                \"vbroadcastss {v}, [{p2} + {k} * 4]\",\n                \"vfmadd231ps {a2}, {v}, {w0}\",\n                \"vfmadd231ps {b2}, {v}, {w1}\",\n                \"vbroadcastss {v}, [{p3} + {k} * 4]\",\n                \"vfmadd231ps {a3}, {v}, {w0}\",\n                \"vfmadd231ps {b3}, {v}, {w1}\",\n                \"vbroadcastss {v}, [{p4} + {k} * 4]\",\n                \"vfmadd231ps {a4}, {v}, {w0}\",\n                \"vfmadd231ps {b4}, {v}, {w1}\",\n                \"vbroadcastss {v}, [{p5} + {k} * 4]\",\n                \"vfmadd231ps {a5}, {v}, {w0}\",\n                \"vfmadd231ps {b5}, {v}, {w1}\",\n                \"inc {k}\",\n                \"add {weights}, 64\",\n                \"cmp {k}, {inner}\",\n                \"jb 2b\",\n                a0 = inout(ymm_reg) a0, b0 = inout(ymm_reg) b0,\n                a1 = inout(ymm_reg) a1, b1 = inout(ymm_reg) b1,\n                a2 = inout(ymm_reg) a2, b2 = inout(ymm_reg) b2,\n                a3 = inout(ymm_reg) a3, b3 = inout(ymm_reg) b3,\n                a4 = inout(ymm_reg) a4, b4 = inout(ymm_reg) b4,\n                a5 = inout(ymm_reg) a5, b5 = inout(ymm_reg) b5,\n                w0 = out(ymm_reg) _, w1 = out(ymm_reg) _, v = out(ymm_reg) _,\n                p0 = in(reg) rows[0].as_ptr(), p1 = in(reg) rows[1].as_ptr(),\n                p2 = in(reg) rows[2].as_ptr(), p3 = in(reg) rows[3].as_ptr(),\n                p4 = in(reg) rows[4].as_ptr(), p5 = in(reg) rows[5].as_ptr(),\n                weights = inout(reg) panel.as_ptr() => _,\n                inner = in(reg) $inner, k = out(reg) _,\n                options(nostack, readonly),\n            );\n        }\n        // SAFETY: arrays of the two eight-f32 vector types have identical layout.\n        unsafe { std::mem::transmute::<[[__m256; 2]; ROWS], [[Simd<f32, 8>; 2]; ROWS]>(\n            [[a0, b0], [a1, b1], [a2, b2], [a3, b3], [a4, b4], [a5, b5]]) }\n    }};\n}\n\n/// Caller must establish AVX2/FMA; all data spans are checked before assembly.\n#[target_feature(enable = \"avx2,fma\")]\n#[allow(clippy::too_many_arguments)]\npub(super) unsafe fn execute(\n    input: &[f32],\n    bias: &[f32],\n    packed: &PackedMatrix,\n    output: &mut [f32],\n    first: usize,\n    inner: usize,\n    columns: usize,\n    store: &impl StoreTransform,\n) {\n    assert!(inner > 0 && columns > 0 && packed.matches(inner, columns));\n    assert_eq!(output.len() % columns, 0);\n    assert!(bias.is_empty() || bias.len() == columns);\n    let rows = output.len() / columns;\n    assert_eq!(\n        input.len(),\n        rows.checked_mul(inner)\n            .expect(\"pointwise input size overflow\")\n    );\n    let group_rows = avx_group_rows(inner, columns);\n    for group in (0..rows).step_by(group_rows) {\n        let count = (rows - group).min(group_rows);\n        let input = &input[group * inner..(group + count) * inner];\n        for (block, panel) in packed.data().chunks_exact(inner * 16).enumerate() {\n            let column = block * 16;\n            let low = initial::<8>(bias, column);\n            let high = initial::<8>(bias, column + 8);\n            for tile in (0..count).step_by(ROWS) {\n                let [[a0, b0], [a1, b1], [a2, b2], [a3, b3], [a4, b4], [a5, b5]] = tile!(\n                    row_inputs(input, tile, count, inner),\n                    panel,\n                    low,\n                    high,\n                    inner\n                );\n                // Named rows allow direct stores without an addressable tile\n                // array. Tail checks never enter the reduction loop.\n                macro_rules! store {\n                    ($r:literal, $a:ident, $b:ident) => {\n                        if tile + $r < count {\n                            store_row($a, output, group + tile + $r, column, columns, first, store);\n                            store_row(\n                                $b,\n                                output,\n                                group + tile + $r,\n                                column + 8,\n                                columns,\n                                first,\n                                store,\n                            );\n                        }\n                    };\n                }\n                store!(0, a0, b0);\n                store!(1, a1, b1);\n                store!(2, a2, b2);\n                store!(3, a3, b3);\n                store!(4, a4, b4);\n                store!(5, a5, b5);\n            }\n        }\n    }\n}\n\n#[cfg(test)]\nmod tests;\n"
+      }
+    }
+  },
+  "packet_store_alternative": {
+    "decision": "reject; Medium dense median regressed 1.56% and smaller gains have overlapping ranges",
+    "input_evidence_sha256": "6e6e86d0d43701c00a93b6f8359391f4bc8a6e05b5fa338b15ccc96ee62a5af7",
+    "timestamp": "2026-10-17T17:55:56.7308238+08:00",
+    "threads": 8,
+    "affinity": "ff",
+    "concurrency": 1,
+    "build": "release/default features, no profiling; baseline built and frozen before packet source edits; candidate rebuilt after final source edits",
+    "warmups": 1,
+    "first_inferences": 1,
+    "measured_calls_per_case": 3,
+    "timeout_seconds": 10,
+    "parity_scope": "All serialized CaseResult fields across versions; complete OwnedOcr stable within each worker; capture=false, cross-version ratios/spans not exported",
+    "executables": {
+      "candidate": "2d8c9b5f61dd1c403d1ba56708a7199d6e704ca26dca11d93e40ccfca12da88b",
+      "baseline": "cff923fe16a30f6bd5fe13739820a6f2441d0072f9eca1ff8c9dd8d558126205"
+    },
+    "candidate_source_hashes": {
+      "Cargo.lock": "8c38fef11dfb812509986378a278c81554bca54c8b56fb877cf86895b2759288",
+      "Cargo.toml": "2a82a7beed1c6e80908fe9849d1ca311c430f9d2478715d401da60b1a57202a6",
+      "examples/cpu_benchmark.rs": "de8c00c8dd49d3cf6f529e937e64661a6c77886ab728a2b2b6a64339dde96224",
+      "rust-toolchain.toml": "1d405aef485d32fe4c42ed6221a40ca825b3a7553ca19675de936747cc4b277a",
+      "src/builder.rs": "8cb3a433d8c5f66f1854157cae7b2008fcb7d201ed45ab2f2596d88fdb0cd04f",
+      "src/characters.rs": "a3ff30bd0c94968131149cec663f6500a4555a6321e6f0a59ec6b5bc29cc55bb",
+      "src/cpu.rs": "7a07f6d34884003a7f1cd1795460c005213902675d93b16964b8972783c13555",
+      "src/crop.rs": "3eaffa13b79770fdb20170075a2a79add94a710d5ee25ba3207b49f89850b033",
+      "src/db.rs": "c7a138bfe47d71f3ef32071fc59df90d5ef341008b933d781bdaa295cb7eae5c",
+      "src/detector.rs": "9c37e8f6a5864fa43416765b30a808526e2e5a6dc1ae0fe065bc168b7cef3892",
+      "src/engine.rs": "03869327f2d0ff4689c4fc0be6cef0cc33a61dfeb3910d59ec0d52a6030e11ae",
+      "src/error.rs": "94b77aa384d2b09206e049b5b910ad54a4249a4a6730dfdd25f745eccef2bc5a",
+      "src/image.rs": "aec234dcaa6366f47ddd291cb81ff579f3ac55733d7bca5c944439eba1c260ef",
+      "src/lib.rs": "b4fdbf3e9c1a83b711577256e82d09d5ff2d80fed04a85d3a5510f3c59a89668",
+      "src/lines.rs": "717c7dbd480f31293fc7ec5648681b04061da532440efc943e45856350fee6f5",
+      "src/math.rs": "05a50f135847a527393fbf28e067dc84069670ce2916ef52054d3074de5db4b4",
+      "src/model.rs": "c0dce6ebd0bb7fe9f0e5161148784a6bb91ba77be313f3b58b64e84824cae142",
+      "src/model/tests.rs": "5c7fc87bf099a9f097a6c23909d1d21e8ac91df8a73d51ae9aa16489b717947f",
+      "src/ocr.rs": "99c85f022ef588950eaa654d2c2bcf8db6c5ca3e1f3f0d1b80c42e0c4bba4262",
+      "src/onnx.rs": "561227412d6aff20ad6a4bd7eaf5589b9a87e7c513cd18ffbe4b6cef6655e01e",
+      "src/orientation.rs": "7874d08b472278076c215f35a7bb39f8f034a6eed96dc7501eaed32a4c5a229b",
+      "src/pixel_kernels.rs": "b83d3cdb27101194fbf13aeb10dba3210d5b9a8daf9f7acf03ab86a9cecec0ee",
+      "src/pixel_kernels/threshold_tests.rs": "e4c001517baebc8b71d7cf4cf4bbd1980e39b5509b0d2d5f565aa6212556a2d5",
+      "src/preprocess.rs": "dd4392a4e4234c6c7e7e2e9beefe6b025884cb3169e75238485a53318a282349",
+      "src/profile.rs": "1719e869183be492515c1cdc39040cea4119a33cdb0f43025d42adaa8d207be4",
+      "src/profile/tests.rs": "7984a343fe312de85caf11aaa8cb7b6d61726aaac78a266ff51cc800803e64e6",
+      "src/projection.rs": "9016b3263498109a67530c6d68e642702d7c62cdd3639ff36efc2cf26c66c4b3",
+      "src/recognizer.rs": "84a3c240c7795ce25aae1424ed33163371f7b12a270239c9a4f4583241be1070",
+      "src/runtime.rs": "6485d7b7211f6ad93fd67474bd5fae96417456453acb12c85709e0198e537185",
+      "src/runtime/kernels.rs": "43ece5b370405736f752ef8c3ced5238c6267831482a092e14527a46ece79471",
+      "src/runtime/nchw.rs": "e87f1c774e7fadde5e1c91942abfc542dee218ef515d8077d1a4ad2afb558c90",
+      "src/runtime/nchw/native.rs": "f7c2921913336dcdfe406154d0739351cd071b0cbffc14a5330478828a4a03f5",
+      "src/runtime/nchw/pad_end2.rs": "c08d7cfde16eade104af5a19250e53929592c21e1c6ca93d6ecece05aacad818",
+      "src/runtime/nchw/pointwise_spatial.rs": "d1ecbe7be5014888ad3fd613dda20eaf205bdb21d0403ad9450f270528e58347",
+      "src/runtime/nchw/reduce3.rs": "61f712a9e0c5d8a5ac26d50c20e9b175cee616b473c3de9290de8428ea2ec1c4",
+      "src/runtime/nchw/stride2.rs": "64033c2c23c57ccc1fdc2f314a31d886ecc8c03d0ea7aeed9d2c948b0d525ad5",
+      "src/runtime/nchw/tests.rs": "5f474a6f120dee40d2a29894b9ef7d477f15fc53044d5ff5ba86d5f9a6931f35",
+      "src/runtime/nchw/tests/packed3_band_plan.rs": "b8418d4a2b1dba77ea0bb2d34d3d8afd11b65e09b3fbdb6fe344c6324b70aa62",
+      "src/runtime/nchw/tests/packed3_border.rs": "2a13b56a241a6eee97df0fd05ce084b655914ab2dd89c58605e238667755a207",
+      "src/runtime/nchw/tests/packed3_envelope.rs": "dbd25a715412fdb23e585d466c8c66285f03200b0cd6f49a9a3c749d54877fb9",
+      "src/runtime/nchw/tests/packed3_packets.rs": "0988311b2c5533ff6ce8a43f1c75aade32b6f240cef05c1b599c838944fe56b3",
+      "src/runtime/nchw/tests/packed3_recursive_order.rs": "d50b9d0d870c57180154e1fb9860db2e5bc1d9e924eebce5340e61e4001420a5",
+      "src/runtime/nchw/tests/pair16.rs": "cb105cb99530b923cc1d934b0dc7615d5e9a946016951218dab083c9447e0fd3",
+      "src/runtime/nchw/tests/pointwise_spatial.rs": "a8dbb0b5c83f400a5e86084fa1812a88932a3cfaafd813ffd068942c331a485d",
+      "src/runtime/nchw/tests/stride2_band_plan.rs": "68bcda828b89862c33680116bd1664d7880909964f7a7d5a89ca16e40c76cc46",
+      "src/runtime/nchw/tests/stride2_contract.rs": "d45b9c5dfdd064fafe9991082a56f99a263f612f5a6fb4c689a8dffb4baa2366",
+      "src/runtime/nhwc.rs": "9ae4c17b7fc6b4ba77e5638199764312a05e1f80bb62d3b06a68a57741b71fe3",
+      "src/runtime/nhwc/concat.rs": "bcea40e94d67b22ee700f3e4d64e63805a8f45afe450d9dc5440d6512c9ff0b2",
+      "src/runtime/nhwc/dense.rs": "02f68e013937fac46706741684aae01f864c22528ffce471516dc8f6db2e6739",
+      "src/runtime/nhwc/dense/interior.rs": "0f289bdd71ae26ce463aa972e558d982bb4970d4c55816ed4d5883ea57239bb0",
+      "src/runtime/nhwc/dense/neon_tests.rs": "334af418f0258a8b6f4123b381652812998553e77fdd6a1f52c29246db00eb32",
+      "src/runtime/nhwc/dense/portable_tests.rs": "1a2c55e35a035b9d34cb4f7d8708842e0cf87292457609e8ca98921bb9625a30",
+      "src/runtime/nhwc/misc.rs": "20e7e50cee40932dffc9acc096a10fa180beeafdf5373d9fa8dd7c91dc2301ef",
+      "src/runtime/nhwc/misc/resize_tests.rs": "87e76fb033df38da7e5bbfb316d29f912d67f0694f14f133494797dc40740e1f",
+      "src/runtime/nhwc/neon_depthwise.rs": "a9bba8128a0fdc923fe048ab312a4cdcebd80dd651737e7511903c2e26465dd6",
+      "src/runtime/nhwc/neon_depthwise/strip.rs": "f73170186b1b532bd62e57e5ce0d523092929035982c8a6e98428f986ecb1531",
+      "src/runtime/nhwc/neon_depthwise/tests/benchmark.rs": "c4589800a289274396197fe788c0f59c684e8c99e2e5005409f3445d36700b0c",
+      "src/runtime/nhwc/parallel_tests.rs": "444acd3737f2b67b44063207afe4f7ddc91a67f53fca020d5fd537d9a7fb7d02",
+      "src/runtime/nhwc/pointwise.rs": "f80453e8a0cf460a8b8a128683317f7dc0cafb81811d43276dce4f2f36e9d7c3",
+      "src/runtime/nhwc/pointwise/avx2.rs": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552",
+      "src/runtime/nhwc/pointwise/avx2/tests.rs": "3b77258f78e13833722ffbf1bda7762135b93218bc2062ed887490fe575ea234",
+      "src/runtime/nhwc/pointwise/large_channel_tests.rs": "62ae1a9ce494e7a6ae01dce8f56010fb07ff8171653086a07cb18955591ad9e1",
+      "src/runtime/nhwc/pointwise/neon_bench.rs": "66bca0335e0875ae2d5b3a9a696577edf2e05cde67a83b5a6678c124317a2075",
+      "src/runtime/nhwc/pointwise/neon.rs": "e41ae7ad614274b3d4bb18ad93a6f1c31cb0461d67e5c5e4f2e703ce29b3d289",
+      "src/runtime/nhwc/pointwise/tests.rs": "da1323c01887720d0b8148724a5bf8bf57949156e6daad3c0ef57e684af10b5b",
+      "src/runtime/nhwc/row_policy_tests.rs": "133457221f4bc0300a598e19623913d59bf80605ee57d9e485c8b97315ff260c",
+      "src/runtime/nhwc/strip.rs": "bb05cd30784167aba32ccdb961eb21c5648b2f4f16dc14522a51a88c67fd290a",
+      "src/runtime/nhwc/strip/tests.rs": "a322d35af516b65f4e0ce5202c311f225674260231a11281f2e57e7207183ea3",
+      "src/runtime/nhwc/tests.rs": "2dac271c6a26ef2a4a45d583cf10788bc404946272e6d6731e75f667a1710603",
+      "src/runtime/nhwc/tests/performance.rs": "69dfb38bb6d1d4a78a022d845f4abb78189ab829ed188982189d58f470498f0a",
+      "src/runtime/nhwc/transpose.rs": "893b4309dd8e160773449ad0e55c7f16cdcc1a332d144b176d58217675c93e67",
+      "src/runtime/nhwc/transpose/tests.rs": "75109a58826fc374eb1a44ce1a997fad6b79a1d98c9be11448910049d4a901a3",
+      "src/runtime/optimized.rs": "dd81a4a082f77ac0a9756e87ff76cca83b2973d2119686af8ba1eed47a2df26e",
+      "src/runtime/optimized/elementwise_alias.rs": "8a7eede001c84b1e6ab6b1e34f0243c1bab2eacc1d67d15ca023fcdde879e4d8",
+      "src/runtime/optimized/layout.rs": "df192742bcad6e2004b473901d17faf705d5d868cf1cf77edc6e25d3c64f5d59",
+      "src/runtime/optimized/layout/tests.rs": "8514cd6cf129a9e8cc5ef61d35fd9d38a43e0de357b68b851df417c610161f02",
+      "src/runtime/optimized/semantic.rs": "858a886115110d36bef856323ee8788461ba4d847d6a9012e6cac5b9383816cb",
+      "src/runtime/optimized/store.rs": "46f179ec91e3c1aa276a74a40d79846553ccc1a3b705387f0b24a4374c3fd136",
+      "src/runtime/optimized/store/packet_tests.rs": "c5d32c3cd0498ab1fba14076d1a166f2373be7ce9a4c6925722065923cb28f23",
+      "src/runtime/optimized/store/tests.rs": "279fe21bdeebba19790f245a435c5ce0f6f88c09b12f56b3f4c1326ec1f04201",
+      "src/runtime/optimized/tests.rs": "b7cff8bbdb87b0ed79e5d2bff8971abd225a4d2dcbc4ae6d80318576155600ca",
+      "src/runtime/optimized/tests/alias.rs": "210da7cdca4a524bbba8c68eea920a1b987be88de04bf3acdd2abef51fa77020",
+      "src/runtime/optimized/tests/concat.rs": "ca73578078a2a0dc97cdfd0ca48a9c6a58046a8fd82c1ce77009df716108a330",
+      "src/runtime/optimized/tests/elementwise_alias.rs": "88cead27c092a3e47aa5889f847487374c1ba7fa8f00582545bd0207c8ac5e1f",
+      "src/runtime/optimized/tests/nchw_epilogue.rs": "5cd73f6fe3a63779b15891eeba9a50796f011304104e28cbb26d22dd8f045ef8",
+      "src/runtime/optimized/tests/performance.rs": "da122991a9b5ecde713ff0da7f0091b53430ef6a19c23cb3706f171dad722cd8",
+      "src/runtime/optimized/tests/placement.rs": "7eb5604e45ff787286fcbde3a9b9291b79b7e8f506940b7743b1bed611becc60",
+      "src/runtime/optimized/tests/selection_policy.rs": "37f9909814cb0aa52a47de9d74d8b59629f0df51f9cc2dd45eb77c3457bc50b4",
+      "src/runtime/optimized/tests/semantic.rs": "fd369844f05a5fb916454baf46276d539c29379831a7daa8e0358ccea875ae60",
+      "src/runtime/packing.rs": "aa2dbac843e7a53c519e116b465d17236781e64d4f4e64a4d159e8c039762435",
+      "src/runtime/parallel.rs": "e389c552802120d717724ddc7a746cb4870e46a13265a44ac73da58b507885d7",
+      "src/runtime/parallel/tests.rs": "ec50b91998f299ad06024086fd95aa23ff03ae139d7e25f45261cceee43927fe",
+      "src/runtime/shapes.rs": "8ffef503f2b4b6d86742ec447a55d140c3a3ce92b9881976127a3c1e4814acb2",
+      "src/runtime/simd.rs": "654c3ebb8c129439c7c3893324d6b35582363f9ee024618aff49cec473871aac",
+      "src/runtime/simd/activation.rs": "0fd57c2ac022f33c547f0d5bd6106a8b5f92a9ce37af5a00863ab1a763c30d51",
+      "src/runtime/simd/argmax.rs": "a1997907152a7f5eb337ee2d5e3b9d4bd0580e6b74e34fcf57d31361aeef5095",
+      "src/runtime/simd/argmax/portable_tests.rs": "5e1eeccd5d2bb71a3236b697ba0103130564b2b78553bc343a057728403306d0",
+      "src/runtime/simd/columns.rs": "ea478f9a5eb1e0100ea71a15ec365df073356dcf1b8825dbc86ce1657e17d49e",
+      "src/runtime/simd/columns/portable_tests.rs": "ecd7f74ebc12259b3182d56fd0b684d367387ff10224b8882192c717ecd5057e",
+      "src/runtime/simd/matrix.rs": "1fb36841ce0c63a4b484d60b8de3fe448af102c8fc2b9eadbeb67a8822cac5df",
+      "src/runtime/simd/neon.rs": "f008a4d991492d2cd49a91befcabc51cbe49dc32f4e4c299973d4d801dff784f",
+      "src/runtime/simd/neon/tests.rs": "8960b5a3241a2594688d07a628afd69b59df66f4cf2f61836c45b35c3821206a",
+      "src/runtime/simd/parallel.rs": "868f0a3d9db47a05423fe33af73b4d7162b2abb571a9e182ab8445bcd02224dd",
+      "src/runtime/simd/portable_softmax_tests.rs": "748cf3557e4cc180f2d56a76e17d45ffc569c914e58150bd8353a2773e4b1828",
+      "src/runtime/simd/tensor.rs": "ae5e6e257b876074f22e745fd4d656645e5af8df97a05fceb1cf0090f713a5cf",
+      "src/runtime/simd/transcendental.rs": "9c42a7dc4b375573ab746252eb7ce7b51378426b8b844a9ca4e59a0ec6d9ebd3",
+      "src/runtime/simd/unary_policy_tests.rs": "84ff8406b7fb591a16256bd03c19129741d291707ca9d0b8b4b6d0075dd6e094",
+      "src/tensor.rs": "58e526a73e517ded2418e0b7f2759d6b6d75bdb117ace08cba10bbdec70c8d3a",
+      "tools/baseline/mod.rs": "344e3c88b6daae059f84d7ac15e26cdf532d4f58e31b744ec66d42366e155044",
+      "tools/benchmark/mod.rs": "e68ce33a5cea58078a88e848099f5c78218d1c7441247b9dea2c3870cda394ef",
+      "tools/benchmark/platform.rs": "467051d8d9371b536b13a869378ecb170eeb1ac25c22156efa025c149495b5e7"
+    },
+    "candidate_patch": "diff --git a/src/runtime/nhwc/pointwise.rs b/src/runtime/nhwc/pointwise.rs\r\nindex d6d6314..12ac722 100644\r\n--- a/src/runtime/nhwc/pointwise.rs\r\n+++ b/src/runtime/nhwc/pointwise.rs\r\n@@ -102,6 +102,11 @@ pub(super) fn execute(\r\n                     avx2::execute(input, bias, packed, output, first, inner, columns, store);\r\n                     return;\r\n                 }\r\n+                #[cfg(all(target_arch = \"x86_64\", target_os = \"windows\"))]\r\n+                if inner >= 384 && columns >= 384 && store.prefer_channel_tile() {\r\n+                    avx2_packet(input, bias, packed, output, first, inner, columns, store);\r\n+                    return;\r\n+                }\r\n                 avx2(input, bias, packed, output, first, inner, columns, store)\r\n             }\r\n         }\r\n@@ -139,6 +144,8 @@ macro_rules! x86_kernel {\r\n x86_kernel!(avx, \"avx\", wide, 8, false);\r\n x86_kernel!(avx_fma, \"avx,fma\", wide, 8, true);\r\n x86_kernel!(avx2, \"avx2,fma\", wide, 8, true);\r\n+#[cfg(all(target_arch = \"x86_64\", target_os = \"windows\"))]\r\n+x86_kernel!(avx2_packet, \"avx2,fma\", wide_packet, 8, true);\r\n x86_kernel!(avx512, \"avx512f,avx2,fma\", narrow, 16, true);\r\n \r\n #[inline(always)]\r\n@@ -182,9 +189,23 @@ fn store_row<const LANES: usize>(\r\n     store: &impl StoreTransform,\r\n ) {\r\n     if column < columns {\r\n-        let count = (columns - column).min(LANES);\r\n         let start = row * columns + column;\r\n         let values = store.vector_channel(sum, first * columns + start, column);\r\n+        store_transformed_row(values, output, row, column, columns);\r\n+    }\r\n+}\r\n+\r\n+#[inline(always)]\r\n+fn store_transformed_row<const LANES: usize>(\r\n+    values: Simd<f32, LANES>,\r\n+    output: &mut [f32],\r\n+    row: usize,\r\n+    column: usize,\r\n+    columns: usize,\r\n+) {\r\n+    if column < columns {\r\n+        let count = (columns - column).min(LANES);\r\n+        let start = row * columns + column;\r\n         if count == LANES {\r\n             values.copy_to_slice(&mut output[start..start + LANES]);\r\n         } else {\r\n@@ -271,7 +292,7 @@ fn wide<const LANES: usize, const FUSED: bool>(\r\n }\r\n \r\n /// A zero fixed group selects production's shape policy. Test-only controls\r\n-/// instantiate 48 directly; the six-row ISA reduction remains the same leaf.\r\n+/// can select a fixed group; the six-row ISA reduction remains the same leaf.\r\n #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\r\n #[allow(clippy::too_many_arguments)]\r\n #[inline(always)]\r\n@@ -284,6 +305,47 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>\r\n     inner: usize,\r\n     columns: usize,\r\n     store: &impl StoreTransform,\r\n+) {\r\n+    wide_grouped_impl::<LANES, FUSED, FIXED_GROUP, false>(\r\n+        input, bias, packed, output, first, inner, columns, store,\r\n+    );\r\n+}\r\n+\r\n+#[cfg(all(target_arch = \"x86_64\", target_os = \"windows\"))]\r\n+#[allow(clippy::too_many_arguments)]\r\n+#[inline(always)]\r\n+fn wide_packet<const LANES: usize, const FUSED: bool>(\r\n+    input: &[f32],\r\n+    bias: &[f32],\r\n+    packed: &PackedMatrix,\r\n+    output: &mut [f32],\r\n+    first: usize,\r\n+    inner: usize,\r\n+    columns: usize,\r\n+    store: &impl StoreTransform,\r\n+) {\r\n+    wide_grouped_impl::<LANES, FUSED, 0, true>(\r\n+        input, bias, packed, output, first, inner, columns, store,\r\n+    );\r\n+}\r\n+\r\n+#[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\r\n+#[allow(clippy::too_many_arguments)]\r\n+#[inline(always)]\r\n+fn wide_grouped_impl<\r\n+    const LANES: usize,\r\n+    const FUSED: bool,\r\n+    const FIXED_GROUP: usize,\r\n+    const PACKET: bool,\r\n+>(\r\n+    input: &[f32],\r\n+    bias: &[f32],\r\n+    packed: &PackedMatrix,\r\n+    output: &mut [f32],\r\n+    first: usize,\r\n+    inner: usize,\r\n+    columns: usize,\r\n+    store: &impl StoreTransform,\r\n ) {\r\n     debug_assert_eq!(LANES, 8);\r\n     let rows = output.len() / columns;\r\n@@ -303,14 +365,34 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>\r\n                 let [p0, p1, p2, p3, p4, p5] = row_inputs(input, tile, count, inner);\r\n                 // SAFETY: execute's guarded target-feature wrapper selected\r\n                 // AVX or AVX+FMA, and row_inputs/panel slices are bounds checked.\r\n-                let sums = unsafe {\r\n+                let mut sums = unsafe {\r\n                     if FUSED {\r\n                         tile_fma([p0, p1, p2, p3, p4, p5], panel, low, high)\r\n                     } else {\r\n                         tile_avx([p0, p1, p2, p3, p4, p5], panel, low, high)\r\n                     }\r\n                 };\r\n+                if PACKET {\r\n+                    store.vector_channel_tile(\r\n+                        &mut sums,\r\n+                        (first + group + tile) * columns + column,\r\n+                        columns,\r\n+                        column,\r\n+                        (count - tile).min(ROWS),\r\n+                    );\r\n+                }\r\n                 for (r, &[low, high]) in sums.iter().take(count - tile).enumerate() {\r\n+                    if PACKET {\r\n+                        store_transformed_row(low, output, group + tile + r, column, columns);\r\n+                        store_transformed_row(\r\n+                            high,\r\n+                            output,\r\n+                            group + tile + r,\r\n+                            column + LANES,\r\n+                            columns,\r\n+                        );\r\n+                        continue;\r\n+                    }\r\n                     store_row(low, output, group + tile + r, column, columns, first, store);\r\n                     store_row(\r\n                         high,\r\n@@ -328,7 +410,7 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>\r\n }\r\n \r\n /// Both halves of a paired diagnostic enter the same checked native wrapper.\r\n-/// `FIXED_GROUP=48` is the old policy; zero is the production adaptive policy.\r\n+/// Zero selects production; 48 is the old policy and 192 is a diagnostic only.\r\n #[cfg(all(test, any(target_arch = \"x86\", target_arch = \"x86_64\")))]\r\n pub(super) fn execute_group_control<const FIXED_GROUP: usize>(\r\n     input: &[f32],\r\n@@ -338,7 +420,7 @@ pub(super) fn execute_group_control<const FIXED_GROUP: usize>(\r\n     inner: usize,\r\n     columns: usize,\r\n ) {\r\n-    assert!(matches!(FIXED_GROUP, 0 | 48));\r\n+    assert!(matches!(FIXED_GROUP, 0 | 48 | 192));\r\n     assert!(simd::avx2_fma_available());\r\n     assert!(packed.matches(inner, columns));\r\n     assert_eq!(output.len() % columns, 0);\r\n@@ -558,5 +640,7 @@ fn narrow<const LANES: usize, const FUSED: bool>(\r\n     }\r\n }\r\n \r\n+#[cfg(all(test, target_arch = \"x86_64\"))]\r\n+mod large_channel_tests;\r\n #[cfg(test)]\r\n mod tests;\r\ndiff --git a/src/runtime/optimized/store.rs b/src/runtime/optimized/store.rs\r\nindex ab9e962..143f95d 100644\r\n--- a/src/runtime/optimized/store.rs\r\n+++ b/src/runtime/optimized/store.rs\r\n@@ -69,6 +69,110 @@ where\r\n             self.fallback.vector(value, index)\r\n         }\r\n     }\r\n+\r\n+    #[inline(always)]\r\n+    fn prefer_channel_tile(&self) -> bool {\r\n+        matches!(\r\n+            &self.common,\r\n+            Some(Recipe::Add(Operand::NhwcChannel(_)))\r\n+                | Some(Recipe::AddActivation(\r\n+                    Operand::NhwcChannel(_),\r\n+                    Activation::Gelu\r\n+                ))\r\n+                | Some(Recipe::AddAdd(Operand::NhwcChannel(_), Operand::Full(_)))\r\n+        )\r\n+    }\r\n+\r\n+    #[cfg_attr(debug_assertions, inline(never))]\r\n+    #[cfg_attr(not(debug_assertions), inline(always))]\r\n+    fn vector_channel_tile<const LANES: usize, const ROWS: usize>(\r\n+        &self,\r\n+        values: &mut [[Simd<f32, LANES>; 2]; ROWS],\r\n+        index: usize,\r\n+        columns: usize,\r\n+        column: usize,\r\n+        active_rows: usize,\r\n+    ) {\r\n+        if active_rows == 0 {\r\n+            return;\r\n+        }\r\n+        // Select the frequent REC recipes once per tile. Channel operands are\r\n+        // shared by every row, while residuals retain their global indices.\r\n+        // Channel Adds still follow the complete convolution reduction.\r\n+        match &self.common {\r\n+            Some(Recipe::Add(Operand::NhwcChannel(add))) => channel_tile(\r\n+                values,\r\n+                add,\r\n+                index,\r\n+                columns,\r\n+                column,\r\n+                active_rows,\r\n+                |value, _| value,\r\n+            ),\r\n+            Some(Recipe::AddActivation(Operand::NhwcChannel(add), Activation::Gelu)) => {\r\n+                channel_tile(\r\n+                    values,\r\n+                    add,\r\n+                    index,\r\n+                    columns,\r\n+                    column,\r\n+                    active_rows,\r\n+                    |value, _| {\r\n+                        simd::unary_vector_with_math(simd::UnaryOp::Gelu, value, self.fallback.math)\r\n+                    },\r\n+                );\r\n+            }\r\n+            Some(Recipe::AddAdd(Operand::NhwcChannel(add), Operand::Full(residual))) => {\r\n+                channel_tile(\r\n+                    values,\r\n+                    add,\r\n+                    index,\r\n+                    columns,\r\n+                    column,\r\n+                    active_rows,\r\n+                    |value, index| value + load(residual, index),\r\n+                )\r\n+            }\r\n+            _ => {\r\n+                let halves = 1 + usize::from(columns - column > LANES);\r\n+                for (row, values) in values[..active_rows].iter_mut().enumerate() {\r\n+                    for (half, value) in values[..halves].iter_mut().enumerate() {\r\n+                        *value = self.vector_channel(\r\n+                            *value,\r\n+                            index + row * columns + half * LANES,\r\n+                            column + half * LANES,\r\n+                        );\r\n+                    }\r\n+                }\r\n+            }\r\n+        }\r\n+    }\r\n+}\r\n+\r\n+#[inline(always)]\r\n+fn channel_tile<const LANES: usize, const ROWS: usize>(\r\n+    values: &mut [[Simd<f32, LANES>; 2]; ROWS],\r\n+    add: &[f32],\r\n+    index: usize,\r\n+    columns: usize,\r\n+    column: usize,\r\n+    active_rows: usize,\r\n+    apply: impl Fn(Simd<f32, LANES>, usize) -> Simd<f32, LANES>,\r\n+) {\r\n+    let halves = 1 + usize::from(columns - column > LANES);\r\n+    let channel = [\r\n+        load(add, column),\r\n+        if halves == 2 {\r\n+            load(add, column + LANES)\r\n+        } else {\r\n+            Simd::splat(0.)\r\n+        },\r\n+    ];\r\n+    for (row, values) in values[..active_rows].iter_mut().enumerate() {\r\n+        for (half, value) in values[..halves].iter_mut().enumerate() {\r\n+            *value = apply(*value + channel[half], index + row * columns + half * LANES);\r\n+        }\r\n+    }\r\n }\r\n \r\n #[derive(Clone, Copy)]\r\n@@ -284,3 +388,6 @@ impl<'data> Recipe<'data> {\r\n \r\n #[cfg(test)]\r\n mod tests;\r\n+\r\n+#[cfg(test)]\r\n+mod packet_tests;\r\ndiff --git a/src/runtime/simd.rs b/src/runtime/simd.rs\r\nindex 507c879..5d782f0 100644\r\n--- a/src/runtime/simd.rs\r\n+++ b/src/runtime/simd.rs\r\n@@ -74,6 +74,41 @@ pub(crate) trait StoreTransform: Sync {\r\n     ) -> Simd<f32, LANES> {\r\n         self.vector(value, index)\r\n     }\r\n+\r\n+    /// Whether binding this transform once for a paired channel tile avoids\r\n+    /// repeated recipe work. Kernels can keep ordinary stores on their path.\r\n+    #[inline(always)]\r\n+    fn prefer_channel_tile(&self) -> bool {\r\n+        false\r\n+    }\r\n+\r\n+    /// Transform paired NHWC channel vectors for several spatial rows. Index\r\n+    /// includes the worker's global row offset; inactive rows and an absent\r\n+    /// high channel vector must not access epilogue operands. Partial vectors\r\n+    /// retain their ordinary padded lanes until the kernel's final store.\r\n+    #[inline(always)]\r\n+    fn vector_channel_tile<const LANES: usize, const ROWS: usize>(\r\n+        &self,\r\n+        values: &mut [[Simd<f32, LANES>; 2]; ROWS],\r\n+        index: usize,\r\n+        columns: usize,\r\n+        column: usize,\r\n+        active_rows: usize,\r\n+    ) {\r\n+        if active_rows == 0 {\r\n+            return;\r\n+        }\r\n+        let halves = 1 + usize::from(columns - column > LANES);\r\n+        for (row, values) in values[..active_rows].iter_mut().enumerate() {\r\n+            for (half, value) in values[..halves].iter_mut().enumerate() {\r\n+                *value = self.vector_channel(\r\n+                    *value,\r\n+                    index + row * columns + half * LANES,\r\n+                    column + half * LANES,\r\n+                );\r\n+            }\r\n+        }\r\n+    }\r\n }\r\n \r\n pub(crate) struct IdentityStore;\r\n",
+    "execution_order": [
+      "tiny-baseline",
+      "tiny-candidate",
+      "small-candidate",
+      "small-baseline",
+      "medium-baseline",
+      "medium-candidate"
+    ],
+    "process_execution_seconds": {
+      "baseline": 6.030896500000001,
+      "candidate": 6.0480577
+    },
+    "prior_conservative_execution_seconds": {
+      "candidate": 0.0,
+      "baseline": 21.0
+    },
+    "cases": [
+      {
+        "model": "tiny",
+        "variant": "baseline",
+        "process_seconds": 0.7681058,
+        "samples_ms": [
+          75.0232,
+          70.8057,
+          72.0617
+        ],
+        "process_cpu": {
+          "first_inference_ms": 531.25,
+          "warmup_ms": 500.0,
+          "samples_ms": [
+            546.875,
+            468.75,
+            500.0
+          ]
+        },
+        "load_compile_ms": 18.285200000000003,
+        "first_inference_ms": 81.6091,
+        "warmup_ms": 70.5066,
+        "peak_private_bytes": 41930752,
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 13027328,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 9550221,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "case_result_canonical_json_sha256": "4a5eb681e8702919c25bdac7d0fbf8b8ec319e5de2be855624b0b89babae32d6",
+        "line_count": 69
+      },
+      {
+        "model": "tiny",
+        "variant": "candidate",
+        "process_seconds": 0.7415098,
+        "samples_ms": [
+          75.8756,
+          70.802,
+          70.37559999999999
+        ],
+        "process_cpu": {
+          "first_inference_ms": 421.875,
+          "warmup_ms": 562.5,
+          "samples_ms": [
+            500.0,
+            468.75,
+            546.875
+          ]
+        },
+        "load_compile_ms": 18.0144,
+        "first_inference_ms": 76.37389999999999,
+        "warmup_ms": 69.4477,
+        "peak_private_bytes": 42962944,
+        "diagnostics": {
+          "normalized_weight_bytes": 7096348,
+          "retained_activation_bytes": 13027328,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 9550221,
+          "shared_cached_weight_bytes": 7117184
+        },
+        "case_result_canonical_json_sha256": "4a5eb681e8702919c25bdac7d0fbf8b8ec319e5de2be855624b0b89babae32d6",
+        "line_count": 69
+      },
+      {
+        "model": "small",
+        "variant": "candidate",
+        "process_seconds": 1.1585565,
+        "samples_ms": [
+          198.87740000000002,
+          206.3347,
+          198.46959999999999
+        ],
+        "process_cpu": {
+          "first_inference_ms": 1453.125,
+          "warmup_ms": 1375.0,
+          "samples_ms": [
+            1484.375,
+            1500.0,
+            1546.875
+          ]
+        },
+        "load_compile_ms": 51.8908,
+        "first_inference_ms": 205.77609999999999,
+        "warmup_ms": 200.1062,
+        "peak_private_bytes": 115638272,
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 26880000,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 17888311,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "case_result_canonical_json_sha256": "5bf8127fa1ca56577de057307e9ac386533aa6f84dc0cbe14bdfbef84537a3d8",
+        "line_count": 69
+      },
+      {
+        "model": "small",
+        "variant": "baseline",
+        "process_seconds": 1.1600841,
+        "samples_ms": [
+          202.9784,
+          199.9039,
+          199.7264
+        ],
+        "process_cpu": {
+          "first_inference_ms": 1531.25,
+          "warmup_ms": 1484.375,
+          "samples_ms": [
+            1453.125,
+            1515.625,
+            1375.0
+          ]
+        },
+        "load_compile_ms": 55.7634,
+        "first_inference_ms": 205.1606,
+        "warmup_ms": 199.2723,
+        "peak_private_bytes": 115560448,
+        "diagnostics": {
+          "normalized_weight_bytes": 31845632,
+          "retained_activation_bytes": 26880000,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 17888311,
+          "shared_cached_weight_bytes": 31882304
+        },
+        "case_result_canonical_json_sha256": "5bf8127fa1ca56577de057307e9ac386533aa6f84dc0cbe14bdfbef84537a3d8",
+        "line_count": 69
+      },
+      {
+        "model": "medium",
+        "variant": "baseline",
+        "process_seconds": 4.1027066,
+        "samples_ms": [
+          743.5534,
+          740.9191000000001,
+          750.1999999999999
+        ],
+        "process_cpu": {
+          "first_inference_ms": 5734.375,
+          "warmup_ms": 5718.75,
+          "samples_ms": [
+            5750.0,
+            5718.75,
+            5671.875
+          ]
+        },
+        "load_compile_ms": 255.4955,
+        "first_inference_ms": 761.0782,
+        "warmup_ms": 741.3339,
+        "peak_private_bytes": 353083392,
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 49227776,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 18345237,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "case_result_canonical_json_sha256": "d85cc705e4a68d99371dd44f53fcdda8b17aad3d0da6144ef7ded48f93726293",
+        "line_count": 69
+      },
+      {
+        "model": "medium",
+        "variant": "candidate",
+        "process_seconds": 4.1479914,
+        "samples_ms": [
+          751.1895,
+          767.8686,
+          755.1439
+        ],
+        "process_cpu": {
+          "first_inference_ms": 5625.0,
+          "warmup_ms": 5562.5,
+          "samples_ms": [
+            5750.0,
+            5859.375,
+            5656.25
+          ]
+        },
+        "load_compile_ms": 255.8128,
+        "first_inference_ms": 761.6154,
+        "warmup_ms": 735.6179999999999,
+        "peak_private_bytes": 353361920,
+        "diagnostics": {
+          "normalized_weight_bytes": 138874476,
+          "retained_activation_bytes": 49227776,
+          "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+          "retained_requests": 1,
+          "retained_workspace_bytes": 18345237,
+          "shared_cached_weight_bytes": 138618304
+        },
+        "case_result_canonical_json_sha256": "d85cc705e4a68d99371dd44f53fcdda8b17aad3d0da6144ef7ded48f93726293",
+        "line_count": 69
+      }
+    ],
+    "summary": [
+      {
+        "model": "tiny",
+        "baseline_median_ms": 72.0617,
+        "candidate_median_ms": 70.802,
+        "latency_reduction_percent": 1.7480853213287961,
+        "ranges_overlap": true,
+        "serialized_case_results_exactly_equal": true,
+        "retained_capacities_equal": true
+      },
+      {
+        "model": "small",
+        "baseline_median_ms": 199.9039,
+        "candidate_median_ms": 198.87740000000002,
+        "latency_reduction_percent": 0.5134967351812403,
+        "ranges_overlap": true,
+        "serialized_case_results_exactly_equal": true,
+        "retained_capacities_equal": true
+      },
+      {
+        "model": "medium",
+        "baseline_median_ms": 743.5534,
+        "candidate_median_ms": 755.1439,
+        "latency_reduction_percent": -1.5587986014185429,
+        "ranges_overlap": false,
+        "serialized_case_results_exactly_equal": true,
+        "retained_capacities_equal": true
+      }
+    ]
+  },
+  "baseline_owner_selection": {
+    "decision": "selected sixteen; final automatic policy adopted after validation recorded below",
+    "source_hashes": {
+      "Cargo.lock": "8c38fef11dfb812509986378a278c81554bca54c8b56fb877cf86895b2759288",
+      "Cargo.toml": "2a82a7beed1c6e80908fe9849d1ca311c430f9d2478715d401da60b1a57202a6",
+      "examples/cpu_benchmark.rs": "de8c00c8dd49d3cf6f529e937e64661a6c77886ab728a2b2b6a64339dde96224",
+      "examples/cpu_owner_probe.rs": "10a3896139badc94079b183160912cf63b0d5264ba413ac5fc694b9ac04b3dc3",
+      "rust-toolchain.toml": "1d405aef485d32fe4c42ed6221a40ca825b3a7553ca19675de936747cc4b277a",
+      "src/builder.rs": "8cb3a433d8c5f66f1854157cae7b2008fcb7d201ed45ab2f2596d88fdb0cd04f",
+      "src/characters.rs": "a3ff30bd0c94968131149cec663f6500a4555a6321e6f0a59ec6b5bc29cc55bb",
+      "src/cpu.rs": "7a07f6d34884003a7f1cd1795460c005213902675d93b16964b8972783c13555",
+      "src/crop.rs": "3eaffa13b79770fdb20170075a2a79add94a710d5ee25ba3207b49f89850b033",
+      "src/db.rs": "c7a138bfe47d71f3ef32071fc59df90d5ef341008b933d781bdaa295cb7eae5c",
+      "src/detector.rs": "9c37e8f6a5864fa43416765b30a808526e2e5a6dc1ae0fe065bc168b7cef3892",
+      "src/engine.rs": "03869327f2d0ff4689c4fc0be6cef0cc33a61dfeb3910d59ec0d52a6030e11ae",
+      "src/error.rs": "94b77aa384d2b09206e049b5b910ad54a4249a4a6730dfdd25f745eccef2bc5a",
+      "src/image.rs": "aec234dcaa6366f47ddd291cb81ff579f3ac55733d7bca5c944439eba1c260ef",
+      "src/lib.rs": "b4fdbf3e9c1a83b711577256e82d09d5ff2d80fed04a85d3a5510f3c59a89668",
+      "src/lines.rs": "717c7dbd480f31293fc7ec5648681b04061da532440efc943e45856350fee6f5",
+      "src/math.rs": "05a50f135847a527393fbf28e067dc84069670ce2916ef52054d3074de5db4b4",
+      "src/model.rs": "c0dce6ebd0bb7fe9f0e5161148784a6bb91ba77be313f3b58b64e84824cae142",
+      "src/model/tests.rs": "5c7fc87bf099a9f097a6c23909d1d21e8ac91df8a73d51ae9aa16489b717947f",
+      "src/ocr.rs": "99c85f022ef588950eaa654d2c2bcf8db6c5ca3e1f3f0d1b80c42e0c4bba4262",
+      "src/onnx.rs": "561227412d6aff20ad6a4bd7eaf5589b9a87e7c513cd18ffbe4b6cef6655e01e",
+      "src/orientation.rs": "7874d08b472278076c215f35a7bb39f8f034a6eed96dc7501eaed32a4c5a229b",
+      "src/pixel_kernels.rs": "b83d3cdb27101194fbf13aeb10dba3210d5b9a8daf9f7acf03ab86a9cecec0ee",
+      "src/pixel_kernels/threshold_tests.rs": "e4c001517baebc8b71d7cf4cf4bbd1980e39b5509b0d2d5f565aa6212556a2d5",
+      "src/preprocess.rs": "dd4392a4e4234c6c7e7e2e9beefe6b025884cb3169e75238485a53318a282349",
+      "src/profile.rs": "1719e869183be492515c1cdc39040cea4119a33cdb0f43025d42adaa8d207be4",
+      "src/profile/tests.rs": "7984a343fe312de85caf11aaa8cb7b6d61726aaac78a266ff51cc800803e64e6",
+      "src/projection.rs": "9016b3263498109a67530c6d68e642702d7c62cdd3639ff36efc2cf26c66c4b3",
+      "src/recognizer.rs": "84a3c240c7795ce25aae1424ed33163371f7b12a270239c9a4f4583241be1070",
+      "src/runtime.rs": "6485d7b7211f6ad93fd67474bd5fae96417456453acb12c85709e0198e537185",
+      "src/runtime/kernels.rs": "43ece5b370405736f752ef8c3ced5238c6267831482a092e14527a46ece79471",
+      "src/runtime/nchw.rs": "e87f1c774e7fadde5e1c91942abfc542dee218ef515d8077d1a4ad2afb558c90",
+      "src/runtime/nchw/native.rs": "f7c2921913336dcdfe406154d0739351cd071b0cbffc14a5330478828a4a03f5",
+      "src/runtime/nchw/pad_end2.rs": "c08d7cfde16eade104af5a19250e53929592c21e1c6ca93d6ecece05aacad818",
+      "src/runtime/nchw/pointwise_spatial.rs": "d1ecbe7be5014888ad3fd613dda20eaf205bdb21d0403ad9450f270528e58347",
+      "src/runtime/nchw/reduce3.rs": "61f712a9e0c5d8a5ac26d50c20e9b175cee616b473c3de9290de8428ea2ec1c4",
+      "src/runtime/nchw/stride2.rs": "64033c2c23c57ccc1fdc2f314a31d886ecc8c03d0ea7aeed9d2c948b0d525ad5",
+      "src/runtime/nchw/tests.rs": "5f474a6f120dee40d2a29894b9ef7d477f15fc53044d5ff5ba86d5f9a6931f35",
+      "src/runtime/nchw/tests/packed3_band_plan.rs": "b8418d4a2b1dba77ea0bb2d34d3d8afd11b65e09b3fbdb6fe344c6324b70aa62",
+      "src/runtime/nchw/tests/packed3_border.rs": "2a13b56a241a6eee97df0fd05ce084b655914ab2dd89c58605e238667755a207",
+      "src/runtime/nchw/tests/packed3_envelope.rs": "dbd25a715412fdb23e585d466c8c66285f03200b0cd6f49a9a3c749d54877fb9",
+      "src/runtime/nchw/tests/packed3_packets.rs": "0988311b2c5533ff6ce8a43f1c75aade32b6f240cef05c1b599c838944fe56b3",
+      "src/runtime/nchw/tests/packed3_recursive_order.rs": "d50b9d0d870c57180154e1fb9860db2e5bc1d9e924eebce5340e61e4001420a5",
+      "src/runtime/nchw/tests/pair16.rs": "cb105cb99530b923cc1d934b0dc7615d5e9a946016951218dab083c9447e0fd3",
+      "src/runtime/nchw/tests/pointwise_spatial.rs": "a8dbb0b5c83f400a5e86084fa1812a88932a3cfaafd813ffd068942c331a485d",
+      "src/runtime/nchw/tests/stride2_band_plan.rs": "68bcda828b89862c33680116bd1664d7880909964f7a7d5a89ca16e40c76cc46",
+      "src/runtime/nchw/tests/stride2_contract.rs": "d45b9c5dfdd064fafe9991082a56f99a263f612f5a6fb4c689a8dffb4baa2366",
+      "src/runtime/nhwc.rs": "9ae4c17b7fc6b4ba77e5638199764312a05e1f80bb62d3b06a68a57741b71fe3",
+      "src/runtime/nhwc/concat.rs": "bcea40e94d67b22ee700f3e4d64e63805a8f45afe450d9dc5440d6512c9ff0b2",
+      "src/runtime/nhwc/dense.rs": "02f68e013937fac46706741684aae01f864c22528ffce471516dc8f6db2e6739",
+      "src/runtime/nhwc/dense/interior.rs": "0f289bdd71ae26ce463aa972e558d982bb4970d4c55816ed4d5883ea57239bb0",
+      "src/runtime/nhwc/dense/neon_tests.rs": "334af418f0258a8b6f4123b381652812998553e77fdd6a1f52c29246db00eb32",
+      "src/runtime/nhwc/dense/portable_tests.rs": "1a2c55e35a035b9d34cb4f7d8708842e0cf87292457609e8ca98921bb9625a30",
+      "src/runtime/nhwc/misc.rs": "20e7e50cee40932dffc9acc096a10fa180beeafdf5373d9fa8dd7c91dc2301ef",
+      "src/runtime/nhwc/misc/resize_tests.rs": "87e76fb033df38da7e5bbfb316d29f912d67f0694f14f133494797dc40740e1f",
+      "src/runtime/nhwc/neon_depthwise.rs": "a9bba8128a0fdc923fe048ab312a4cdcebd80dd651737e7511903c2e26465dd6",
+      "src/runtime/nhwc/neon_depthwise/strip.rs": "f73170186b1b532bd62e57e5ce0d523092929035982c8a6e98428f986ecb1531",
+      "src/runtime/nhwc/neon_depthwise/tests/benchmark.rs": "c4589800a289274396197fe788c0f59c684e8c99e2e5005409f3445d36700b0c",
+      "src/runtime/nhwc/parallel_tests.rs": "444acd3737f2b67b44063207afe4f7ddc91a67f53fca020d5fd537d9a7fb7d02",
+      "src/runtime/nhwc/pointwise.rs": "1834d6d2ae6acd79b5285d134a8ff5ce8c0855e11a0ce1c171ceafcf3260ab35",
+      "src/runtime/nhwc/pointwise/avx2.rs": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552",
+      "src/runtime/nhwc/pointwise/avx2/tests.rs": "3b77258f78e13833722ffbf1bda7762135b93218bc2062ed887490fe575ea234",
+      "src/runtime/nhwc/pointwise/large_channel_tests.rs": "62ae1a9ce494e7a6ae01dce8f56010fb07ff8171653086a07cb18955591ad9e1",
+      "src/runtime/nhwc/pointwise/neon_bench.rs": "66bca0335e0875ae2d5b3a9a696577edf2e05cde67a83b5a6678c124317a2075",
+      "src/runtime/nhwc/pointwise/neon.rs": "e41ae7ad614274b3d4bb18ad93a6f1c31cb0461d67e5c5e4f2e703ce29b3d289",
+      "src/runtime/nhwc/pointwise/tests.rs": "da1323c01887720d0b8148724a5bf8bf57949156e6daad3c0ef57e684af10b5b",
+      "src/runtime/nhwc/row_policy_tests.rs": "133457221f4bc0300a598e19623913d59bf80605ee57d9e485c8b97315ff260c",
+      "src/runtime/nhwc/strip.rs": "bb05cd30784167aba32ccdb961eb21c5648b2f4f16dc14522a51a88c67fd290a",
+      "src/runtime/nhwc/strip/tests.rs": "a322d35af516b65f4e0ce5202c311f225674260231a11281f2e57e7207183ea3",
+      "src/runtime/nhwc/tests.rs": "2dac271c6a26ef2a4a45d583cf10788bc404946272e6d6731e75f667a1710603",
+      "src/runtime/nhwc/tests/performance.rs": "69dfb38bb6d1d4a78a022d845f4abb78189ab829ed188982189d58f470498f0a",
+      "src/runtime/nhwc/transpose.rs": "893b4309dd8e160773449ad0e55c7f16cdcc1a332d144b176d58217675c93e67",
+      "src/runtime/nhwc/transpose/tests.rs": "75109a58826fc374eb1a44ce1a997fad6b79a1d98c9be11448910049d4a901a3",
+      "src/runtime/optimized.rs": "dd81a4a082f77ac0a9756e87ff76cca83b2973d2119686af8ba1eed47a2df26e",
+      "src/runtime/optimized/elementwise_alias.rs": "8a7eede001c84b1e6ab6b1e34f0243c1bab2eacc1d67d15ca023fcdde879e4d8",
+      "src/runtime/optimized/layout.rs": "df192742bcad6e2004b473901d17faf705d5d868cf1cf77edc6e25d3c64f5d59",
+      "src/runtime/optimized/layout/tests.rs": "8514cd6cf129a9e8cc5ef61d35fd9d38a43e0de357b68b851df417c610161f02",
+      "src/runtime/optimized/semantic.rs": "858a886115110d36bef856323ee8788461ba4d847d6a9012e6cac5b9383816cb",
+      "src/runtime/optimized/store.rs": "5bc40c3ecea0d5a67df1e465e1bb80e9b656ae8e1d0dd7c3f7f8c4bfcdb317ef",
+      "src/runtime/optimized/store/tests.rs": "279fe21bdeebba19790f245a435c5ce0f6f88c09b12f56b3f4c1326ec1f04201",
+      "src/runtime/optimized/tests.rs": "b7cff8bbdb87b0ed79e5d2bff8971abd225a4d2dcbc4ae6d80318576155600ca",
+      "src/runtime/optimized/tests/alias.rs": "210da7cdca4a524bbba8c68eea920a1b987be88de04bf3acdd2abef51fa77020",
+      "src/runtime/optimized/tests/concat.rs": "ca73578078a2a0dc97cdfd0ca48a9c6a58046a8fd82c1ce77009df716108a330",
+      "src/runtime/optimized/tests/elementwise_alias.rs": "88cead27c092a3e47aa5889f847487374c1ba7fa8f00582545bd0207c8ac5e1f",
+      "src/runtime/optimized/tests/nchw_epilogue.rs": "5cd73f6fe3a63779b15891eeba9a50796f011304104e28cbb26d22dd8f045ef8",
+      "src/runtime/optimized/tests/performance.rs": "da122991a9b5ecde713ff0da7f0091b53430ef6a19c23cb3706f171dad722cd8",
+      "src/runtime/optimized/tests/placement.rs": "7eb5604e45ff787286fcbde3a9b9291b79b7e8f506940b7743b1bed611becc60",
+      "src/runtime/optimized/tests/selection_policy.rs": "37f9909814cb0aa52a47de9d74d8b59629f0df51f9cc2dd45eb77c3457bc50b4",
+      "src/runtime/optimized/tests/semantic.rs": "fd369844f05a5fb916454baf46276d539c29379831a7daa8e0358ccea875ae60",
+      "src/runtime/packing.rs": "aa2dbac843e7a53c519e116b465d17236781e64d4f4e64a4d159e8c039762435",
+      "src/runtime/parallel.rs": "e389c552802120d717724ddc7a746cb4870e46a13265a44ac73da58b507885d7",
+      "src/runtime/parallel/tests.rs": "ec50b91998f299ad06024086fd95aa23ff03ae139d7e25f45261cceee43927fe",
+      "src/runtime/shapes.rs": "8ffef503f2b4b6d86742ec447a55d140c3a3ce92b9881976127a3c1e4814acb2",
+      "src/runtime/simd.rs": "760f38534cebdef4dc42ae443d491a11cfb6328b8f34d03e3391aefbf7518f33",
+      "src/runtime/simd/activation.rs": "0fd57c2ac022f33c547f0d5bd6106a8b5f92a9ce37af5a00863ab1a763c30d51",
+      "src/runtime/simd/argmax.rs": "a1997907152a7f5eb337ee2d5e3b9d4bd0580e6b74e34fcf57d31361aeef5095",
+      "src/runtime/simd/argmax/portable_tests.rs": "5e1eeccd5d2bb71a3236b697ba0103130564b2b78553bc343a057728403306d0",
+      "src/runtime/simd/columns.rs": "ea478f9a5eb1e0100ea71a15ec365df073356dcf1b8825dbc86ce1657e17d49e",
+      "src/runtime/simd/columns/portable_tests.rs": "ecd7f74ebc12259b3182d56fd0b684d367387ff10224b8882192c717ecd5057e",
+      "src/runtime/simd/matrix.rs": "1fb36841ce0c63a4b484d60b8de3fe448af102c8fc2b9eadbeb67a8822cac5df",
+      "src/runtime/simd/neon.rs": "f008a4d991492d2cd49a91befcabc51cbe49dc32f4e4c299973d4d801dff784f",
+      "src/runtime/simd/neon/tests.rs": "8960b5a3241a2594688d07a628afd69b59df66f4cf2f61836c45b35c3821206a",
+      "src/runtime/simd/parallel.rs": "868f0a3d9db47a05423fe33af73b4d7162b2abb571a9e182ab8445bcd02224dd",
+      "src/runtime/simd/portable_softmax_tests.rs": "748cf3557e4cc180f2d56a76e17d45ffc569c914e58150bd8353a2773e4b1828",
+      "src/runtime/simd/tensor.rs": "ae5e6e257b876074f22e745fd4d656645e5af8df97a05fceb1cf0090f713a5cf",
+      "src/runtime/simd/transcendental.rs": "9c42a7dc4b375573ab746252eb7ce7b51378426b8b844a9ca4e59a0ec6d9ebd3",
+      "src/runtime/simd/unary_policy_tests.rs": "84ff8406b7fb591a16256bd03c19129741d291707ca9d0b8b4b6d0075dd6e094",
+      "src/tensor.rs": "58e526a73e517ded2418e0b7f2759d6b6d75bdb117ace08cba10bbdec70c8d3a",
+      "tools/baseline/mod.rs": "344e3c88b6daae059f84d7ac15e26cdf532d4f58e31b744ec66d42366e155044",
+      "tools/benchmark/mod.rs": "e68ce33a5cea58078a88e848099f5c78218d1c7441247b9dea2c3870cda394ef",
+      "tools/benchmark/platform.rs": "467051d8d9371b536b13a869378ecb170eeb1ac25c22156efa025c149495b5e7"
+    },
+    "baseline_source_diff": "diff --git a/src/runtime/nhwc/pointwise.rs b/src/runtime/nhwc/pointwise.rs\r\nindex d6d6314..bf870e5 100644\r\n--- a/src/runtime/nhwc/pointwise.rs\r\n+++ b/src/runtime/nhwc/pointwise.rs\r\n@@ -271,7 +271,7 @@ fn wide<const LANES: usize, const FUSED: bool>(\r\n }\r\n \r\n /// A zero fixed group selects production's shape policy. Test-only controls\r\n-/// instantiate 48 directly; the six-row ISA reduction remains the same leaf.\r\n+/// can select a fixed group; the six-row ISA reduction remains the same leaf.\r\n #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\r\n #[allow(clippy::too_many_arguments)]\r\n #[inline(always)]\r\n@@ -328,7 +328,7 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>\r\n }\r\n \r\n /// Both halves of a paired diagnostic enter the same checked native wrapper.\r\n-/// `FIXED_GROUP=48` is the old policy; zero is the production adaptive policy.\r\n+/// Zero selects production; 48 is the old policy and 192 is a diagnostic only.\r\n #[cfg(all(test, any(target_arch = \"x86\", target_arch = \"x86_64\")))]\r\n pub(super) fn execute_group_control<const FIXED_GROUP: usize>(\r\n     input: &[f32],\r\n@@ -338,7 +338,7 @@ pub(super) fn execute_group_control<const FIXED_GROUP: usize>(\r\n     inner: usize,\r\n     columns: usize,\r\n ) {\r\n-    assert!(matches!(FIXED_GROUP, 0 | 48));\r\n+    assert!(matches!(FIXED_GROUP, 0 | 48 | 192));\r\n     assert!(simd::avx2_fma_available());\r\n     assert!(packed.matches(inner, columns));\r\n     assert_eq!(output.len() % columns, 0);\r\n@@ -558,5 +558,7 @@ fn narrow<const LANES: usize, const FUSED: bool>(\r\n     }\r\n }\r\n \r\n+#[cfg(all(test, target_arch = \"x86_64\"))]\r\n+mod large_channel_tests;\r\n #[cfg(test)]\r\n mod tests;\r\n",
+    "executable_sha256": "b8e7372ae254f49b20c9d76f1b29db78705c520c83fbf0a1f51e3e5d8077be8d",
+    "execution_order": [
+      "medium",
+      "small",
+      "tiny"
+    ],
+    "requested_owner_order": [
+      0,
+      12,
+      16
+    ],
+    "context_capacity": 24,
+    "affinity": "ffffff",
+    "warmups_per_configuration": 1,
+    "measured_calls_per_configuration": 3,
+    "internal_deadline_seconds": 15,
+    "external_maximum_deadline_seconds": 16,
+    "full_owned_parity_scope": "complete OwnedOcr equality within each three-configuration process, capture=false; no CTC spans",
+    "memory_scope": "retained activation/workspace per fresh request; process PeakPagefileUsage is cumulative across all configurations in that process",
+    "cases": [
+      {
+        "input_evidence_sha256": "99107f685e4f6d124ca8aab464a98882df5f4964378956aa03cf3201053144aa",
+        "timestamp": "2026-10-17T18:01:29.3296063+08:00",
+        "prior_conservative_execution_seconds": 35.8,
+        "process_execution_seconds": 0.9556981,
+        "result": {
+          "affinity": "ffffff",
+          "capture_ctc_spans": false,
+          "cases": [
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+              "line_workers": 0,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "process_peak_private_bytes": 82595840,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 15075328,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+              "retained_workspace_bytes": 10994509,
+              "samples_cpu_ms": [
+                890.625,
+                890.625,
+                343.75
+              ],
+              "samples_ms": [
+                57.0082,
+                55.838,
+                57.143899999999995
+              ],
+              "warmup_ms": 64.6032
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 12,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 12,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 12, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 2 }",
+              "line_workers": 12,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 12, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 2 }",
+              "process_peak_private_bytes": 85377024,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 15673344,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+              "retained_workspace_bytes": 12094152,
+              "samples_cpu_ms": [
+                515.625,
+                921.875,
+                421.875
+              ],
+              "samples_ms": [
+                54.1921,
+                53.2611,
+                51.4731
+              ],
+              "warmup_ms": 62.9986
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "line_workers": 16,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "process_peak_private_bytes": 91090944,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 18171904,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+              "retained_workspace_bytes": 14982563,
+              "samples_cpu_ms": [
+                500.0,
+                500.0,
+                640.625
+              ],
+              "samples_ms": [
+                43.743700000000004,
+                44.6133,
+                43.196600000000004
+              ],
+              "warmup_ms": 51.4475
+            }
+          ],
+          "complete_owned_outputs_exactly_equal": true,
+          "cpu_context_capacity": 24,
+          "execution_seconds": 0.8777016,
+          "fixture": "imgs_00018069",
+          "instrumented": false,
+          "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+          "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+          "measured_runs_per_configuration": 3,
+          "model": "tiny",
+          "order": [
+            0,
+            12,
+            16
+          ],
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "recognized_lines": 69,
+          "warmups_per_configuration": 1
+        },
+        "summary": [
+          {
+            "line_workers": 0,
+            "median_ms": 57.0082,
+            "latency_reduction_vs_automatic_percent": 0.0,
+            "retained_activation_plus_workspace_bytes": 26069837,
+            "additional_retained_bytes_vs_automatic": 0
+          },
+          {
+            "line_workers": 12,
+            "median_ms": 53.2611,
+            "latency_reduction_vs_automatic_percent": 6.572914072010693,
+            "retained_activation_plus_workspace_bytes": 27767496,
+            "additional_retained_bytes_vs_automatic": 1697659
+          },
+          {
+            "line_workers": 16,
+            "median_ms": 43.743700000000004,
+            "latency_reduction_vs_automatic_percent": 23.267705347651734,
+            "retained_activation_plus_workspace_bytes": 33154467,
+            "additional_retained_bytes_vs_automatic": 7084630
+          }
+        ]
+      },
+      {
+        "input_evidence_sha256": "adf0a10a3362e11152b3730d5f0a450b25b2fa6ef48f5edec854912f5827dd8d",
+        "timestamp": "2026-10-17T18:01:25.6842883+08:00",
+        "prior_conservative_execution_seconds": 33.8,
+        "process_execution_seconds": 1.9668494,
+        "result": {
+          "affinity": "ffffff",
+          "capture_ctc_spans": false,
+          "cases": [
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+              "line_workers": 0,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "process_peak_private_bytes": 155283456,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 28928000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+              "retained_workspace_bytes": 19345511,
+              "samples_cpu_ms": [
+                2343.75,
+                2484.375,
+                2093.75
+              ],
+              "samples_ms": [
+                149.78289999999998,
+                143.78060000000002,
+                157.874
+              ],
+              "warmup_ms": 160.8939
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 12,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 12,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 12, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 2 }",
+              "line_workers": 12,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 12, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 2 }",
+              "process_peak_private_bytes": 164446208,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 34392064,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+              "retained_workspace_bytes": 22705986,
+              "samples_cpu_ms": [
+                2062.5,
+                1781.25,
+                1796.875
+              ],
+              "samples_ms": [
+                121.8982,
+                120.8801,
+                123.61189999999999
+              ],
+              "warmup_ms": 135.9275
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "line_workers": 16,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "process_peak_private_bytes": 178278400,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 41314304,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+              "retained_workspace_bytes": 28681103,
+              "samples_cpu_ms": [
+                1578.125,
+                1515.625,
+                1125.0
+              ],
+              "samples_ms": [
+                110.2914,
+                114.73129999999999,
+                121.09259999999999
+              ],
+              "warmup_ms": 127.51760000000002
+            }
+          ],
+          "complete_owned_outputs_exactly_equal": true,
+          "cpu_context_capacity": 24,
+          "execution_seconds": 1.8812646,
+          "fixture": "imgs_00018069",
+          "instrumented": false,
+          "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+          "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+          "measured_runs_per_configuration": 3,
+          "model": "small",
+          "order": [
+            0,
+            12,
+            16
+          ],
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "recognized_lines": 69,
+          "warmups_per_configuration": 1
+        },
+        "summary": [
+          {
+            "line_workers": 0,
+            "median_ms": 149.78289999999998,
+            "latency_reduction_vs_automatic_percent": 0.0,
+            "retained_activation_plus_workspace_bytes": 48273511,
+            "additional_retained_bytes_vs_automatic": 0
+          },
+          {
+            "line_workers": 12,
+            "median_ms": 121.8982,
+            "latency_reduction_vs_automatic_percent": 18.616744635068482,
+            "retained_activation_plus_workspace_bytes": 57098050,
+            "additional_retained_bytes_vs_automatic": 8824539
+          },
+          {
+            "line_workers": 16,
+            "median_ms": 114.73129999999999,
+            "latency_reduction_vs_automatic_percent": 23.40160325377596,
+            "retained_activation_plus_workspace_bytes": 69995407,
+            "additional_retained_bytes_vs_automatic": 21721896
+          }
+        ]
+      },
+      {
+        "input_evidence_sha256": "3e86b9f64a114540082d185685b74797788a6c837cc5e598c95ff6d93ab12cf6",
+        "timestamp": "2026-10-17T18:01:13.6052474+08:00",
+        "prior_conservative_execution_seconds": 27.4,
+        "process_execution_seconds": 6.3845123,
+        "result": {
+          "affinity": "ffffff",
+          "capture_ctc_spans": false,
+          "cases": [
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+              "line_workers": 0,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "process_peak_private_bytes": 392806400,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 51275776,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+              "retained_workspace_bytes": 19848517,
+              "samples_cpu_ms": [
+                7437.5,
+                6890.625,
+                6218.75
+              ],
+              "samples_ms": [
+                493.824,
+                492.38280000000003,
+                457.63910000000004
+              ],
+              "warmup_ms": 514.1896
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 12,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 12,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 12, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 2 }",
+              "line_workers": 12,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 12, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 2 }",
+              "process_peak_private_bytes": 403542016,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 58509312,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+              "retained_workspace_bytes": 22419784,
+              "samples_cpu_ms": [
+                7359.375,
+                7125.0,
+                7468.75
+              ],
+              "samples_ms": [
+                422.2745,
+                447.36769999999996,
+                450.8342
+              ],
+              "warmup_ms": 412.01189999999997
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "line_workers": 16,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "process_peak_private_bytes": 419246080,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 67004416,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+              "retained_workspace_bytes": 28885983,
+              "samples_cpu_ms": [
+                6328.125,
+                6562.5,
+                6828.125
+              ],
+              "samples_ms": [
+                452.739,
+                462.5644,
+                454.8122
+              ],
+              "warmup_ms": 470.1529
+            }
+          ],
+          "complete_owned_outputs_exactly_equal": true,
+          "cpu_context_capacity": 24,
+          "execution_seconds": 6.0551126,
+          "fixture": "imgs_00018069",
+          "instrumented": false,
+          "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+          "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+          "measured_runs_per_configuration": 3,
+          "model": "medium",
+          "order": [
+            0,
+            12,
+            16
+          ],
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "recognized_lines": 69,
+          "warmups_per_configuration": 1
+        },
+        "summary": [
+          {
+            "line_workers": 0,
+            "median_ms": 492.38280000000003,
+            "latency_reduction_vs_automatic_percent": 0.0,
+            "retained_activation_plus_workspace_bytes": 71124293,
+            "additional_retained_bytes_vs_automatic": 0
+          },
+          {
+            "line_workers": 12,
+            "median_ms": 447.36769999999996,
+            "latency_reduction_vs_automatic_percent": 9.142297415750523,
+            "retained_activation_plus_workspace_bytes": 80929096,
+            "additional_retained_bytes_vs_automatic": 9804803
+          },
+          {
+            "line_workers": 16,
+            "median_ms": 454.8122,
+            "latency_reduction_vs_automatic_percent": 7.630364017589564,
+            "retained_activation_plus_workspace_bytes": 95890399,
+            "additional_retained_bytes_vs_automatic": 24766106
+          }
+        ]
+      }
+    ]
+  },
+  "performance_accounting": {
+    "per_version_default_budget_seconds": 60,
+    "build_and_correctness_excluded": true,
+    "tile_standalone_seconds": 0.2927207,
+    "packet_variant_seconds": {
+      "baseline": 6.030896500000001,
+      "candidate": 6.0480577
+    },
+    "baseline_owner_process_seconds": 9.3070598,
+    "latest_baseline_conservative_seconds_including_prior": 36.7556981,
+    "accounting_note": "Prior checkpoints are cumulative, not additive. The baseline latest checkpoint remains36.7556981s. Final production source rebuilt after edits; its performance execution starts from zero and includes every final owner-probe process below. Builds and correctness checks excluded. No timing samples pooled across versions/settings.",
+    "final_production_process_seconds": 6.9306653
+  },
+  "limitations": [
+    "Three samples per case are not a confidence interval; retain all observed values.",
+    "Owner selection always runs automatic, twelve, sixteen in one process; later cases can benefit from time, temperature, cache and allocator changes.",
+    "Twelve changes classifier owners16 to12 as well as recognition ownership; its Medium advantage does not isolate recognition scheduling.",
+    "Model families share one dense fixture; this is not sparse-page, concurrent-throughput or native-NEON qualification.",
+    "Windows memory metrics are peak private commit, not RSS; cumulative process peaks do not isolate owner-config memory differences.",
+    "Capacity24 is measured; capacities25..31 are inferred from identical sixteen-owner/one-base-thread arithmetic, with boundary correctness checks but no physical performance samples there.",
+    "Final automatic and baseline automatic ran in sequential preserved/rebuilt processes; three samples on one host/fixture do not establish statistical significance or corpus-wide performance.",
+    "Direct cross-executable complete owned output was not exported by the baseline owner probe; equality is checked within each executable plus serial integration coverage.",
+    "More private owners increase retained request capacity and can trigger configured engine idle-cache eviction; activation limits remain per session and no owner-reduction fallback is added.",
+    "The minimum32unit threshold requires two jobs per owner, but performance samples are at69units; not every qualifying geometry was benchmarked."
+  ],
+  "finalized_at": "2026-10-17T18:10:40.9013008+08:00",
+  "final_automatic_validation": {
+    "build": "cargo build --release --locked --example cpu_owner_probe; default features, release, profiling disabled; source frozen after final CPU and OCR-test edits",
+    "source_manifest": [
+      {
+        "path": "Cargo.lock",
+        "sha256": "8c38fef11dfb812509986378a278c81554bca54c8b56fb877cf86895b2759288"
+      },
+      {
+        "path": "Cargo.toml",
+        "sha256": "2a82a7beed1c6e80908fe9849d1ca311c430f9d2478715d401da60b1a57202a6"
+      },
+      {
+        "path": "examples/cpu_adoption_probe.rs",
+        "sha256": "3690ce77209262a0c18f89e92ab24b5afa33c56da33c7c2a093a3d4a09a477e8"
+      },
+      {
+        "path": "examples/cpu_baseline.rs",
+        "sha256": "ccd2ee0696cbcf8e334fd00b569ac1febe676385aa7b63173f08bc943d7bdbd4"
+      },
+      {
+        "path": "examples/cpu_benchmark.rs",
+        "sha256": "de8c00c8dd49d3cf6f529e937e64661a6c77886ab728a2b2b6a64339dde96224"
+      },
+      {
+        "path": "examples/cpu_owner_probe.rs",
+        "sha256": "a5feabc7718ad313adf9e9bc2fb5eeb61c592de8f0ce7379ec5334ebd4e753e2"
+      },
+      {
+        "path": "examples/cpu_profile.rs",
+        "sha256": "649889a787694702882d069965b805ab6bf17108e51d93ce9bb21b77027281f2"
+      },
+      {
+        "path": "examples/cpu_qualify.rs",
+        "sha256": "27ad076e24358264c59445258801a964ca5a36406dbe127a295decb17fb79ccd"
+      },
+      {
+        "path": "examples/cpu_scheduling_probe.rs",
+        "sha256": "04e1a11d2117430ceacfde67f35babde77295659080adbce6583405dd39364d2"
+      },
+      {
+        "path": "examples/ocr.rs",
+        "sha256": "7a532fed15637690b861c120e8db0725164000d1b7c53341855397ecfc345a13"
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "sha256": "1d405aef485d32fe4c42ed6221a40ca825b3a7553ca19675de936747cc4b277a"
+      },
+      {
+        "path": "src/builder.rs",
+        "sha256": "8cb3a433d8c5f66f1854157cae7b2008fcb7d201ed45ab2f2596d88fdb0cd04f"
+      },
+      {
+        "path": "src/characters.rs",
+        "sha256": "a3ff30bd0c94968131149cec663f6500a4555a6321e6f0a59ec6b5bc29cc55bb"
+      },
+      {
+        "path": "src/cpu.rs",
+        "sha256": "71582d8a3e39d6e3fd5ca44ac0a657f55bd18406f84f5ad8fdb57aabf80a5ddf"
+      },
+      {
+        "path": "src/crop.rs",
+        "sha256": "3eaffa13b79770fdb20170075a2a79add94a710d5ee25ba3207b49f89850b033"
+      },
+      {
+        "path": "src/db.rs",
+        "sha256": "c7a138bfe47d71f3ef32071fc59df90d5ef341008b933d781bdaa295cb7eae5c"
+      },
+      {
+        "path": "src/detector.rs",
+        "sha256": "9c37e8f6a5864fa43416765b30a808526e2e5a6dc1ae0fe065bc168b7cef3892"
+      },
+      {
+        "path": "src/engine.rs",
+        "sha256": "03869327f2d0ff4689c4fc0be6cef0cc33a61dfeb3910d59ec0d52a6030e11ae"
+      },
+      {
+        "path": "src/error.rs",
+        "sha256": "94b77aa384d2b09206e049b5b910ad54a4249a4a6730dfdd25f745eccef2bc5a"
+      },
+      {
+        "path": "src/image.rs",
+        "sha256": "aec234dcaa6366f47ddd291cb81ff579f3ac55733d7bca5c944439eba1c260ef"
+      },
+      {
+        "path": "src/lib.rs",
+        "sha256": "b4fdbf3e9c1a83b711577256e82d09d5ff2d80fed04a85d3a5510f3c59a89668"
+      },
+      {
+        "path": "src/lines.rs",
+        "sha256": "717c7dbd480f31293fc7ec5648681b04061da532440efc943e45856350fee6f5"
+      },
+      {
+        "path": "src/math.rs",
+        "sha256": "05a50f135847a527393fbf28e067dc84069670ce2916ef52054d3074de5db4b4"
+      },
+      {
+        "path": "src/model.rs",
+        "sha256": "c0dce6ebd0bb7fe9f0e5161148784a6bb91ba77be313f3b58b64e84824cae142"
+      },
+      {
+        "path": "src/model/tests.rs",
+        "sha256": "5c7fc87bf099a9f097a6c23909d1d21e8ac91df8a73d51ae9aa16489b717947f"
+      },
+      {
+        "path": "src/ocr.rs",
+        "sha256": "729fe296387a88bbaa9a40bffc883150b2e8770c09d2b094741c7c30b2e88cef"
+      },
+      {
+        "path": "src/onnx.rs",
+        "sha256": "561227412d6aff20ad6a4bd7eaf5589b9a87e7c513cd18ffbe4b6cef6655e01e"
+      },
+      {
+        "path": "src/orientation.rs",
+        "sha256": "7874d08b472278076c215f35a7bb39f8f034a6eed96dc7501eaed32a4c5a229b"
+      },
+      {
+        "path": "src/pixel_kernels.rs",
+        "sha256": "b83d3cdb27101194fbf13aeb10dba3210d5b9a8daf9f7acf03ab86a9cecec0ee"
+      },
+      {
+        "path": "src/pixel_kernels/threshold_tests.rs",
+        "sha256": "e4c001517baebc8b71d7cf4cf4bbd1980e39b5509b0d2d5f565aa6212556a2d5"
+      },
+      {
+        "path": "src/preprocess.rs",
+        "sha256": "dd4392a4e4234c6c7e7e2e9beefe6b025884cb3169e75238485a53318a282349"
+      },
+      {
+        "path": "src/profile.rs",
+        "sha256": "1719e869183be492515c1cdc39040cea4119a33cdb0f43025d42adaa8d207be4"
+      },
+      {
+        "path": "src/profile/tests.rs",
+        "sha256": "7984a343fe312de85caf11aaa8cb7b6d61726aaac78a266ff51cc800803e64e6"
+      },
+      {
+        "path": "src/projection.rs",
+        "sha256": "9016b3263498109a67530c6d68e642702d7c62cdd3639ff36efc2cf26c66c4b3"
+      },
+      {
+        "path": "src/recognizer.rs",
+        "sha256": "84a3c240c7795ce25aae1424ed33163371f7b12a270239c9a4f4583241be1070"
+      },
+      {
+        "path": "src/runtime.rs",
+        "sha256": "6485d7b7211f6ad93fd67474bd5fae96417456453acb12c85709e0198e537185"
+      },
+      {
+        "path": "src/runtime/kernels.rs",
+        "sha256": "43ece5b370405736f752ef8c3ced5238c6267831482a092e14527a46ece79471"
+      },
+      {
+        "path": "src/runtime/nchw.rs",
+        "sha256": "e87f1c774e7fadde5e1c91942abfc542dee218ef515d8077d1a4ad2afb558c90"
+      },
+      {
+        "path": "src/runtime/nchw/native.rs",
+        "sha256": "f7c2921913336dcdfe406154d0739351cd071b0cbffc14a5330478828a4a03f5"
+      },
+      {
+        "path": "src/runtime/nchw/pad_end2.rs",
+        "sha256": "c08d7cfde16eade104af5a19250e53929592c21e1c6ca93d6ecece05aacad818"
+      },
+      {
+        "path": "src/runtime/nchw/pointwise_spatial.rs",
+        "sha256": "d1ecbe7be5014888ad3fd613dda20eaf205bdb21d0403ad9450f270528e58347"
+      },
+      {
+        "path": "src/runtime/nchw/reduce3.rs",
+        "sha256": "61f712a9e0c5d8a5ac26d50c20e9b175cee616b473c3de9290de8428ea2ec1c4"
+      },
+      {
+        "path": "src/runtime/nchw/stride2.rs",
+        "sha256": "64033c2c23c57ccc1fdc2f314a31d886ecc8c03d0ea7aeed9d2c948b0d525ad5"
+      },
+      {
+        "path": "src/runtime/nchw/tests.rs",
+        "sha256": "5f474a6f120dee40d2a29894b9ef7d477f15fc53044d5ff5ba86d5f9a6931f35"
+      },
+      {
+        "path": "src/runtime/nchw/tests/packed3_band_plan.rs",
+        "sha256": "b8418d4a2b1dba77ea0bb2d34d3d8afd11b65e09b3fbdb6fe344c6324b70aa62"
+      },
+      {
+        "path": "src/runtime/nchw/tests/packed3_border.rs",
+        "sha256": "2a13b56a241a6eee97df0fd05ce084b655914ab2dd89c58605e238667755a207"
+      },
+      {
+        "path": "src/runtime/nchw/tests/packed3_envelope.rs",
+        "sha256": "dbd25a715412fdb23e585d466c8c66285f03200b0cd6f49a9a3c749d54877fb9"
+      },
+      {
+        "path": "src/runtime/nchw/tests/packed3_packets.rs",
+        "sha256": "0988311b2c5533ff6ce8a43f1c75aade32b6f240cef05c1b599c838944fe56b3"
+      },
+      {
+        "path": "src/runtime/nchw/tests/packed3_recursive_order.rs",
+        "sha256": "d50b9d0d870c57180154e1fb9860db2e5bc1d9e924eebce5340e61e4001420a5"
+      },
+      {
+        "path": "src/runtime/nchw/tests/pair16.rs",
+        "sha256": "cb105cb99530b923cc1d934b0dc7615d5e9a946016951218dab083c9447e0fd3"
+      },
+      {
+        "path": "src/runtime/nchw/tests/pointwise_spatial.rs",
+        "sha256": "a8dbb0b5c83f400a5e86084fa1812a88932a3cfaafd813ffd068942c331a485d"
+      },
+      {
+        "path": "src/runtime/nchw/tests/stride2_band_plan.rs",
+        "sha256": "68bcda828b89862c33680116bd1664d7880909964f7a7d5a89ca16e40c76cc46"
+      },
+      {
+        "path": "src/runtime/nchw/tests/stride2_contract.rs",
+        "sha256": "d45b9c5dfdd064fafe9991082a56f99a263f612f5a6fb4c689a8dffb4baa2366"
+      },
+      {
+        "path": "src/runtime/nhwc.rs",
+        "sha256": "9ae4c17b7fc6b4ba77e5638199764312a05e1f80bb62d3b06a68a57741b71fe3"
+      },
+      {
+        "path": "src/runtime/nhwc/concat.rs",
+        "sha256": "bcea40e94d67b22ee700f3e4d64e63805a8f45afe450d9dc5440d6512c9ff0b2"
+      },
+      {
+        "path": "src/runtime/nhwc/dense.rs",
+        "sha256": "02f68e013937fac46706741684aae01f864c22528ffce471516dc8f6db2e6739"
+      },
+      {
+        "path": "src/runtime/nhwc/dense/interior.rs",
+        "sha256": "0f289bdd71ae26ce463aa972e558d982bb4970d4c55816ed4d5883ea57239bb0"
+      },
+      {
+        "path": "src/runtime/nhwc/dense/neon_tests.rs",
+        "sha256": "334af418f0258a8b6f4123b381652812998553e77fdd6a1f52c29246db00eb32"
+      },
+      {
+        "path": "src/runtime/nhwc/dense/portable_tests.rs",
+        "sha256": "1a2c55e35a035b9d34cb4f7d8708842e0cf87292457609e8ca98921bb9625a30"
+      },
+      {
+        "path": "src/runtime/nhwc/misc.rs",
+        "sha256": "20e7e50cee40932dffc9acc096a10fa180beeafdf5373d9fa8dd7c91dc2301ef"
+      },
+      {
+        "path": "src/runtime/nhwc/misc/resize_tests.rs",
+        "sha256": "87e76fb033df38da7e5bbfb316d29f912d67f0694f14f133494797dc40740e1f"
+      },
+      {
+        "path": "src/runtime/nhwc/neon_depthwise.rs",
+        "sha256": "a9bba8128a0fdc923fe048ab312a4cdcebd80dd651737e7511903c2e26465dd6"
+      },
+      {
+        "path": "src/runtime/nhwc/neon_depthwise/strip.rs",
+        "sha256": "f73170186b1b532bd62e57e5ce0d523092929035982c8a6e98428f986ecb1531"
+      },
+      {
+        "path": "src/runtime/nhwc/neon_depthwise/tests/benchmark.rs",
+        "sha256": "c4589800a289274396197fe788c0f59c684e8c99e2e5005409f3445d36700b0c"
+      },
+      {
+        "path": "src/runtime/nhwc/parallel_tests.rs",
+        "sha256": "444acd3737f2b67b44063207afe4f7ddc91a67f53fca020d5fd537d9a7fb7d02"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise.rs",
+        "sha256": "1834d6d2ae6acd79b5285d134a8ff5ce8c0855e11a0ce1c171ceafcf3260ab35"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise/avx2.rs",
+        "sha256": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise/avx2/tests.rs",
+        "sha256": "3b77258f78e13833722ffbf1bda7762135b93218bc2062ed887490fe575ea234"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise/large_channel_tests.rs",
+        "sha256": "62ae1a9ce494e7a6ae01dce8f56010fb07ff8171653086a07cb18955591ad9e1"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise/neon_bench.rs",
+        "sha256": "66bca0335e0875ae2d5b3a9a696577edf2e05cde67a83b5a6678c124317a2075"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise/neon.rs",
+        "sha256": "e41ae7ad614274b3d4bb18ad93a6f1c31cb0461d67e5c5e4f2e703ce29b3d289"
+      },
+      {
+        "path": "src/runtime/nhwc/pointwise/tests.rs",
+        "sha256": "da1323c01887720d0b8148724a5bf8bf57949156e6daad3c0ef57e684af10b5b"
+      },
+      {
+        "path": "src/runtime/nhwc/row_policy_tests.rs",
+        "sha256": "133457221f4bc0300a598e19623913d59bf80605ee57d9e485c8b97315ff260c"
+      },
+      {
+        "path": "src/runtime/nhwc/strip.rs",
+        "sha256": "bb05cd30784167aba32ccdb961eb21c5648b2f4f16dc14522a51a88c67fd290a"
+      },
+      {
+        "path": "src/runtime/nhwc/strip/tests.rs",
+        "sha256": "a322d35af516b65f4e0ce5202c311f225674260231a11281f2e57e7207183ea3"
+      },
+      {
+        "path": "src/runtime/nhwc/tests.rs",
+        "sha256": "2dac271c6a26ef2a4a45d583cf10788bc404946272e6d6731e75f667a1710603"
+      },
+      {
+        "path": "src/runtime/nhwc/tests/performance.rs",
+        "sha256": "69dfb38bb6d1d4a78a022d845f4abb78189ab829ed188982189d58f470498f0a"
+      },
+      {
+        "path": "src/runtime/nhwc/transpose.rs",
+        "sha256": "893b4309dd8e160773449ad0e55c7f16cdcc1a332d144b176d58217675c93e67"
+      },
+      {
+        "path": "src/runtime/nhwc/transpose/tests.rs",
+        "sha256": "75109a58826fc374eb1a44ce1a997fad6b79a1d98c9be11448910049d4a901a3"
+      },
+      {
+        "path": "src/runtime/optimized.rs",
+        "sha256": "dd81a4a082f77ac0a9756e87ff76cca83b2973d2119686af8ba1eed47a2df26e"
+      },
+      {
+        "path": "src/runtime/optimized/elementwise_alias.rs",
+        "sha256": "8a7eede001c84b1e6ab6b1e34f0243c1bab2eacc1d67d15ca023fcdde879e4d8"
+      },
+      {
+        "path": "src/runtime/optimized/layout.rs",
+        "sha256": "df192742bcad6e2004b473901d17faf705d5d868cf1cf77edc6e25d3c64f5d59"
+      },
+      {
+        "path": "src/runtime/optimized/layout/tests.rs",
+        "sha256": "8514cd6cf129a9e8cc5ef61d35fd9d38a43e0de357b68b851df417c610161f02"
+      },
+      {
+        "path": "src/runtime/optimized/semantic.rs",
+        "sha256": "858a886115110d36bef856323ee8788461ba4d847d6a9012e6cac5b9383816cb"
+      },
+      {
+        "path": "src/runtime/optimized/store.rs",
+        "sha256": "5bc40c3ecea0d5a67df1e465e1bb80e9b656ae8e1d0dd7c3f7f8c4bfcdb317ef"
+      },
+      {
+        "path": "src/runtime/optimized/store/tests.rs",
+        "sha256": "279fe21bdeebba19790f245a435c5ce0f6f88c09b12f56b3f4c1326ec1f04201"
+      },
+      {
+        "path": "src/runtime/optimized/tests.rs",
+        "sha256": "b7cff8bbdb87b0ed79e5d2bff8971abd225a4d2dcbc4ae6d80318576155600ca"
+      },
+      {
+        "path": "src/runtime/optimized/tests/alias.rs",
+        "sha256": "210da7cdca4a524bbba8c68eea920a1b987be88de04bf3acdd2abef51fa77020"
+      },
+      {
+        "path": "src/runtime/optimized/tests/concat.rs",
+        "sha256": "ca73578078a2a0dc97cdfd0ca48a9c6a58046a8fd82c1ce77009df716108a330"
+      },
+      {
+        "path": "src/runtime/optimized/tests/elementwise_alias.rs",
+        "sha256": "88cead27c092a3e47aa5889f847487374c1ba7fa8f00582545bd0207c8ac5e1f"
+      },
+      {
+        "path": "src/runtime/optimized/tests/nchw_epilogue.rs",
+        "sha256": "5cd73f6fe3a63779b15891eeba9a50796f011304104e28cbb26d22dd8f045ef8"
+      },
+      {
+        "path": "src/runtime/optimized/tests/performance.rs",
+        "sha256": "da122991a9b5ecde713ff0da7f0091b53430ef6a19c23cb3706f171dad722cd8"
+      },
+      {
+        "path": "src/runtime/optimized/tests/placement.rs",
+        "sha256": "7eb5604e45ff787286fcbde3a9b9291b79b7e8f506940b7743b1bed611becc60"
+      },
+      {
+        "path": "src/runtime/optimized/tests/selection_policy.rs",
+        "sha256": "37f9909814cb0aa52a47de9d74d8b59629f0df51f9cc2dd45eb77c3457bc50b4"
+      },
+      {
+        "path": "src/runtime/optimized/tests/semantic.rs",
+        "sha256": "fd369844f05a5fb916454baf46276d539c29379831a7daa8e0358ccea875ae60"
+      },
+      {
+        "path": "src/runtime/packing.rs",
+        "sha256": "aa2dbac843e7a53c519e116b465d17236781e64d4f4e64a4d159e8c039762435"
+      },
+      {
+        "path": "src/runtime/parallel.rs",
+        "sha256": "e389c552802120d717724ddc7a746cb4870e46a13265a44ac73da58b507885d7"
+      },
+      {
+        "path": "src/runtime/parallel/tests.rs",
+        "sha256": "ec50b91998f299ad06024086fd95aa23ff03ae139d7e25f45261cceee43927fe"
+      },
+      {
+        "path": "src/runtime/shapes.rs",
+        "sha256": "8ffef503f2b4b6d86742ec447a55d140c3a3ce92b9881976127a3c1e4814acb2"
+      },
+      {
+        "path": "src/runtime/simd.rs",
+        "sha256": "760f38534cebdef4dc42ae443d491a11cfb6328b8f34d03e3391aefbf7518f33"
+      },
+      {
+        "path": "src/runtime/simd/activation.rs",
+        "sha256": "0fd57c2ac022f33c547f0d5bd6106a8b5f92a9ce37af5a00863ab1a763c30d51"
+      },
+      {
+        "path": "src/runtime/simd/argmax.rs",
+        "sha256": "a1997907152a7f5eb337ee2d5e3b9d4bd0580e6b74e34fcf57d31361aeef5095"
+      },
+      {
+        "path": "src/runtime/simd/argmax/portable_tests.rs",
+        "sha256": "5e1eeccd5d2bb71a3236b697ba0103130564b2b78553bc343a057728403306d0"
+      },
+      {
+        "path": "src/runtime/simd/columns.rs",
+        "sha256": "ea478f9a5eb1e0100ea71a15ec365df073356dcf1b8825dbc86ce1657e17d49e"
+      },
+      {
+        "path": "src/runtime/simd/columns/portable_tests.rs",
+        "sha256": "ecd7f74ebc12259b3182d56fd0b684d367387ff10224b8882192c717ecd5057e"
+      },
+      {
+        "path": "src/runtime/simd/matrix.rs",
+        "sha256": "1fb36841ce0c63a4b484d60b8de3fe448af102c8fc2b9eadbeb67a8822cac5df"
+      },
+      {
+        "path": "src/runtime/simd/neon.rs",
+        "sha256": "f008a4d991492d2cd49a91befcabc51cbe49dc32f4e4c299973d4d801dff784f"
+      },
+      {
+        "path": "src/runtime/simd/neon/tests.rs",
+        "sha256": "8960b5a3241a2594688d07a628afd69b59df66f4cf2f61836c45b35c3821206a"
+      },
+      {
+        "path": "src/runtime/simd/parallel.rs",
+        "sha256": "868f0a3d9db47a05423fe33af73b4d7162b2abb571a9e182ab8445bcd02224dd"
+      },
+      {
+        "path": "src/runtime/simd/portable_softmax_tests.rs",
+        "sha256": "748cf3557e4cc180f2d56a76e17d45ffc569c914e58150bd8353a2773e4b1828"
+      },
+      {
+        "path": "src/runtime/simd/tensor.rs",
+        "sha256": "ae5e6e257b876074f22e745fd4d656645e5af8df97a05fceb1cf0090f713a5cf"
+      },
+      {
+        "path": "src/runtime/simd/transcendental.rs",
+        "sha256": "9c42a7dc4b375573ab746252eb7ce7b51378426b8b844a9ca4e59a0ec6d9ebd3"
+      },
+      {
+        "path": "src/runtime/simd/unary_policy_tests.rs",
+        "sha256": "84ff8406b7fb591a16256bd03c19129741d291707ca9d0b8b4b6d0075dd6e094"
+      },
+      {
+        "path": "src/tensor.rs",
+        "sha256": "58e526a73e517ded2418e0b7f2759d6b6d75bdb117ace08cba10bbdec70c8d3a"
+      },
+      {
+        "path": "tools/baseline/mod.rs",
+        "sha256": "344e3c88b6daae059f84d7ac15e26cdf532d4f58e31b744ec66d42366e155044"
+      },
+      {
+        "path": "tools/benchmark/mod.rs",
+        "sha256": "e68ce33a5cea58078a88e848099f5c78218d1c7441247b9dea2c3870cda394ef"
+      },
+      {
+        "path": "tools/benchmark/platform.rs",
+        "sha256": "467051d8d9371b536b13a869378ecb170eeb1ac25c22156efa025c149495b5e7"
+      },
+      {
+        "path": "tools/csharp-benchmark/Benchmark.csproj",
+        "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+      },
+      {
+        "path": "tools/csharp-benchmark/global.json",
+        "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+      },
+      {
+        "path": "tools/csharp-benchmark/ProcessMetrics.cs",
+        "sha256": "730414c1a6651b6d251e5237460989822443c617187e24e3b9c8a32932d64a62"
+      },
+      {
+        "path": "tools/csharp-benchmark/Program.cs",
+        "sha256": "c8e6da7d9a4906e64f8dde717f8081de2031af7d13ca5182b874c68228afe4d0"
+      },
+      {
+        "path": "tools/csharp-profile/global.json",
+        "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+      },
+      {
+        "path": "tools/csharp-profile/KernelProbe.cs",
+        "sha256": "f7cfd48fd4b2d0195cf8dd6465dea60db119f74d0154048c6cc841246c29914a"
+      },
+      {
+        "path": "tools/csharp-profile/NodeProbe.cs",
+        "sha256": "b957f0dec036a511512807a392d106c7c6ac71019a4a3afe14d9215b4f149ce1"
+      },
+      {
+        "path": "tools/csharp-profile/Program.cs",
+        "sha256": "f8be43163263121605bb9262cfeaa370b5686e0b5c83412021de4b5d1ecf9402"
+      },
+      {
+        "path": "tools/csharp-profile/README.md",
+        "sha256": "06a1bf9f6c26d4514aa4787d4b808a2d0302b17be06e4fe5295f5510107910b3"
+      },
+      {
+        "path": "tools/csharp-profile/Sdcb.SimdPaddleOCR.Benchmarks.csproj",
+        "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+      },
+      {
+        "path": "tools/csharp-qualification/global.json",
+        "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+      },
+      {
+        "path": "tools/csharp-qualification/Program.cs",
+        "sha256": "7ed1a3a13e1fe94573a80c2fbb872e2a79edd7175b9e355c019344ac18b34ec2"
+      },
+      {
+        "path": "tools/csharp-qualification/Qualification.csproj",
+        "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+      },
+      {
+        "path": "tools/csharp-reference/global.json",
+        "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+      },
+      {
+        "path": "tools/csharp-reference/Program.cs",
+        "sha256": "940955a34940f7003258c15dbfb2a0f24cdae30b1acda4f528a8953797e7989f"
+      },
+      {
+        "path": "tools/csharp-reference/Reference.csproj",
+        "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+      },
+      {
+        "path": "tools/fetch-baseline-corpus.ps1",
+        "sha256": "1e0a2a241ae53849b008b37d8e32295dde988ef0d17b1c8d98cff43ad1209f03"
+      },
+      {
+        "path": "tools/harness/mod.rs",
+        "sha256": "ef797c623cd4ed51334b0bf7a1662fd47cd2318e9c0c63a8bb1ca3eb88bdff0f"
+      },
+      {
+        "path": "tools/qualification/mod.rs",
+        "sha256": "2c2daddaa452e59e7774193df5e7b9c953705b1a725e98fbd33657f73a71865d"
+      },
+      {
+        "path": "tools/validate-macos.sh",
+        "sha256": "8952e3f2b33d390ea3449ee1c4d3d2ce92cea51c97ffa4cf630470b37fe6adba"
+      }
+    ],
+    "source_diff": "diff --git a/src/cpu.rs b/src/cpu.rs\r\nindex c6427ba..1fe826b 100644\r\n--- a/src/cpu.rs\r\n+++ b/src/cpu.rs\r\n@@ -132,6 +132,8 @@ impl CpuBudgets {\r\n \r\n     /// AVX2/FMA and native ARM recognition benefit from independent lines\r\n     /// instead of nested kernels when a complete eight-unit wave is available.\r\n+    /// On Windows AVX2, dense pages on 24–31-thread contexts use sixteen\r\n+    /// single-threaded owners to avoid three-way nested kernel scheduling.\r\n     /// Depend only on page geometry and configuration, never on request timing:\r\n     /// stable ownership keeps worker-private shape caches and arenas reusable.\r\n     pub(crate) fn for_recognition_units(\r\n@@ -147,9 +149,18 @@ impl CpuBudgets {\r\n         {\r\n             return self;\r\n         }\r\n+        let owners = if cfg!(all(target_os = \"windows\", target_arch = \"x86_64\"))\r\n+            && backend == Backend::Avx2Fma\r\n+            && (24..32).contains(&self.capacity)\r\n+            && units >= 32\r\n+        {\r\n+            16\r\n+        } else {\r\n+            8\r\n+        };\r\n         Self {\r\n-            line_workers: 8,\r\n-            recognizer_base_threads: (self.capacity / 8).clamp(1, 8),\r\n+            line_workers: owners,\r\n+            recognizer_base_threads: (self.capacity / owners).clamp(1, 8),\r\n             ..self\r\n         }\r\n     }\r\n@@ -447,9 +458,9 @@ mod tests {\r\n \r\n     #[test]\r\n     fn automatic_recognition_expands_only_supported_complete_eight_unit_waves() {\r\n-        for capacity in [1, 4, 7, 8, 10, 16, 24, 32] {\r\n+        for capacity in [1, 4, 7, 8, 10, 16, 23, 32, 48] {\r\n             let base = CpuOptions::default().resolve(capacity, true).unwrap();\r\n-            for units in [0, 1, 4, 7, 8, 9, 69] {\r\n+            for units in [0, 1, 4, 7, 8, 9, 31, 32, 33, 69] {\r\n                 for backend in [Backend::NeonFma, Backend::Avx2Fma] {\r\n                     assert_eq!(base.for_recognition_units(units, false, backend), base);\r\n                     let selected = base.for_recognition_units(units, true, backend);\r\n@@ -479,12 +490,12 @@ mod tests {\r\n                 }\r\n             }\r\n         }\r\n-        for line_workers in [1, 2, 4, 8, 16] {\r\n+        for line_workers in [1, 2, 4, 8, 12, 16] {\r\n             let explicit = CpuOptions {\r\n                 line_workers,\r\n                 ..Default::default()\r\n             }\r\n-            .resolve(8, true)\r\n+            .resolve(24, true)\r\n             .unwrap();\r\n             for backend in [Backend::NeonFma, Backend::Avx2Fma] {\r\n                 assert_eq!(explicit.for_recognition_units(69, false, backend), explicit);\r\n@@ -492,6 +503,39 @@ mod tests {\r\n         }\r\n     }\r\n \r\n+    #[test]\r\n+    fn dense_windows_avx2_ownership_has_bounded_capacity_and_geometry() {\r\n+        let windows_avx2 = cfg!(all(target_os = \"windows\", target_arch = \"x86_64\"));\r\n+        for (capacity, units, windows_owners) in [\r\n+            (23, 32, 8),\r\n+            (24, 31, 8),\r\n+            (24, 32, 16),\r\n+            (24, 69, 16),\r\n+            (31, 32, 16),\r\n+            (32, 32, 8),\r\n+        ] {\r\n+            let base = CpuOptions::default().resolve(capacity, true).unwrap();\r\n+            let selected = base.for_recognition_units(units, true, Backend::Avx2Fma);\r\n+            let owners = if windows_avx2 { windows_owners } else { 8 };\r\n+            assert_eq!(selected.line_workers, owners);\r\n+            assert_eq!(selected.recognizer_base_threads, capacity / owners);\r\n+            assert_eq!(selected.preprocess_workers, base.preprocess_workers);\r\n+            assert_eq!(selected.detector_threads, base.detector_threads);\r\n+            for share in [1, 8, 16, capacity] {\r\n+                assert!(\r\n+                    selected.recognizer_threads_for_capacity(units, share) <= capacity / owners\r\n+                );\r\n+                assert_eq!(selected.line_workers, owners);\r\n+            }\r\n+            let neon = base.for_recognition_units(units, true, Backend::NeonFma);\r\n+            assert_eq!(neon.line_workers, 8);\r\n+            assert_eq!(\r\n+                base.for_recognition_units(units, false, Backend::Avx2Fma),\r\n+                base\r\n+            );\r\n+        }\r\n+    }\r\n+\r\n     #[test]\r\n     fn request_shares_reduce_nested_work_without_reassigning_lines() {\r\n         let budgets = CpuOptions::default().resolve(8, true).unwrap();\r\ndiff --git a/src/ocr.rs b/src/ocr.rs\r\nindex 895e1e5..5e4a0ec 100644\r\n--- a/src/ocr.rs\r\n+++ b/src/ocr.rs\r\n@@ -1960,6 +1960,136 @@ pub(crate) mod tests {\r\n         );\r\n         assert_eq!(parallel.cpu_budgets().line_workers(), 2);\r\n     }\r\n+    #[cfg(all(feature = \"parallel\", target_arch = \"x86_64\", target_os = \"windows\"))]\r\n+    #[test]\r\n+    fn automatic_sixteen_recognition_owners_reuse_storage_across_page_and_budget_changes() {\r\n+        let mut serial = synthetic_ocr(CpuContext::serial());\r\n+        if serial.recognizer.compiled().backend() != crate::runtime::Backend::Avx2Fma {\r\n+            return;\r\n+        }\r\n+        let cpu = Arc::new(CpuContext::new(24).unwrap());\r\n+        let mut parallel = serial.fork().unwrap();\r\n+        parallel.set_cpu_context(cpu.clone()).unwrap();\r\n+        let mut pixels = vec![0; 96 * 96 * 3];\r\n+        for row in 0..6 {\r\n+            for column in 0..6 {\r\n+                let top = 5 + row * 15;\r\n+                let left = 5 + column * 15;\r\n+                for y in top..top + 6 {\r\n+                    for x in left..left + 9 {\r\n+                        pixels[(y * 96 + x) * 3..(y * 96 + x) * 3 + 3].fill(255);\r\n+                    }\r\n+                }\r\n+            }\r\n+        }\r\n+        let dense = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();\r\n+        let expected = serial.run(dense, true).unwrap().try_to_owned().unwrap();\r\n+        assert_eq!(expected.lines.len(), 36);\r\n+        assert!(expected.lines.iter().all(|line| {\r\n+            !line.text.is_empty()\r\n+                && line.recognition_tensor_width == expected.lines[0].recognition_tensor_width\r\n+        }));\r\n+        assert_eq!(\r\n+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);\r\n+        assert_eq!(parallel.cpu_budgets().recognizer_base_threads(), 1);\r\n+        assert_eq!(parallel.workers.len(), 16);\r\n+        let storage = |request: &Ocr| {\r\n+            request\r\n+                .workers\r\n+                .iter()\r\n+                .map(|worker| {\r\n+                    (\r\n+                        worker.jobs.clone(),\r\n+                        worker.jobs.as_ptr(),\r\n+                        worker.jobs.capacity(),\r\n+                        worker.recognizer.retained_activation_bytes(),\r\n+                        worker.recognizer.retained_workspace_bytes(),\r\n+                    )\r\n+                })\r\n+                .collect::<Vec<_>>()\r\n+        };\r\n+        let warmed = storage(&parallel);\r\n+        let waiting = cpu.register_request();\r\n+        assert_eq!(\r\n+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);\r\n+        assert_eq!(storage(&parallel), warmed);\r\n+        drop(waiting);\r\n+\r\n+        let sparse_pixels = two_lines();\r\n+        let sparse = ImageView::new(&sparse_pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();\r\n+        let sparse_expected = serial.run(sparse, true).unwrap().try_to_owned().unwrap();\r\n+        assert_eq!(\r\n+            parallel.run(sparse, true).unwrap().try_to_owned().unwrap(),\r\n+            sparse_expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 4);\r\n+        assert_eq!(parallel.workers.len(), 16);\r\n+        assert_eq!(\r\n+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);\r\n+\r\n+        // Thirty-six lines become eighteen equal-width batches. The policy\r\n+        // counts these indivisible jobs rather than the number of text boxes.\r\n+        parallel.set_recognition_batch_size(2).unwrap();\r\n+        assert_eq!(\r\n+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 8);\r\n+        assert_eq!(parallel.workers.len(), 16);\r\n+        assert_eq!(\r\n+            parallel.workers[..8]\r\n+                .iter()\r\n+                .map(|worker| worker.jobs.len())\r\n+                .sum::<usize>(),\r\n+            18\r\n+        );\r\n+        assert!(\r\n+            parallel.workers[..8]\r\n+                .iter()\r\n+                .flat_map(|worker| &worker.jobs)\r\n+                .all(|job| job.len() == 2)\r\n+        );\r\n+        parallel.set_recognition_batch_size(1).unwrap();\r\n+        assert_eq!(\r\n+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);\r\n+        // Sparse and batched shapes may legitimately grow private buffers.\r\n+        // After visiting those shapes, a failed result-budget attempt and its\r\n+        // successful retry must retain the same owners and storage capacities.\r\n+        let warmed = storage(&parallel);\r\n+        let activation_bytes = parallel.retained_activation_bytes();\r\n+        let workspace_bytes = parallel.retained_workspace_bytes();\r\n+        let limit = parallel.options.max_total_result_bytes;\r\n+        parallel.options.max_total_result_bytes =\r\n+            expected.lines.len() * size_of::<LineRecord>() + expected.lines.len() - 1;\r\n+        assert!(\r\n+            parallel\r\n+                .run(dense, true)\r\n+                .unwrap_err()\r\n+                .to_string()\r\n+                .contains(\"max_total_result_bytes\")\r\n+        );\r\n+        parallel.options.max_total_result_bytes = limit;\r\n+        assert_eq!(\r\n+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(parallel.cpu_budgets().line_workers(), 16);\r\n+        assert_eq!(storage(&parallel), warmed);\r\n+        assert_eq!(parallel.retained_activation_bytes(), activation_bytes);\r\n+        assert_eq!(parallel.retained_workspace_bytes(), workspace_bytes);\r\n+    }\r\n     #[test]\r\n     fn factory_drops_the_warm_request_and_shares_only_immutable_configuration() {\r\n         let cpu = CpuContext::serial();\r\ndiff --git a/src/runtime/nhwc/pointwise.rs b/src/runtime/nhwc/pointwise.rs\r\nindex d6d6314..bf870e5 100644\r\n--- a/src/runtime/nhwc/pointwise.rs\r\n+++ b/src/runtime/nhwc/pointwise.rs\r\n@@ -271,7 +271,7 @@ fn wide<const LANES: usize, const FUSED: bool>(\r\n }\r\n \r\n /// A zero fixed group selects production's shape policy. Test-only controls\r\n-/// instantiate 48 directly; the six-row ISA reduction remains the same leaf.\r\n+/// can select a fixed group; the six-row ISA reduction remains the same leaf.\r\n #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))]\r\n #[allow(clippy::too_many_arguments)]\r\n #[inline(always)]\r\n@@ -328,7 +328,7 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>\r\n }\r\n \r\n /// Both halves of a paired diagnostic enter the same checked native wrapper.\r\n-/// `FIXED_GROUP=48` is the old policy; zero is the production adaptive policy.\r\n+/// Zero selects production; 48 is the old policy and 192 is a diagnostic only.\r\n #[cfg(all(test, any(target_arch = \"x86\", target_arch = \"x86_64\")))]\r\n pub(super) fn execute_group_control<const FIXED_GROUP: usize>(\r\n     input: &[f32],\r\n@@ -338,7 +338,7 @@ pub(super) fn execute_group_control<const FIXED_GROUP: usize>(\r\n     inner: usize,\r\n     columns: usize,\r\n ) {\r\n-    assert!(matches!(FIXED_GROUP, 0 | 48));\r\n+    assert!(matches!(FIXED_GROUP, 0 | 48 | 192));\r\n     assert!(simd::avx2_fma_available());\r\n     assert!(packed.matches(inner, columns));\r\n     assert_eq!(output.len() % columns, 0);\r\n@@ -558,5 +558,7 @@ fn narrow<const LANES: usize, const FUSED: bool>(\r\n     }\r\n }\r\n \r\n+#[cfg(all(test, target_arch = \"x86_64\"))]\r\n+mod large_channel_tests;\r\n #[cfg(test)]\r\n mod tests;\r\n",
+    "executable_sha256": "ced4362800196e27f8c9c8e66a6e6782c51470199fd697a8969939abc0815167",
+    "execution_order": [
+      "medium",
+      "small",
+      "tiny"
+    ],
+    "requested_owner_order": [
+      0,
+      8
+    ],
+    "warmups_per_configuration": 1,
+    "measured_runs_per_configuration": 3,
+    "internal_deadline_seconds": 15,
+    "external_maximum_deadline_seconds": 16,
+    "process_execution_seconds": 6.9306653,
+    "processes": [
+      {
+        "timestamp": "2026-10-17T18:09:03.6642643+08:00",
+        "prior_execution_budget_seconds": 6.13,
+        "process_execution_seconds": 0.8099314,
+        "result": {
+          "affinity": "ffffff",
+          "capture_ctc_spans": false,
+          "cases": [
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+              "line_workers": 0,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "process_peak_private_bytes": 89886720,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 18171904,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+              "retained_workspace_bytes": 14982563,
+              "samples_cpu_ms": [
+                515.625,
+                484.375,
+                765.625
+              ],
+              "samples_ms": [
+                46.333,
+                45.8605,
+                47.089800000000004
+              ],
+              "warmup_ms": 54.989999999999995
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 8,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 8,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "line_workers": 8,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "process_peak_private_bytes": 89886720,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 13027328,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+              "retained_workspace_bytes": 9600365,
+              "samples_cpu_ms": [
+                750.0,
+                921.875,
+                437.5
+              ],
+              "samples_ms": [
+                64.1929,
+                63.7682,
+                60.4793
+              ],
+              "warmup_ms": 73.52749999999999
+            }
+          ],
+          "complete_owned_outputs_exactly_equal": true,
+          "control_output_sha256": "6ad9b9675d0a8a460955c589b420b983872bf8b99f11730aef5efde281d1b53d",
+          "cpu_context_capacity": 24,
+          "execution_seconds": 0.7063613,
+          "fixture": "imgs_00018069",
+          "instrumented": false,
+          "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+          "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+          "measured_runs_per_configuration": 3,
+          "model": "tiny",
+          "order": [
+            0,
+            8
+          ],
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "recognized_lines": 69,
+          "warmups_per_configuration": 1
+        }
+      },
+      {
+        "timestamp": "2026-10-17T18:08:59.5601217+08:00",
+        "prior_execution_budget_seconds": 4.54,
+        "process_execution_seconds": 1.5818309,
+        "result": {
+          "affinity": "ffffff",
+          "capture_ctc_spans": false,
+          "cases": [
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+              "line_workers": 0,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "process_peak_private_bytes": 177995776,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 41314304,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+              "retained_workspace_bytes": 28681103,
+              "samples_cpu_ms": [
+                1765.625,
+                1828.125,
+                1390.625
+              ],
+              "samples_ms": [
+                123.1267,
+                123.9859,
+                121.9956
+              ],
+              "warmup_ms": 138.1515
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 8,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 8,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "line_workers": 8,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "process_peak_private_bytes": 177995776,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 26880000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+              "retained_workspace_bytes": 17946647,
+              "samples_cpu_ms": [
+                2640.625,
+                2421.875,
+                2734.375
+              ],
+              "samples_ms": [
+                157.9921,
+                168.29649999999998,
+                163.2967
+              ],
+              "warmup_ms": 169.2794
+            }
+          ],
+          "complete_owned_outputs_exactly_equal": true,
+          "control_output_sha256": "6119b5db3eac6e1bde3384a45802e00253bb872587c5fa2814019837f42c575b",
+          "cpu_context_capacity": 24,
+          "execution_seconds": 1.4645431,
+          "fixture": "imgs_00018069",
+          "instrumented": false,
+          "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+          "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+          "measured_runs_per_configuration": 3,
+          "model": "small",
+          "order": [
+            0,
+            8
+          ],
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "recognized_lines": 69,
+          "warmups_per_configuration": 1
+        }
+      },
+      {
+        "timestamp": "2026-10-17T18:08:54.163341+08:00",
+        "prior_execution_budget_seconds": 0.0,
+        "process_execution_seconds": 4.538903,
+        "result": {
+          "affinity": "ffffff",
+          "capture_ctc_spans": false,
+          "cases": [
+            {
+              "active_classifier_workers_derived_from_policy": 16,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 16,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+              "line_workers": 0,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+              "process_peak_private_bytes": 418299904,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 67004416,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+              "retained_workspace_bytes": 28885983,
+              "samples_cpu_ms": [
+                6250.0,
+                6140.625,
+                5718.75
+              ],
+              "samples_ms": [
+                416.5237,
+                438.97979999999995,
+                429.90869999999995
+              ],
+              "warmup_ms": 453.4468
+            },
+            {
+              "active_classifier_workers_derived_from_policy": 8,
+              "classifier_threads_per_worker": 1,
+              "classifier_worker_budget_derived_from_policy": 8,
+              "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "line_workers": 8,
+              "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+              "process_peak_private_bytes": 418299904,
+              "process_peak_resident_bytes": null,
+              "retained_activation_bytes": 49227776,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+              "retained_workspace_bytes": 18444533,
+              "samples_cpu_ms": [
+                7796.875,
+                7078.125,
+                6796.875
+              ],
+              "samples_ms": [
+                532.9312000000001,
+                474.8968,
+                501.45910000000003
+              ],
+              "warmup_ms": 471.827
+            }
+          ],
+          "complete_owned_outputs_exactly_equal": true,
+          "control_output_sha256": "6be33ee0ce32b5c047e7ce1b8ccd16bd1c03b0c92f591620c444b1d6a70a7488",
+          "cpu_context_capacity": 24,
+          "execution_seconds": 4.2038765,
+          "fixture": "imgs_00018069",
+          "instrumented": false,
+          "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+          "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+          "measured_runs_per_configuration": 3,
+          "model": "medium",
+          "order": [
+            0,
+            8
+          ],
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "recognized_lines": 69,
+          "warmups_per_configuration": 1
+        }
+      }
+    ],
+    "summary": [
+      {
+        "model": "tiny",
+        "baseline_automatic_owners": 8,
+        "final_automatic_owners": 16,
+        "classifier_workers_both": 16,
+        "baseline_median_ms": 57.0082,
+        "final_median_ms": 46.333,
+        "latency_reduction_percent": 18.725727176090466,
+        "observed_ranges_overlap": false,
+        "baseline_retained_activation_bytes": 15075328,
+        "final_retained_activation_bytes": 18171904,
+        "baseline_retained_workspace_bytes": 10994509,
+        "final_retained_workspace_bytes": 14982563,
+        "additional_retained_mib": 6.756429672241211,
+        "complete_owned_fields_equal_within_each_version": true,
+        "cross_version_complete_owned_digest_available": false
+      },
+      {
+        "model": "small",
+        "baseline_automatic_owners": 8,
+        "final_automatic_owners": 16,
+        "classifier_workers_both": 16,
+        "baseline_median_ms": 149.78289999999998,
+        "final_median_ms": 123.1267,
+        "latency_reduction_percent": 17.79655755096209,
+        "observed_ranges_overlap": false,
+        "baseline_retained_activation_bytes": 28928000,
+        "final_retained_activation_bytes": 41314304,
+        "baseline_retained_workspace_bytes": 19345511,
+        "final_retained_workspace_bytes": 28681103,
+        "additional_retained_mib": 20.715614318847656,
+        "complete_owned_fields_equal_within_each_version": true,
+        "cross_version_complete_owned_digest_available": false
+      },
+      {
+        "model": "medium",
+        "baseline_automatic_owners": 8,
+        "final_automatic_owners": 16,
+        "classifier_workers_both": 16,
+        "baseline_median_ms": 492.38280000000003,
+        "final_median_ms": 429.90869999999995,
+        "latency_reduction_percent": 12.688115831828418,
+        "observed_ranges_overlap": false,
+        "baseline_retained_activation_bytes": 51275776,
+        "final_retained_activation_bytes": 67004416,
+        "baseline_retained_workspace_bytes": 19848517,
+        "final_retained_workspace_bytes": 28885983,
+        "additional_retained_mib": 23.618799209594727,
+        "complete_owned_fields_equal_within_each_version": true,
+        "cross_version_complete_owned_digest_available": false
+      }
+    ],
+    "parity_scope": "Complete OwnedOcr field equality within each version/process across owner configurations, capture=false. Baseline did not export an owned-result control digest, so no direct complete-output comparison across executables is claimed. Final control digest now exported. Synthetic captured integration output equals serial.",
+    "performance_attribution": "Compare baseline automatic0 to final automatic0: classifier/preprocess/detector budgets remain16. Final explicit8 case changes classifiers to8 and is a correctness control, not an isolated recognition performance comparison.",
+    "memory_scope": "Fresh request per setting; activation+workspace excludes shared model weights and counts scratch only as workspace subset. Final automatic capacities equal baseline explicit16. Process peaks remain cumulative within a process.",
+    "scope": "Performance measured on capacity24 only. Capacities25..31 share the same budget arithmetic and are inferred; boundary correctness checked. Other platform/backend/capacity and explicit caps retain original policies."
+  },
+  "validation_checks": {
+    "cpu_policy_tests": {
+      "passed": 14,
+      "command": "cargo test --release --locked --lib cpu::tests -- --test-threads=1"
+    },
+    "new_integration_test": {
+      "passed": 1,
+      "name": "ocr::tests::automatic_sixteen_recognition_owners_reuse_storage_across_page_and_budget_changes",
+      "lines": 36,
+      "capture_ctc_spans": true,
+      "serial_owned_equality": true,
+      "checks": [
+        "sixteen owners and one base thread",
+        "waiting request demand preserves owners/jobs/storage",
+        "dense to sparse to dense",
+        "batch two gives eighteen units and eight owners",
+        "result-budget failure followed by successful reuse",
+        "retained activation/workspace plateau"
+      ],
+      "command": "cargo test --release --locked --lib automatic_sixteen_recognition_owners -- --test-threads=1"
+    },
+    "release_library_suite": {
+      "passed": 327,
+      "failed": 0,
+      "ignored": 12,
+      "seconds": 3.83,
+      "command": "cargo test --release --locked --lib -- --test-threads=1",
+      "log_sha256": "48033823497358ba60899d4a43316afacef7c15702bca8bf230ff759e2b968bc"
+    },
+    "formatting": "rustfmt --check --edition 2024 --config skip_children=true src/cpu.rs src/ocr.rs examples/cpu_owner_probe.rs",
+    "whitespace": "git diff --check",
+    "local_physical_machine_only": true,
+    "final_release_artifacts": {
+      "command": "cargo build --release --locked --lib --example cpu_benchmark",
+      "passed": true,
+      "benchmark_executable_sha256": "f082702827a90003abc21c05dc035cd3a947ece3ce13f7e2ef7d8e1c23573929",
+      "note": "refreshes normal library and benchmark artifacts after rejected experiments; no additional performance run"
+    }
+  }
+}

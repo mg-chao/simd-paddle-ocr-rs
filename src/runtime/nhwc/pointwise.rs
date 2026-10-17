@@ -271,7 +271,7 @@ fn wide<const LANES: usize, const FUSED: bool>(
 }
 
 /// A zero fixed group selects production's shape policy. Test-only controls
-/// instantiate 48 directly; the six-row ISA reduction remains the same leaf.
+/// can select a fixed group; the six-row ISA reduction remains the same leaf.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
@@ -328,7 +328,7 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>
 }
 
 /// Both halves of a paired diagnostic enter the same checked native wrapper.
-/// `FIXED_GROUP=48` is the old policy; zero is the production adaptive policy.
+/// Zero selects production; 48 is the old policy and 192 is a diagnostic only.
 #[cfg(all(test, any(target_arch = "x86", target_arch = "x86_64")))]
 pub(super) fn execute_group_control<const FIXED_GROUP: usize>(
     input: &[f32],
@@ -338,7 +338,7 @@ pub(super) fn execute_group_control<const FIXED_GROUP: usize>(
     inner: usize,
     columns: usize,
 ) {
-    assert!(matches!(FIXED_GROUP, 0 | 48));
+    assert!(matches!(FIXED_GROUP, 0 | 48 | 192));
     assert!(simd::avx2_fma_available());
     assert!(packed.matches(inner, columns));
     assert_eq!(output.len() % columns, 0);
@@ -558,5 +558,7 @@ fn narrow<const LANES: usize, const FUSED: bool>(
     }
 }
 
+#[cfg(all(test, target_arch = "x86_64"))]
+mod large_channel_tests;
 #[cfg(test)]
 mod tests;

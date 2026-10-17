@@ -169,7 +169,10 @@ workers. Zero selects automatic stage budgets; positive budgets are capped by
 the context capacity and 16. Automatic OCR starts with up to four recognition
 line workers. With AVX2/FMA or the native NEON backend, a context of at least
 eight workers and at least eight independent recognition units selects eight line workers
-and correspondingly less nested kernel parallelism. A same-width batch counts
+and correspondingly less nested kernel parallelism. Windows x64 AVX2/FMA contexts
+with 24–31 workers select sixteen single-threaded recognition owners when there
+are at least 32 units; see the [measured latency and memory tradeoff](windows-large-channel-optimization.md).
+A same-width batch counts
 as one unit. Selection depends on the page and configuration, so concurrent
 request timing does not change line ownership. `Ocr::cpu_budgets()` reports the
 selected budgets after a run. More line workers retain additional activation
