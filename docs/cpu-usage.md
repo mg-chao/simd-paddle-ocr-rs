@@ -167,13 +167,14 @@ contexts have independent capacities.
 `CpuOptions` controls maximum line workers, detector threads and preprocessing
 workers. Zero selects automatic stage budgets; positive budgets are capped by
 the context capacity and 16. Automatic OCR starts with up to four recognition
-line workers. With the native NEON backend, a context of at least eight workers
-and at least eight independent recognition units selects eight line workers
+line workers. With AVX2/FMA or the native NEON backend, a context of at least
+eight workers and at least eight independent recognition units selects eight line workers
 and correspondingly less nested kernel parallelism. A same-width batch counts
 as one unit. Selection depends on the page and configuration, so concurrent
 request timing does not change line ownership. `Ocr::cpu_budgets()` reports the
 selected budgets after a run. More line workers retain additional activation
-and workspace buffers; see the [measured ARM64 tradeoff](macos-arm64-recognition-optimization.md).
+and workspace buffers; see the measured [Windows AVX2/FMA](windows-avx2-recognition-scheduling.md)
+and [ARM64](macos-arm64-recognition-optimization.md) tradeoffs.
 Automatic classifiers can use up to sixteen single-threaded workers, bounded
 by the request's available CPU share. A positive `line_workers` bounds both stages.
 Standalone line extractors retain the default four-classifier maximum. Nested

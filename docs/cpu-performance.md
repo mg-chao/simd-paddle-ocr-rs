@@ -36,7 +36,7 @@ Expand only to answer a concrete outstanding qualification question. Rebuild aft
 ## Matched execution and measurements
 
 - `--order balanced` is the default. Order uses the parity of `model_index + thread_index + fixture_index`, with zero-based canonical models tiny/small/medium, threads 1/8, and fixtures sparse/dense/mixed as listed above. Even parity runs Rust first and odd parity runs C# first. Both workloads in a group receive the same order; filtering a workload or changing the selected fixture order cannot change an individual case's order. The full matrix has nine Rust-first and nine C#-first cases **per workload**, three of each order per model and per fixture, and a minimal five/four split per thread count. A focused selection may be unbalanced, and a single case has only one process order. `--order rust-first` and `--order csharp-first` select an explicit order for a separately justified investigation; the harness does not duplicate cases or automatically repeat a comparison to counterbalance it. Provenance records the strategy/rule, and each case records planned order and successfully spawned workers, including workers that subsequently fail. Budget-skipped workers are absent from actual order.
-- `--threads 1`: one line/preprocessing/detector worker. `--threads 8`: eight preprocessing workers and eight detector threads. Rust automatic recognition uses eight line workers on native NEON when there are at least eight independent recognition units; otherwise its base maximum is four. The automatic classifier stage may use eight workers. The pinned C# adapter uses four shared CLS/REC line workers. C# receives matching `DOTNET_PROCESSOR_COUNT`; Rust uses one shared context of the same nominal capacity. Rust's fixed pool enforces an aggregate worker cap across concurrent requests. C# retains per-request nested budgets without a global admission cap, so two requests may use more OCR workers in total. Windows also pins both processes to the same one or eight allowed logical CPUs before model setup. macOS is unbound: these settings do not establish equal enforced aggregate CPU use, and runtime/JIT/GC threads and OS scheduling remain outside the Rust OCR cap.
+- `--threads 1`: one line/preprocessing/detector worker. `--threads 8`: eight preprocessing workers and eight detector threads. Rust automatic recognition uses eight line workers on AVX2/FMA or native NEON when there are at least eight independent recognition units; otherwise its base maximum is four. The automatic classifier stage may use eight workers. The pinned C# adapter uses four shared CLS/REC line workers. C# receives matching `DOTNET_PROCESSOR_COUNT`; Rust uses one shared context of the same nominal capacity. Rust's fixed pool enforces an aggregate worker cap across concurrent requests. C# retains per-request nested budgets without a global admission cap, so two requests may use more OCR workers in total. Windows also pins both processes to the same one or eight allowed logical CPUs before model setup. macOS is unbound: these settings do not establish equal enforced aggregate CPU use, and runtime/JIT/GC threads and OS scheduling remain outside the Rust OCR cap.
 - Rust completes classification and rotation before the recognition wave. Stable line ownership, configured thread maxima and the fixed shared CPU pool apply to this staged pipeline. Earlier unconditional and capacity-aware CLS/REC overlap candidates were rejected; their focused results do not qualify the retained source.
 - On Windows, the automatic mask selects the first one or eight CPUs in the parent's current processor group. `--affinity HEX` pins an explicit mask whose bit count must equal the selected thread count; use a single `--threads` setting with this option. Processor topology, SMT and heterogeneous cores affect results; the exact mask or explicit unbound scheduling policy is stored with every job.
 - `--workload latency` produces one owned OCR result per batch. `--workload throughput` starts two concurrent requests sharing model weights, and reports their combined batch wall time. Throughput in images/second is `2000 / median_ms`. Thread startup and synchronization count equally in both implementations.
@@ -69,10 +69,10 @@ cargo run --release --locked --features profiling --example cpu_profile -- tiny 
 This helper uses the pinned local models/fixtures, one warm-up and one profiled
 run. An optional fourth positional argument sets `CpuOptions.line_workers`:
 `0` (default) keeps automatic classifiers independent of recognition ownership,
-including the native NEON eight-unit policy; a positive limit bounds both stages.
+including the AVX2/FMA and native NEON eight-unit policy; a positive limit bounds both stages.
 For example, compare
 `tiny imgs_00018069 8 4` with `tiny imgs_00018069 8 0` to diagnose the classifier
-budget; with the eight-unit NEON policy this also changes recognition ownership,
+budget; with the eight-unit policy this also changes recognition ownership,
 so the comparison no longer isolates classifier scheduling. It reports fused production stage
 counters and a retained activation breakdown. Worker-work counters can exceed wall time and are not an additive
 decomposition of total latency. Instrumented timings are diagnostic evidence;
@@ -152,3 +152,19 @@ The [ARM64 follow-up record](macos-arm64-followup-optimization.md) covers select
 9x9 depthwise row strips, SIMD detector threshold output, and shared graph-use
 indexes. It separates fixed-count stage diagnostics from a twelve-cell comparison
 against the frozen Rust baseline and preserves overlapping timing ranges.
+
+The [Windows stage analysis](windows-cpu-stage-analysis.md) records baseline
+production stage timings on sparse, dense and mixed-width inputs, serial fused
+recognition-kernel diagnostics, and a focused Tiny/dense scheduling comparison.
+The accompanying `cpu_scheduling_probe` example compares automatic and eight-line
+scheduling with one warm-up and three owned-result calls per configuration,
+requiring exact output equality. Its single process order and workload do not
+qualify a global scheduling-policy change; the report preserves its memory cost
+and keeps these samples separate from the Rust/C# benchmark.
+
+The [Windows AVX2/FMA adoption record](windows-avx2-recognition-scheduling.md)
+validates the automatic eight-unit policy with a frozen baseline and a rebuilt
+candidate across seven cases. On the adopted implementation, the scheduling
+probe's automatic and explicit-eight configurations select the same recognition
+policy for eligible pages; use separate revisions to reproduce the old/new
+comparison.

@@ -463,8 +463,8 @@ fn rust_worker(job: &Job) -> Result<()> {
         .builder()
         .cpu_context(Arc::new(CpuContext::new(capacity)?))
         .cpu_options(CpuOptions {
-            // Keep production automatic scheduling, including eight NEON
-            // recognition owners when enough independent units are available.
+            // Keep production automatic scheduling, including eight AVX2/FMA
+            // or NEON owners when enough independent units are available.
             line_workers: 0,
             preprocess_workers: capacity,
             detector_threads: capacity,

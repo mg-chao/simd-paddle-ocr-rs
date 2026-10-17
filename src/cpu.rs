@@ -1,6 +1,6 @@
 //! One bounded CPU executor shared by requests and their nested kernels.
 use crate::image::{ImageError, ImageResult};
-use crate::runtime::{RuntimeError, RuntimeResult};
+use crate::runtime::{Backend, RuntimeError, RuntimeResult};
 use std::{
     cell::RefCell,
     marker::PhantomData,
@@ -130,12 +130,21 @@ impl CpuBudgets {
         self.recognizer_base_threads
     }
 
-    /// Native ARM recognition benefits from more independent lines instead of
-    /// nested two-worker kernels when a complete eight-line wave is available.
+    /// AVX2/FMA and native ARM recognition benefit from independent lines
+    /// instead of nested kernels when a complete eight-unit wave is available.
     /// Depend only on page geometry and configuration, never on request timing:
     /// stable ownership keeps worker-private shape caches and arenas reusable.
-    pub(crate) fn for_recognition_units(self, units: usize, automatic: bool, neon: bool) -> Self {
-        if !automatic || !neon || self.capacity < 8 || units < 8 {
+    pub(crate) fn for_recognition_units(
+        self,
+        units: usize,
+        automatic: bool,
+        backend: Backend,
+    ) -> Self {
+        if !automatic
+            || !matches!(backend, Backend::NeonFma | Backend::Avx2Fma)
+            || self.capacity < 8
+            || units < 8
+        {
             return self;
         }
         Self {
@@ -437,34 +446,50 @@ mod tests {
     }
 
     #[test]
-    fn automatic_neon_recognition_expands_only_complete_eight_unit_waves() {
-        for capacity in [1, 4, 8, 10, 16, 32] {
+    fn automatic_recognition_expands_only_supported_complete_eight_unit_waves() {
+        for capacity in [1, 4, 7, 8, 10, 16, 24, 32] {
             let base = CpuOptions::default().resolve(capacity, true).unwrap();
             for units in [0, 1, 4, 7, 8, 9, 69] {
-                assert_eq!(base.for_recognition_units(units, false, true), base);
-                assert_eq!(base.for_recognition_units(units, true, false), base);
-                let selected = base.for_recognition_units(units, true, true);
-                if capacity < 8 || units < 8 {
-                    assert_eq!(selected, base);
-                } else {
-                    assert_eq!(selected.line_workers, 8);
-                    assert_eq!(selected.recognizer_base_threads, (capacity / 8).clamp(1, 8));
-                    assert_eq!(selected.detector_threads, base.detector_threads);
-                    assert_eq!(selected.preprocess_workers, base.preprocess_workers);
-                    // Concurrent demand may lower nested work; it must not
-                    // change the eight stable line owners or exceed the pool.
-                    assert_eq!(selected.recognizer_threads_for_capacity(units, 4), 1);
-                    assert_eq!(selected.line_workers, 8);
+                for backend in [Backend::NeonFma, Backend::Avx2Fma] {
+                    assert_eq!(base.for_recognition_units(units, false, backend), base);
+                    let selected = base.for_recognition_units(units, true, backend);
+                    if capacity < 8 || units < 8 {
+                        assert_eq!(selected, base);
+                    } else {
+                        assert_eq!(selected.line_workers, 8);
+                        assert_eq!(selected.recognizer_base_threads, (capacity / 8).clamp(1, 8));
+                        assert_eq!(selected.detector_threads, base.detector_threads);
+                        assert_eq!(selected.preprocess_workers, base.preprocess_workers);
+                        // Demand can reduce nested work without changing the
+                        // stable owners or exceeding the shared pool's cap.
+                        for share in [1, 2, 4, 8] {
+                            assert_eq!(selected.recognizer_threads_for_capacity(units, share), 1);
+                            assert_eq!(selected.line_workers, 8);
+                        }
+                    }
+                }
+                for backend in [
+                    Backend::Scalar,
+                    Backend::Portable4,
+                    Backend::Avx,
+                    Backend::AvxFma,
+                    Backend::Avx512,
+                ] {
+                    assert_eq!(base.for_recognition_units(units, true, backend), base);
                 }
             }
         }
-        let explicit = CpuOptions {
-            line_workers: 2,
-            ..Default::default()
+        for line_workers in [1, 2, 4, 8, 16] {
+            let explicit = CpuOptions {
+                line_workers,
+                ..Default::default()
+            }
+            .resolve(8, true)
+            .unwrap();
+            for backend in [Backend::NeonFma, Backend::Avx2Fma] {
+                assert_eq!(explicit.for_recognition_units(69, false, backend), explicit);
+            }
         }
-        .resolve(8, true)
-        .unwrap();
-        assert_eq!(explicit.for_recognition_units(69, false, true), explicit);
     }
 
     #[test]

@@ -833,11 +833,8 @@ fn recognize_parallel<const PROFILE: bool>(
         position = recognition_unit_end(order, position, batch_size, template, lines.metadata());
         units += 1;
     }
-    *budgets = budgets.for_recognition_units(
-        units,
-        automatic_line_workers,
-        template.compiled().backend() == crate::runtime::Backend::NeonFma,
-    );
+    *budgets =
+        budgets.for_recognition_units(units, automatic_line_workers, template.compiled().backend());
     let active = budgets.line_workers().min(units).max(1);
     workers
         .try_reserve(active.saturating_sub(workers.len()))
@@ -1848,6 +1845,120 @@ pub(crate) mod tests {
         let added = request.workers.capacity() * size_of::<RecognitionWorker>();
         assert!(added > 0);
         assert_eq!(request.retained_workspace_bytes(), before + added);
+    }
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn automatic_recognition_preserves_dense_owners_and_counts_batches() {
+        let cpu = Arc::new(CpuContext::new(8).unwrap());
+        let mut parallel = synthetic_ocr(cpu.clone());
+        let mut serial = synthetic_ocr(CpuContext::serial());
+        let mut pixels = vec![0; 96 * 96 * 3];
+        for top in [8, 36, 64] {
+            for left in [8, 36, 64] {
+                for y in top..top + 8 {
+                    for x in left..left + 16 {
+                        pixels[(y * 96 + x) * 3..(y * 96 + x) * 3 + 3].fill(255);
+                    }
+                }
+            }
+        }
+        let dense = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+        let expected = serial.run(dense, true).unwrap().try_to_owned().unwrap();
+        assert_eq!(expected.lines.len(), 9);
+        assert!(expected.lines.iter().all(|line| {
+            line.recognition_tensor_width == expected.lines[0].recognition_tensor_width
+        }));
+        let owners = if matches!(
+            parallel.recognizer.compiled().backend(),
+            crate::runtime::Backend::Avx2Fma | crate::runtime::Backend::NeonFma
+        ) {
+            8
+        } else {
+            4
+        };
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), owners);
+        assert_eq!(parallel.workers.len(), owners);
+        let storage = |request: &Ocr| {
+            request
+                .workers
+                .iter()
+                .map(|worker| {
+                    (
+                        worker.jobs.clone(),
+                        worker.jobs.as_ptr(),
+                        worker.jobs.capacity(),
+                        worker.recognizer.retained_activation_bytes(),
+                        worker.recognizer.retained_workspace_bytes(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let warmed = storage(&parallel);
+        // A waiting caller changes the request's CPU share, not line ownership
+        // or retained worker storage. The fixed executor still enforces its cap.
+        let waiting = cpu.register_request();
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), owners);
+        assert_eq!(storage(&parallel), warmed);
+        drop(waiting);
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(storage(&parallel), warmed);
+
+        let sparse_pixels = two_lines();
+        let sparse = ImageView::new(&sparse_pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+        let sparse_expected = serial.run(sparse, true).unwrap().try_to_owned().unwrap();
+        assert_eq!(
+            parallel.run(sparse, true).unwrap().try_to_owned().unwrap(),
+            sparse_expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 4);
+        assert_eq!(parallel.workers.len(), owners); // Retain warm inactive owners.
+
+        parallel.set_recognition_batch_size(3).unwrap();
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 4);
+        assert_eq!(
+            parallel.workers[..3]
+                .iter()
+                .map(|worker| worker.jobs.len())
+                .sum::<usize>(),
+            3
+        );
+        assert!(
+            parallel.workers[..3]
+                .iter()
+                .flat_map(|worker| &worker.jobs)
+                .all(|job| job.len() == 3)
+        );
+
+        parallel
+            .set_execution_context(
+                cpu,
+                CpuOptions {
+                    line_workers: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        parallel.set_recognition_batch_size(1).unwrap();
+        assert_eq!(
+            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            expected
+        );
+        assert_eq!(parallel.cpu_budgets().line_workers(), 2);
     }
     #[test]
     fn factory_drops_the_warm_request_and_shares_only_immutable_configuration() {
