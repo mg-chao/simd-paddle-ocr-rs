@@ -79,6 +79,23 @@ decomposition of total latency. Instrumented timings are diagnostic evidence;
 the uninstrumented benchmark determines the performance gate. Rebuild after
 code changes and do not pool measurements from different versions.
 
+The profiler also accepts other positive thread counts within local available
+parallelism, including `24` for the current Windows sixteen-owner policy.
+It reports model import, CPU-context and compile/request setup separately,
+directly timed owned conversion, complete-output hashes and recognition width
+histograms. `cls_preprocess_ns`, `cls_backbone_ns`, `cls_head_ns` and
+`cls_rotation_ns` split summed classifier work inside `cls_orientation_ns`;
+they are not additional wall stages. See the
+[current CPU24 stage analysis](windows-cpu24-stage-analysis.md) for a complete
+local example with ordinary and profiled output parity.
+
+The subsequent [AVX2 short-depthwise optimization](windows-avx2-depthwise-optimization.md)
+records the retained kernel change, separate matched page measurements and
+rejected batching/packing candidates. For a bounded local batching probe,
+`cpu_owner_probe` accepts `[MODEL] [FIXTURE] [OWNERS] [BATCH_SIZES]`, for example
+`tiny imgs_00018069 0 1,2`. Each owner/batch combination receives one warm-up
+and three measured calls; account for the whole cross-product in the budget.
+
 `classification_wall_ns` and `recognition_wall_ns` report the separate line
 stages. Individual classification, preprocessing, backbone and projection
 counters remain summed worker work and may exceed wall time. Historical V2/V3

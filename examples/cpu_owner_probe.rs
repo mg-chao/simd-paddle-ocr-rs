@@ -34,12 +34,12 @@ fn run() -> Result<()> {
         .is_some_and(|arg| arg == "--help" || arg == "-h")
     {
         println!(
-            "cargo run --release --locked --example cpu_owner_probe -- [tiny|small|medium] [FIXTURE] [OWNERS]\nOWNERS is a comma-separated list of up to three budgets in 0..=16; default 0,12,16 (zero is automatic). One shared 24-thread CPU context; first 24 allowed Windows CPUs. One warm-up and three measured owned-result calls each. Exact complete output equality required. Fifteen-second internal deadline; also enforce an external timeout."
+            "cargo run --release --locked --example cpu_owner_probe -- [tiny|small|medium] [FIXTURE] [OWNERS] [BATCH_SIZES]\nOWNERS is a comma-separated list of up to three budgets in 0..=16; default 0,12,16 (zero is automatic). BATCH_SIZES is one to three comma-separated sizes in 1..=4; default 1. One shared 24-thread CPU context; first 24 allowed Windows CPUs. One warm-up and three measured owned-result calls each. Exact complete output equality required. Fifteen-second internal deadline; also enforce an external timeout."
         );
         return Ok(());
     }
-    if args.len() > 3 {
-        return Err("expected MODEL FIXTURE OWNERS; use --help".into());
+    if args.len() > 4 {
+        return Err("expected MODEL FIXTURE OWNERS [BATCH_SIZES]; use --help".into());
     }
     let owners = args
         .get(2)
@@ -49,6 +49,18 @@ fn run() -> Result<()> {
         .collect::<std::result::Result<Vec<_>, _>>()?;
     if owners.is_empty() || owners.len() > 3 || owners.iter().any(|&count| count > 16) {
         return Err("expected one to three owner budgets in 0..=16".into());
+    }
+    let batch_sizes = args
+        .get(3)
+        .map_or("1", String::as_str)
+        .split(',')
+        .map(str::parse::<usize>)
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    if batch_sizes.is_empty()
+        || batch_sizes.len() > 3
+        || batch_sizes.iter().any(|size| !(1..=4).contains(size))
+    {
+        return Err("expected one to three batch sizes in 1..=4".into());
     }
     let started = Instant::now();
     let model = args.first().map_or("medium", String::as_str);
@@ -72,13 +84,17 @@ fn run() -> Result<()> {
         .find(|m| m.id == model)
         .ok_or("unknown model")?;
     let settings = &manifest.settings;
+    let import_start = Instant::now();
     let models = OcrModelSet::from_paths(
         directory.join(&spec.det),
         directory.join(&spec.rec),
         directory.join(&spec.dictionary),
         Some(&directory.join(&spec.cls)),
     )?;
+    let import_ms = import_start.elapsed().as_secs_f64() * 1000.;
+    let context_start = Instant::now();
     let cpu = Arc::new(CpuContext::new(CAPACITY)?);
+    let context_ms = context_start.elapsed().as_secs_f64() * 1000.;
     let image = ImageView::new(
         &frame.pixels,
         frame.width as usize,
@@ -88,8 +104,12 @@ fn run() -> Result<()> {
     )?;
     let mut control = None;
     let mut cases = Vec::new();
-    for &line_workers in &owners {
+    for (line_workers, batch_size) in owners
+        .iter()
+        .flat_map(|&owner| batch_sizes.iter().map(move |&batch| (owner, batch)))
+    {
         check_deadline(started)?;
+        let setup_start = Instant::now();
         let mut request = models
             .clone()
             .builder()
@@ -118,8 +138,9 @@ fn run() -> Result<()> {
                 ..Default::default()
             })
             .direction_classification(settings.direction_classification)
-            .recognition_batch_size(1)
+            .recognition_batch_size(batch_size)
             .build()?;
+        let compile_request_ms = setup_start.elapsed().as_secs_f64() * 1000.;
         let initial_budgets = format!("{:?}", request.cpu_budgets());
         check_deadline(started)?;
         let warmup_start = Instant::now();
@@ -165,6 +186,10 @@ fn run() -> Result<()> {
         let (peak_private_bytes, peak_resident_bytes) = benchmark::platform::peak_memory()?;
         cases.push(serde_json::json!({
             "line_workers": line_workers,
+            "recognition_batch_size": batch_size,
+            "model_import_ms": import_ms,
+            "cpu_context_ms": context_ms,
+            "compile_request_ms": compile_request_ms,
             "initial_budgets": initial_budgets,
             "post_run_budgets": format!("{:?}", request.cpu_budgets()),
             "classifier_worker_budget_derived_from_policy": classifier_worker_budget,
@@ -192,6 +217,7 @@ fn run() -> Result<()> {
             "pixel_sha256": baseline::hash(&frame.pixels),
             "manifest_sha256": baseline::hash(&std::fs::read(manifest_path)?),
             "order": owners,
+            "batch_size_order": batch_sizes,
             "warmups_per_configuration": 1,
             "measured_runs_per_configuration": 3,
             "capture_ctc_spans": false,

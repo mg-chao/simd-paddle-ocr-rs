@@ -1,0 +1,1376 @@
+{
+  "schema_version": 1,
+  "timestamp": "2026-10-17T18:33:36.5000607+08:00",
+  "git_head": "38e054c31db4b87e8d34be23dcb596aec0fb7354",
+  "starting_source_files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "8c38fef11dfb812509986378a278c81554bca54c8b56fb877cf86895b2759288"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "2a82a7beed1c6e80908fe9849d1ca311c430f9d2478715d401da60b1a57202a6"
+    },
+    {
+      "path": "examples/cpu_adoption_probe.rs",
+      "sha256": "3690ce77209262a0c18f89e92ab24b5afa33c56da33c7c2a093a3d4a09a477e8"
+    },
+    {
+      "path": "examples/cpu_baseline.rs",
+      "sha256": "ccd2ee0696cbcf8e334fd00b569ac1febe676385aa7b63173f08bc943d7bdbd4"
+    },
+    {
+      "path": "examples/cpu_benchmark.rs",
+      "sha256": "de8c00c8dd49d3cf6f529e937e64661a6c77886ab728a2b2b6a64339dde96224"
+    },
+    {
+      "path": "examples/cpu_owner_probe.rs",
+      "sha256": "af1b6abcb4283d157785f2338bb404a94f96bcf4de493740adb9b76d9e6d54d2"
+    },
+    {
+      "path": "examples/cpu_profile.rs",
+      "sha256": "70dcedf02ca8d214a3f7e8bf84e70cbea6d6315c1299ba842ad67973a40b55d7"
+    },
+    {
+      "path": "examples/cpu_qualify.rs",
+      "sha256": "27ad076e24358264c59445258801a964ca5a36406dbe127a295decb17fb79ccd"
+    },
+    {
+      "path": "examples/cpu_scheduling_probe.rs",
+      "sha256": "04e1a11d2117430ceacfde67f35babde77295659080adbce6583405dd39364d2"
+    },
+    {
+      "path": "examples/ocr.rs",
+      "sha256": "7a532fed15637690b861c120e8db0725164000d1b7c53341855397ecfc345a13"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "sha256": "1d405aef485d32fe4c42ed6221a40ca825b3a7553ca19675de936747cc4b277a"
+    },
+    {
+      "path": "src/builder.rs",
+      "sha256": "8cb3a433d8c5f66f1854157cae7b2008fcb7d201ed45ab2f2596d88fdb0cd04f"
+    },
+    {
+      "path": "src/characters.rs",
+      "sha256": "a3ff30bd0c94968131149cec663f6500a4555a6321e6f0a59ec6b5bc29cc55bb"
+    },
+    {
+      "path": "src/cpu.rs",
+      "sha256": "71582d8a3e39d6e3fd5ca44ac0a657f55bd18406f84f5ad8fdb57aabf80a5ddf"
+    },
+    {
+      "path": "src/crop.rs",
+      "sha256": "3eaffa13b79770fdb20170075a2a79add94a710d5ee25ba3207b49f89850b033"
+    },
+    {
+      "path": "src/db.rs",
+      "sha256": "c7a138bfe47d71f3ef32071fc59df90d5ef341008b933d781bdaa295cb7eae5c"
+    },
+    {
+      "path": "src/detector.rs",
+      "sha256": "9c37e8f6a5864fa43416765b30a808526e2e5a6dc1ae0fe065bc168b7cef3892"
+    },
+    {
+      "path": "src/engine.rs",
+      "sha256": "03869327f2d0ff4689c4fc0be6cef0cc33a61dfeb3910d59ec0d52a6030e11ae"
+    },
+    {
+      "path": "src/error.rs",
+      "sha256": "94b77aa384d2b09206e049b5b910ad54a4249a4a6730dfdd25f745eccef2bc5a"
+    },
+    {
+      "path": "src/image.rs",
+      "sha256": "aec234dcaa6366f47ddd291cb81ff579f3ac55733d7bca5c944439eba1c260ef"
+    },
+    {
+      "path": "src/lib.rs",
+      "sha256": "b4fdbf3e9c1a83b711577256e82d09d5ff2d80fed04a85d3a5510f3c59a89668"
+    },
+    {
+      "path": "src/lines.rs",
+      "sha256": "cf3fc822d3de906407b107b13a21fabc0765e90f1bf021b6405282cf3edcaa54"
+    },
+    {
+      "path": "src/math.rs",
+      "sha256": "05a50f135847a527393fbf28e067dc84069670ce2916ef52054d3074de5db4b4"
+    },
+    {
+      "path": "src/model.rs",
+      "sha256": "c0dce6ebd0bb7fe9f0e5161148784a6bb91ba77be313f3b58b64e84824cae142"
+    },
+    {
+      "path": "src/model/tests.rs",
+      "sha256": "5c7fc87bf099a9f097a6c23909d1d21e8ac91df8a73d51ae9aa16489b717947f"
+    },
+    {
+      "path": "src/ocr.rs",
+      "sha256": "729fe296387a88bbaa9a40bffc883150b2e8770c09d2b094741c7c30b2e88cef"
+    },
+    {
+      "path": "src/onnx.rs",
+      "sha256": "561227412d6aff20ad6a4bd7eaf5589b9a87e7c513cd18ffbe4b6cef6655e01e"
+    },
+    {
+      "path": "src/orientation.rs",
+      "sha256": "59f8f5174ee2ba525d5fdc9b55756eff55b8ae804724e547ff0ed72e130ac8d0"
+    },
+    {
+      "path": "src/pixel_kernels.rs",
+      "sha256": "b83d3cdb27101194fbf13aeb10dba3210d5b9a8daf9f7acf03ab86a9cecec0ee"
+    },
+    {
+      "path": "src/pixel_kernels/threshold_tests.rs",
+      "sha256": "e4c001517baebc8b71d7cf4cf4bbd1980e39b5509b0d2d5f565aa6212556a2d5"
+    },
+    {
+      "path": "src/preprocess.rs",
+      "sha256": "dd4392a4e4234c6c7e7e2e9beefe6b025884cb3169e75238485a53318a282349"
+    },
+    {
+      "path": "src/profile.rs",
+      "sha256": "019dc5e40d27c324880a8f52fb117264c9b74e54bbe021e9ea060b6fb156c12e"
+    },
+    {
+      "path": "src/profile/tests.rs",
+      "sha256": "8584df3ad270356cc353b1ffbe3a4deee46077c2d7e7e192826f5046eccc6819"
+    },
+    {
+      "path": "src/projection.rs",
+      "sha256": "9016b3263498109a67530c6d68e642702d7c62cdd3639ff36efc2cf26c66c4b3"
+    },
+    {
+      "path": "src/recognizer.rs",
+      "sha256": "84a3c240c7795ce25aae1424ed33163371f7b12a270239c9a4f4583241be1070"
+    },
+    {
+      "path": "src/runtime.rs",
+      "sha256": "6485d7b7211f6ad93fd67474bd5fae96417456453acb12c85709e0198e537185"
+    },
+    {
+      "path": "src/runtime/kernels.rs",
+      "sha256": "43ece5b370405736f752ef8c3ced5238c6267831482a092e14527a46ece79471"
+    },
+    {
+      "path": "src/runtime/nchw.rs",
+      "sha256": "e87f1c774e7fadde5e1c91942abfc542dee218ef515d8077d1a4ad2afb558c90"
+    },
+    {
+      "path": "src/runtime/nchw/native.rs",
+      "sha256": "f7c2921913336dcdfe406154d0739351cd071b0cbffc14a5330478828a4a03f5"
+    },
+    {
+      "path": "src/runtime/nchw/pad_end2.rs",
+      "sha256": "c08d7cfde16eade104af5a19250e53929592c21e1c6ca93d6ecece05aacad818"
+    },
+    {
+      "path": "src/runtime/nchw/pointwise_spatial.rs",
+      "sha256": "d1ecbe7be5014888ad3fd613dda20eaf205bdb21d0403ad9450f270528e58347"
+    },
+    {
+      "path": "src/runtime/nchw/reduce3.rs",
+      "sha256": "61f712a9e0c5d8a5ac26d50c20e9b175cee616b473c3de9290de8428ea2ec1c4"
+    },
+    {
+      "path": "src/runtime/nchw/stride2.rs",
+      "sha256": "64033c2c23c57ccc1fdc2f314a31d886ecc8c03d0ea7aeed9d2c948b0d525ad5"
+    },
+    {
+      "path": "src/runtime/nchw/tests.rs",
+      "sha256": "5f474a6f120dee40d2a29894b9ef7d477f15fc53044d5ff5ba86d5f9a6931f35"
+    },
+    {
+      "path": "src/runtime/nchw/tests/packed3_band_plan.rs",
+      "sha256": "b8418d4a2b1dba77ea0bb2d34d3d8afd11b65e09b3fbdb6fe344c6324b70aa62"
+    },
+    {
+      "path": "src/runtime/nchw/tests/packed3_border.rs",
+      "sha256": "2a13b56a241a6eee97df0fd05ce084b655914ab2dd89c58605e238667755a207"
+    },
+    {
+      "path": "src/runtime/nchw/tests/packed3_envelope.rs",
+      "sha256": "dbd25a715412fdb23e585d466c8c66285f03200b0cd6f49a9a3c749d54877fb9"
+    },
+    {
+      "path": "src/runtime/nchw/tests/packed3_packets.rs",
+      "sha256": "0988311b2c5533ff6ce8a43f1c75aade32b6f240cef05c1b599c838944fe56b3"
+    },
+    {
+      "path": "src/runtime/nchw/tests/packed3_recursive_order.rs",
+      "sha256": "d50b9d0d870c57180154e1fb9860db2e5bc1d9e924eebce5340e61e4001420a5"
+    },
+    {
+      "path": "src/runtime/nchw/tests/pair16.rs",
+      "sha256": "cb105cb99530b923cc1d934b0dc7615d5e9a946016951218dab083c9447e0fd3"
+    },
+    {
+      "path": "src/runtime/nchw/tests/pointwise_spatial.rs",
+      "sha256": "a8dbb0b5c83f400a5e86084fa1812a88932a3cfaafd813ffd068942c331a485d"
+    },
+    {
+      "path": "src/runtime/nchw/tests/stride2_band_plan.rs",
+      "sha256": "68bcda828b89862c33680116bd1664d7880909964f7a7d5a89ca16e40c76cc46"
+    },
+    {
+      "path": "src/runtime/nchw/tests/stride2_contract.rs",
+      "sha256": "d45b9c5dfdd064fafe9991082a56f99a263f612f5a6fb4c689a8dffb4baa2366"
+    },
+    {
+      "path": "src/runtime/nhwc.rs",
+      "sha256": "9ae4c17b7fc6b4ba77e5638199764312a05e1f80bb62d3b06a68a57741b71fe3"
+    },
+    {
+      "path": "src/runtime/nhwc/concat.rs",
+      "sha256": "bcea40e94d67b22ee700f3e4d64e63805a8f45afe450d9dc5440d6512c9ff0b2"
+    },
+    {
+      "path": "src/runtime/nhwc/dense.rs",
+      "sha256": "02f68e013937fac46706741684aae01f864c22528ffce471516dc8f6db2e6739"
+    },
+    {
+      "path": "src/runtime/nhwc/dense/interior.rs",
+      "sha256": "0f289bdd71ae26ce463aa972e558d982bb4970d4c55816ed4d5883ea57239bb0"
+    },
+    {
+      "path": "src/runtime/nhwc/dense/neon_tests.rs",
+      "sha256": "334af418f0258a8b6f4123b381652812998553e77fdd6a1f52c29246db00eb32"
+    },
+    {
+      "path": "src/runtime/nhwc/dense/portable_tests.rs",
+      "sha256": "1a2c55e35a035b9d34cb4f7d8708842e0cf87292457609e8ca98921bb9625a30"
+    },
+    {
+      "path": "src/runtime/nhwc/misc.rs",
+      "sha256": "20e7e50cee40932dffc9acc096a10fa180beeafdf5373d9fa8dd7c91dc2301ef"
+    },
+    {
+      "path": "src/runtime/nhwc/misc/resize_tests.rs",
+      "sha256": "87e76fb033df38da7e5bbfb316d29f912d67f0694f14f133494797dc40740e1f"
+    },
+    {
+      "path": "src/runtime/nhwc/neon_depthwise.rs",
+      "sha256": "a9bba8128a0fdc923fe048ab312a4cdcebd80dd651737e7511903c2e26465dd6"
+    },
+    {
+      "path": "src/runtime/nhwc/neon_depthwise/strip.rs",
+      "sha256": "f73170186b1b532bd62e57e5ce0d523092929035982c8a6e98428f986ecb1531"
+    },
+    {
+      "path": "src/runtime/nhwc/neon_depthwise/tests/benchmark.rs",
+      "sha256": "c4589800a289274396197fe788c0f59c684e8c99e2e5005409f3445d36700b0c"
+    },
+    {
+      "path": "src/runtime/nhwc/parallel_tests.rs",
+      "sha256": "444acd3737f2b67b44063207afe4f7ddc91a67f53fca020d5fd537d9a7fb7d02"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise.rs",
+      "sha256": "1834d6d2ae6acd79b5285d134a8ff5ce8c0855e11a0ce1c171ceafcf3260ab35"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise/avx2.rs",
+      "sha256": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise/avx2/tests.rs",
+      "sha256": "3b77258f78e13833722ffbf1bda7762135b93218bc2062ed887490fe575ea234"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise/large_channel_tests.rs",
+      "sha256": "62ae1a9ce494e7a6ae01dce8f56010fb07ff8171653086a07cb18955591ad9e1"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise/neon.rs",
+      "sha256": "e41ae7ad614274b3d4bb18ad93a6f1c31cb0461d67e5c5e4f2e703ce29b3d289"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise/neon_bench.rs",
+      "sha256": "66bca0335e0875ae2d5b3a9a696577edf2e05cde67a83b5a6678c124317a2075"
+    },
+    {
+      "path": "src/runtime/nhwc/pointwise/tests.rs",
+      "sha256": "da1323c01887720d0b8148724a5bf8bf57949156e6daad3c0ef57e684af10b5b"
+    },
+    {
+      "path": "src/runtime/nhwc/row_policy_tests.rs",
+      "sha256": "133457221f4bc0300a598e19623913d59bf80605ee57d9e485c8b97315ff260c"
+    },
+    {
+      "path": "src/runtime/nhwc/strip.rs",
+      "sha256": "bb05cd30784167aba32ccdb961eb21c5648b2f4f16dc14522a51a88c67fd290a"
+    },
+    {
+      "path": "src/runtime/nhwc/strip/tests.rs",
+      "sha256": "a322d35af516b65f4e0ce5202c311f225674260231a11281f2e57e7207183ea3"
+    },
+    {
+      "path": "src/runtime/nhwc/tests.rs",
+      "sha256": "2dac271c6a26ef2a4a45d583cf10788bc404946272e6d6731e75f667a1710603"
+    },
+    {
+      "path": "src/runtime/nhwc/tests/performance.rs",
+      "sha256": "69dfb38bb6d1d4a78a022d845f4abb78189ab829ed188982189d58f470498f0a"
+    },
+    {
+      "path": "src/runtime/nhwc/transpose.rs",
+      "sha256": "893b4309dd8e160773449ad0e55c7f16cdcc1a332d144b176d58217675c93e67"
+    },
+    {
+      "path": "src/runtime/nhwc/transpose/tests.rs",
+      "sha256": "75109a58826fc374eb1a44ce1a997fad6b79a1d98c9be11448910049d4a901a3"
+    },
+    {
+      "path": "src/runtime/optimized.rs",
+      "sha256": "dd81a4a082f77ac0a9756e87ff76cca83b2973d2119686af8ba1eed47a2df26e"
+    },
+    {
+      "path": "src/runtime/optimized/elementwise_alias.rs",
+      "sha256": "8a7eede001c84b1e6ab6b1e34f0243c1bab2eacc1d67d15ca023fcdde879e4d8"
+    },
+    {
+      "path": "src/runtime/optimized/layout.rs",
+      "sha256": "df192742bcad6e2004b473901d17faf705d5d868cf1cf77edc6e25d3c64f5d59"
+    },
+    {
+      "path": "src/runtime/optimized/layout/tests.rs",
+      "sha256": "8514cd6cf129a9e8cc5ef61d35fd9d38a43e0de357b68b851df417c610161f02"
+    },
+    {
+      "path": "src/runtime/optimized/semantic.rs",
+      "sha256": "858a886115110d36bef856323ee8788461ba4d847d6a9012e6cac5b9383816cb"
+    },
+    {
+      "path": "src/runtime/optimized/store.rs",
+      "sha256": "5bc40c3ecea0d5a67df1e465e1bb80e9b656ae8e1d0dd7c3f7f8c4bfcdb317ef"
+    },
+    {
+      "path": "src/runtime/optimized/store/tests.rs",
+      "sha256": "279fe21bdeebba19790f245a435c5ce0f6f88c09b12f56b3f4c1326ec1f04201"
+    },
+    {
+      "path": "src/runtime/optimized/tests.rs",
+      "sha256": "b7cff8bbdb87b0ed79e5d2bff8971abd225a4d2dcbc4ae6d80318576155600ca"
+    },
+    {
+      "path": "src/runtime/optimized/tests/alias.rs",
+      "sha256": "210da7cdca4a524bbba8c68eea920a1b987be88de04bf3acdd2abef51fa77020"
+    },
+    {
+      "path": "src/runtime/optimized/tests/concat.rs",
+      "sha256": "ca73578078a2a0dc97cdfd0ca48a9c6a58046a8fd82c1ce77009df716108a330"
+    },
+    {
+      "path": "src/runtime/optimized/tests/elementwise_alias.rs",
+      "sha256": "88cead27c092a3e47aa5889f847487374c1ba7fa8f00582545bd0207c8ac5e1f"
+    },
+    {
+      "path": "src/runtime/optimized/tests/nchw_epilogue.rs",
+      "sha256": "5cd73f6fe3a63779b15891eeba9a50796f011304104e28cbb26d22dd8f045ef8"
+    },
+    {
+      "path": "src/runtime/optimized/tests/performance.rs",
+      "sha256": "da122991a9b5ecde713ff0da7f0091b53430ef6a19c23cb3706f171dad722cd8"
+    },
+    {
+      "path": "src/runtime/optimized/tests/placement.rs",
+      "sha256": "7eb5604e45ff787286fcbde3a9b9291b79b7e8f506940b7743b1bed611becc60"
+    },
+    {
+      "path": "src/runtime/optimized/tests/selection_policy.rs",
+      "sha256": "37f9909814cb0aa52a47de9d74d8b59629f0df51f9cc2dd45eb77c3457bc50b4"
+    },
+    {
+      "path": "src/runtime/optimized/tests/semantic.rs",
+      "sha256": "fd369844f05a5fb916454baf46276d539c29379831a7daa8e0358ccea875ae60"
+    },
+    {
+      "path": "src/runtime/packing.rs",
+      "sha256": "aa2dbac843e7a53c519e116b465d17236781e64d4f4e64a4d159e8c039762435"
+    },
+    {
+      "path": "src/runtime/parallel.rs",
+      "sha256": "e389c552802120d717724ddc7a746cb4870e46a13265a44ac73da58b507885d7"
+    },
+    {
+      "path": "src/runtime/parallel/tests.rs",
+      "sha256": "ec50b91998f299ad06024086fd95aa23ff03ae139d7e25f45261cceee43927fe"
+    },
+    {
+      "path": "src/runtime/shapes.rs",
+      "sha256": "8ffef503f2b4b6d86742ec447a55d140c3a3ce92b9881976127a3c1e4814acb2"
+    },
+    {
+      "path": "src/runtime/simd.rs",
+      "sha256": "760f38534cebdef4dc42ae443d491a11cfb6328b8f34d03e3391aefbf7518f33"
+    },
+    {
+      "path": "src/runtime/simd/activation.rs",
+      "sha256": "0fd57c2ac022f33c547f0d5bd6106a8b5f92a9ce37af5a00863ab1a763c30d51"
+    },
+    {
+      "path": "src/runtime/simd/argmax.rs",
+      "sha256": "a1997907152a7f5eb337ee2d5e3b9d4bd0580e6b74e34fcf57d31361aeef5095"
+    },
+    {
+      "path": "src/runtime/simd/argmax/portable_tests.rs",
+      "sha256": "5e1eeccd5d2bb71a3236b697ba0103130564b2b78553bc343a057728403306d0"
+    },
+    {
+      "path": "src/runtime/simd/columns.rs",
+      "sha256": "ea478f9a5eb1e0100ea71a15ec365df073356dcf1b8825dbc86ce1657e17d49e"
+    },
+    {
+      "path": "src/runtime/simd/columns/portable_tests.rs",
+      "sha256": "ecd7f74ebc12259b3182d56fd0b684d367387ff10224b8882192c717ecd5057e"
+    },
+    {
+      "path": "src/runtime/simd/matrix.rs",
+      "sha256": "1fb36841ce0c63a4b484d60b8de3fe448af102c8fc2b9eadbeb67a8822cac5df"
+    },
+    {
+      "path": "src/runtime/simd/neon.rs",
+      "sha256": "f008a4d991492d2cd49a91befcabc51cbe49dc32f4e4c299973d4d801dff784f"
+    },
+    {
+      "path": "src/runtime/simd/neon/tests.rs",
+      "sha256": "8960b5a3241a2594688d07a628afd69b59df66f4cf2f61836c45b35c3821206a"
+    },
+    {
+      "path": "src/runtime/simd/parallel.rs",
+      "sha256": "868f0a3d9db47a05423fe33af73b4d7162b2abb571a9e182ab8445bcd02224dd"
+    },
+    {
+      "path": "src/runtime/simd/portable_softmax_tests.rs",
+      "sha256": "748cf3557e4cc180f2d56a76e17d45ffc569c914e58150bd8353a2773e4b1828"
+    },
+    {
+      "path": "src/runtime/simd/tensor.rs",
+      "sha256": "ae5e6e257b876074f22e745fd4d656645e5af8df97a05fceb1cf0090f713a5cf"
+    },
+    {
+      "path": "src/runtime/simd/transcendental.rs",
+      "sha256": "9c42a7dc4b375573ab746252eb7ce7b51378426b8b844a9ca4e59a0ec6d9ebd3"
+    },
+    {
+      "path": "src/runtime/simd/unary_policy_tests.rs",
+      "sha256": "84ff8406b7fb591a16256bd03c19129741d291707ca9d0b8b4b6d0075dd6e094"
+    },
+    {
+      "path": "src/tensor.rs",
+      "sha256": "58e526a73e517ded2418e0b7f2759d6b6d75bdb117ace08cba10bbdec70c8d3a"
+    },
+    {
+      "path": "tools/baseline/mod.rs",
+      "sha256": "344e3c88b6daae059f84d7ac15e26cdf532d4f58e31b744ec66d42366e155044"
+    },
+    {
+      "path": "tools/benchmark/mod.rs",
+      "sha256": "e68ce33a5cea58078a88e848099f5c78218d1c7441247b9dea2c3870cda394ef"
+    },
+    {
+      "path": "tools/benchmark/platform.rs",
+      "sha256": "467051d8d9371b536b13a869378ecb170eeb1ac25c22156efa025c149495b5e7"
+    },
+    {
+      "path": "tools/csharp-benchmark/Benchmark.csproj",
+      "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+    },
+    {
+      "path": "tools/csharp-benchmark/ProcessMetrics.cs",
+      "sha256": "730414c1a6651b6d251e5237460989822443c617187e24e3b9c8a32932d64a62"
+    },
+    {
+      "path": "tools/csharp-benchmark/Program.cs",
+      "sha256": "c8e6da7d9a4906e64f8dde717f8081de2031af7d13ca5182b874c68228afe4d0"
+    },
+    {
+      "path": "tools/csharp-benchmark/global.json",
+      "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+    },
+    {
+      "path": "tools/csharp-profile/KernelProbe.cs",
+      "sha256": "f7cfd48fd4b2d0195cf8dd6465dea60db119f74d0154048c6cc841246c29914a"
+    },
+    {
+      "path": "tools/csharp-profile/NodeProbe.cs",
+      "sha256": "b957f0dec036a511512807a392d106c7c6ac71019a4a3afe14d9215b4f149ce1"
+    },
+    {
+      "path": "tools/csharp-profile/Program.cs",
+      "sha256": "f8be43163263121605bb9262cfeaa370b5686e0b5c83412021de4b5d1ecf9402"
+    },
+    {
+      "path": "tools/csharp-profile/README.md",
+      "sha256": "06a1bf9f6c26d4514aa4787d4b808a2d0302b17be06e4fe5295f5510107910b3"
+    },
+    {
+      "path": "tools/csharp-profile/Sdcb.SimdPaddleOCR.Benchmarks.csproj",
+      "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+    },
+    {
+      "path": "tools/csharp-profile/global.json",
+      "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+    },
+    {
+      "path": "tools/csharp-qualification/Program.cs",
+      "sha256": "7ed1a3a13e1fe94573a80c2fbb872e2a79edd7175b9e355c019344ac18b34ec2"
+    },
+    {
+      "path": "tools/csharp-qualification/Qualification.csproj",
+      "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+    },
+    {
+      "path": "tools/csharp-qualification/global.json",
+      "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+    },
+    {
+      "path": "tools/csharp-reference/Program.cs",
+      "sha256": "940955a34940f7003258c15dbfb2a0f24cdae30b1acda4f528a8953797e7989f"
+    },
+    {
+      "path": "tools/csharp-reference/Reference.csproj",
+      "sha256": "700354ebf6d2093f49c66f962eef2acac53f63092ed93dab79040628f4cf6abe"
+    },
+    {
+      "path": "tools/csharp-reference/global.json",
+      "sha256": "900cc39e5fd29a181be17c6eb76819bd5eb61d51a011caa84bb4aad69ca405ac"
+    },
+    {
+      "path": "tools/fetch-baseline-corpus.ps1",
+      "sha256": "1e0a2a241ae53849b008b37d8e32295dde988ef0d17b1c8d98cff43ad1209f03"
+    },
+    {
+      "path": "tools/harness/mod.rs",
+      "sha256": "ef797c623cd4ed51334b0bf7a1662fd47cd2318e9c0c63a8bb1ca3eb88bdff0f"
+    },
+    {
+      "path": "tools/qualification/mod.rs",
+      "sha256": "2c2daddaa452e59e7774193df5e7b9c953705b1a725e98fbd33657f73a71865d"
+    },
+    {
+      "path": "tools/validate-macos.sh",
+      "sha256": "8952e3f2b33d390ea3449ee1c4d3d2ce92cea51c97ffa4cf630470b37fe6adba"
+    }
+  ],
+  "source_stable_during_measurement": true,
+  "executables": [
+    {
+      "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\release\\examples\\cpu_owner_probe.exe",
+      "sha256": "dcf0d347ab2491bd3142dbbe4ea93f2cb8df8d50d0f882df7d4cb37240246ffc"
+    },
+    {
+      "path": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target\\release\\examples\\cpu_profile.exe",
+      "sha256": "7bbd2a4980d94e236a6d91e426d955e5a8510038e60136169f3395579a326594"
+    }
+  ],
+  "git_diff": "diff --git a/examples/cpu_owner_probe.rs b/examples/cpu_owner_probe.rs\r\nindex c1572f4..fa182fa 100644\r\n--- a/examples/cpu_owner_probe.rs\r\n+++ b/examples/cpu_owner_probe.rs\r\n@@ -72,13 +72,17 @@ fn run() -> Result<()> {\r\n         .find(|m| m.id == model)\r\n         .ok_or(\"unknown model\")?;\r\n     let settings = &manifest.settings;\r\n+    let import_start = Instant::now();\r\n     let models = OcrModelSet::from_paths(\r\n         directory.join(&spec.det),\r\n         directory.join(&spec.rec),\r\n         directory.join(&spec.dictionary),\r\n         Some(&directory.join(&spec.cls)),\r\n     )?;\r\n+    let import_ms = import_start.elapsed().as_secs_f64() * 1000.;\r\n+    let context_start = Instant::now();\r\n     let cpu = Arc::new(CpuContext::new(CAPACITY)?);\r\n+    let context_ms = context_start.elapsed().as_secs_f64() * 1000.;\r\n     let image = ImageView::new(\r\n         &frame.pixels,\r\n         frame.width as usize,\r\n@@ -90,6 +94,7 @@ fn run() -> Result<()> {\r\n     let mut cases = Vec::new();\r\n     for &line_workers in &owners {\r\n         check_deadline(started)?;\r\n+        let setup_start = Instant::now();\r\n         let mut request = models\r\n             .clone()\r\n             .builder()\r\n@@ -120,6 +125,7 @@ fn run() -> Result<()> {\r\n             .direction_classification(settings.direction_classification)\r\n             .recognition_batch_size(1)\r\n             .build()?;\r\n+        let compile_request_ms = setup_start.elapsed().as_secs_f64() * 1000.;\r\n         let initial_budgets = format!(\"{:?}\", request.cpu_budgets());\r\n         check_deadline(started)?;\r\n         let warmup_start = Instant::now();\r\n@@ -165,6 +171,9 @@ fn run() -> Result<()> {\r\n         let (peak_private_bytes, peak_resident_bytes) = benchmark::platform::peak_memory()?;\r\n         cases.push(serde_json::json!({\r\n             \"line_workers\": line_workers,\r\n+            \"model_import_ms\": import_ms,\r\n+            \"cpu_context_ms\": context_ms,\r\n+            \"compile_request_ms\": compile_request_ms,\r\n             \"initial_budgets\": initial_budgets,\r\n             \"post_run_budgets\": format!(\"{:?}\", request.cpu_budgets()),\r\n             \"classifier_worker_budget_derived_from_policy\": classifier_worker_budget,\r\ndiff --git a/examples/cpu_profile.rs b/examples/cpu_profile.rs\r\nindex 31fe727..c90fd75 100644\r\n--- a/examples/cpu_profile.rs\r\n+++ b/examples/cpu_profile.rs\r\n@@ -16,11 +16,11 @@ fn run() -> Result<()> {\r\n         lines::LineOptions,\r\n         recognizer::RecognizerOptions,\r\n     };\r\n-    use std::{path::PathBuf, sync::Arc};\r\n+    use std::{path::PathBuf, sync::Arc, time::Instant};\r\n     let args: Vec<_> = std::env::args().skip(1).collect();\r\n     if args.first().is_some_and(|s| s == \"--help\" || s == \"-h\") {\r\n         println!(\r\n-            \"cargo run --release --locked --features profiling --example cpu_profile -- [tiny|small|medium] [FIXTURE] [1|8] [LINE_WORKERS=0]\\nOne warm-up and one instrumented production run; JSON stage wall/work counters and retained capacities. No official performance claim.\"\r\n+            \"cargo run --release --locked --features profiling --example cpu_profile -- [tiny|small|medium] [FIXTURE] [THREADS=8] [LINE_WORKERS=0]\\nOne warm-up and one instrumented production run; JSON stage wall/work counters and retained capacities. Threads must fit local available parallelism. No official performance claim.\"\r\n         );\r\n         return Ok(());\r\n     }\r\n@@ -34,15 +34,20 @@ fn run() -> Result<()> {\r\n     if line_workers > 16 {\r\n         return Err(\"line workers must be within 0..=16\".into());\r\n     }\r\n-    if ![1, 8].contains(&threads) || ![\"tiny\", \"small\", \"medium\"].contains(&model) {\r\n-        return Err(\"use a shipped model and 1 or 8 threads\".into());\r\n-    }\r\n-    #[cfg(windows)]\r\n+    if threads == 0\r\n+        || threads > std::thread::available_parallelism()?.get()\r\n+        || ![\"tiny\", \"small\", \"medium\"].contains(&model)\r\n     {\r\n-        let affinity =\r\n-            benchmark::select_affinity(benchmark::windows::allowed_affinity()?, threads)?;\r\n-        benchmark::windows::set_affinity(affinity)?;\r\n+        return Err(\"use a shipped model and a positive locally available thread count\".into());\r\n     }\r\n+    #[cfg(any(windows, target_os = \"macos\"))]\r\n+    let affinity = {\r\n+        let selected = benchmark::platform::affinity(threads, None)?;\r\n+        benchmark::platform::configure(&selected)?;\r\n+        selected\r\n+    };\r\n+    #[cfg(not(any(windows, target_os = \"macos\")))]\r\n+    let affinity = \"unbound\";\r\n     let root = PathBuf::from(env!(\"CARGO_MANIFEST_DIR\"));\r\n     let manifest: Manifest = read_json(&root.join(\"tests/baseline/manifest.json\"))?;\r\n     manifest.validate()?;\r\n@@ -59,15 +64,21 @@ fn run() -> Result<()> {\r\n         .find(|m| m.id == model)\r\n         .ok_or(\"unknown model\")?;\r\n     let s = &manifest.settings;\r\n+    let setup = Instant::now();\r\n     let models = OcrModelSet::from_paths(\r\n         directory.join(&spec.det),\r\n         directory.join(&spec.rec),\r\n         directory.join(&spec.dictionary),\r\n         Some(&directory.join(&spec.cls)),\r\n     )?;\r\n+    let import_ms = setup.elapsed().as_secs_f64() * 1000.;\r\n+    let setup = Instant::now();\r\n+    let cpu = Arc::new(CpuContext::new(threads)?);\r\n+    let cpu_context_ms = setup.elapsed().as_secs_f64() * 1000.;\r\n+    let setup = Instant::now();\r\n     let mut ocr = models\r\n         .builder()\r\n-        .cpu_context(Arc::new(CpuContext::new(threads)?))\r\n+        .cpu_context(cpu)\r\n         .cpu_options(CpuOptions {\r\n             line_workers,\r\n             preprocess_workers: threads,\r\n@@ -93,6 +104,7 @@ fn run() -> Result<()> {\r\n         })\r\n         .direction_classification(s.direction_classification)\r\n         .build()?;\r\n+    let compile_request_ms = setup.elapsed().as_secs_f64() * 1000.;\r\n     let image = ImageView::new(\r\n         &frame.pixels,\r\n         frame.width as usize,\r\n@@ -102,10 +114,16 @@ fn run() -> Result<()> {\r\n     )?;\r\n     let expected = ocr.run(image, false)?.try_to_owned()?;\r\n     let (view, profile) = ocr.run_profiled(image, false)?;\r\n+    let owned_timer = Instant::now();\r\n     let actual = view.try_to_owned()?;\r\n+    let owned_conversion_ns = owned_timer.elapsed().as_nanos();\r\n     if actual != expected {\r\n         return Err(\"profiled output differs from warm-up\".into());\r\n     }\r\n+    let mut widths = std::collections::BTreeMap::<usize, usize>::new();\r\n+    for line in &actual.lines {\r\n+        *widths.entry(line.recognition_tensor_width).or_default() += 1;\r\n+    }\r\n     // recognizer_mut() invalidates cached worker requests, so snapshot aggregate\r\n     // capacities before using mutable component accessors for the breakdown.\r\n     let total = ocr.retained_activation_bytes();\r\n@@ -116,7 +134,13 @@ fn run() -> Result<()> {\r\n     println!(\r\n         \"{}\",\r\n         serde_json::to_string_pretty(&serde_json::json!({\r\n-            \"instrumented\":true,\"model\":model,\"fixture\":fixture,\"threads\":threads,\"requested_line_workers\":line_workers,\r\n+            \"instrumented\":true,\"model\":model,\"fixture\":fixture,\"threads\":threads,\"affinity\":affinity,\"requested_line_workers\":line_workers,\r\n+            \"import_ms\":import_ms,\"cpu_context_ms\":cpu_context_ms,\"compile_request_ms\":compile_request_ms,\"owned_conversion_ns\":owned_conversion_ns,\r\n+            \"complete_owned_outputs_exactly_equal\":true,\r\n+            \"control_output_sha256\":baseline::hash(&serde_json::to_vec(&actual)?),\r\n+            \"recognition_tensor_width_histogram\":widths,\r\n+            \"applied_180_rotations\":actual.lines.iter().filter(|line| line.applied_rotation_degrees == 180).count(),\r\n+            \"detector_resized_width\":actual.detector_resized_width,\"detector_resized_height\":actual.detector_resized_height,\r\n             \"budgets\":format!(\"{:?}\",ocr.cpu_budgets()),\"recognized_lines\":actual.lines.len(),\"profile\":profile,\r\n             \"retained_activation_bytes\":{\"total\":total,\"detector\":det,\"classifiers\":cls,\r\n                 \"root_recognizer\":rec,\"recognition_workers\":total-det-cls-rec},\r\ndiff --git a/src/lines.rs b/src/lines.rs\r\nindex 12bf37d..7f33882 100644\r\n--- a/src/lines.rs\r\n+++ b/src/lines.rs\r\n@@ -548,11 +548,17 @@ impl OrientedLineExtractor {\r\n                         line_observer(event)\r\n                     })?\r\n                 } else {\r\n-                    classifier.classify(crop)?\r\n+                    classifier.classify_profiled::<PROFILE>(crop, profile)?\r\n                 };\r\n                 metadata.classification = Some(result);\r\n                 if should_rotate(result, self.options.classifier_threshold) {\r\n+                    let rotation_timer = crate::profile::Timer::<PROFILE>::start();\r\n                     crop::rotate180(pixels, metadata.width, metadata.height)?;\r\n+                    if PROFILE {\r\n+                        profile.cls_rotation_ns = profile\r\n+                            .cls_rotation_ns\r\n+                            .saturating_add(rotation_timer.elapsed());\r\n+                    }\r\n                     metadata.applied_rotation_degrees = 180;\r\n                 }\r\n             }\r\n@@ -664,6 +670,7 @@ struct ClassifyTask<'a> {\r\n     jobs: Vec<ClassifyJob<'a>>,\r\n     error: Option<(usize, ImageError)>,\r\n     work_ns: u64,\r\n+    profile: crate::profile::StageProfile,\r\n }\r\n #[allow(clippy::too_many_arguments)]\r\n fn extract_parallel<const PROFILE: bool>(\r\n@@ -774,6 +781,7 @@ fn extract_parallel<const PROFILE: bool>(\r\n             jobs,\r\n             error: None,\r\n             work_ns: 0,\r\n+            profile: crate::profile::StageProfile::default(),\r\n         });\r\n     }\r\n     let mut remaining = &mut *slab;\r\n@@ -797,10 +805,19 @@ fn extract_parallel<const PROFILE: bool>(\r\n                     0,\r\n                     PixelFormat::Bgr24,\r\n                 )?;\r\n-                let result = task.classifier.classify(crop)?;\r\n+                let result = task\r\n+                    .classifier\r\n+                    .classify_profiled::<PROFILE>(crop, &mut task.profile)?;\r\n                 job.metadata.classification = Some(result);\r\n                 if should_rotate(result, threshold) {\r\n+                    let rotation_timer = crate::profile::Timer::<PROFILE>::start();\r\n                     crop::rotate180(job.pixels, job.metadata.width, job.metadata.height)?;\r\n+                    if PROFILE {\r\n+                        task.profile.cls_rotation_ns = task\r\n+                            .profile\r\n+                            .cls_rotation_ns\r\n+                            .saturating_add(rotation_timer.elapsed());\r\n+                    }\r\n                     job.metadata.applied_rotation_degrees = 180;\r\n                 }\r\n                 Ok(())\r\n@@ -820,6 +837,7 @@ fn extract_parallel<const PROFILE: bool>(\r\n     for task in tasks {\r\n         if PROFILE {\r\n             profile.cls_orientation_ns = profile.cls_orientation_ns.saturating_add(task.work_ns);\r\n+            profile.merge(task.profile);\r\n         }\r\n         if let Some((index, cause)) = task.error\r\n             && error.as_ref().is_none_or(|(earlier, _)| index < *earlier)\r\ndiff --git a/src/orientation.rs b/src/orientation.rs\r\nindex 6855538..9cf9857 100644\r\n--- a/src/orientation.rs\r\n+++ b/src/orientation.rs\r\n@@ -4,6 +4,7 @@ use crate::{\r\n     math::exp_f32,\r\n     model::Graph,\r\n     preprocess::{self, ResizeWorkspace},\r\n+    profile::{StageProfile, Timer},\r\n     projection::ProjectionHead,\r\n     runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},\r\n     tensor::TensorData,\r\n@@ -185,22 +186,49 @@ impl Classifier {\r\n         Ok(())\r\n     }\r\n     pub fn classify(&mut self, image: ImageView<'_>) -> ImageResult<ClassificationResult> {\r\n+        self.classify_profiled::<false>(image, &mut StageProfile::default())\r\n+    }\r\n+    pub(crate) fn classify_profiled<const PROFILE: bool>(\r\n+        &mut self,\r\n+        image: ImageView<'_>,\r\n+        profile: &mut StageProfile,\r\n+    ) -> ImageResult<ClassificationResult> {\r\n         let cpu = self.session.cpu_context().clone();\r\n-        cpu.install(|| self.classify_impl(image))\r\n+        cpu.install(|| self.classify_impl::<PROFILE>(image, profile))\r\n     }\r\n-    fn classify_impl(&mut self, image: ImageView<'_>) -> ImageResult<ClassificationResult> {\r\n+    fn classify_impl<const PROFILE: bool>(\r\n+        &mut self,\r\n+        image: ImageView<'_>,\r\n+        profile: &mut StageProfile,\r\n+    ) -> ImageResult<ClassificationResult> {\r\n         self.check_image(image)?;\r\n         #[cfg(test)]\r\n         self.session.cpu_context().assert_production_thread(\"CLS\");\r\n         let mut width = 0;\r\n         let resize = &mut self.resize;\r\n+        let backbone_timer = Timer::<PROFILE>::start();\r\n+        let mut preprocessing_ns = 0;\r\n         let feature = self.session.run_with_layout_input(|input, nhwc| {\r\n+            let timer = Timer::<PROFILE>::start();\r\n             width = preprocess::cls_with_layout(image, input, resize, nhwc)\r\n                 .map_err(RuntimeError::from)?;\r\n+            preprocessing_ns = timer.elapsed();\r\n             Ok(())\r\n         })?;\r\n-        self.head\r\n-            .evaluate(self.compiled.model().graph(), feature.data(), width)\r\n+        if PROFILE {\r\n+            profile.cls_preprocess_ns = profile.cls_preprocess_ns.saturating_add(preprocessing_ns);\r\n+            profile.cls_backbone_ns = profile\r\n+                .cls_backbone_ns\r\n+                .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));\r\n+        }\r\n+        let head_timer = Timer::<PROFILE>::start();\r\n+        let result = self\r\n+            .head\r\n+            .evaluate(self.compiled.model().graph(), feature.data(), width);\r\n+        if PROFILE {\r\n+            profile.cls_head_ns = profile.cls_head_ns.saturating_add(head_timer.elapsed());\r\n+        }\r\n+        result\r\n     }\r\n     pub(crate) fn classify_with_trace<F>(\r\n         &mut self,\r\ndiff --git a/src/profile.rs b/src/profile.rs\r\nindex d6e5781..c4727e8 100644\r\n--- a/src/profile.rs\r\n+++ b/src/profile.rs\r\n@@ -27,7 +27,18 @@ pub struct StageProfile {\r\n     pub crop_work_ns: u64,\r\n     pub classification_wall_ns: u64,\r\n     pub recognition_wall_ns: u64,\r\n+    /// Summed classification and rotation worker durations, including their\r\n+    /// validation and orchestration. The following CLS fields are nested work\r\n+    /// counters, not additional wall phases.\r\n     pub cls_orientation_ns: u64,\r\n+    pub cls_preprocess_ns: u64,\r\n+    /// Production feature-prefix execution, excluding its input preprocessing.\r\n+    pub cls_backbone_ns: u64,\r\n+    /// Compact two-class projection and public probability/label calculation.\r\n+    pub cls_head_ns: u64,\r\n+    /// Only applied 180-degree pixel rotations; geometric crop rotation belongs\r\n+    /// to crop_ns instead.\r\n+    pub cls_rotation_ns: u64,\r\n     pub rec_preprocess_ns: u64,\r\n     pub rec_backbone_ns: u64,\r\n     pub projection_ns: u64,\r\n@@ -51,6 +62,10 @@ impl StageProfile {\r\n             classification_wall_ns,\r\n             recognition_wall_ns,\r\n             cls_orientation_ns,\r\n+            cls_preprocess_ns,\r\n+            cls_backbone_ns,\r\n+            cls_head_ns,\r\n+            cls_rotation_ns,\r\n             rec_preprocess_ns,\r\n             rec_backbone_ns,\r\n             projection_ns,\r\ndiff --git a/src/profile/tests.rs b/src/profile/tests.rs\r\nindex c0f2af8..2be5336 100644\r\n--- a/src/profile/tests.rs\r\n+++ b/src/profile/tests.rs\r\n@@ -12,6 +12,10 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {\r\n         binding_ns: u64::MAX - 1,\r\n         reshape_ns: 700,\r\n         recognition_wall_ns: 19,\r\n+        cls_preprocess_ns: 5,\r\n+        cls_backbone_ns: 7,\r\n+        cls_head_ns: 11,\r\n+        cls_rotation_ns: 13,\r\n         recognized_lines: 1,\r\n         ..Default::default()\r\n     };\r\n@@ -19,6 +23,10 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {\r\n         binding_ns: 9,\r\n         reshape_ns: 800,\r\n         recognition_wall_ns: 23,\r\n+        cls_preprocess_ns: 17,\r\n+        cls_backbone_ns: 19,\r\n+        cls_head_ns: 23,\r\n+        cls_rotation_ns: 29,\r\n         recognized_lines: 2,\r\n         ..Default::default()\r\n     });\r\n@@ -27,6 +35,10 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {\r\n     assert_eq!(json[\"binding_ns\"], u64::MAX);\r\n     assert_eq!(json[\"reshape_ns\"], 1500);\r\n     assert_eq!(json[\"recognition_wall_ns\"], 42);\r\n+    assert_eq!(json[\"cls_preprocess_ns\"], 22);\r\n+    assert_eq!(json[\"cls_backbone_ns\"], 26);\r\n+    assert_eq!(json[\"cls_head_ns\"], 34);\r\n+    assert_eq!(json[\"cls_rotation_ns\"], 42);\r\n     assert_eq!(json[\"recognized_lines\"], 3);\r\n     // Work deliberately exceeds wall time; merging must not subtract it from\r\n     // either wall counter or relabel it as binding.\r\n@@ -65,6 +77,19 @@ fn unprofiled_det_single_rec_and_batch_leave_counters_unchanged() {\r\n         ..Default::default()\r\n     };\r\n     let before = serde_json::to_value(profile).unwrap();\r\n+    let mut classifier = crate::orientation::Classifier::new(\r\n+        crate::ocr::tests::synthetic_classifier(),\r\n+        crate::runtime::ExecutionLimits::default(),\r\n+    )\r\n+    .unwrap();\r\n+    classifier.set_execution_context(cpu.clone(), 1).unwrap();\r\n+    let expected_classification = classifier.classify(image).unwrap();\r\n+    assert_eq!(\r\n+        classifier\r\n+            .classify_profiled::<false>(image, &mut profile)\r\n+            .unwrap(),\r\n+        expected_classification\r\n+    );\r\n     cpu.install(|| {\r\n         let detection = pipeline\r\n             .extractor_mut()\r\n@@ -88,6 +113,83 @@ fn unprofiled_det_single_rec_and_batch_leave_counters_unchanged() {\r\n     assert_eq!(serde_json::to_value(profile).unwrap(), before);\r\n }\r\n \r\n+#[cfg(feature = \"profiling\")]\r\n+#[test]\r\n+fn profiled_classifier_and_oriented_ocr_preserve_complete_results() {\r\n+    use crate::{\r\n+        detector::{Detector, DetectorOptions},\r\n+        lines::{LineOptions, OrientedLineExtractor},\r\n+        orientation::Classifier,\r\n+        runtime::ExecutionLimits,\r\n+    };\r\n+    use std::sync::Arc;\r\n+\r\n+    let pixels = crate::ocr::tests::two_lines();\r\n+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();\r\n+    #[cfg(feature = \"parallel\")]\r\n+    let capacities = [1, 2];\r\n+    #[cfg(not(feature = \"parallel\"))]\r\n+    let capacities = [1];\r\n+    for capacity in capacities {\r\n+        let cpu = Arc::new(CpuContext::new(capacity).unwrap());\r\n+        let mut classifier = Classifier::new(\r\n+            crate::ocr::tests::synthetic_classifier(),\r\n+            ExecutionLimits::default(),\r\n+        )\r\n+        .unwrap();\r\n+        classifier.set_execution_context(cpu.clone(), 1).unwrap();\r\n+        let expected = classifier.classify(image).unwrap();\r\n+        let mut profile = StageProfile::default();\r\n+        assert_eq!(\r\n+            classifier\r\n+                .classify_profiled::<true>(image, &mut profile)\r\n+                .unwrap(),\r\n+            expected\r\n+        );\r\n+        assert_eq!(profile.cls_orientation_ns, 0);\r\n+        assert_eq!(profile.cls_rotation_ns, 0);\r\n+        let json = serde_json::to_value(profile).unwrap();\r\n+        for field in [\"cls_preprocess_ns\", \"cls_backbone_ns\", \"cls_head_ns\"] {\r\n+            assert!(json[field].is_u64());\r\n+        }\r\n+\r\n+        let mut pipeline = crate::ocr::tests::synthetic_ocr(cpu.clone());\r\n+        let source_detector = pipeline.extractor_mut().detector();\r\n+        // Tight white crops give the synthetic classifier a positive signal,\r\n+        // so both serial and worker aggregation exercise applied rotations.\r\n+        let detector = Detector::new(\r\n+            source_detector.compiled().clone(),\r\n+            DetectorOptions {\r\n+                unclip_ratio: 0.05,\r\n+                ..source_detector.resolved_options()\r\n+            },\r\n+            source_detector.execution_limits(),\r\n+        )\r\n+        .unwrap();\r\n+        *pipeline.extractor_mut() = OrientedLineExtractor::new(\r\n+            detector,\r\n+            Some(crate::ocr::tests::synthetic_classifier()),\r\n+            LineOptions::default(),\r\n+        )\r\n+        .unwrap();\r\n+        pipeline.set_cpu_context(cpu).unwrap();\r\n+        let expected = pipeline.run(image, true).unwrap().try_to_owned().unwrap();\r\n+        assert!(expected.lines.iter().all(|line| {\r\n+            line.classification_label == 1 && line.applied_rotation_degrees == 180\r\n+        }));\r\n+        let (actual, profile) = pipeline.run_profiled(image, true).unwrap();\r\n+        assert_eq!(actual.try_to_owned().unwrap(), expected);\r\n+        assert_eq!(profile.recognized_lines, 2);\r\n+        assert!(profile.cls_rotation_ns <= profile.cls_orientation_ns);\r\n+        let cls_parts = profile\r\n+            .cls_preprocess_ns\r\n+            .saturating_add(profile.cls_backbone_ns)\r\n+            .saturating_add(profile.cls_head_ns)\r\n+            .saturating_add(profile.cls_rotation_ns);\r\n+        assert!(cls_parts <= profile.cls_orientation_ns);\r\n+    }\r\n+}\r\n+\r\n #[cfg(feature = \"profiling\")]\r\n #[test]\r\n fn profiled_ocr_and_batch_preserve_results_and_publish_separate_fields() {\r\n",
+  "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+  "assets": [
+    {
+      "file": "cls.onnx",
+      "sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2"
+    },
+    {
+      "file": "det.onnx",
+      "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8"
+    },
+    {
+      "file": "medium_det.onnx",
+      "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1"
+    },
+    {
+      "file": "medium_rec.onnx",
+      "sha256": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba"
+    },
+    {
+      "file": "ppocr_keys.txt",
+      "sha256": "5911341b8d8bdef3924e1ab7c85094f09cf05107d9983476a10c0ee57dac1d82"
+    },
+    {
+      "file": "rec_keys.txt",
+      "sha256": "769e7fa79bb297b5f18d8dbd149e364a45bc61f2b3f574e5ea836f0b261c23a6"
+    },
+    {
+      "file": "rec.onnx",
+      "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6"
+    },
+    {
+      "file": "small_det.onnx",
+      "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e"
+    },
+    {
+      "file": "small_rec.onnx",
+      "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+    }
+  ],
+  "cpu": [
+    {
+      "Name": "AMD Ryzen 9 5950X 16-Core Processor            ",
+      "NumberOfCores": 12,
+      "NumberOfLogicalProcessors": 24
+    }
+  ],
+  "system": {
+    "Manufacturer": "ASUS",
+    "Model": "System Product Name",
+    "TotalPhysicalMemory": 68621430784
+  },
+  "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\r\nbinary: rustc\r\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\r\ncommit-date: 2026-09-07\r\nhost: x86_64-pc-windows-msvc\r\nrelease: 1.100.0-nightly\r\nLLVM version: 23.1.1\r\n",
+  "manifest_settings": {
+    "cpu_threads": 1,
+    "kernel_policy": "auto",
+    "layout": "auto",
+    "fusion": true,
+    "direction_classification": true,
+    "classifier_threshold": 0.0,
+    "recognition_batch_size": 1,
+    "adaptive_width": true,
+    "target_width": 320,
+    "detector_limit": 960,
+    "bitmap_threshold": 0.2,
+    "unclip_ratio": 1.4,
+    "max_candidates": 3000,
+    "use_dilation": false
+  },
+  "fixtures": [
+    {
+      "id": "imgs_00006737",
+      "file": "corpus/imgs_00006737.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00006737.jpg",
+      "sha256": "4425af33dd163cf73bdff502bd35ee527e9bdd5725501db1da78bfdae9f538f4",
+      "transform": "identity",
+      "base": null,
+      "width": 896,
+      "height": 528,
+      "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73"
+    },
+    {
+      "id": "imgs_00018069",
+      "file": "corpus/imgs_00018069.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/00018069.jpg",
+      "sha256": "769bce39ef8baccd4db0cd36cdf80952dca7a6fa041aac4763938ebf1b875b8b",
+      "transform": "identity",
+      "base": null,
+      "width": 430,
+      "height": 267,
+      "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463"
+    },
+    {
+      "id": "imgs_1",
+      "file": "corpus/imgs_1.jpg",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/ddaa85ddafe1edfbe618b83ca0e8e61dab33155b/doc/imgs/1.jpg",
+      "sha256": "1b3978f3708bc31e3acfe603b052531a480db87ebaa1460559ee7d3eb1160593",
+      "transform": "identity",
+      "base": null,
+      "width": 720,
+      "height": 1150,
+      "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63"
+    }
+  ],
+  "cpu_context_capacity": 24,
+  "affinity": "ffffff",
+  "concurrency": 1,
+  "stage_option_and_owner_cap": 16,
+  "aggregate_rec_pool_capacity": 24,
+  "requested_line_workers": 0,
+  "measured_runs_per_ordinary_case": 3,
+  "warmups_per_ordinary_case": 1,
+  "measured_runs_per_profile_case": 1,
+  "warmups_per_profile_case": 1,
+  "ordinary_timing": "Uninstrumented release/default parallel features, predecoded BGR24 through complete owned result; no separately timed first inference. Warmup is first inference.",
+  "profile_timing": "Release/profiling, same borrowed production path then separately timed owned conversion; worker counters sum overlapping durations, wall phases are sequential; profile counters must not be combined with ordinary latency.",
+  "complete_profile_and_ordinary_output_digests_match": true,
+  "execution_budget_seconds": 60,
+  "total_performance_execution_seconds": 8.9353601,
+  "execution": [
+    {
+      "kind": "ordinary",
+      "model": "tiny",
+      "fixture": "imgs_1",
+      "executable_sha256": "dcf0d347ab2491bd3142dbbe4ea93f2cb8df8d50d0f882df7d4cb37240246ffc",
+      "arguments": [
+        "tiny",
+        "imgs_1",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.7660083,
+      "measurement": {
+        "affinity": "ffffff",
+        "capture_ctc_spans": false,
+        "cases": [
+          {
+            "active_classifier_workers_derived_from_policy": 3,
+            "classifier_threads_per_worker": 1,
+            "classifier_worker_budget_derived_from_policy": 16,
+            "compile_request_ms": 4.4386,
+            "cpu_context_ms": 0.6144,
+            "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+            "line_workers": 0,
+            "model_import_ms": 9.6589,
+            "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+            "process_peak_private_bytes": 102903808,
+            "process_peak_resident_bytes": null,
+            "retained_activation_bytes": 40960000,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+            "retained_workspace_bytes": 5728308,
+            "samples_cpu_ms": [
+              421.875,
+              500.0,
+              593.75
+            ],
+            "samples_ms": [
+              51.0788,
+              47.9658,
+              48.3816
+            ],
+            "warmup_ms": 54.9088
+          }
+        ],
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "bc2eb89f9fe192a4256779031660a73db2149dd78ff4582e29e0e47ee46aba3e",
+        "cpu_context_capacity": 24,
+        "execution_seconds": 0.4419944,
+        "fixture": "imgs_1",
+        "instrumented": false,
+        "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measured_runs_per_configuration": 3,
+        "model": "tiny",
+        "order": [
+          0
+        ],
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "recognized_lines": 3,
+        "warmups_per_configuration": 1
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "profile",
+      "model": "tiny",
+      "fixture": "imgs_1",
+      "executable_sha256": "7bbd2a4980d94e236a6d91e426d955e5a8510038e60136169f3395579a326594",
+      "arguments": [
+        "tiny",
+        "imgs_1",
+        "24",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.6637018,
+      "measurement": {
+        "affinity": "ffffff",
+        "applied_180_rotations": 3,
+        "budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+        "compile_request_ms": 4.4387,
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "bc2eb89f9fe192a4256779031660a73db2149dd78ff4582e29e0e47ee46aba3e",
+        "cpu_context_ms": 0.42460000000000003,
+        "detector_resized_height": 960,
+        "detector_resized_width": 608,
+        "fixture": "imgs_1",
+        "import_ms": 9.8654,
+        "instrumented": true,
+        "model": "tiny",
+        "owned_conversion_ns": 5700,
+        "profile": {
+          "binding_ns": 2600,
+          "classification_wall_ns": 1718600,
+          "cls_backbone_ns": 4662800,
+          "cls_head_ns": 8100,
+          "cls_orientation_ns": 5059500,
+          "cls_preprocess_ns": 321600,
+          "cls_rotation_ns": 64600,
+          "crop_ns": 618400,
+          "crop_work_ns": 2493900,
+          "ctc_ns": 6300,
+          "det_inference_ns": 35525500,
+          "det_postprocess_ns": 650800,
+          "det_preprocess_ns": 1043600,
+          "projection_ns": 681300,
+          "rec_backbone_ns": 15670700,
+          "rec_preprocess_ns": 617800,
+          "recognition_wall_ns": 7798500,
+          "recognized_lines": 3,
+          "reshape_ns": 1200,
+          "result_storage_ns": 1700,
+          "total_ns": 47403700
+        },
+        "recognition_tensor_width_histogram": {
+          "160": 1,
+          "320": 1,
+          "608": 1
+        },
+        "recognized_lines": 3,
+        "requested_line_workers": 0,
+        "retained_activation_bytes": {
+          "classifiers": 1024000,
+          "detector": 37355520,
+          "recognition_workers": 2506752,
+          "root_recognizer": 73728,
+          "total": 40960000
+        },
+        "retained_workspace_bytes": 5728308,
+        "threads": 24
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "ordinary",
+      "model": "tiny",
+      "fixture": "imgs_00018069",
+      "executable_sha256": "dcf0d347ab2491bd3142dbbe4ea93f2cb8df8d50d0f882df7d4cb37240246ffc",
+      "arguments": [
+        "tiny",
+        "imgs_00018069",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.5345505,
+      "measurement": {
+        "affinity": "ffffff",
+        "capture_ctc_spans": false,
+        "cases": [
+          {
+            "active_classifier_workers_derived_from_policy": 16,
+            "classifier_threads_per_worker": 1,
+            "classifier_worker_budget_derived_from_policy": 16,
+            "compile_request_ms": 7.0926,
+            "cpu_context_ms": 0.8479,
+            "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+            "line_workers": 0,
+            "model_import_ms": 15.4005,
+            "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+            "process_peak_private_bytes": 90136576,
+            "process_peak_resident_bytes": null,
+            "retained_activation_bytes": 18171904,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+            "retained_workspace_bytes": 14983075,
+            "samples_cpu_ms": [
+              343.75,
+              750.0,
+              812.5
+            ],
+            "samples_ms": [
+              49.5496,
+              50.5574,
+              45.3641
+            ],
+            "warmup_ms": 59.1182
+          }
+        ],
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "6ad9b9675d0a8a460955c589b420b983872bf8b99f11730aef5efde281d1b53d",
+        "cpu_context_capacity": 24,
+        "execution_seconds": 0.4645221,
+        "fixture": "imgs_00018069",
+        "instrumented": false,
+        "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measured_runs_per_configuration": 3,
+        "model": "tiny",
+        "order": [
+          0
+        ],
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "recognized_lines": 69,
+        "warmups_per_configuration": 1
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "profile",
+      "model": "tiny",
+      "fixture": "imgs_00018069",
+      "executable_sha256": "7bbd2a4980d94e236a6d91e426d955e5a8510038e60136169f3395579a326594",
+      "arguments": [
+        "tiny",
+        "imgs_00018069",
+        "24",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.4119657,
+      "measurement": {
+        "affinity": "ffffff",
+        "applied_180_rotations": 0,
+        "budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+        "compile_request_ms": 4.340199999999999,
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "6ad9b9675d0a8a460955c589b420b983872bf8b99f11730aef5efde281d1b53d",
+        "cpu_context_ms": 0.3992,
+        "detector_resized_height": 256,
+        "detector_resized_width": 416,
+        "fixture": "imgs_00018069",
+        "import_ms": 9.3214,
+        "instrumented": true,
+        "model": "tiny",
+        "owned_conversion_ns": 13500,
+        "profile": {
+          "binding_ns": 23500,
+          "classification_wall_ns": 13140300,
+          "cls_backbone_ns": 146531200,
+          "cls_head_ns": 157300,
+          "cls_orientation_ns": 154887100,
+          "cls_preprocess_ns": 8155700,
+          "cls_rotation_ns": 0,
+          "crop_ns": 756000,
+          "crop_work_ns": 8144800,
+          "ctc_ns": 40100,
+          "det_inference_ns": 11898400,
+          "det_postprocess_ns": 545100,
+          "det_preprocess_ns": 360000,
+          "projection_ns": 19434900,
+          "rec_backbone_ns": 220530600,
+          "rec_preprocess_ns": 5094400,
+          "recognition_wall_ns": 17905000,
+          "recognized_lines": 69,
+          "reshape_ns": 67400,
+          "result_storage_ns": 19200,
+          "total_ns": 44637800
+        },
+        "recognition_tensor_width_histogram": {
+          "128": 13,
+          "160": 8,
+          "192": 7,
+          "224": 2,
+          "256": 1,
+          "64": 2,
+          "96": 36
+        },
+        "recognized_lines": 69,
+        "requested_line_workers": 0,
+        "retained_activation_bytes": {
+          "classifiers": 4352000,
+          "detector": 6815744,
+          "recognition_workers": 6930432,
+          "root_recognizer": 73728,
+          "total": 18171904
+        },
+        "retained_workspace_bytes": 14983075,
+        "threads": 24
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "ordinary",
+      "model": "tiny",
+      "fixture": "imgs_00006737",
+      "executable_sha256": "dcf0d347ab2491bd3142dbbe4ea93f2cb8df8d50d0f882df7d4cb37240246ffc",
+      "arguments": [
+        "tiny",
+        "imgs_00006737",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.6321161,
+      "measurement": {
+        "affinity": "ffffff",
+        "capture_ctc_spans": false,
+        "cases": [
+          {
+            "active_classifier_workers_derived_from_policy": 16,
+            "classifier_threads_per_worker": 1,
+            "classifier_worker_budget_derived_from_policy": 16,
+            "compile_request_ms": 4.8934,
+            "cpu_context_ms": 0.6079,
+            "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+            "line_workers": 0,
+            "model_import_ms": 10.8827,
+            "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+            "process_peak_private_bytes": 115253248,
+            "process_peak_resident_bytes": null,
+            "retained_activation_bytes": 45869056,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 32768,
+            "retained_workspace_bytes": 12868166,
+            "samples_cpu_ms": [
+              937.5,
+              1109.375,
+              984.375
+            ],
+            "samples_ms": [
+              76.9393,
+              68.47930000000001,
+              72.8305
+            ],
+            "warmup_ms": 92.96690000000001
+          }
+        ],
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "99b6d63ba50988e4e71d62c5f3d786b7e76bbeca712a8ee3582d5a2a38594f05",
+        "cpu_context_capacity": 24,
+        "execution_seconds": 0.5537961,
+        "fixture": "imgs_00006737",
+        "instrumented": false,
+        "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measured_runs_per_configuration": 3,
+        "model": "tiny",
+        "order": [
+          0
+        ],
+        "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+        "recognized_lines": 31,
+        "warmups_per_configuration": 1
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "profile",
+      "model": "tiny",
+      "fixture": "imgs_00006737",
+      "executable_sha256": "7bbd2a4980d94e236a6d91e426d955e5a8510038e60136169f3395579a326594",
+      "arguments": [
+        "tiny",
+        "imgs_00006737",
+        "24",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.4621943,
+      "measurement": {
+        "affinity": "ffffff",
+        "applied_180_rotations": 1,
+        "budgets": "CpuBudgets { capacity: 24, line_workers: 8, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 3 }",
+        "compile_request_ms": 4.173299999999999,
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "99b6d63ba50988e4e71d62c5f3d786b7e76bbeca712a8ee3582d5a2a38594f05",
+        "cpu_context_ms": 0.40049999999999997,
+        "detector_resized_height": 544,
+        "detector_resized_width": 896,
+        "fixture": "imgs_00006737",
+        "import_ms": 9.1314,
+        "instrumented": true,
+        "model": "tiny",
+        "owned_conversion_ns": 10000,
+        "profile": {
+          "binding_ns": 17900,
+          "classification_wall_ns": 6040000,
+          "cls_backbone_ns": 74964600,
+          "cls_head_ns": 77500,
+          "cls_orientation_ns": 79802700,
+          "cls_preprocess_ns": 4729900,
+          "cls_rotation_ns": 2500,
+          "crop_ns": 1898700,
+          "crop_work_ns": 10678700,
+          "ctc_ns": 48100,
+          "det_inference_ns": 31287800,
+          "det_postprocess_ns": 865300,
+          "det_preprocess_ns": 881100,
+          "projection_ns": 11043600,
+          "rec_backbone_ns": 204617300,
+          "rec_preprocess_ns": 6874700,
+          "recognition_wall_ns": 29767300,
+          "recognized_lines": 31,
+          "reshape_ns": 87300,
+          "result_storage_ns": 14100,
+          "total_ns": 70786200
+        },
+        "recognition_tensor_width_histogram": {
+          "128": 3,
+          "1536": 1,
+          "160": 3,
+          "192": 1,
+          "224": 4,
+          "256": 5,
+          "288": 6,
+          "320": 2,
+          "352": 1,
+          "384": 1,
+          "416": 1,
+          "448": 1,
+          "64": 1,
+          "672": 1
+        },
+        "recognized_lines": 31,
+        "requested_line_workers": 0,
+        "retained_activation_bytes": {
+          "classifiers": 4352000,
+          "detector": 31195136,
+          "recognition_workers": 10248192,
+          "root_recognizer": 73728,
+          "total": 45869056
+        },
+        "retained_workspace_bytes": 12868166,
+        "threads": 24
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "ordinary",
+      "model": "small",
+      "fixture": "imgs_00018069",
+      "executable_sha256": "dcf0d347ab2491bd3142dbbe4ea93f2cb8df8d50d0f882df7d4cb37240246ffc",
+      "arguments": [
+        "small",
+        "imgs_00018069",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.8292042,
+      "measurement": {
+        "affinity": "ffffff",
+        "capture_ctc_spans": false,
+        "cases": [
+          {
+            "active_classifier_workers_derived_from_policy": 16,
+            "classifier_threads_per_worker": 1,
+            "classifier_worker_budget_derived_from_policy": 16,
+            "compile_request_ms": 20.9016,
+            "cpu_context_ms": 0.4556,
+            "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+            "line_workers": 0,
+            "model_import_ms": 32.2453,
+            "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+            "process_peak_private_bytes": 178368512,
+            "process_peak_resident_bytes": null,
+            "retained_activation_bytes": 41314304,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 49152,
+            "retained_workspace_bytes": 28681615,
+            "samples_cpu_ms": [
+              1453.125,
+              1078.125,
+              1765.625
+            ],
+            "samples_ms": [
+              110.8518,
+              112.18459999999999,
+              118.9714
+            ],
+            "warmup_ms": 132.148
+          }
+        ],
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "6119b5db3eac6e1bde3384a45802e00253bb872587c5fa2814019837f42c575b",
+        "cpu_context_capacity": 24,
+        "execution_seconds": 0.7522436,
+        "fixture": "imgs_00018069",
+        "instrumented": false,
+        "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measured_runs_per_configuration": 3,
+        "model": "small",
+        "order": [
+          0
+        ],
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "recognized_lines": 69,
+        "warmups_per_configuration": 1
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "profile",
+      "model": "small",
+      "fixture": "imgs_00018069",
+      "executable_sha256": "7bbd2a4980d94e236a6d91e426d955e5a8510038e60136169f3395579a326594",
+      "arguments": [
+        "small",
+        "imgs_00018069",
+        "24",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 0.6620166,
+      "measurement": {
+        "affinity": "ffffff",
+        "applied_180_rotations": 0,
+        "budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+        "compile_request_ms": 22.4769,
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "6119b5db3eac6e1bde3384a45802e00253bb872587c5fa2814019837f42c575b",
+        "cpu_context_ms": 0.4507,
+        "detector_resized_height": 256,
+        "detector_resized_width": 416,
+        "fixture": "imgs_00018069",
+        "import_ms": 38.6658,
+        "instrumented": true,
+        "model": "small",
+        "owned_conversion_ns": 16800,
+        "profile": {
+          "binding_ns": 47100,
+          "classification_wall_ns": 14910000,
+          "cls_backbone_ns": 181452700,
+          "cls_head_ns": 197100,
+          "cls_orientation_ns": 191398300,
+          "cls_preprocess_ns": 9690800,
+          "cls_rotation_ns": 0,
+          "crop_ns": 894300,
+          "crop_work_ns": 7522400,
+          "ctc_ns": 110500,
+          "det_inference_ns": 25479200,
+          "det_postprocess_ns": 446900,
+          "det_preprocess_ns": 349700,
+          "projection_ns": 101970400,
+          "rec_backbone_ns": 1196437800,
+          "rec_preprocess_ns": 5392900,
+          "recognition_wall_ns": 85743300,
+          "recognized_lines": 69,
+          "reshape_ns": 138400,
+          "result_storage_ns": 42600,
+          "total_ns": 127880300
+        },
+        "recognition_tensor_width_histogram": {
+          "128": 14,
+          "160": 7,
+          "192": 7,
+          "224": 2,
+          "256": 1,
+          "64": 2,
+          "96": 36
+        },
+        "recognized_lines": 69,
+        "requested_line_workers": 0,
+        "retained_activation_bytes": {
+          "classifiers": 4352000,
+          "detector": 8945664,
+          "recognition_workers": 27721728,
+          "root_recognizer": 294912,
+          "total": 41314304
+        },
+        "retained_workspace_bytes": 28681615,
+        "threads": 24
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "ordinary",
+      "model": "medium",
+      "fixture": "imgs_00018069",
+      "executable_sha256": "dcf0d347ab2491bd3142dbbe4ea93f2cb8df8d50d0f882df7d4cb37240246ffc",
+      "arguments": [
+        "medium",
+        "imgs_00018069",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 2.5055004,
+      "measurement": {
+        "affinity": "ffffff",
+        "capture_ctc_spans": false,
+        "cases": [
+          {
+            "active_classifier_workers_derived_from_policy": 16,
+            "classifier_threads_per_worker": 1,
+            "classifier_worker_budget_derived_from_policy": 16,
+            "compile_request_ms": 136.37730000000002,
+            "cpu_context_ms": 0.7171000000000001,
+            "initial_budgets": "CpuBudgets { capacity: 24, line_workers: 4, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 6 }",
+            "line_workers": 0,
+            "model_import_ms": 128.0325,
+            "post_run_budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+            "process_peak_private_bytes": 418201600,
+            "process_peak_resident_bytes": null,
+            "retained_activation_bytes": 67004416,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 131072,
+            "retained_workspace_bytes": 28886495,
+            "samples_cpu_ms": [
+              6218.75,
+              6515.625,
+              6234.375
+            ],
+            "samples_ms": [
+              413.6565,
+              509.1008,
+              473.0911
+            ],
+            "warmup_ms": 477.88530000000003
+          }
+        ],
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "6be33ee0ce32b5c047e7ce1b8ccd16bd1c03b0c92f591620c444b1d6a70a7488",
+        "cpu_context_capacity": 24,
+        "execution_seconds": 2.3769491,
+        "fixture": "imgs_00018069",
+        "instrumented": false,
+        "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim.",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measured_runs_per_configuration": 3,
+        "model": "medium",
+        "order": [
+          0
+        ],
+        "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+        "recognized_lines": 69,
+        "warmups_per_configuration": 1
+      },
+      "stderr": ""
+    },
+    {
+      "kind": "profile",
+      "model": "medium",
+      "fixture": "imgs_00018069",
+      "executable_sha256": "7bbd2a4980d94e236a6d91e426d955e5a8510038e60136169f3395579a326594",
+      "arguments": [
+        "medium",
+        "imgs_00018069",
+        "24",
+        "0"
+      ],
+      "timeout_ms": 10000,
+      "wall_seconds": 1.4681022,
+      "measurement": {
+        "affinity": "ffffff",
+        "applied_180_rotations": 0,
+        "budgets": "CpuBudgets { capacity: 24, line_workers: 16, preprocess_workers: 16, detector_threads: 16, recognizer_base_threads: 1 }",
+        "compile_request_ms": 136.637,
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": "6be33ee0ce32b5c047e7ce1b8ccd16bd1c03b0c92f591620c444b1d6a70a7488",
+        "cpu_context_ms": 0.4726,
+        "detector_resized_height": 256,
+        "detector_resized_width": 416,
+        "fixture": "imgs_00018069",
+        "import_ms": 140.74130000000002,
+        "instrumented": true,
+        "model": "medium",
+        "owned_conversion_ns": 15700,
+        "profile": {
+          "binding_ns": 65200,
+          "classification_wall_ns": 12981700,
+          "cls_backbone_ns": 153975600,
+          "cls_head_ns": 166700,
+          "cls_orientation_ns": 163480300,
+          "cls_preprocess_ns": 9288700,
+          "cls_rotation_ns": 0,
+          "crop_ns": 891600,
+          "crop_work_ns": 8441100,
+          "ctc_ns": 182200,
+          "det_inference_ns": 46826100,
+          "det_postprocess_ns": 508100,
+          "det_preprocess_ns": 315500,
+          "projection_ns": 195526100,
+          "rec_backbone_ns": 5214065600,
+          "rec_preprocess_ns": 5487800,
+          "recognition_wall_ns": 374590600,
+          "recognized_lines": 69,
+          "reshape_ns": 198000,
+          "result_storage_ns": 54400,
+          "total_ns": 436165600
+        },
+        "recognition_tensor_width_histogram": {
+          "128": 14,
+          "160": 6,
+          "192": 8,
+          "224": 1,
+          "64": 2,
+          "96": 38
+        },
+        "recognized_lines": 69,
+        "requested_line_workers": 0,
+        "retained_activation_bytes": {
+          "classifiers": 4352000,
+          "detector": 27262976,
+          "recognition_workers": 34996224,
+          "root_recognizer": 393216,
+          "total": 67004416
+        },
+        "retained_workspace_bytes": 28886495,
+        "threads": 24
+      },
+      "stderr": ""
+    }
+  ],
+  "correctness": "Before timing: release/profiling full library suite passed 329 tests, with 12 diagnostics ignored; includes five profiling contracts exercising ordinary/profiled serial/parallel paths. Separate release builds with and without profiling. See validation.txt in local output directory.",
+  "limitations": "Physical local Windows host. Five cases over three corpus images; one CPU24 configuration; three ordinary samples and one stage profile per case. No CI, VM, remote runner, automatic retries, sample growth, hardware performance counters, ground-truth accuracy test, concurrent throughput test, or other architecture qualification. File/capture/decode and external engine queueing excluded."
+}

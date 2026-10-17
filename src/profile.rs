@@ -27,7 +27,18 @@ pub struct StageProfile {
     pub crop_work_ns: u64,
     pub classification_wall_ns: u64,
     pub recognition_wall_ns: u64,
+    /// Summed classification and rotation worker durations, including their
+    /// validation and orchestration. The following CLS fields are nested work
+    /// counters, not additional wall phases.
     pub cls_orientation_ns: u64,
+    pub cls_preprocess_ns: u64,
+    /// Production feature-prefix execution, excluding its input preprocessing.
+    pub cls_backbone_ns: u64,
+    /// Compact two-class projection and public probability/label calculation.
+    pub cls_head_ns: u64,
+    /// Only applied 180-degree pixel rotations; geometric crop rotation belongs
+    /// to crop_ns instead.
+    pub cls_rotation_ns: u64,
     pub rec_preprocess_ns: u64,
     pub rec_backbone_ns: u64,
     pub projection_ns: u64,
@@ -51,6 +62,10 @@ impl StageProfile {
             classification_wall_ns,
             recognition_wall_ns,
             cls_orientation_ns,
+            cls_preprocess_ns,
+            cls_backbone_ns,
+            cls_head_ns,
+            cls_rotation_ns,
             rec_preprocess_ns,
             rec_backbone_ns,
             projection_ns,

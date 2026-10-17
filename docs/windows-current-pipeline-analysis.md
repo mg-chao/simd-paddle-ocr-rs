@@ -1,5 +1,10 @@
 # Current Windows OCR latency and optimization analysis
 
+For the newer `38e054c` implementation on a 24-thread context, see the
+[current CPU24 stage analysis](windows-cpu24-stage-analysis.md). This report
+retains the earlier `061c33b` eight-CPU measurements; the two experiments must
+not be pooled.
+
 The current implementation still has useful optimization targets, concentrated in detector compute for sparse pages and recognition compute for dense pages. Dense Small and Medium spend **78.0% and 89.5%** of profiled elapsed time in recognition. Current recognition backbone probes attribute **79.7% and 90.0%** of physical-step time to 1×1 convolutions. Orientation classification is also substantial for Tiny: **24.97 ms, or 36.0%**, on the dense fixture.
 
 These results describe production revision `061c33b60fd9d14f63119f19552bdc0278e2f083` on 2026-10-17, after the recognition scheduling, short-reduction pointwise and detector upsampling changes. The older initial tables in [the original stage analysis](windows-cpu-stage-analysis.md) describe `4c88abc` and are separate experiments. No production code or defaults changed during this analysis.

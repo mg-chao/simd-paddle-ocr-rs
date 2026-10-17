@@ -12,6 +12,8 @@ mod misc;
 #[cfg(target_arch = "aarch64")]
 mod neon_depthwise;
 pub(super) mod pointwise;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+mod short_depthwise;
 mod strip;
 mod transpose;
 
@@ -1031,7 +1033,7 @@ unsafe fn depthwise_avx2(
     first: usize,
     store: &impl StoreTransform,
 ) {
-    depthwise::<8, true>(p, input, weights, bias, packed, out, first, store);
+    depthwise_core::<8, true, true>(p, input, weights, bias, packed, out, first, store);
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -1094,10 +1096,32 @@ fn depthwise<const LANES: usize, const FUSED: bool>(
     first: usize,
     store: &impl StoreTransform,
 ) {
+    depthwise_core::<LANES, FUSED, false>(p, input, weights, bias, packed, out, first, store);
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn depthwise_core<const LANES: usize, const FUSED: bool, const INTERIOR: bool>(
+    p: &Conv,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    packed: Option<&PackedMatrix>,
+    out: &mut [f32],
+    first: usize,
+    store: &impl StoreTransform,
+) {
     if p.kh >= 6 {
         strip::execute::<LANES, FUSED>(p, input, weights, bias, packed, out, first, store);
         return;
     }
+    // Only the AVX2/FMA wrapper (and its paired diagnostic) enables INTERIOR.
+    // Other policies instantiate the exact original checked traversal.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let interior = INTERIOR
+        && LANES == 8
+        && FUSED
+        && short_depthwise::eligible(p, input, bias, packed, out.len(), first);
     let pixels = out.len() / p.cout;
     let vector_channels = p.cout / LANES * LANES;
     let mut local = 0;
@@ -1111,7 +1135,25 @@ fn depthwise<const LANES: usize, const FUSED: bool>(
         } else {
             1
         };
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        let origin = if interior && tile == 8 {
+            short_depthwise::interior_origin(p, batch, y, x)
+        } else {
+            None
+        };
         for channel in (0..vector_channels).step_by(LANES) {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            if let (Some(origin), Some(packed)) = (origin, packed) {
+                // SAFETY: INTERIOR is enabled only under AVX2/FMA, LANES=8.
+                // eligible validates this same storage and geometry, while
+                // interior_origin proves the complete eight-pixel field.
+                unsafe {
+                    short_depthwise::interior_tile(
+                        p, input, bias, packed, out, origin, local, channel, first, store,
+                    );
+                }
+                continue;
+            }
             if tile == 8 {
                 depthwise_pixels::<LANES, FUSED, 8>(
                     p, input, weights, bias, packed, out, local, batch, y, x, channel, first, store,

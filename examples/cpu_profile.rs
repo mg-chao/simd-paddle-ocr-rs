@@ -16,11 +16,11 @@ fn run() -> Result<()> {
         lines::LineOptions,
         recognizer::RecognizerOptions,
     };
-    use std::{path::PathBuf, sync::Arc};
+    use std::{path::PathBuf, sync::Arc, time::Instant};
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|s| s == "--help" || s == "-h") {
         println!(
-            "cargo run --release --locked --features profiling --example cpu_profile -- [tiny|small|medium] [FIXTURE] [1|8] [LINE_WORKERS=0]\nOne warm-up and one instrumented production run; JSON stage wall/work counters and retained capacities. No official performance claim."
+            "cargo run --release --locked --features profiling --example cpu_profile -- [tiny|small|medium] [FIXTURE] [THREADS=8] [LINE_WORKERS=0]\nOne warm-up and one instrumented production run; JSON stage wall/work counters and retained capacities. Threads must fit local available parallelism. No official performance claim."
         );
         return Ok(());
     }
@@ -34,15 +34,20 @@ fn run() -> Result<()> {
     if line_workers > 16 {
         return Err("line workers must be within 0..=16".into());
     }
-    if ![1, 8].contains(&threads) || !["tiny", "small", "medium"].contains(&model) {
-        return Err("use a shipped model and 1 or 8 threads".into());
-    }
-    #[cfg(windows)]
+    if threads == 0
+        || threads > std::thread::available_parallelism()?.get()
+        || !["tiny", "small", "medium"].contains(&model)
     {
-        let affinity =
-            benchmark::select_affinity(benchmark::windows::allowed_affinity()?, threads)?;
-        benchmark::windows::set_affinity(affinity)?;
+        return Err("use a shipped model and a positive locally available thread count".into());
     }
+    #[cfg(any(windows, target_os = "macos"))]
+    let affinity = {
+        let selected = benchmark::platform::affinity(threads, None)?;
+        benchmark::platform::configure(&selected)?;
+        selected
+    };
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let affinity = "unbound";
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest: Manifest = read_json(&root.join("tests/baseline/manifest.json"))?;
     manifest.validate()?;
@@ -59,15 +64,21 @@ fn run() -> Result<()> {
         .find(|m| m.id == model)
         .ok_or("unknown model")?;
     let s = &manifest.settings;
+    let setup = Instant::now();
     let models = OcrModelSet::from_paths(
         directory.join(&spec.det),
         directory.join(&spec.rec),
         directory.join(&spec.dictionary),
         Some(&directory.join(&spec.cls)),
     )?;
+    let import_ms = setup.elapsed().as_secs_f64() * 1000.;
+    let setup = Instant::now();
+    let cpu = Arc::new(CpuContext::new(threads)?);
+    let cpu_context_ms = setup.elapsed().as_secs_f64() * 1000.;
+    let setup = Instant::now();
     let mut ocr = models
         .builder()
-        .cpu_context(Arc::new(CpuContext::new(threads)?))
+        .cpu_context(cpu)
         .cpu_options(CpuOptions {
             line_workers,
             preprocess_workers: threads,
@@ -93,6 +104,7 @@ fn run() -> Result<()> {
         })
         .direction_classification(s.direction_classification)
         .build()?;
+    let compile_request_ms = setup.elapsed().as_secs_f64() * 1000.;
     let image = ImageView::new(
         &frame.pixels,
         frame.width as usize,
@@ -102,9 +114,15 @@ fn run() -> Result<()> {
     )?;
     let expected = ocr.run(image, false)?.try_to_owned()?;
     let (view, profile) = ocr.run_profiled(image, false)?;
+    let owned_timer = Instant::now();
     let actual = view.try_to_owned()?;
+    let owned_conversion_ns = owned_timer.elapsed().as_nanos();
     if actual != expected {
         return Err("profiled output differs from warm-up".into());
+    }
+    let mut widths = std::collections::BTreeMap::<usize, usize>::new();
+    for line in &actual.lines {
+        *widths.entry(line.recognition_tensor_width).or_default() += 1;
     }
     // recognizer_mut() invalidates cached worker requests, so snapshot aggregate
     // capacities before using mutable component accessors for the breakdown.
@@ -116,7 +134,13 @@ fn run() -> Result<()> {
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
-            "instrumented":true,"model":model,"fixture":fixture,"threads":threads,"requested_line_workers":line_workers,
+            "instrumented":true,"model":model,"fixture":fixture,"threads":threads,"affinity":affinity,"requested_line_workers":line_workers,
+            "import_ms":import_ms,"cpu_context_ms":cpu_context_ms,"compile_request_ms":compile_request_ms,"owned_conversion_ns":owned_conversion_ns,
+            "complete_owned_outputs_exactly_equal":true,
+            "control_output_sha256":baseline::hash(&serde_json::to_vec(&actual)?),
+            "recognition_tensor_width_histogram":widths,
+            "applied_180_rotations":actual.lines.iter().filter(|line| line.applied_rotation_degrees == 180).count(),
+            "detector_resized_width":actual.detector_resized_width,"detector_resized_height":actual.detector_resized_height,
             "budgets":format!("{:?}",ocr.cpu_budgets()),"recognized_lines":actual.lines.len(),"profile":profile,
             "retained_activation_bytes":{"total":total,"detector":det,"classifiers":cls,
                 "root_recognizer":rec,"recognition_workers":total-det-cls-rec},

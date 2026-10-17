@@ -12,6 +12,10 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
         binding_ns: u64::MAX - 1,
         reshape_ns: 700,
         recognition_wall_ns: 19,
+        cls_preprocess_ns: 5,
+        cls_backbone_ns: 7,
+        cls_head_ns: 11,
+        cls_rotation_ns: 13,
         recognized_lines: 1,
         ..Default::default()
     };
@@ -19,6 +23,10 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
         binding_ns: 9,
         reshape_ns: 800,
         recognition_wall_ns: 23,
+        cls_preprocess_ns: 17,
+        cls_backbone_ns: 19,
+        cls_head_ns: 23,
+        cls_rotation_ns: 29,
         recognized_lines: 2,
         ..Default::default()
     });
@@ -27,6 +35,10 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
     assert_eq!(json["binding_ns"], u64::MAX);
     assert_eq!(json["reshape_ns"], 1500);
     assert_eq!(json["recognition_wall_ns"], 42);
+    assert_eq!(json["cls_preprocess_ns"], 22);
+    assert_eq!(json["cls_backbone_ns"], 26);
+    assert_eq!(json["cls_head_ns"], 34);
+    assert_eq!(json["cls_rotation_ns"], 42);
     assert_eq!(json["recognized_lines"], 3);
     // Work deliberately exceeds wall time; merging must not subtract it from
     // either wall counter or relabel it as binding.
@@ -65,6 +77,19 @@ fn unprofiled_det_single_rec_and_batch_leave_counters_unchanged() {
         ..Default::default()
     };
     let before = serde_json::to_value(profile).unwrap();
+    let mut classifier = crate::orientation::Classifier::new(
+        crate::ocr::tests::synthetic_classifier(),
+        crate::runtime::ExecutionLimits::default(),
+    )
+    .unwrap();
+    classifier.set_execution_context(cpu.clone(), 1).unwrap();
+    let expected_classification = classifier.classify(image).unwrap();
+    assert_eq!(
+        classifier
+            .classify_profiled::<false>(image, &mut profile)
+            .unwrap(),
+        expected_classification
+    );
     cpu.install(|| {
         let detection = pipeline
             .extractor_mut()
@@ -86,6 +111,83 @@ fn unprofiled_det_single_rec_and_batch_leave_counters_unchanged() {
         assert_eq!(batch, vec![single.clone(), single]);
     });
     assert_eq!(serde_json::to_value(profile).unwrap(), before);
+}
+
+#[cfg(feature = "profiling")]
+#[test]
+fn profiled_classifier_and_oriented_ocr_preserve_complete_results() {
+    use crate::{
+        detector::{Detector, DetectorOptions},
+        lines::{LineOptions, OrientedLineExtractor},
+        orientation::Classifier,
+        runtime::ExecutionLimits,
+    };
+    use std::sync::Arc;
+
+    let pixels = crate::ocr::tests::two_lines();
+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+    #[cfg(feature = "parallel")]
+    let capacities = [1, 2];
+    #[cfg(not(feature = "parallel"))]
+    let capacities = [1];
+    for capacity in capacities {
+        let cpu = Arc::new(CpuContext::new(capacity).unwrap());
+        let mut classifier = Classifier::new(
+            crate::ocr::tests::synthetic_classifier(),
+            ExecutionLimits::default(),
+        )
+        .unwrap();
+        classifier.set_execution_context(cpu.clone(), 1).unwrap();
+        let expected = classifier.classify(image).unwrap();
+        let mut profile = StageProfile::default();
+        assert_eq!(
+            classifier
+                .classify_profiled::<true>(image, &mut profile)
+                .unwrap(),
+            expected
+        );
+        assert_eq!(profile.cls_orientation_ns, 0);
+        assert_eq!(profile.cls_rotation_ns, 0);
+        let json = serde_json::to_value(profile).unwrap();
+        for field in ["cls_preprocess_ns", "cls_backbone_ns", "cls_head_ns"] {
+            assert!(json[field].is_u64());
+        }
+
+        let mut pipeline = crate::ocr::tests::synthetic_ocr(cpu.clone());
+        let source_detector = pipeline.extractor_mut().detector();
+        // Tight white crops give the synthetic classifier a positive signal,
+        // so both serial and worker aggregation exercise applied rotations.
+        let detector = Detector::new(
+            source_detector.compiled().clone(),
+            DetectorOptions {
+                unclip_ratio: 0.05,
+                ..source_detector.resolved_options()
+            },
+            source_detector.execution_limits(),
+        )
+        .unwrap();
+        *pipeline.extractor_mut() = OrientedLineExtractor::new(
+            detector,
+            Some(crate::ocr::tests::synthetic_classifier()),
+            LineOptions::default(),
+        )
+        .unwrap();
+        pipeline.set_cpu_context(cpu).unwrap();
+        let expected = pipeline.run(image, true).unwrap().try_to_owned().unwrap();
+        assert!(expected.lines.iter().all(|line| {
+            line.classification_label == 1 && line.applied_rotation_degrees == 180
+        }));
+        let (actual, profile) = pipeline.run_profiled(image, true).unwrap();
+        assert_eq!(actual.try_to_owned().unwrap(), expected);
+        assert_eq!(profile.recognized_lines, 2);
+        assert!(profile.cls_rotation_ns <= profile.cls_orientation_ns);
+        let cls_parts = profile
+            .cls_preprocess_ns
+            .saturating_add(profile.cls_backbone_ns)
+            .saturating_add(profile.cls_head_ns)
+            .saturating_add(profile.cls_rotation_ns);
+        assert!(cls_parts <= profile.cls_orientation_ns);
+    }
 }
 
 #[cfg(feature = "profiling")]

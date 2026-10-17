@@ -4,6 +4,7 @@ use crate::{
     math::exp_f32,
     model::Graph,
     preprocess::{self, ResizeWorkspace},
+    profile::{StageProfile, Timer},
     projection::ProjectionHead,
     runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
     tensor::TensorData,
@@ -185,22 +186,49 @@ impl Classifier {
         Ok(())
     }
     pub fn classify(&mut self, image: ImageView<'_>) -> ImageResult<ClassificationResult> {
-        let cpu = self.session.cpu_context().clone();
-        cpu.install(|| self.classify_impl(image))
+        self.classify_profiled::<false>(image, &mut StageProfile::default())
     }
-    fn classify_impl(&mut self, image: ImageView<'_>) -> ImageResult<ClassificationResult> {
+    pub(crate) fn classify_profiled<const PROFILE: bool>(
+        &mut self,
+        image: ImageView<'_>,
+        profile: &mut StageProfile,
+    ) -> ImageResult<ClassificationResult> {
+        let cpu = self.session.cpu_context().clone();
+        cpu.install(|| self.classify_impl::<PROFILE>(image, profile))
+    }
+    fn classify_impl<const PROFILE: bool>(
+        &mut self,
+        image: ImageView<'_>,
+        profile: &mut StageProfile,
+    ) -> ImageResult<ClassificationResult> {
         self.check_image(image)?;
         #[cfg(test)]
         self.session.cpu_context().assert_production_thread("CLS");
         let mut width = 0;
         let resize = &mut self.resize;
+        let backbone_timer = Timer::<PROFILE>::start();
+        let mut preprocessing_ns = 0;
         let feature = self.session.run_with_layout_input(|input, nhwc| {
+            let timer = Timer::<PROFILE>::start();
             width = preprocess::cls_with_layout(image, input, resize, nhwc)
                 .map_err(RuntimeError::from)?;
+            preprocessing_ns = timer.elapsed();
             Ok(())
         })?;
-        self.head
-            .evaluate(self.compiled.model().graph(), feature.data(), width)
+        if PROFILE {
+            profile.cls_preprocess_ns = profile.cls_preprocess_ns.saturating_add(preprocessing_ns);
+            profile.cls_backbone_ns = profile
+                .cls_backbone_ns
+                .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+        }
+        let head_timer = Timer::<PROFILE>::start();
+        let result = self
+            .head
+            .evaluate(self.compiled.model().graph(), feature.data(), width);
+        if PROFILE {
+            profile.cls_head_ns = profile.cls_head_ns.saturating_add(head_timer.elapsed());
+        }
+        result
     }
     pub(crate) fn classify_with_trace<F>(
         &mut self,

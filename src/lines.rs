@@ -548,11 +548,17 @@ impl OrientedLineExtractor {
                         line_observer(event)
                     })?
                 } else {
-                    classifier.classify(crop)?
+                    classifier.classify_profiled::<PROFILE>(crop, profile)?
                 };
                 metadata.classification = Some(result);
                 if should_rotate(result, self.options.classifier_threshold) {
+                    let rotation_timer = crate::profile::Timer::<PROFILE>::start();
                     crop::rotate180(pixels, metadata.width, metadata.height)?;
+                    if PROFILE {
+                        profile.cls_rotation_ns = profile
+                            .cls_rotation_ns
+                            .saturating_add(rotation_timer.elapsed());
+                    }
                     metadata.applied_rotation_degrees = 180;
                 }
             }
@@ -664,6 +670,7 @@ struct ClassifyTask<'a> {
     jobs: Vec<ClassifyJob<'a>>,
     error: Option<(usize, ImageError)>,
     work_ns: u64,
+    profile: crate::profile::StageProfile,
 }
 #[allow(clippy::too_many_arguments)]
 fn extract_parallel<const PROFILE: bool>(
@@ -774,6 +781,7 @@ fn extract_parallel<const PROFILE: bool>(
             jobs,
             error: None,
             work_ns: 0,
+            profile: crate::profile::StageProfile::default(),
         });
     }
     let mut remaining = &mut *slab;
@@ -797,10 +805,19 @@ fn extract_parallel<const PROFILE: bool>(
                     0,
                     PixelFormat::Bgr24,
                 )?;
-                let result = task.classifier.classify(crop)?;
+                let result = task
+                    .classifier
+                    .classify_profiled::<PROFILE>(crop, &mut task.profile)?;
                 job.metadata.classification = Some(result);
                 if should_rotate(result, threshold) {
+                    let rotation_timer = crate::profile::Timer::<PROFILE>::start();
                     crop::rotate180(job.pixels, job.metadata.width, job.metadata.height)?;
+                    if PROFILE {
+                        task.profile.cls_rotation_ns = task
+                            .profile
+                            .cls_rotation_ns
+                            .saturating_add(rotation_timer.elapsed());
+                    }
                     job.metadata.applied_rotation_degrees = 180;
                 }
                 Ok(())
@@ -820,6 +837,7 @@ fn extract_parallel<const PROFILE: bool>(
     for task in tasks {
         if PROFILE {
             profile.cls_orientation_ns = profile.cls_orientation_ns.saturating_add(task.work_ns);
+            profile.merge(task.profile);
         }
         if let Some((index, cause)) = task.error
             && error.as_ref().is_none_or(|(earlier, _)| index < *earlier)
