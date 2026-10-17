@@ -1,0 +1,24 @@
+[package]
+name = "simd-paddle-ocr-rs"
+version = "0.1.0"
+edition = "2024"
+description = "SIMD PaddleOCR CPU inference in Rust"
+license = "Apache-2.0"
+repository = "https://github.com/mg-chao/simd-paddle-ocr-rs"
+keywords = ["ocr", "paddleocr", "simd", "onnx", "inference"]
+categories = ["computer-vision", "science"]
+exclude = ["AGENTS.md"]
+
+[features]
+default = ["parallel"]
+parallel = ["dep:rayon"]
+profiling = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+rayon = { version = "1.11", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+sha2 = "0.10"

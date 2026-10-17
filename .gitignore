@@ -1,0 +1,11 @@
+# Rust build outputs
+/target/
+/tools/csharp-*/bin/
+/tools/csharp-*/obj/
+
+# Operating-system and editor scratch files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo

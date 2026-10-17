@@ -1,0 +1,2348 @@
+{
+  "schema_version": 1,
+  "validation_date": "2026-10-16",
+  "evidence_kind": "targeted diagnostics only",
+  "establishes_final_correctness": false,
+  "establishes_performance_completion": false,
+  "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "baseline_manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+  "actual_imgs_1": {
+    "logical_nchw_input": [
+      1,
+      3,
+      960,
+      608
+    ],
+    "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63"
+  },
+  "rust_pointwise": {
+    "evidence_source": "coordinated local fixed-sample tool output; original JSON was not persisted",
+    "before_version": "NCHW packed OC8 x spatial4",
+    "after_version": "NCHW spatial OC4 x16 with approximately 192 KiB tiling; before 3x3 reduction isolation and border changes",
+    "batch": 1,
+    "input_channels": 96,
+    "output_channels": 24,
+    "backend": "AVX2/FMA",
+    "affinity": "1",
+    "warmup_calls": 1,
+    "measured_samples": 3,
+    "calls_per_sample": 4,
+    "reported_unit": "milliseconds per kernel call",
+    "allocation_and_packing_timed": false,
+    "input_pattern": "((i*37 % 43)-21)/17",
+    "oihw_weight_pattern": "((i*19 % 29)-14)/13",
+    "bias_pattern": "i/19-0.3",
+    "focused_correctness_checks_passed_before_measurement": true,
+    "before_total_kernel_execution_ms": 147.936,
+    "after_total_kernel_execution_ms": 41.431,
+    "cases": [
+      {
+        "height": 19,
+        "width": 30,
+        "before_samples_ms": [
+          0.132425,
+          0.137975,
+          0.1328
+        ],
+        "before_median_ms": 0.1328,
+        "after_samples_ms": [
+          0.04105,
+          0.044125,
+          0.045525
+        ],
+        "after_median_ms": 0.044125
+      },
+      {
+        "height": 76,
+        "width": 120,
+        "before_samples_ms": [
+          2.30725,
+          2.19555,
+          2.174175
+        ],
+        "before_median_ms": 2.19555,
+        "after_samples_ms": [
+          0.628725,
+          0.585275,
+          0.576875
+        ],
+        "after_median_ms": 0.585275
+      },
+      {
+        "height": 152,
+        "width": 240,
+        "before_samples_ms": [
+          8.862725,
+          8.91505,
+          8.907025
+        ],
+        "before_median_ms": 8.907025,
+        "after_samples_ms": [
+          2.406275,
+          2.392925,
+          2.470675
+        ],
+        "after_median_ms": 2.406275
+      }
+    ]
+  },
+  "rust_dense7_physical_step": {
+    "evidence_source": "coordinated local private physical-step tool output",
+    "before_version": "descriptor MAX_TAPS 25",
+    "after_version": "descriptor MAX_TAPS 49 candidate; before 3x3 reduction isolation and border changes",
+    "logical_nchw_graph_input": [
+      1,
+      3,
+      608,
+      960
+    ],
+    "actual_fixture_shape": false,
+    "node_index": 210,
+    "kernel": "dense 32 to 32, 7x7",
+    "before_ms": 338.9613,
+    "after_ms": 32.2219,
+    "same_before_after_shape": true,
+    "neutral_isolated_buffers": true,
+    "finite_output_check_overhead_included": true,
+    "cross_language_node_comparison_valid": false,
+    "limitation": "The private Rust physical-step probe used landscape input; C# production-node reports use actual portrait fixture. Opposite orientations are not matched node timing comparisons."
+  },
+  "pending_changes": [
+    "Investigate seven sub-target median two-request throughput cases using explicit bounded production diagnostics",
+    "Resolve eight additional timing cases whose medians meet the gate but observed extrema cross it; no automatic unchanged-code reruns"
+  ],
+  "csharp_versions": {
+    "source_version": "Pinned C# reference unchanged throughout diagnostics; helper extended from stage-only to additional modes",
+    "stage_helper_scope": "one warmup plus one stage-only instrumented sample per model",
+    "kernel_node_helper_scope": "fixed kernel cases plus one warmup and one DET-only production-node sample per model",
+    "old_stage_helper_binary_hash_available": false,
+    "inference_and_builds_coordinated_idle": true,
+    "measured_process_wall_seconds_stage_group": 6.1766272,
+    "measured_process_wall_seconds_kernel_node_group": 5.1114034,
+    "summed_process_wall_seconds": 11.2880306
+  },
+  "raw_csharp_reports": [
+    {
+      "kind": "csharp_production_stage",
+      "artifact_path": "target/csharp-stage-profile/1792152720259/small.json",
+      "artifact_sha256": "016106742e88b6dda6cd407e5ac7ef288cce64e2db4f90fa84d3546659333149",
+      "measurement": {
+        "instrumented": true,
+        "official_benchmark": false,
+        "production_fusion": true,
+        "warmup_runs": 1,
+        "measured_runs": 1,
+        "model": "small",
+        "fixture": "imgs_1",
+        "threads": 1,
+        "affinity": "1",
+        "runtime": "10.0.11",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "load_ms": 179.5376,
+        "warmup_ms": 691.9989,
+        "profiled_total_ms": 424.4874,
+        "detected_lines": 2,
+        "output_matches_warmup": true,
+        "stage_ms": {
+          "det_preprocess": 22.212200000000003,
+          "det_graph": 244.8563,
+          "det_postprocess": 12.1464,
+          "crop": 8.754900000000001,
+          "cls_preprocess": 0.7079000000000001,
+          "cls_graph": 2.6037,
+          "rec_preprocess": 1.3737000000000001,
+          "rec_graph": 131.5795,
+          "rec_postprocess": 0,
+          "lines_wall": 136.4048,
+          "crop_setup": 0.004,
+          "rec_acquire": 0,
+          "cls_acquire": 0.0037,
+          "rec_decode": 0.0135,
+          "rec_release": 0.0045000000000000005,
+          "cls_release": 0.0025,
+          "rec_cache_get": 0.0004,
+          "rec_rent": 0.0083,
+          "rec_pool": 0.0002,
+          "rec_reshape": 0.0297,
+          "det_unclip": 0.0061
+        },
+        "stage_calls": {
+          "det_preprocess": 1,
+          "det_graph": 1,
+          "det_postprocess": 1,
+          "crop": 1,
+          "cls_preprocess": 2,
+          "cls_graph": 2,
+          "rec_preprocess": 2,
+          "rec_graph": 2,
+          "rec_postprocess": 0,
+          "lines_wall": 1,
+          "crop_setup": 1,
+          "rec_acquire": 0,
+          "cls_acquire": 2,
+          "rec_decode": 2,
+          "rec_release": 2,
+          "cls_release": 2,
+          "rec_cache_get": 2,
+          "rec_rent": 2,
+          "rec_pool": 2,
+          "rec_reshape": 2,
+          "det_unclip": 2
+        },
+        "note": "Production stage timers only; nested counters overlap. No per-node profiling or diagnostic graph execution; not an official latency comparison."
+      }
+    },
+    {
+      "kind": "csharp_production_stage",
+      "artifact_path": "target/csharp-stage-profile/1792152720259/medium.json",
+      "artifact_sha256": "42ee6e6d2b36743026686ee724c3e69f99a6210ab21fc91a436f6adef53f0eeb",
+      "measurement": {
+        "instrumented": true,
+        "official_benchmark": false,
+        "production_fusion": true,
+        "warmup_runs": 1,
+        "measured_runs": 1,
+        "model": "medium",
+        "fixture": "imgs_1",
+        "threads": 1,
+        "affinity": "1",
+        "runtime": "10.0.11",
+        "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "load_ms": 496.776,
+        "warmup_ms": 1923.9595,
+        "profiled_total_ms": 1762.8256,
+        "detected_lines": 2,
+        "output_matches_warmup": true,
+        "stage_ms": {
+          "det_preprocess": 21.1737,
+          "det_graph": 1251.3213,
+          "det_postprocess": 8.2886,
+          "crop": 9.1796,
+          "cls_preprocess": 0.6792,
+          "cls_graph": 2.6155,
+          "rec_preprocess": 1.4236,
+          "rec_graph": 467.89360000000005,
+          "rec_postprocess": 0,
+          "lines_wall": 472.76300000000003,
+          "crop_setup": 0.004,
+          "rec_acquire": 0,
+          "cls_acquire": 0.0047,
+          "rec_decode": 0.015000000000000001,
+          "rec_release": 0.0055000000000000005,
+          "cls_release": 0.0031000000000000003,
+          "rec_cache_get": 0.0005,
+          "rec_rent": 0.0089,
+          "rec_pool": 0.0002,
+          "rec_reshape": 0.031200000000000002,
+          "det_unclip": 0.0079
+        },
+        "stage_calls": {
+          "det_preprocess": 1,
+          "det_graph": 1,
+          "det_postprocess": 1,
+          "crop": 1,
+          "cls_preprocess": 2,
+          "cls_graph": 2,
+          "rec_preprocess": 2,
+          "rec_graph": 2,
+          "rec_postprocess": 0,
+          "lines_wall": 1,
+          "crop_setup": 1,
+          "rec_acquire": 0,
+          "cls_acquire": 2,
+          "rec_decode": 2,
+          "rec_release": 2,
+          "cls_release": 2,
+          "rec_cache_get": 2,
+          "rec_rent": 2,
+          "rec_pool": 2,
+          "rec_reshape": 2,
+          "det_unclip": 2
+        },
+        "note": "Production stage timers only; nested counters overlap. No per-node profiling or diagnostic graph execution; not an official latency comparison."
+      }
+    },
+    {
+      "kind": "csharp_matched_synthetic_kernels",
+      "artifact_path": "target/csharp-kernel-node-profile/1792153203217/kernels.json",
+      "artifact_sha256": "a407d5772b057e8489ea32f1cc7b961d913f8774e3dd6579eccea755355bae3b",
+      "measurement": {
+        "diagnostic": true,
+        "official_benchmark": false,
+        "runtime": "10.0.11",
+        "threads": 1,
+        "affinity": "1",
+        "warmup_calls_per_case": 1,
+        "samples_per_case": 3,
+        "budget_seconds": 10,
+        "elapsed_ms": 159.7819,
+        "results": [
+          {
+            "kernel": "nchw_pointwise_96_to_24",
+            "height": 19,
+            "width": 30,
+            "calls_per_sample": 4,
+            "samples_ms_per_call": [
+              0.03555,
+              0.023275,
+              0.026625
+            ],
+            "median_ms": 0.026625,
+            "finite_output": true
+          },
+          {
+            "kernel": "nchw_pointwise_96_to_24",
+            "height": 76,
+            "width": 120,
+            "calls_per_sample": 4,
+            "samples_ms_per_call": [
+              0.437275,
+              0.4198,
+              0.41025
+            ],
+            "median_ms": 0.4198,
+            "finite_output": true
+          },
+          {
+            "kernel": "nchw_pointwise_96_to_24",
+            "height": 152,
+            "width": 240,
+            "calls_per_sample": 4,
+            "samples_ms_per_call": [
+              1.803325,
+              1.878825,
+              1.824875
+            ],
+            "median_ms": 1.824875,
+            "finite_output": true
+          },
+          {
+            "kernel": "nhwc_depthwise_7x7",
+            "channels": 96,
+            "height": 152,
+            "width": 240,
+            "calls_per_sample": 1,
+            "samples_ms_per_call": [
+              25.6882,
+              16.5233,
+              17.0649
+            ],
+            "median_ms": 17.0649,
+            "finite_output": true
+          }
+        ]
+      }
+    },
+    {
+      "kind": "csharp_production_detector_nodes",
+      "artifact_path": "target/csharp-kernel-node-profile/1792153203217/small.json",
+      "artifact_sha256": "44064d86d920f511f44bfb72723a3c71ff604720c7621065434e9b5bedc6da92",
+      "measurement": {
+        "diagnostic": true,
+        "official_benchmark": false,
+        "production_fusion": true,
+        "mode": "detector_production_nodes",
+        "model": "small",
+        "fixture": "imgs_1",
+        "threads": 1,
+        "affinity": "1",
+        "runtime": "10.0.11",
+        "warmup_runs": 1,
+        "measured_runs": 1,
+        "profiled_detector_total_ms": 302.7607,
+        "output_matches_warmup": true,
+        "node_counter_capacity": 512,
+        "model_nodes": 248,
+        "note": "Only DET runs under production node instrumentation; fused/skipped nodes retain production behavior. Counter capacity is512. Node timings are diagnostic and not official performance evidence.",
+        "top_nodes": [
+          {
+            "index": 8,
+            "Name": "Conv.3",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 38.6215,
+            "input_shapes": [
+              [
+                1,
+                48,
+                480,
+                304
+              ],
+              [
+                24,
+                48,
+                3,
+                3
+              ],
+              [
+                24
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                24,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 239,
+            "Name": "Conv.82",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 29.7706,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ],
+              [
+                24,
+                96,
+                3,
+                3
+              ],
+              [
+                24
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                24,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 225,
+            "Name": "Conv.78",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 18.0735,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ],
+              [
+                96,
+                1,
+                7,
+                7
+              ],
+              [
+                96
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 241,
+            "Name": "ConvTranspose.0",
+            "operation": "ConvTranspose",
+            "calls": 1,
+            "milliseconds": 14.1391,
+            "input_shapes": [
+              [
+                1,
+                24,
+                240,
+                152
+              ],
+              [
+                24,
+                24,
+                2,
+                2
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                24,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 2,
+            "Name": "Conv.1",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 6.9349,
+            "input_shapes": [
+              [
+                1,
+                24,
+                480,
+                304
+              ],
+              [
+                12,
+                24,
+                2,
+                2
+              ],
+              [
+                12
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                12,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 4,
+            "Name": "Conv.2",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 6.0833,
+            "input_shapes": [
+              [
+                1,
+                12,
+                480,
+                304
+              ],
+              [
+                24,
+                12,
+                2,
+                2
+              ],
+              [
+                24
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                24,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 181,
+            "Name": "Conv.63",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 5.4769,
+            "input_shapes": [
+              [
+                1,
+                48,
+                240,
+                152
+              ],
+              [
+                96,
+                48,
+                1,
+                1
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 26,
+            "Name": "Conv.9",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 4.7256,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ],
+              [
+                48,
+                96,
+                1,
+                1
+              ],
+              [
+                48
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                48,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 35,
+            "Name": "Conv.12",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 4.723,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ],
+              [
+                48,
+                96,
+                1,
+                1
+              ],
+              [
+                48
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                48,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 29,
+            "Name": "Conv.11",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 4.6956,
+            "input_shapes": [
+              [
+                1,
+                48,
+                240,
+                152
+              ],
+              [
+                96,
+                48,
+                1,
+                1
+              ],
+              [
+                96
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 226,
+            "Name": "layout.to_nchw",
+            "operation": "LayoutConvert",
+            "calls": 1,
+            "milliseconds": 4.6511,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 0,
+            "Name": "Conv.0",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 4.6091,
+            "input_shapes": [
+              [
+                1,
+                3,
+                960,
+                608
+              ],
+              [
+                24,
+                3,
+                3,
+                3
+              ],
+              [
+                24
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                24,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 215,
+            "Name": "Conv.74",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 4.3878,
+            "input_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ],
+              [
+                96,
+                1,
+                7,
+                7
+              ],
+              [
+                96
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 20,
+            "Name": "Conv.8",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 4.3237,
+            "input_shapes": [
+              [
+                1,
+                48,
+                240,
+                152
+              ],
+              [
+                96,
+                48,
+                1,
+                1
+              ],
+              [
+                96
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 30,
+            "Name": "Div.2",
+            "operation": "Div",
+            "calls": 1,
+            "milliseconds": 3.7647,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ],
+              []
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 173,
+            "Name": "Conv.60",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.7621,
+            "input_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ],
+              [
+                96,
+                96,
+                1,
+                1
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 21,
+            "Name": "Div.0",
+            "operation": "Div",
+            "calls": 1,
+            "milliseconds": 3.6755,
+            "input_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ],
+              []
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 58,
+            "Name": "Conv.20",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.6563,
+            "input_shapes": [
+              [
+                1,
+                192,
+                120,
+                76
+              ],
+              [
+                96,
+                192,
+                1,
+                1
+              ],
+              [
+                96
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 52,
+            "Name": "Conv.19",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.5057,
+            "input_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ],
+              [
+                192,
+                96,
+                1,
+                1
+              ],
+              [
+                192
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                192,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 61,
+            "Name": "Conv.22",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.3744,
+            "input_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ],
+              [
+                192,
+                96,
+                1,
+                1
+              ],
+              [
+                192
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                192,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 67,
+            "Name": "Conv.23",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.2489,
+            "input_shapes": [
+              [
+                1,
+                192,
+                120,
+                76
+              ],
+              [
+                96,
+                192,
+                1,
+                1
+              ],
+              [
+                96
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                96,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 90,
+            "Name": "Conv.31",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.0763,
+            "input_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ],
+              [
+                192,
+                384,
+                1,
+                1
+              ],
+              [
+                192
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 108,
+            "Name": "Conv.38",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 3.0006,
+            "input_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ],
+              [
+                384,
+                192,
+                1,
+                1
+              ],
+              [
+                384
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 117,
+            "Name": "Conv.41",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.9344,
+            "input_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ],
+              [
+                384,
+                192,
+                1,
+                1
+              ],
+              [
+                384
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 93,
+            "Name": "Conv.33",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.9246,
+            "input_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ],
+              [
+                384,
+                192,
+                1,
+                1
+              ],
+              [
+                384
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 84,
+            "Name": "Conv.30",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.9242,
+            "input_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ],
+              [
+                384,
+                192,
+                1,
+                1
+              ],
+              [
+                384
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 99,
+            "Name": "Conv.34",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.8537,
+            "input_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ],
+              [
+                192,
+                384,
+                1,
+                1
+              ],
+              [
+                192
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 146,
+            "Name": "Conv.50",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.8105,
+            "input_shapes": [
+              [
+                1,
+                768,
+                30,
+                19
+              ],
+              [
+                384,
+                768,
+                1,
+                1
+              ],
+              [
+                384
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                384,
+                30,
+                19
+              ]
+            ]
+          },
+          {
+            "index": 149,
+            "Name": "Conv.52",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.7967,
+            "input_shapes": [
+              [
+                1,
+                384,
+                30,
+                19
+              ],
+              [
+                768,
+                384,
+                1,
+                1
+              ],
+              [
+                768
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                768,
+                30,
+                19
+              ]
+            ]
+          },
+          {
+            "index": 114,
+            "Name": "Conv.39",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 2.778,
+            "input_shapes": [
+              [
+                1,
+                384,
+                60,
+                38
+              ],
+              [
+                192,
+                384,
+                1,
+                1
+              ],
+              [
+                192
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                192,
+                60,
+                38
+              ]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "kind": "csharp_production_detector_nodes",
+      "artifact_path": "target/csharp-kernel-node-profile/1792153203217/medium.json",
+      "artifact_sha256": "6909600c0075efecd15f0a3f30805202515e1b4d9593b2c46f1de7b513fe4239",
+      "measurement": {
+        "diagnostic": true,
+        "official_benchmark": false,
+        "production_fusion": true,
+        "mode": "detector_production_nodes",
+        "model": "medium",
+        "fixture": "imgs_1",
+        "threads": 1,
+        "affinity": "1",
+        "runtime": "10.0.11",
+        "warmup_runs": 1,
+        "measured_runs": 1,
+        "profiled_detector_total_ms": 1502.514,
+        "output_matches_warmup": true,
+        "node_counter_capacity": 512,
+        "model_nodes": 228,
+        "note": "Only DET runs under production node instrumentation; fused/skipped nodes retain production behavior. Counter capacity is512. Node timings are diagnostic and not official performance evidence.",
+        "top_nodes": [
+          {
+            "index": 220,
+            "Name": "Conv.121",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 145.3638,
+            "input_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ],
+              [
+                64,
+                256,
+                3,
+                3
+              ],
+              [
+                64
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                64,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 8,
+            "Name": "Conv.3",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 75.3895,
+            "input_shapes": [
+              [
+                1,
+                128,
+                480,
+                304
+              ],
+              [
+                64,
+                128,
+                3,
+                3
+              ],
+              [
+                64
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                64,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 172,
+            "Name": "Conv.64",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 68.3627,
+            "input_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ],
+              [
+                256,
+                1,
+                9,
+                9
+              ],
+              [
+                256
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 210,
+            "Name": "Conv.111",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 56.2662,
+            "input_shapes": [
+              [
+                1,
+                32,
+                240,
+                152
+              ],
+              [
+                32,
+                32,
+                7,
+                7
+              ],
+              [
+                32
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                32,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 4,
+            "Name": "Conv.2",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 51.3956,
+            "input_shapes": [
+              [
+                1,
+                32,
+                480,
+                304
+              ],
+              [
+                64,
+                32,
+                2,
+                2
+              ],
+              [
+                64
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                64,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 28,
+            "Name": "Conv.11",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 45.1246,
+            "input_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ],
+              [
+                256,
+                128,
+                1,
+                1
+              ],
+              [
+                256
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 2,
+            "Name": "Conv.1",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 38.6828,
+            "input_shapes": [
+              [
+                1,
+                64,
+                480,
+                304
+              ],
+              [
+                32,
+                64,
+                2,
+                2
+              ],
+              [
+                32
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                32,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 159,
+            "Name": "Conv.57",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 35.7159,
+            "input_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ],
+              [
+                256,
+                128,
+                1,
+                1
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 19,
+            "Name": "Conv.8",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 34.9698,
+            "input_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ],
+              [
+                256,
+                128,
+                1,
+                1
+              ],
+              [
+                256
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 222,
+            "Name": "ConvTranspose.0",
+            "operation": "ConvTranspose",
+            "calls": 1,
+            "milliseconds": 31.8223,
+            "input_shapes": [
+              [
+                1,
+                64,
+                240,
+                152
+              ],
+              [
+                64,
+                64,
+                2,
+                2
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                64,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 25,
+            "Name": "Conv.9",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 31.4103,
+            "input_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ],
+              [
+                128,
+                256,
+                1,
+                1
+              ],
+              [
+                128
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 34,
+            "Name": "Conv.12",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 27.7736,
+            "input_shapes": [
+              [
+                1,
+                256,
+                240,
+                152
+              ],
+              [
+                128,
+                256,
+                1,
+                1
+              ],
+              [
+                128
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 211,
+            "Name": "Conv.114",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 26.9212,
+            "input_shapes": [
+              [
+                1,
+                32,
+                240,
+                152
+              ],
+              [
+                32,
+                32,
+                5,
+                5
+              ],
+              [
+                32
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                32,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 7,
+            "Name": "Concat.0",
+            "operation": "Concat",
+            "calls": 1,
+            "milliseconds": 26.9099,
+            "input_shapes": [
+              [
+                1,
+                64,
+                480,
+                304
+              ],
+              [
+                1,
+                64,
+                480,
+                304
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                128,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 60,
+            "Name": "Conv.22",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 24.908,
+            "input_shapes": [
+              [
+                1,
+                256,
+                120,
+                76
+              ],
+              [
+                512,
+                256,
+                1,
+                1
+              ],
+              [
+                512
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                512,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 51,
+            "Name": "Conv.19",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 24.4568,
+            "input_shapes": [
+              [
+                1,
+                256,
+                120,
+                76
+              ],
+              [
+                512,
+                256,
+                1,
+                1
+              ],
+              [
+                512
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                512,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 12,
+            "Name": "Conv.5",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 23.8654,
+            "input_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ],
+              [
+                128,
+                1,
+                3,
+                3
+              ],
+              [
+                128
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                128,
+                240,
+                152
+              ]
+            ]
+          },
+          {
+            "index": 116,
+            "Name": "Conv.41",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 23.7024,
+            "input_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ],
+              [
+                1024,
+                512,
+                1,
+                1
+              ],
+              [
+                1024
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 57,
+            "Name": "Conv.20",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 23.24,
+            "input_shapes": [
+              [
+                1,
+                512,
+                120,
+                76
+              ],
+              [
+                256,
+                512,
+                1,
+                1
+              ],
+              [
+                256
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 107,
+            "Name": "Conv.38",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 22.5914,
+            "input_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ],
+              [
+                1024,
+                512,
+                1,
+                1
+              ],
+              [
+                1024
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 0,
+            "Name": "Conv.0",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 22.0977,
+            "input_shapes": [
+              [
+                1,
+                3,
+                960,
+                608
+              ],
+              [
+                64,
+                3,
+                3,
+                3
+              ],
+              [
+                64
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                64,
+                480,
+                304
+              ]
+            ]
+          },
+          {
+            "index": 66,
+            "Name": "Conv.23",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 22.0497,
+            "input_shapes": [
+              [
+                1,
+                512,
+                120,
+                76
+              ],
+              [
+                256,
+                512,
+                1,
+                1
+              ],
+              [
+                256
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 83,
+            "Name": "Conv.30",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 22.0018,
+            "input_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ],
+              [
+                1024,
+                512,
+                1,
+                1
+              ],
+              [
+                1024
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 92,
+            "Name": "Conv.33",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 21.3787,
+            "input_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ],
+              [
+                1024,
+                512,
+                1,
+                1
+              ],
+              [
+                1024
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 122,
+            "Name": "Conv.42",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 20.5936,
+            "input_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ],
+              [
+                512,
+                1024,
+                1,
+                1
+              ],
+              [
+                512
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 98,
+            "Name": "Conv.34",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 20.0446,
+            "input_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ],
+              [
+                512,
+                1024,
+                1,
+                1
+              ],
+              [
+                512
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 113,
+            "Name": "Conv.39",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 19.9809,
+            "input_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ],
+              [
+                512,
+                1024,
+                1,
+                1
+              ],
+              [
+                512
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 89,
+            "Name": "Conv.31",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 19.6196,
+            "input_shapes": [
+              [
+                1,
+                1024,
+                60,
+                38
+              ],
+              [
+                512,
+                1024,
+                1,
+                1
+              ],
+              [
+                512
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                512,
+                60,
+                38
+              ]
+            ]
+          },
+          {
+            "index": 170,
+            "Name": "Conv.62",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 18.4884,
+            "input_shapes": [
+              [
+                1,
+                256,
+                120,
+                76
+              ],
+              [
+                256,
+                1,
+                9,
+                9
+              ],
+              [
+                256
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                256,
+                120,
+                76
+              ]
+            ]
+          },
+          {
+            "index": 154,
+            "Name": "Conv.53",
+            "operation": "Conv",
+            "calls": 1,
+            "milliseconds": 18.2104,
+            "input_shapes": [
+              [
+                1,
+                1792,
+                30,
+                19
+              ],
+              [
+                896,
+                1792,
+                1,
+                1
+              ],
+              [
+                896
+              ]
+            ],
+            "output_shapes": [
+              [
+                1,
+                896,
+                30,
+                19
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "rust_corrected_portrait_physical_steps": {
+    "evidence_kind": "isolated neutral-buffer physical steps including finite-output check overhead",
+    "logical_nchw_graph_input": [
+      1,
+      3,
+      960,
+      608
+    ],
+    "matches_actual_detector_input_geometry": true,
+    "uses_actual_intermediate_activation_values": false,
+    "warmup_calls_per_step": 1,
+    "measured_calls_per_step": 1,
+    "before_version": "3x3 reduction-isolation candidate before border input-load sharing",
+    "after_version": "border N8 input-load grouping candidate",
+    "before_small_sum_ms": 441.154,
+    "after_small_sum_ms": 307.192,
+    "small_nodes": [
+      {
+        "node": 8,
+        "kernel": "NCHW stride2 48 to24 3x3",
+        "before_ms": 62.2755,
+        "after_ms": 29.6724,
+        "output_nchw": [
+          1,
+          24,
+          240,
+          152
+        ]
+      },
+      {
+        "node": 234,
+        "kernel": "NCHW stride1 96 to24 3x3",
+        "before_ms": 83.7439,
+        "after_ms": 21.9036,
+        "output_nchw": [
+          1,
+          24,
+          240,
+          152
+        ]
+      }
+    ],
+    "after_medium_sum_ms": 1357.926,
+    "after_medium_dense7_node210_ms": 39.8796,
+    "raw_logs": [
+      {
+        "artifact_path": "target/physical-steps-reduce3.log",
+        "artifact_sha256": "29a0cc8f970c2513386e8294243461271303ce436c1291d6cf5e282e9d5bedb7",
+        "raw_text": "\nrunning 1 test\ntest runtime::optimized::tests::performance::sparse_detector_physical_steps ... imgs_1 resized tensor shape [1, 3, 960, 608]; neutral activations\nsmall isolated fused steps (neutral activations), one warm-up plus one sample; sum=441.154ms\n83.743900ms node=234 Conv 96->24 k3x3 output=[1, 24, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nchw_packed_3x3\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n62.275500ms node=8 Conv 48->24 k3x3 output=[1, 24, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nchw_packed_3x3_stride2\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n24.970500ms node=236 ConvTranspose [KernelSpecialization { operator: \"ConvTranspose\", family: \"nhwc_transpose_4tap_matrix\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n24.832200ms node=221 Conv 96->96 k7x7 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n16.354500ms node=2 Conv 24->12 k2x2 output=[1, 12, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nchw_dense_2x2_pad_end\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n16.306100ms node=4 Conv 12->24 k2x2 output=[1, 24, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nchw_dense_2x2_pad_end\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n12.318400ms node=0 Conv 3->24 k3x3 output=[1, 24, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nchw_packed_3x3_stride2\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n10.208200ms node=19 Conv 48->96 k1x1 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n10.103400ms node=28 Conv 48->96 k1x1 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n9.662100ms node=239 ConvTranspose [KernelSpecialization { operator: \"ConvTranspose\", family: \"nhwc_transpose_single_spatial\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n6.432400ms node=60 Conv 96->192 k1x1 output=[1, 192, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n6.296300ms node=25 Conv 96->48 k1x1 output=[1, 48, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n6.079600ms node=51 Conv 96->192 k1x1 output=[1, 192, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n5.723000ms node=34 Conv 96->48 k1x1 output=[1, 48, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n5.574300ms node=212 Conv 96->96 k7x7 output=[1, 96, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n5.401500ms node=180 Conv 48->96 k1x1 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n5.054100ms node=83 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.583800ms node=92 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.560300ms node=66 Conv 192->96 k1x1 output=[1, 96, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.543100ms node=116 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.521700ms node=107 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.084800ms node=57 Conv 192->96 k1x1 output=[1, 96, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.017600ms node=148 Conv 384->768 k1x1 output=[1, 768, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.895400ms node=222 Conv 96->24 k1x1 output=[1, 24, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nchw_pointwise_packed\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n3.536300ms node=139 Conv 384->768 k1x1 output=[1, 768, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.495200ms output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Convert\", family: \"transpose_8x8\", isa: \"Portable4\", store_fused: false, steps: 1 }]\n3.300500ms node=154 Conv 768->384 k1x1 output=[1, 384, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.237300ms node=193 Add [KernelSpecialization { operator: \"Add\", family: \"nhwc_binary\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n3.168600ms node=6 MaxPool [KernelSpecialization { operator: \"MaxPool\", family: \"nchw_spatial_pool\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n3.107700ms node=89 Conv 384->192 k1x1 output=[1, 192, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\nmedium isolated fused steps (neutral activations), one warm-up plus one sample; sum=1589.210ms\n129.617000ms node=220 Conv 256->64 k3x3 output=[1, 64, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n120.750800ms node=172 Conv 256->256 k9x9 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n80.025300ms node=222 ConvTranspose [KernelSpecialization { operator: \"ConvTranspose\", family: \"nhwc_transpose_4tap_matrix\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n61.430600ms node=8 Conv 128->64 k3x3 output=[1, 64, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n41.460300ms node=28 Conv 128->256 k1x1 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n38.925100ms node=19 Conv 128->256 k1x1 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n36.724600ms node=4 Conv 32->64 k2x2 output=[1, 64, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n35.655200ms node=210 Conv 32->32 k7x7 output=[1, 32, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n33.262000ms node=159 Conv 128->256 k1x1 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n33.078900ms output=[1, 128, 480, 304] [KernelSpecialization { operator: \"Convert\", family: \"transpose_8x8\", isa: \"Portable4\", store_fused: false, steps: 1 }]\n31.429600ms node=60 Conv 256->512 k1x1 output=[1, 512, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n30.786900ms node=2 Conv 64->32 k2x2 output=[1, 32, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n30.156700ms node=51 Conv 256->512 k1x1 output=[1, 512, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n30.052400ms node=34 Conv 256->128 k1x1 output=[1, 128, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n30.004300ms node=170 Conv 256->256 k9x9 output=[1, 256, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n28.763900ms node=25 Conv 256->128 k1x1 output=[1, 128, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n28.607000ms node=116 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n28.378900ms node=92 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n27.223700ms node=83 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n25.797000ms node=107 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n24.121300ms node=89 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.840200ms node=122 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.692700ms node=98 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.516400ms node=180 Conv 64->64 k9x9 output=[1, 64, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n23.272000ms node=113 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.002800ms node=66 Conv 512->256 k1x1 output=[1, 256, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n22.347500ms node=0 Conv 3->64 k3x3 output=[1, 64, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n21.978100ms node=57 Conv 512->256 k1x1 output=[1, 256, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n21.966900ms node=139 Conv 896->1792 k1x1 output=[1, 1792, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n21.896300ms node=148 Conv 896->1792 k1x1 output=[1, 1792, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 284 filtered out; finished in 9.16s\n\n"
+      },
+      {
+        "artifact_path": "target/physical-steps-border-final.log",
+        "artifact_sha256": "42591480576b2f87163d7f0c0f945dad69d981333b4e1279586fcba95f2668e2",
+        "raw_text": "\nrunning 1 test\ntest runtime::optimized::tests::performance::sparse_detector_physical_steps ... imgs_1 resized tensor shape [1, 3, 960, 608]; neutral activations\nsmall isolated fused steps (neutral activations), one warm-up plus one sample; sum=307.192ms\n29.672400ms node=8 Conv 48->24 k3x3 output=[1, 24, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nchw_packed_3x3_stride2\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.967000ms node=236 ConvTranspose [KernelSpecialization { operator: \"ConvTranspose\", family: \"nhwc_transpose_4tap_matrix\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n21.903600ms node=234 Conv 96->24 k3x3 output=[1, 24, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nchw_packed_3x3\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n21.812700ms node=221 Conv 96->96 k7x7 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n15.788300ms node=2 Conv 24->12 k2x2 output=[1, 12, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nchw_dense_2x2_pad_end\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n15.187600ms node=4 Conv 12->24 k2x2 output=[1, 24, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nchw_dense_2x2_pad_end\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n9.391100ms node=19 Conv 48->96 k1x1 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n9.337000ms node=239 ConvTranspose [KernelSpecialization { operator: \"ConvTranspose\", family: \"nhwc_transpose_single_spatial\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n9.140400ms node=28 Conv 48->96 k1x1 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n8.080900ms node=0 Conv 3->24 k3x3 output=[1, 24, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nchw_packed_3x3_stride2\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n5.726800ms node=60 Conv 96->192 k1x1 output=[1, 192, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n5.602200ms node=51 Conv 96->192 k1x1 output=[1, 192, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n5.400800ms node=212 Conv 96->96 k7x7 output=[1, 96, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n5.009500ms node=34 Conv 96->48 k1x1 output=[1, 48, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.723400ms node=25 Conv 96->48 k1x1 output=[1, 48, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.257300ms node=180 Conv 48->96 k1x1 output=[1, 96, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n4.201500ms node=116 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n4.045100ms node=92 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.935100ms node=107 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.886200ms node=83 Conv 192->384 k1x1 output=[1, 384, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.548300ms node=57 Conv 192->96 k1x1 output=[1, 96, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.547600ms node=66 Conv 192->96 k1x1 output=[1, 96, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.218300ms node=139 Conv 384->768 k1x1 output=[1, 768, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.198500ms node=148 Conv 384->768 k1x1 output=[1, 768, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n3.021600ms node=222 Conv 96->24 k1x1 output=[1, 24, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nchw_pointwise_packed\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n2.874600ms node=12 Conv 48->48 k3x3 output=[1, 48, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_pixel8\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n2.862100ms node=89 Conv 384->192 k1x1 output=[1, 192, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n2.850800ms node=27 Conv 48->48 k3x3 output=[1, 48, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_pixel8\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n2.831700ms node=145 Conv 768->384 k1x1 output=[1, 384, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n2.816000ms node=113 Conv 384->192 k1x1 output=[1, 192, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\nmedium isolated fused steps (neutral activations), one warm-up plus one sample; sum=1357.926ms\n105.003800ms node=220 Conv 256->64 k3x3 output=[1, 64, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n93.762800ms node=172 Conv 256->256 k9x9 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n78.678900ms node=222 ConvTranspose [KernelSpecialization { operator: \"ConvTranspose\", family: \"nhwc_transpose_4tap_matrix\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n56.339600ms node=8 Conv 128->64 k3x3 output=[1, 64, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n39.879600ms node=210 Conv 32->32 k7x7 output=[1, 32, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n34.988500ms node=28 Conv 128->256 k1x1 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n34.386100ms node=19 Conv 128->256 k1x1 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n34.167700ms node=4 Conv 32->64 k2x2 output=[1, 64, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n32.424400ms output=[1, 128, 480, 304] [KernelSpecialization { operator: \"Convert\", family: \"transpose_8x8\", isa: \"Portable4\", store_fused: false, steps: 1 }]\n30.910200ms node=159 Conv 128->256 k1x1 output=[1, 256, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n28.295900ms node=2 Conv 64->32 k2x2 output=[1, 32, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n27.382900ms node=60 Conv 256->512 k1x1 output=[1, 512, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n26.787800ms node=51 Conv 256->512 k1x1 output=[1, 512, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n26.492800ms node=83 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n24.047000ms node=107 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.801600ms node=116 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.348800ms node=34 Conv 256->128 k1x1 output=[1, 128, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n23.037200ms node=92 Conv 512->1024 k1x1 output=[1, 1024, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n22.658300ms node=170 Conv 256->256 k9x9 output=[1, 256, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n22.525000ms node=113 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n22.312300ms node=25 Conv 256->128 k1x1 output=[1, 128, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n22.135900ms node=180 Conv 64->64 k9x9 output=[1, 64, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_depthwise_strip\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n21.879500ms node=122 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n21.111600ms node=211 Conv 32->32 k5x5 output=[1, 32, 240, 152] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: false, steps: 1 }]\n21.088600ms node=66 Conv 512->256 k1x1 output=[1, 256, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n20.778500ms node=98 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n20.647500ms node=89 Conv 1024->512 k1x1 output=[1, 512, 60, 38] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n19.664300ms node=0 Conv 3->64 k3x3 output=[1, 64, 480, 304] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_dense_6x16_k512\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n19.456900ms node=57 Conv 512->256 k1x1 output=[1, 256, 120, 76] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\n18.141000ms node=139 Conv 896->1792 k1x1 output=[1, 1792, 30, 19] [KernelSpecialization { operator: \"Conv\", family: \"nhwc_pointwise_6x16_group8\", isa: \"Avx2Fma\", store_fused: true, steps: 1 }]\nok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 285 filtered out; finished in 7.27s\n\n"
+      }
+    ],
+    "establishes_official_latency_or_throughput_gate": false
+  },
+  "final_runtime_unit_test_checks": {
+    "default_passed": 310,
+    "no_default_features_passed": 303,
+    "all_features_passed": 311,
+    "ignored_per_run": 4,
+    "ignored_scope": "three fixed physical performance probes plus live C# integration",
+    "runtime_source_version": "final border N8 grouping; subsequent changes only two documentation comments",
+    "documentation_command": "cargo doc --locked --all-features --no-deps --target-dir target/validation-profiling",
+    "documentation_exit_code": 0,
+    "documentation_warning_count": 0,
+    "documentation_log": "target/validation-profiling/final-doc-check.log",
+    "final_real_model_correctness_pending": false,
+    "final_performance_completion_pending": true
+  },
+  "final_qualification_references": {
+    "correctness": "docs/reports/windows-x64-2026-10-16-final-kernels-correctness.json",
+    "canonical_passed": 66,
+    "configuration_passed": 213,
+    "performance": "docs/reports/windows-x64-2026-10-16-final-kernels-performance.json",
+    "performance_status": "inconclusive",
+    "performance_passed": 21,
+    "performance_inconclusive": 15,
+    "performance_failed": 0
+  }
+}

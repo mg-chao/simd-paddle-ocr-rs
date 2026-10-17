@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "validation_date": "2026-10-16",
+  "status": "passed",
+  "implementation_version": "final runtime: allocator placement, packed NCHW pointwise, isolated 3x3 reductions, shared OC8 borders, and 49-tap NHWC descriptors; includes the two subsequent documentation-comment corrections",
+  "platform": "physical Windows x64 machine",
+  "toolchain": "nightly-2026-09-08-x86_64-pc-windows-msvc",
+  "working_directory": "D:/simd-paddle-ocr-workspace/simd-paddle-ocr-rs",
+  "package_verification": {
+    "command": "cargo package --allow-dirty --locked --offline",
+    "exit_code": 0,
+    "verification_profile": "dev",
+    "verification_build_seconds": 18.17,
+    "file_count": 157,
+    "artifact": {
+      "path": "target/package/simd-paddle-ocr-rs-0.1.0.crate",
+      "sha256": "8a30faf4e2c355f823cfacb02224f4e2330bf644d813dfd0266daf76ca044e1d",
+      "bytes": 3579253,
+      "scope": "verified archive created before final documentation and report additions"
+    },
+    "included_files_checked": [
+      "LICENSE",
+      "NOTICE",
+      "licenses/README.md",
+      "licenses/dotnet-runtime-MIT.txt",
+      "licenses/amd-win-libm-MIT.txt",
+      "examples/ocr.rs",
+      "rust-toolchain.toml"
+    ]
+  },
+  "packaged_source_identity": {
+    "status": "passed",
+    "scope": "all files recursively under src/",
+    "file_count": 82,
+    "source_and_extracted_files_equal_byte_for_byte": true,
+    "sha256": "c42c8b2b418bc7d01ad5b48a455a6a1edcdeb6b831a4f912381077cef934b56e",
+    "fingerprint_method": "Sort forward-slash relative file paths with ordinal string ordering. Append each UTF-8 path, one NUL byte, the unmodified file bytes, and one NUL byte to SHA-256. Source and extracted crate produce the same digest. This src-only digest is distinct from the benchmark runner's broader source fingerprint."
+  },
+  "license_texts": {
+    "status": "passed",
+    "expected_hash_source": "licenses/README.md",
+    "source_and_extracted_files_match_expected_hashes": true,
+    "archive_inclusion_verified": true,
+    "files": [
+      {
+        "path": "licenses/dotnet-runtime-MIT.txt",
+        "sha256": "cfc21f5e8bd655ae997eec916138b707b1d290b83272c02a95c9f821b8c87310"
+      },
+      {
+        "path": "licenses/amd-win-libm-MIT.txt",
+        "sha256": "df5b95042f76c459f524b745e1a2f857f8d4e1014759448d12acbb88d0a654a4"
+      }
+    ]
+  },
+  "consumer": {
+    "command": "cargo run --release --offline --manifest-path target/package-consumer/Cargo.toml --target-dir target/package-consumer/build -- D:/simd-paddle-ocr-workspace/SimdPaddleOCR/models D:/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792151587227-70156/imgs_1.bgr",
+    "exit_code": 0,
+    "release_build_seconds": 112,
+    "direct_dependency_count": 1,
+    "direct_dependency": "simd-paddle-ocr-rs = { path = \"../package/simd-paddle-ocr-rs-0.1.0\" }",
+    "source": {
+      "path": "target/package-consumer/src/main.rs",
+      "sha256": "4f537944e4636ac99841a37cba0b21aa90be49df62a52962b1f9decfa591bf78",
+      "contents": "use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet, cpu::CpuContext, image::{ImageView, PixelFormat}};\nfn main() -> Result<(), Box<dyn std::error::Error>> {\n    let directory = std::env::args_os().nth(1).ok_or(\"provide model directory\")?;\n    let raw_path = std::env::args_os().nth(2).ok_or(\"provide imgs_1 BGR24 pixels\")?;\n    let pixels = std::fs::read(raw_path)?;\n    let image = ImageView::new(&pixels, 720, 1150, 0, PixelFormat::Bgr24)?;\n    for preset in [ModelPreset::ChineseV6Tiny, ModelPreset::ChineseV6Small, ModelPreset::ChineseV6Medium] {\n        let models = OcrModelSet::from_directory(&directory, preset, true)?;\n        let mut ocr = models.builder().cpu_context(CpuContext::serial()).build()?;\n        let owned = ocr.run(image, true)?.try_to_owned()?;\n        assert!(!owned.text.is_empty());\n        assert!(!owned.lines.is_empty());\n        assert_eq!(owned.lines.len(), if matches!(preset, ModelPreset::ChineseV6Tiny) { 3 } else { 2 });\n        println!(\"Packaged consumer {preset:?}: {} lines, {}\", owned.lines.len(), owned.text);\n    }\n    Ok(())\n}\r\n"
+    },
+    "executable": {
+      "path": "target/package-consumer/build/release/cpu-package-consumer.exe",
+      "sha256": "31004e80f0b8c04a3ffe33270b3a989dc86821c0808cac20e66461228f7ea63d",
+      "bytes": 11449856
+    },
+    "image": {
+      "fixture": "imgs_1",
+      "format": "Bgr24",
+      "width": 720,
+      "height": 1150,
+      "stride_argument": 0,
+      "decoded_pixels_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63"
+    },
+    "settings": {
+      "cpu_context": "serial",
+      "classifier_loaded": true,
+      "capture_alignment": true,
+      "owned_results": true
+    },
+    "preset_count": 3,
+    "passed_preset_count": 3,
+    "failed_preset_count": 0,
+    "results": [
+      {
+        "preset": "ChineseV6Tiny",
+        "expected_lines": 3,
+        "actual_lines": 3,
+        "nonempty_text": true,
+        "status": "passed"
+      },
+      {
+        "preset": "ChineseV6Small",
+        "expected_lines": 2,
+        "actual_lines": 2,
+        "nonempty_text": true,
+        "status": "passed"
+      },
+      {
+        "preset": "ChineseV6Medium",
+        "expected_lines": 2,
+        "actual_lines": 2,
+        "nonempty_text": true,
+        "status": "passed"
+      }
+    ],
+    "runtime_dependency_check": {
+      "command": "cargo tree --locked --offline --manifest-path target/package-consumer/Cargo.toml -e normal",
+      "exit_code": 0,
+      "library_normal_dependencies": [
+        "serde",
+        "rayon"
+      ],
+      "dotnet_runtime_dependency": false,
+      "csharp_adapter_invoked": false,
+      "limitation": "Verified the Rust dependency tree and direct consumer invocation. The host has .NET installed; this was not a test with .NET uninstalled."
+    },
+    "manifest": {
+      "path": "target/package-consumer/Cargo.toml",
+      "sha256": "7ad2dd02ac094ab39b981ce744f7102142148a52af2ef07c816d34fb559a891a",
+      "contents": "[package]\nname = \"cpu-package-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\n[dependencies]\nsimd-paddle-ocr-rs = { path = \"../package/simd-paddle-ocr-rs-0.1.0\" }\n\n[workspace]\n"
+    }
+  },
+  "final_documentation_repackage": {
+    "status_at_validation": "pending final report additions",
+    "command": "cargo package --allow-dirty --locked --offline --no-verify",
+    "runtime_sources_must_remain_identical": true,
+    "artifact_sha256": null,
+    "hash_record": "Record the final archive hash separately after documentation-only repackaging. The verified archive hash above identifies the tested package and does not claim to identify the later documentation-inclusive archive."
+  }
+}
