@@ -71,7 +71,7 @@ pub(crate) fn spatial_mean(backend: Backend, input: &[f32], output: &mut [f32], 
 fn execute(backend: Backend, task: Task, input: &[f32], output: &mut [f32]) {
     match backend {
         Backend::Scalar => kernel::<1, false>(task, input, output),
-        Backend::Portable4 => kernel::<4, false>(task, input, output),
+        Backend::Portable4 | Backend::NeonFma => kernel::<4, false>(task, input, output),
         Backend::Avx => {
             checked_avx();
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]

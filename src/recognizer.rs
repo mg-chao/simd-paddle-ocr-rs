@@ -418,6 +418,7 @@ impl PublicHead {
         match compiled.backend() {
             Backend::Scalar => "Scalar",
             Backend::Portable4 => "Portable4",
+            Backend::NeonFma => "NeonFma",
             Backend::Avx => "Avx",
             Backend::AvxFma => "AvxFma",
             Backend::Avx2Fma => "Avx2Fma",

@@ -614,7 +614,10 @@ impl Ocr {
         )?;
         self.extractor.set_execution_context(
             self.cpu.clone(),
-            self.budgets.extraction_options(self.cpu.request_capacity()),
+            self.budgets.extraction_options(
+                self.cpu.request_capacity(),
+                self.cpu_options.line_workers == 0,
+            ),
         )?;
         let observer = RefCell::new(observer);
         let oriented = if TRACE {

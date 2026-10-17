@@ -6,6 +6,8 @@
 //! origins or reduction-block scratch is needed. The isolated AVX tile returns
 //! its completed six-row accumulators once, outside the reduction loop.
 use super::*;
+#[cfg(target_arch = "aarch64")]
+pub(super) mod neon;
 
 const ROWS: usize = 6;
 const GROUP_ROWS: usize = ROWS * 8;
@@ -52,6 +54,14 @@ pub(super) fn execute(
             narrow::<1, false>(input, bias, packed, output, first, inner, columns, store)
         }
         Backend::Portable4 => portable(input, bias, packed, output, first, inner, columns, store),
+        Backend::NeonFma => {
+            #[cfg(target_arch = "aarch64")]
+            // SAFETY: CompiledModel validates the selected NEON/FMA policy;
+            // the checked input and packed spans cover every complete tile.
+            unsafe {
+                neon::execute(input, bias, packed, output, first, inner, columns, store)
+            }
+        }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validates the selected AVX policy.

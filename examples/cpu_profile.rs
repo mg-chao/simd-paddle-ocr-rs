@@ -20,16 +20,20 @@ fn run() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|s| s == "--help" || s == "-h") {
         println!(
-            "cargo run --release --locked --features profiling --example cpu_profile -- [tiny|small|medium] [FIXTURE] [1|8]\nOne warm-up and one instrumented production run; JSON stage wall/work counters and retained capacities. No official performance claim."
+            "cargo run --release --locked --features profiling --example cpu_profile -- [tiny|small|medium] [FIXTURE] [1|8] [LINE_WORKERS=0]\nOne warm-up and one instrumented production run; JSON stage wall/work counters and retained capacities. No official performance claim."
         );
         return Ok(());
     }
-    if args.len() > 3 {
-        return Err("expected MODEL FIXTURE THREADS; use --help".into());
+    if args.len() > 4 {
+        return Err("expected MODEL FIXTURE THREADS [LINE_WORKERS]; use --help".into());
     }
     let model = args.first().map_or("tiny", String::as_str);
     let fixture = args.get(1).map_or("imgs_1", String::as_str);
     let threads: usize = args.get(2).map_or("8", String::as_str).parse()?;
+    let line_workers: usize = args.get(3).map_or("0", String::as_str).parse()?;
+    if line_workers > 16 {
+        return Err("line workers must be within 0..=16".into());
+    }
     if ![1, 8].contains(&threads) || !["tiny", "small", "medium"].contains(&model) {
         return Err("use a shipped model and 1 or 8 threads".into());
     }
@@ -65,7 +69,7 @@ fn run() -> Result<()> {
         .builder()
         .cpu_context(Arc::new(CpuContext::new(threads)?))
         .cpu_options(CpuOptions {
-            line_workers: if threads == 1 { 1 } else { 4 },
+            line_workers,
             preprocess_workers: threads,
             detector_threads: threads,
         })
@@ -112,7 +116,7 @@ fn run() -> Result<()> {
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
-            "instrumented":true,"model":model,"fixture":fixture,"threads":threads,
+            "instrumented":true,"model":model,"fixture":fixture,"threads":threads,"requested_line_workers":line_workers,
             "budgets":format!("{:?}",ocr.cpu_budgets()),"recognized_lines":actual.lines.len(),"profile":profile,
             "retained_activation_bytes":{"total":total,"detector":det,"classifiers":cls,
                 "root_recognizer":rec,"recognition_workers":total-det-cls-rec},

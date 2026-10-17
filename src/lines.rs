@@ -606,7 +606,12 @@ fn extract_parallel<const PROFILE: bool>(
         return Ok(());
     };
     let cls_timer = crate::profile::Timer::<PROFILE>::start();
-    let active = budgets.line_workers.min(metadata.len());
+    // Other requests can arrive during detection/cropping. Recheck demand at
+    // this stage boundary; retained workers do not reserve CPU capacity.
+    let active = budgets
+        .line_workers
+        .min(cpu.request_capacity())
+        .min(metadata.len());
     classifiers
         .try_reserve(active.saturating_sub(classifiers.len()))
         .map_err(|e| ImageError::new(format!("classifier workers allocation: {e}")))?;
@@ -695,6 +700,143 @@ fn extract_parallel<const PROFILE: bool>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn automatic_classifier_wave_matches_serial_and_respects_standalone_and_request_limits() {
+        let cpu = Arc::new(CpuContext::new(8).unwrap());
+        let mut template = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
+        let detector = template.extractor_mut().detector().fork().unwrap();
+        let mut standalone = OrientedLineExtractor::new(
+            detector,
+            Some(crate::ocr::tests::synthetic_classifier()),
+            LineOptions::default(),
+        )
+        .unwrap();
+        standalone
+            .set_execution_context(cpu.clone(), CpuOptions::default())
+            .unwrap();
+        let automatic = CpuOptions::default().resolve(8, true).unwrap();
+        let mut expanded = standalone.fork().unwrap();
+        expanded
+            .set_execution_context(cpu.clone(), automatic.extraction_options(8, true))
+            .unwrap();
+        let mut explicit = standalone.fork().unwrap();
+        explicit
+            .set_execution_context(
+                cpu.clone(),
+                CpuOptions {
+                    line_workers: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(standalone.budgets.line_workers, 4);
+        assert_eq!(expanded.budgets.line_workers, 8);
+        assert_eq!(explicit.budgets.line_workers, 2);
+
+        let pixels = (0..24 * 24 * 3)
+            .map(|index| ((index * 29 + index / 72) % 256) as u8)
+            .collect::<Vec<_>>();
+        let image = ImageView::new(&pixels, 24, 24, 0, PixelFormat::Bgr24).unwrap();
+        let transforms = (0..17)
+            .map(|index| {
+                let left = (index % 3 * 8) as f32;
+                let top = (index / 3 % 3 * 8) as f32;
+                CropTransform::new(&DetectionBox {
+                    points: [
+                        [left, top],
+                        [left + 7., top],
+                        [left + 7., top + 5.],
+                        [left, top + 5.],
+                    ],
+                    score: 1.,
+                })
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut total = 0;
+        let metadata = transforms
+            .iter()
+            .map(|transform| {
+                let bytes = transform.byte_count().unwrap();
+                let line = LineMetadata {
+                    detection: DetectionBox {
+                        points: [[0.; 2]; 4],
+                        score: 1.,
+                    },
+                    offset: total,
+                    bytes,
+                    width: transform.width(),
+                    height: transform.height(),
+                    unrotated_width: transform.unrotated_width(),
+                    unrotated_height: transform.unrotated_height(),
+                    vertical_rotation: transform.vertical_rotation(),
+                    classification: None,
+                    applied_rotation_degrees: 0,
+                };
+                total += bytes;
+                line
+            })
+            .collect::<Vec<_>>();
+        let mut expected = metadata.clone();
+        let mut expected_pixels = vec![0; total];
+        let mut serial = standalone.classifier.as_ref().unwrap().fork().unwrap();
+        for (line, transform) in expected.iter_mut().zip(&transforms) {
+            let crop = &mut expected_pixels[line.offset..line.offset + line.bytes];
+            transform.extract_into(image, crop).unwrap();
+            let result = serial
+                .classify(
+                    ImageView::new(crop, line.width, line.height, 0, PixelFormat::Bgr24).unwrap(),
+                )
+                .unwrap();
+            line.classification = Some(result);
+            if should_rotate(result, 0.) {
+                crop::rotate180(crop, line.width, line.height).unwrap();
+                line.applied_rotation_degrees = 180;
+            }
+        }
+        let run = |extractor: &mut OrientedLineExtractor| {
+            let mut actual = metadata.clone();
+            let mut actual_pixels = vec![0; total];
+            extract_parallel::<false>(
+                &cpu,
+                extractor.budgets,
+                image,
+                &transforms,
+                &mut actual,
+                &mut actual_pixels,
+                &extractor.classifier,
+                &mut extractor.classifier_workers,
+                0.,
+                &mut crate::profile::StageProfile::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
+            );
+            assert_eq!(actual_pixels, expected_pixels);
+        };
+        run(&mut standalone);
+        run(&mut expanded);
+        run(&mut explicit);
+        assert_eq!(standalone.classifier_workers.len(), 4);
+        assert_eq!(expanded.classifier_workers.len(), 8);
+        assert_eq!(explicit.classifier_workers.len(), 2);
+
+        let retained = expanded.classifier_retained_activation_bytes();
+        let demand = (0..4).map(|_| cpu.register_request()).collect::<Vec<_>>();
+        assert_eq!(cpu.request_capacity(), 2);
+        let mut contended = expanded.fork().unwrap();
+        run(&mut contended);
+        assert_eq!(contended.classifier_workers.len(), 2);
+        run(&mut expanded);
+        assert_eq!(expanded.classifier_workers.len(), 8);
+        assert_eq!(expanded.classifier_retained_activation_bytes(), retained);
+        drop(demand);
+        assert_eq!(cpu.request_capacity(), 8);
+    }
 
     #[test]
     fn retained_workspace_counts_reserved_classifier_worker_storage() {

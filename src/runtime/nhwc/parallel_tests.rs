@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 fn native_backends() -> Vec<Backend> {
     let mut result = vec![Backend::Portable4];
     for (available, backend) in [
+        (simd::neon_available(), Backend::NeonFma),
         (simd::avx_available(), Backend::Avx),
         (simd::avx_fma_available(), Backend::AvxFma),
         (simd::avx2_fma_available(), Backend::Avx2Fma),

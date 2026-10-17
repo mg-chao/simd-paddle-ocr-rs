@@ -922,7 +922,10 @@ impl State {
             let arena = allocate_buffer(next.elements)?;
             check_retained_limit(std::slice::from_ref(&arena), limits)?;
             self.arena = arena;
-        } else {
+        } else if self.arena.len() < next.elements {
+            // Keep the initialized high-water span across smaller bindings.
+            // Every live value is written by fill or its producing step;
+            // regrowing a retained shape must not zero the same tail again.
             self.arena.resize(next.elements, 0.);
         }
         let old = std::mem::replace(&mut self.plan, next);
@@ -1583,7 +1586,8 @@ pub(super) fn native_selection(
                     format!("{:?}", simd::matrix::actual_backend(backend)),
                 );
             }
-            let wide = simd::wide_projection_eligible(*rows, *inner, *columns, packed);
+            let wide = backend != Backend::NeonFma
+                && simd::wide_projection_eligible(*rows, *inner, *columns, packed);
             let isa = if backend == Backend::Avx512 {
                 #[cfg(feature = "parallel")]
                 let sharded = threads > 1 && rows * inner * columns >= 262_144 && *rows >= 8;
@@ -1656,7 +1660,17 @@ pub(super) fn native_selection(
                 ("nchw_spatial_4oc", format!("{backend:?}"))
             }
         }
-        BoundKind::ConvTranspose(_) => ("nchw_transpose2x2_spatial", format!("{backend:?}")),
+        BoundKind::ConvTranspose(_) => (
+            "nchw_transpose2x2_spatial",
+            format!(
+                "{:?}",
+                if backend == Backend::NeonFma {
+                    Backend::Portable4
+                } else {
+                    backend
+                }
+            ),
+        ),
         BoundKind::MaxPool { .. } | BoundKind::AveragePool { .. } => {
             ("nchw_spatial_pool", format!("{backend:?}"))
         }

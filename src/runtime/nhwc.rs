@@ -9,6 +9,8 @@ use std::simd::{Simd, StdFloat};
 mod concat;
 mod dense;
 mod misc;
+#[cfg(target_arch = "aarch64")]
+mod neon_depthwise;
 pub(super) mod pointwise;
 mod strip;
 mod transpose;
@@ -187,6 +189,7 @@ pub(super) fn try_pointwise_matrix(
     );
     let supported = match backend {
         Backend::Scalar | Backend::Portable4 => true,
+        Backend::NeonFma => simd::neon_available(),
         Backend::Avx => simd::avx_available(),
         Backend::AvxFma => simd::avx_fma_available(),
         Backend::Avx2Fma => simd::avx2_fma_available(),
@@ -218,7 +221,9 @@ pub(super) fn selection(
 ) -> (&'static str, Backend) {
     match kind {
         BoundKind::Conv(p) if p.cpg == 1 && p.cout == p.cin && p.opg == 1 => (
-            if p.kh >= 6 {
+            if backend == Backend::NeonFma && packed && p.cout >= 32 {
+                "nhwc_depthwise_neon_2x32"
+            } else if p.kh >= 6 {
                 "nhwc_depthwise_strip"
             } else {
                 "nhwc_depthwise_pixel8"
@@ -860,6 +865,7 @@ fn conv_dispatch_store(
             }
         }
         Backend::Portable4 => conv::<4, false>(p, input, weights, bias, packed, out, first, store),
+        Backend::NeonFma => conv::<4, true>(p, input, weights, bias, packed, out, first, store),
         Backend::Scalar => conv::<1, false>(p, input, weights, bias, packed, out, first, store),
     }
 }
@@ -948,6 +954,13 @@ fn depthwise_dispatch(
         }
         Backend::Portable4 => {
             depthwise::<4, false>(p, input, weights, bias, packed, out, first, store)
+        }
+        Backend::NeonFma => {
+            #[cfg(target_arch = "aarch64")]
+            if neon_depthwise::try_execute(p, input, weights, bias, packed, out, first, store) {
+                return;
+            }
+            depthwise::<4, true>(p, input, weights, bias, packed, out, first, store)
         }
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]

@@ -18,6 +18,7 @@ pub(super) fn single(
     match backend {
         Backend::Scalar => kernel::<1, false>(p, input, weights, bias, output, first_row, store),
         Backend::Portable4 => kernel::<4, false>(p, input, weights, bias, output, first_row, store),
+        Backend::NeonFma => kernel::<4, true>(p, input, weights, bias, output, first_row, store),
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: the compiled model validated AVX.

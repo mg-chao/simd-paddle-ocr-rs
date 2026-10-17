@@ -247,3 +247,102 @@ fn sparse_detector_physical_steps() {
         }
     }
 }
+
+#[test]
+#[ignore = "local release diagnostic: tiny REC cached reshape, one warm-up cycle and three fixed measured cycles"]
+fn recognition_cached_arena_rebind() {
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../SimdPaddleOCR/models/rec.onnx");
+    let compiled =
+        Arc::new(CompiledModel::new(Arc::new(Model::load_path(&path).unwrap())).unwrap());
+    let graph = compiled.model.graph();
+    assert_eq!(graph.nodes.last().unwrap().op_type, "Softmax");
+    let mut head = graph.nodes.len() - 2;
+    if graph.nodes[head].op_type == "Add" {
+        head -= 1;
+    }
+    assert_eq!(graph.nodes[head].op_type, "MatMul");
+    let feature = graph.nodes[head].inputs[0].unwrap();
+    let last = graph.nodes[..head]
+        .iter()
+        .position(|node| node.outputs.contains(&Some(feature)))
+        .unwrap();
+    // Construct the real backbone prefix before any clock. Its output is the
+    // feature preceding the vocabulary head, as in production recognition.
+    let mut request =
+        Session::new_prefix(compiled, &[1, 3, 48, 32], ExecutionLimits::default(), last).unwrap();
+    request
+        .set_execution_context(CpuContext::serial(), 1)
+        .unwrap();
+    let deadline = std::time::Instant::now();
+    let widths = [320, 32, 320, 32];
+    // One warm-up cycle binds both shapes and primes their cached metadata.
+    // No inference, input fill, or additional warm-up is performed.
+    for width in widths {
+        request.reshape(&[1, 3, 48, width]).unwrap();
+    }
+    let before = request.statistics();
+    let physical_misses = request.optimized.as_ref().unwrap().misses;
+    let retained = request.retained_activation_bytes();
+    let mut samples_ns = [[0u128; 4]; 3];
+    let mut transitions = Vec::with_capacity(12);
+    for (cycle, sample) in samples_ns.iter_mut().enumerate() {
+        for (transition, (width, elapsed_ns)) in widths.into_iter().zip(sample).enumerate() {
+            let initialized_before = request.optimized.as_ref().unwrap().arena.len();
+            let started = std::time::Instant::now();
+            request.reshape(&[1, 3, 48, width]).unwrap();
+            *elapsed_ns = started.elapsed().as_nanos();
+            let state = request.optimized.as_ref().unwrap();
+            assert_eq!(request.retained_activation_bytes(), retained);
+            assert_eq!(state.misses, physical_misses);
+            transitions.push(serde_json::json!({
+                "cycle": cycle,
+                "transition": transition,
+                "width": width,
+                "elapsed_ns": *elapsed_ns,
+                "active_bytes": request.activation_bytes(),
+                "retained_bytes": request.retained_activation_bytes(),
+                "initialized_bytes": state.arena.len() * size_of::<f32>(),
+                "initialized_growth_bytes": state.arena.len().saturating_sub(initialized_before) * size_of::<f32>(),
+                "logical_cache_hits": request.cache_hits,
+                "logical_cache_misses": request.cache_misses,
+                "physical_cache_hits": state.hits,
+                "physical_cache_misses": state.misses,
+            }));
+            assert!(
+                deadline.elapsed() < std::time::Duration::from_secs(5),
+                "fixed rebind diagnostic exceeded five seconds"
+            );
+        }
+    }
+    let after = request.statistics();
+    assert_eq!(after.plan_cache_misses, before.plan_cache_misses);
+    assert_eq!(after.plan_cache_hits - before.plan_cache_hits, 12);
+    let cycle_ns = samples_ns.map(|sample| sample.into_iter().sum::<u128>());
+    let cycle_ms = cycle_ns.map(|ns| ns as f64 / 1_000_000.);
+    println!(
+        "arena_rebind_probe {}",
+        serde_json::json!({
+            "model": "tiny",
+            "model_path": path,
+            "prefix_last_node": last,
+            "backend": before.backend,
+            "shape": [1, 3, 48],
+            "width_transitions": widths,
+            "warmup_cycles": 1,
+            "measured_cycles": 3,
+            "transitions_per_cycle": 4,
+            "cycle_ns": cycle_ns,
+            "cycle_ms": cycle_ms,
+            "transition_ns": samples_ns,
+            "transitions": transitions,
+            "retained_bytes": retained,
+            "logical_cache_hits_before": before.plan_cache_hits,
+            "logical_cache_hits_after": after.plan_cache_hits,
+            "logical_cache_misses_before": before.plan_cache_misses,
+            "logical_cache_misses_after": after.plan_cache_misses,
+            "physical_cache_misses": physical_misses,
+            "measured_inference_runs": 0,
+        })
+    );
+}

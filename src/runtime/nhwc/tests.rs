@@ -2,6 +2,9 @@ use super::*;
 mod performance;
 fn backends() -> Vec<Backend> {
     let mut result = vec![Backend::Scalar, Backend::Portable4];
+    if simd::neon_available() {
+        result.push(Backend::NeonFma);
+    }
     for (available, backend) in [
         (simd::avx_available(), Backend::Avx),
         (simd::avx_fma_available(), Backend::AvxFma),

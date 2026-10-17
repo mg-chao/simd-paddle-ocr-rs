@@ -840,6 +840,139 @@ fn metadata_cache_reuses_eight_shapes_and_failed_growth_keeps_previous_run() {
     optimized.run(&vec![0.5; before.element_count()]).unwrap();
 }
 
+#[test]
+fn initialized_arena_keeps_dirty_high_water_through_alternating_shapes() {
+    let model = conv_model(true);
+    let dirty = f32::from_bits(0x7fc0_1234);
+    for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
+        let mut optimized = session(
+            model.clone(),
+            CompileOptions {
+                kernels: KernelPolicy::Portable4,
+                layout,
+                fusion: true,
+            },
+            &[1, 3, 8, 64],
+        );
+        let state = optimized.optimized.as_ref().unwrap();
+        let high_water = state.arena.len();
+        let retained = state.arena.capacity() * size_of::<f32>();
+        let pointer = state.arena.as_ptr();
+        for width in [3, 64, 5, 64, 1, 64] {
+            // Poison the entire initialized allocation, including inactive
+            // high-water elements. Rebinding must preserve it byte for byte;
+            // execution must overwrite every input and produced live value.
+            optimized.optimized.as_mut().unwrap().arena.fill(dirty);
+            let shape = [1, 3, 8, width];
+            optimized.reshape(&shape).unwrap();
+            let state = optimized.optimized.as_ref().unwrap();
+            let active = state.plan.elements;
+            assert_eq!(state.arena.as_ptr(), pointer);
+            assert_eq!(state.arena.len(), high_water);
+            assert!(state.arena.iter().all(|v| v.to_bits() == dirty.to_bits()));
+            assert_eq!(optimized.activation_bytes(), active * size_of::<f32>());
+            assert_eq!(optimized.retained_activation_bytes(), retained);
+            if width < 64 {
+                assert!(optimized.activation_bytes() < retained);
+            }
+            let input = (0..shape.iter().product())
+                .map(|i| (i as f32 % 47. - 23.) / 29.)
+                .collect::<Vec<_>>();
+            let mut reference = session(model.clone(), CompileOptions::reference(), &shape);
+            let expected = reference.run(&input).unwrap().data().to_vec();
+            compare(&expected, optimized.run(&input).unwrap().data());
+            let state = optimized.optimized.as_ref().unwrap();
+            assert!(
+                state.arena[active..]
+                    .iter()
+                    .all(|v| v.to_bits() == dirty.to_bits())
+            );
+            assert_eq!(optimized.retained_activation_bytes(), retained);
+        }
+    }
+}
+
+#[test]
+fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() {
+    let model = conv_model(true);
+    let compiled = Arc::new(
+        CompiledModel::compile(
+            model,
+            CompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default()
+            },
+        )
+        .unwrap(),
+    );
+    let wide = [1, 3, 8, 64];
+    let probe = Session::new_serial(compiled.clone(), &wide, ExecutionLimits::default()).unwrap();
+    let limit = probe.retained_activation_bytes();
+    drop(probe);
+    let mut optimized = Session::new_serial(
+        compiled,
+        &wide,
+        ExecutionLimits {
+            max_activation_bytes: limit,
+        },
+    )
+    .unwrap();
+    optimized.reshape(&[1, 3, 8, 3]).unwrap();
+    let input = vec![0.5; 3 * 8 * 3];
+    let expected = optimized.run(&input).unwrap().data().to_vec();
+    let state = optimized.optimized.as_ref().unwrap();
+    let plan = state.plan.clone();
+    let pointer = state.arena.as_ptr();
+    let storage = state.arena.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+    let active = optimized.activation_bytes();
+    let retained = optimized.retained_activation_bytes();
+    assert!(optimized.reshape(&[1, 3, 8, 128]).is_err());
+    assert_eq!(optimized.input_shape().dimensions(), [1, 3, 8, 3]);
+    let state = optimized.optimized.as_ref().unwrap();
+    assert!(Arc::ptr_eq(&state.plan, &plan));
+    assert_eq!(state.arena.as_ptr(), pointer);
+    assert_eq!(
+        state.arena.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+        storage
+    );
+    assert_eq!(optimized.activation_bytes(), active);
+    assert_eq!(optimized.retained_activation_bytes(), retained);
+    assert_eq!(state.output().unwrap().data(), expected);
+    compare(&expected, optimized.run(&input).unwrap().data());
+}
+
+#[test]
+fn tighter_activation_budget_replaces_the_initialized_high_water_arena() {
+    let model = conv_model(false);
+    let options = CompileOptions {
+        kernels: KernelPolicy::Portable4,
+        ..CompileOptions::default()
+    };
+    let mut optimized = session(model.clone(), options, &[1, 3, 8, 64]);
+    let narrow = [1, 3, 8, 3];
+    let probe = session(model.clone(), options, &narrow);
+    let limit = probe.retained_activation_bytes();
+    let active = probe.activation_bytes();
+    let previous = optimized.optimized.as_ref().unwrap().arena.as_ptr();
+    optimized
+        .reshape_with_limits(
+            &narrow,
+            ExecutionLimits {
+                max_activation_bytes: limit,
+            },
+        )
+        .unwrap();
+    let state = optimized.optimized.as_ref().unwrap();
+    assert_ne!(state.arena.as_ptr(), previous);
+    assert_eq!(state.arena.len(), state.plan.elements);
+    assert_eq!(optimized.activation_bytes(), active);
+    assert!(optimized.retained_activation_bytes() <= limit);
+    let input = vec![0.5; 3 * 8 * 3];
+    let mut reference = session(model, CompileOptions::reference(), &narrow);
+    let expected = reference.run(&input).unwrap().data().to_vec();
+    compare(&expected, optimized.run(&input).unwrap().data());
+}
+
 fn norm_model(keep: bool, column_gate: bool) -> Arc<Model> {
     let mean_attrs = [
         attr("axes", &[-1]),

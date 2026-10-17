@@ -422,3 +422,176 @@ fn a_fused_residual_does_not_start_a_segment_for_a_neutral_base_input() {
         );
     }
 }
+
+#[test]
+fn neon_projection_metadata_distinguishes_four_and_six_row_tiles() {
+    use crate::runtime::simd::Backend;
+    // The wide packed eligibility shape must still name the actual four-row
+    // ARM64 projection, rather than the AVX-512 eight/sixteen-row family.
+    for (columns, packed, allow_pointwise, expected) in [
+        (1040, true, true, "matmul_4x16"),
+        (128, true, false, "matmul_4x16"),
+        (128, true, true, "nhwc_constant_matmul_6x16"),
+        (128, false, true, "matmul_4x16"),
+        (33, true, true, "matmul_4x16"),
+    ] {
+        let kind = BoundKind::MatMul {
+            rows: 8,
+            inner: 64,
+            columns,
+        };
+        assert_eq!(
+            native_selection(&kind, Backend::NeonFma, packed, 1, allow_pointwise),
+            (expected, "NeonFma".into()),
+            "columns={columns} packed={packed} pointwise={allow_pointwise}",
+        );
+    }
+}
+
+#[test]
+fn neon_canonical_metadata_reports_portable_arithmetic_for_both_worker_policies() {
+    use crate::runtime::{
+        kernels::{Conv, ConvTranspose},
+        simd::Backend,
+    };
+    let kind = BoundKind::Conv(Conv {
+        batch: 1,
+        cin: 3,
+        cout: 16,
+        height: 5,
+        width: 9,
+        oh: 5,
+        ow: 9,
+        cpg: 3,
+        opg: 16,
+        kh: 3,
+        kw: 3,
+        sh: 1,
+        sw: 1,
+        dh: 1,
+        dw: 1,
+        pt: 1,
+        pl: 1,
+    });
+    for (threads, expected) in [(1, "nchw_packed_3x3"), (4, "nchw_dense_3x3")] {
+        assert_eq!(
+            native_selection(&kind, Backend::NeonFma, true, threads, false),
+            (expected, "Portable4".into()),
+        );
+        assert!(native_store_eligible(
+            &kind,
+            Backend::NeonFma,
+            true,
+            threads
+        ));
+        assert!(native_consumes_packed(&kind, Backend::NeonFma, true, threads) == (threads == 1));
+    }
+    let transpose = BoundKind::ConvTranspose(ConvTranspose {
+        batch: 1,
+        cin: 3,
+        cout: 17,
+        height: 3,
+        width: 9,
+    });
+    assert_eq!(
+        native_selection(&transpose, Backend::NeonFma, false, 1, false),
+        ("nchw_transpose2x2_spatial", "Portable4".into()),
+    );
+    assert!(native_store_eligible(
+        &transpose,
+        Backend::NeonFma,
+        false,
+        1
+    ));
+}
+
+#[test]
+fn neon_depthwise_metadata_names_packed_two_pixel_channel_tiles() {
+    use crate::runtime::{kernels::Conv, simd::Backend};
+    for (channels, kernel, packed, expected) in [
+        (32, 3, true, "nhwc_depthwise_neon_2x32"),
+        (35, 3, true, "nhwc_depthwise_neon_2x32"),
+        (64, 7, true, "nhwc_depthwise_neon_2x32"),
+        (31, 3, true, "nhwc_depthwise_pixel8"),
+        (32, 3, false, "nhwc_depthwise_pixel8"),
+        (32, 7, false, "nhwc_depthwise_strip"),
+    ] {
+        let kind = BoundKind::Conv(Conv {
+            batch: 1,
+            cin: channels,
+            cout: channels,
+            height: 9,
+            width: 17,
+            oh: 9,
+            ow: 17,
+            cpg: 1,
+            opg: 1,
+            kh: kernel,
+            kw: kernel,
+            sh: 1,
+            sw: 1,
+            dh: 1,
+            dw: 1,
+            pt: kernel / 2,
+            pl: kernel / 2,
+        });
+        assert_eq!(
+            crate::runtime::nhwc::selection(&kind, Backend::NeonFma, packed),
+            (expected, Backend::NeonFma),
+            "channels={channels} kernel={kernel} packed={packed}",
+        );
+    }
+}
+
+#[test]
+fn neon_canonical_fallback_preserves_fused_store_results_and_statistics() {
+    if !simd::neon_available() {
+        return;
+    }
+    let parsed = model(
+        vec![
+            tensor("w", &[17, 3, 1, 1], &[0.125; 51]),
+            node("Conv", &["x", "w"], "c", attr("kernel_shape", &[1, 1])),
+            node("Relu", &["c"], "y", vec![]),
+        ],
+        &[1, 3, 3, 9],
+        &[1, 17, 3, 9],
+    );
+    let shape = [1, 3, 3, 9];
+    let input = (0..81).map(|i| (i as f32 - 40.) / 32.).collect::<Vec<_>>();
+    let mut control = session(
+        parsed.clone(),
+        CompileOptions {
+            kernels: KernelPolicy::Portable4,
+            layout: LayoutPolicy::Nchw,
+            fusion: false,
+        },
+        &shape,
+    );
+    let expected = control.run(&input).unwrap().data().to_vec();
+    let mut request = session(
+        parsed,
+        CompileOptions {
+            kernels: KernelPolicy::NeonFma,
+            layout: LayoutPolicy::Nchw,
+            fusion: true,
+        },
+        &shape,
+    );
+    let actual = request.run(&input).unwrap().data();
+    assert_eq!(
+        actual.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+        expected.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
+    );
+    let statistics = request.statistics();
+    assert_eq!(statistics.store_fused_steps, 1);
+    assert!(
+        statistics
+            .specialized_kernels
+            .iter()
+            .any(|kernel| kernel.operator == "Conv"
+                && kernel.family == "nchw_pointwise_spatial"
+                && kernel.isa == "Portable4"
+                && kernel.store_fused)
+    );
+}

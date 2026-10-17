@@ -133,6 +133,11 @@ fn interior(p: &Conv2d) -> std::ops::Range<usize> {
     first..end
 }
 fn select(backend: Backend, p: &Conv2d, packed: bool, threads: usize) -> Option<Kind> {
+    // Canonical specializations retain Portable4 arithmetic and fused stores;
+    // the ARM64 FMA tiles specialize channels-last execution.
+    if backend == Backend::NeonFma {
+        return select(Backend::Portable4, p, packed, threads);
+    }
     if backend == Backend::Scalar
         || p.groups == 0
         || p.dilation_height != 1
@@ -366,6 +371,9 @@ pub(super) fn selected_backend_for_threads(
     packed: bool,
     threads: usize,
 ) -> Backend {
+    if backend == Backend::NeonFma {
+        return Backend::Portable4;
+    }
     if backend == Backend::Avx512 {
         let kind = select(backend, p, packed, threads);
         if matches!(
@@ -403,6 +411,7 @@ pub(super) fn uses_pack_for_threads(
 fn check_backend(backend: Backend) {
     let supported = match backend {
         Backend::Scalar | Backend::Portable4 => true,
+        Backend::NeonFma => simd::neon_available(),
         Backend::Avx => simd::avx_available(),
         Backend::AvxFma => simd::avx_fma_available(),
         Backend::Avx2Fma => simd::avx2_fma_available(),
@@ -538,7 +547,7 @@ pub(super) fn try_conv_store(
         return true;
     }
     #[cfg(feature = "parallel")]
-    if spatial_shard_eligible(backend, p, packed.is_some(), threads.min(cpu.capacity())) {
+    if spatial_shard_eligible(actual, p, packed.is_some(), threads.min(cpu.capacity())) {
         spatial_shards(
             actual, p, input, weights, bias, packed, output, cpu, threads, store,
         );

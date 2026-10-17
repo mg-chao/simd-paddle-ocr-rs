@@ -1,5 +1,10 @@
 # Focused Apple M4 CPU performance comparison
 
+This is the historical Portable4 baseline before the ARM64 kernel optimization.
+The implementation now selects NEON/FMA automatically; later measurements are
+recorded in [ARM64 optimization results](macos-arm64-optimization.md) to preserve
+source-version provenance.
+
 The benchmark runner supports native 64-bit macOS in both the Rust and C#
 workers. The first focused comparison on the physical Apple M4 found Rust's
 warmed median latency **23–37% higher than C#**, while Rust's process peak

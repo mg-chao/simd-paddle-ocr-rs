@@ -38,6 +38,13 @@ pub(super) fn execute(
     match backend {
         Backend::Scalar => kernel::<1, 16, false>(p, input, bias, packed, output, first, store),
         Backend::Portable4 => kernel::<4, 4, false>(p, input, bias, packed, output, first, store),
+        Backend::NeonFma => {
+            #[cfg(target_arch = "aarch64")]
+            // SAFETY: CompiledModel validates the selected NEON/FMA policy.
+            unsafe {
+                neon(p, input, bias, packed, output, first, store);
+            }
+        }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validated the selected AVX backend.
@@ -92,6 +99,21 @@ x86_kernel!(avx_fma, "avx,fma", 8, 2, true);
 x86_kernel!(avx2, "avx2,fma", 8, 2, true);
 x86_kernel!(avx512, "avx512f,avx2,fma", 16, 1, true);
 
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[allow(clippy::too_many_arguments)]
+unsafe fn neon(
+    p: &Conv,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    first: usize,
+    store: &impl StoreTransform,
+) {
+    kernel::<4, 4, true>(p, input, bias, packed, output, first, store);
+}
+
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
@@ -139,7 +161,29 @@ fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
                 let end = (k0 + kc).min(inner);
                 for tile in (0..count).step_by(ROWS) {
                     let mut sums = std::array::from_fn::<_, ROWS, _>(|r| partial[tile + r]);
-                    if LANES == 4 && VECTORS == 4 {
+                    #[cfg(target_arch = "aarch64")]
+                    if LANES == 4 && VECTORS == 4 && FUSED {
+                        let panel =
+                            &packed.data()[(block * inner + k0) * 16..(block * inner + end) * 16];
+                        // SAFETY: only the guarded NEON entry instantiates
+                        // four fused vectors. Descriptors or checked general
+                        // gathers prove the complete scalar input interval.
+                        sums = unsafe {
+                            interior::accumulate_neon(
+                                p,
+                                input,
+                                &origins[tile..tile + ROWS],
+                                taps.as_ref(),
+                                fields[tile / ROWS].as_ref(),
+                                panel,
+                                k0,
+                                sums,
+                            )
+                        };
+                        partial[tile..tile + ROWS].copy_from_slice(&sums);
+                        continue;
+                    }
+                    if LANES == 4 && VECTORS == 4 && !FUSED {
                         let panel =
                             &packed.data()[(block * inner + k0) * 16..(block * inner + end) * 16];
                         for pair in 0..2 {
@@ -251,5 +295,7 @@ fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
     }
 }
 
+#[cfg(all(test, target_arch = "aarch64"))]
+mod neon_tests;
 #[cfg(test)]
 mod portable_tests;

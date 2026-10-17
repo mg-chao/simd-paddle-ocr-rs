@@ -1,0 +1,4541 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-17",
+  "host": "physical Apple M4, macOS 27.0.1, aarch64-apple-darwin, 10 logical CPUs, 16 GiB",
+  "rust_base_commit": "af633772eb116789b6af99591890f11d9aa613fd",
+  "csharp_reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+  "scope": "ARM64 optimization; distinct source versions are never pooled",
+  "intermediate_versions": [
+    {
+      "label": "clean-portable4-baseline",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792209557554-40317",
+      "budget_seconds_per_language": 60,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 40630272,
+              "retained_inference_sessions": 7,
+              "retained_primitive_request_array_bytes_lower_bound": 17560813,
+              "retained_resize_scratch_bytes_lower_bound": 170816,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 166.6349,
+            "language": "csharp",
+            "load_compile_ms": 56.1843,
+            "peak_resident_bytes": 136232960,
+            "process_cpu": {
+              "first_inference_ms": 490.053,
+              "samples_ms": [
+                238.033,
+                241.309,
+                241.892
+              ],
+              "warmup_ms": 248.46
+            },
+            "samples_ms": [
+              54.6295,
+              51.1255,
+              50.7649
+            ],
+            "warmup_ms": 60.5837,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 51.1255
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792209557554-40317/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.2631865116233583,
+          "memory_ratio": 0.5316897173782321,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 67.746459,
+            "language": "rust",
+            "load_compile_ms": 6.407541999999999,
+            "peak_resident_bytes": 72433664,
+            "process_cpu": {
+              "first_inference_ms": 314.06,
+              "samples_ms": [
+                306.047,
+                304.05,
+                305.298
+              ],
+              "warmup_ms": 307.821
+            },
+            "samples_ms": [
+              63.297124999999994,
+              64.60499999999999,
+              64.58104200000001
+            ],
+            "warmup_ms": 65.36812499999999,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 64.58104200000001
+          },
+          "status": "failed",
+          "throughput_ratio": 0.7916487318368136
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 9904128,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 17739339,
+              "retained_resize_scratch_bytes_lower_bound": 130080,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 208.3684,
+            "language": "csharp",
+            "load_compile_ms": 51.3352,
+            "peak_resident_bytes": 105693184,
+            "process_cpu": {
+              "first_inference_ms": 760.145,
+              "samples_ms": [
+                561.548,
+                521.663,
+                533.363
+              ],
+              "warmup_ms": 585.45
+            },
+            "samples_ms": [
+              101.0963,
+              90.1377,
+              91.3615
+            ],
+            "warmup_ms": 105.7062,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 91.3615
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792209557554-40317/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 1.3922380762137223,
+          "memory_ratio": 0.3838164625639436,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 10233856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6272701,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 127.222792,
+            "language": "rust",
+            "load_compile_ms": 6.316750000000001,
+            "peak_resident_bytes": 40566784,
+            "process_cpu": {
+              "first_inference_ms": 636.89,
+              "samples_ms": [
+                632.2410000000001,
+                631.803,
+                609.229
+              ],
+              "warmup_ms": 633.713
+            },
+            "samples_ms": [
+              125.125334,
+              127.196959,
+              134.917083
+            ],
+            "warmup_ms": 124.419083,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 127.196959
+          },
+          "status": "failed",
+          "throughput_ratio": 0.7182679579627371
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 39297024,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 18101495,
+              "retained_resize_scratch_bytes_lower_bound": 296672,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 209.1142,
+            "language": "csharp",
+            "load_compile_ms": 50.9986,
+            "peak_resident_bytes": 140345344,
+            "process_cpu": {
+              "first_inference_ms": 782.692,
+              "samples_ms": [
+                499.965,
+                499.047,
+                494.81
+              ],
+              "warmup_ms": 502.912
+            },
+            "samples_ms": [
+              90.9227,
+              89.8787,
+              87.8422
+            ],
+            "warmup_ms": 89.1741,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 89.8787
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792209557554-40317/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 1.357340504479927,
+          "memory_ratio": 0.5257996731263134,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 39626752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9047697,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 124.041084,
+            "language": "rust",
+            "load_compile_ms": 6.0955,
+            "peak_resident_bytes": 73793536,
+            "process_cpu": {
+              "first_inference_ms": 655.4250000000001,
+              "samples_ms": [
+                650.822,
+                648.5849999999999,
+                653.674
+              ],
+              "warmup_ms": 653.281
+            },
+            "samples_ms": [
+              121.513417,
+              123.981959,
+              121.996
+            ],
+            "warmup_ms": 120.301459,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 121.996
+          },
+          "status": "failed",
+          "throughput_ratio": 0.7367348109774091
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 3
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 1.9059675839999999,
+        "rust": 1.624299541
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "8961fe23e40d868123c112f1e66f2efd95cf67539a5afc50e88258ad1bbcaf96",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "db16ed163a682e07bb9f5847c615e8a9bdbfee16b842a17ae307a1ef55cdb96e",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "c7af928c40729173bd32b0bc39c2e07c2b9ab6140f42ef033601edb090d694cb",
+        "rust_worktree": "",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "failed"
+    },
+    {
+      "label": "neon-matrix-and-convolution",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210015398-41848",
+      "budget_seconds_per_language": 60,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 40630272,
+              "retained_inference_sessions": 7,
+              "retained_primitive_request_array_bytes_lower_bound": 17560813,
+              "retained_resize_scratch_bytes_lower_bound": 170816,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 167.1118,
+            "language": "csharp",
+            "load_compile_ms": 55.0437,
+            "peak_resident_bytes": 134840320,
+            "process_cpu": {
+              "first_inference_ms": 496.818,
+              "samples_ms": [
+                244.295,
+                238.143,
+                244.045
+              ],
+              "warmup_ms": 253.79
+            },
+            "samples_ms": [
+              54.2731,
+              51.7413,
+              51.0596
+            ],
+            "warmup_ms": 61.2406,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 51.7413
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210015398-41848/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.0620464889749581,
+          "memory_ratio": 0.5376670716889429,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 59.812916,
+            "language": "rust",
+            "load_compile_ms": 6.52875,
+            "peak_resident_bytes": 72499200,
+            "process_cpu": {
+              "first_inference_ms": 267.183,
+              "samples_ms": [
+                258.349,
+                260.459,
+                258.64500000000004
+              ],
+              "warmup_ms": 259.753
+            },
+            "samples_ms": [
+              54.951666,
+              54.936166,
+              55.243542
+            ],
+            "warmup_ms": 55.355416,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 54.951666
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9415783681608488
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 9904128,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 17739339,
+              "retained_resize_scratch_bytes_lower_bound": 130080,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 210.5815,
+            "language": "csharp",
+            "load_compile_ms": 51.482,
+            "peak_resident_bytes": 105791488,
+            "process_cpu": {
+              "first_inference_ms": 776.365,
+              "samples_ms": [
+                556.879,
+                552.542,
+                585.683
+              ],
+              "warmup_ms": 564.943
+            },
+            "samples_ms": [
+              99.4874,
+              95.6116,
+              98.7312
+            ],
+            "warmup_ms": 97.0467,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 98.7312
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210015398-41848/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 1.0284616210478552,
+          "memory_ratio": 0.3833049403747871,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 10233856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6272701,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 105.348625,
+            "language": "rust",
+            "load_compile_ms": 6.006417,
+            "peak_resident_bytes": 40550400,
+            "process_cpu": {
+              "first_inference_ms": 505.294,
+              "samples_ms": [
+                507.621,
+                509.378,
+                506.915
+              ],
+              "warmup_ms": 500.49299999999994
+            },
+            "samples_ms": [
+              101.54125,
+              102.851792,
+              101.509583
+            ],
+            "warmup_ms": 104.468125,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 101.54125
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9723260251375672
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 39297024,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 18101495,
+              "retained_resize_scratch_bytes_lower_bound": 296672,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 211.7169,
+            "language": "csharp",
+            "load_compile_ms": 51.5148,
+            "peak_resident_bytes": 139460608,
+            "process_cpu": {
+              "first_inference_ms": 779.806,
+              "samples_ms": [
+                517.1,
+                512.108,
+                505.357
+              ],
+              "warmup_ms": 508.89
+            },
+            "samples_ms": [
+              93.8079,
+              92.8878,
+              89.1299
+            ],
+            "warmup_ms": 88.856,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 92.8878
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210015398-41848/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 1.0571966070894132,
+          "memory_ratio": 0.5305451127819549,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 39626752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9047697,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 104.973083,
+            "language": "rust",
+            "load_compile_ms": 6.157125000000001,
+            "peak_resident_bytes": 73990144,
+            "process_cpu": {
+              "first_inference_ms": 530.474,
+              "samples_ms": [
+                505.49,
+                507.364,
+                507.628
+              ],
+              "warmup_ms": 505.3649999999999
+            },
+            "samples_ms": [
+              98.46225,
+              98.200667,
+              96.268917
+            ],
+            "warmup_ms": 97.274875,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 98.200667
+          },
+          "status": "inconclusive",
+          "throughput_ratio": 0.9458978522009428
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 3
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 1.931054917,
+        "rust": 1.358069751
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "d3525a765086eb01ed3b3679dfead93b2f607dd993de9be24c8a0b1e4840ecbe",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "c35af25f63a7a6c819a57502f6a99a1817ae21506059214d743760c1d2429cbd",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "739597f824de32b799314cbe66e0f99b5483cc381e9a41be480f282ceb312db6",
+        "rust_worktree": "M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/simd.rs\n M src/runtime/simd/tensor.rs\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "inconclusive"
+    },
+    {
+      "label": "neon-depthwise",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210211292-42347",
+      "budget_seconds_per_language": 60,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 40630272,
+              "retained_inference_sessions": 7,
+              "retained_primitive_request_array_bytes_lower_bound": 17560813,
+              "retained_resize_scratch_bytes_lower_bound": 170816,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 167.2592,
+            "language": "csharp",
+            "load_compile_ms": 57.3136,
+            "peak_resident_bytes": 134332416,
+            "process_cpu": {
+              "first_inference_ms": 488.823,
+              "samples_ms": [
+                248.975,
+                243.107,
+                241.591
+              ],
+              "warmup_ms": 263.703
+            },
+            "samples_ms": [
+              55.5342,
+              51.7088,
+              50.8945
+            ],
+            "warmup_ms": 62.2535,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 51.7088
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210211292-42347/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.0079385327062318,
+          "memory_ratio": 0.5376265398219295,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 56.572667,
+            "language": "rust",
+            "load_compile_ms": 6.432,
+            "peak_resident_bytes": 72220672,
+            "process_cpu": {
+              "first_inference_ms": 249.018,
+              "samples_ms": [
+                244.551,
+                241.929,
+                243.836
+              ],
+              "warmup_ms": 245.49
+            },
+            "samples_ms": [
+              52.361083,
+              51.891125,
+              52.119291999999994
+            ],
+            "warmup_ms": 52.69225,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 52.119291999999994
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9921239912468497
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 9904128,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 17739211,
+              "retained_resize_scratch_bytes_lower_bound": 129952,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 208.4472,
+            "language": "csharp",
+            "load_compile_ms": 52.0274,
+            "peak_resident_bytes": 104939520,
+            "process_cpu": {
+              "first_inference_ms": 766.131,
+              "samples_ms": [
+                547.303,
+                559.948,
+                551.154
+              ],
+              "warmup_ms": 554.267
+            },
+            "samples_ms": [
+              98.0237,
+              97.6256,
+              94.3382
+            ],
+            "warmup_ms": 97.1005,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 97.6256
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210211292-42347/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 0.9709765368919627,
+          "memory_ratio": 0.3843871975019516,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 10233856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6272701,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 97.167875,
+            "language": "rust",
+            "load_compile_ms": 6.1359580000000005,
+            "peak_resident_bytes": 40337408,
+            "process_cpu": {
+              "first_inference_ms": 480.932,
+              "samples_ms": [
+                473.213,
+                471.663,
+                475.624
+              ],
+              "warmup_ms": 468.584
+            },
+            "samples_ms": [
+              94.792167,
+              92.380625,
+              98.760542
+            ],
+            "warmup_ms": 93.866167,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 94.792167
+          },
+          "status": "passed",
+          "throughput_ratio": 1.0298910035467381
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 39297024,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 18095515,
+              "retained_resize_scratch_bytes_lower_bound": 296672,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 213.7853,
+            "language": "csharp",
+            "load_compile_ms": 51.2192,
+            "peak_resident_bytes": 140165120,
+            "process_cpu": {
+              "first_inference_ms": 791.499,
+              "samples_ms": [
+                507.658,
+                498.152,
+                493.355
+              ],
+              "warmup_ms": 509.058
+            },
+            "samples_ms": [
+              91.202,
+              90.4219,
+              87.7436
+            ],
+            "warmup_ms": 89.0687,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 90.4219
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210211292-42347/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 0.9989859536240668,
+          "memory_ratio": 0.5243717124488603,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 39626752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9047697,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 96.290416,
+            "language": "rust",
+            "load_compile_ms": 6.143458,
+            "peak_resident_bytes": 73498624,
+            "process_cpu": {
+              "first_inference_ms": 487.477,
+              "samples_ms": [
+                479.514,
+                482.006,
+                483.02
+              ],
+              "warmup_ms": 482.493
+            },
+            "samples_ms": [
+              89.17970799999999,
+              90.330208,
+              91.081875
+            ],
+            "warmup_ms": 91.51025,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 90.330208
+          },
+          "status": "passed",
+          "throughput_ratio": 1.001015075709778
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 3
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 1.919268333,
+        "rust": 1.260620958
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "54ebc4196bb4e45d7e14f600ec14dc2cf284a70c780960ea47bdbfd19db9b88b",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "b031fad71c5ca4051d0fc4929aa917fad7f1ab96f973efe432e82e39afd45fe3",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "cd485aed7b264335ff495ef252fb456b7c1f49cc47b4551a9c942eb2a15a9f18",
+        "rust_worktree": "M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/simd.rs\n M src/runtime/simd/tensor.rs\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "passed"
+    },
+    {
+      "label": "automatic-classifier-budget",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210362998-43033",
+      "budget_seconds_per_language": 60,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 40630272,
+              "retained_inference_sessions": 7,
+              "retained_primitive_request_array_bytes_lower_bound": 17560813,
+              "retained_resize_scratch_bytes_lower_bound": 170816,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 166.2805,
+            "language": "csharp",
+            "load_compile_ms": 56.1439,
+            "peak_resident_bytes": 134332416,
+            "process_cpu": {
+              "first_inference_ms": 491.282,
+              "samples_ms": [
+                237.065,
+                236.98,
+                239.686
+              ],
+              "warmup_ms": 248.104
+            },
+            "samples_ms": [
+              55.1298,
+              51.5363,
+              51.3844
+            ],
+            "warmup_ms": 61.6288,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 51.5363
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210362998-43033/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.020411826227339,
+          "memory_ratio": 0.539943895597024,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 55.969875,
+            "language": "rust",
+            "load_compile_ms": 6.924292,
+            "peak_resident_bytes": 72531968,
+            "process_cpu": {
+              "first_inference_ms": 251.382,
+              "samples_ms": [
+                242.209,
+                240.548,
+                242.391
+              ],
+              "warmup_ms": 248.556
+            },
+            "samples_ms": [
+              52.771125000000005,
+              52.295792,
+              52.58825
+            ],
+            "warmup_ms": 52.354083,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 52.58825
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9799964821038919
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 9904128,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 17739339,
+              "retained_resize_scratch_bytes_lower_bound": 130080,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 198.4966,
+            "language": "csharp",
+            "load_compile_ms": 52.8424,
+            "peak_resident_bytes": 104972288,
+            "process_cpu": {
+              "first_inference_ms": 724.461,
+              "samples_ms": [
+                494.763,
+                485.548,
+                496.888
+              ],
+              "warmup_ms": 511.665
+            },
+            "samples_ms": [
+              90.9684,
+              86.5176,
+              85.7135
+            ],
+            "warmup_ms": 88.3495,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 86.5176
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210362998-43033/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 0.9887135681063737,
+          "memory_ratio": 0.4048696737942875,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 11257856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6977741,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 86.71437499999999,
+            "language": "rust",
+            "load_compile_ms": 6.227708,
+            "peak_resident_bytes": 42500096,
+            "process_cpu": {
+              "first_inference_ms": 498.425,
+              "samples_ms": [
+                501.42,
+                496.9740000000001,
+                491.402
+              ],
+              "warmup_ms": 504.084
+            },
+            "samples_ms": [
+              85.541125,
+              87.31725,
+              82.24674999999999
+            ],
+            "warmup_ms": 86.05283399999999,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 85.541125
+          },
+          "status": "passed",
+          "throughput_ratio": 1.0114152695560177
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 39297024,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 18101495,
+              "retained_resize_scratch_bytes_lower_bound": 296672,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 206.128,
+            "language": "csharp",
+            "load_compile_ms": 50.1046,
+            "peak_resident_bytes": 141377536,
+            "process_cpu": {
+              "first_inference_ms": 765.285,
+              "samples_ms": [
+                508.249,
+                501.112,
+                526.738
+              ],
+              "warmup_ms": 510.183
+            },
+            "samples_ms": [
+              91.5843,
+              91.8368,
+              92.7707
+            ],
+            "warmup_ms": 90.462,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 91.8368
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792210362998-43033/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 0.9647144935363601,
+          "memory_ratio": 0.5367945300730096,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40650752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9737457,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 93.621458,
+            "language": "rust",
+            "load_compile_ms": 6.142792,
+            "peak_resident_bytes": 75890688,
+            "process_cpu": {
+              "first_inference_ms": 500.095,
+              "samples_ms": [
+                495.555,
+                495.581,
+                494.304
+              ],
+              "warmup_ms": 494.882
+            },
+            "samples_ms": [
+              88.59629199999999,
+              86.62620799999999,
+              88.760583
+            ],
+            "warmup_ms": 87.02816700000001,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 88.59629199999999
+          },
+          "status": "passed",
+          "throughput_ratio": 1.0365761131402655
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 3
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 1.8800559570000002,
+        "rust": 1.203419334
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "2df6a88329762915036ec84a6014dcc57dc8a7d29592b005b8100d28d9a84d66",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "90d7ec784f0c7ce9f694a756e7d4a7af49be48665388372ce0a71bb79e505167",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "227a19c32a1e20ee49be7c5a40296b841a99b1a9c47fd0f2ef98e119ad260069",
+        "rust_worktree": "M docs/cpu-usage.md\n M examples/cpu_benchmark.rs\n M examples/cpu_profile.rs\n M src/cpu.rs\n M src/lines.rs\n M src/ocr.rs\n M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/simd.rs\n M src/runtime/simd/tensor.rs\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "passed"
+    }
+  ],
+  "final_execution": {
+    "records": [
+      {
+        "label": "final-latency",
+        "command": [
+          "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/release/examples/cpu_benchmark",
+          "--model",
+          "all",
+          "--threads",
+          "8",
+          "--fixture",
+          "imgs_1,imgs_00018069,imgs_00006737",
+          "--workload",
+          "latency",
+          "--runs",
+          "3",
+          "--budget-seconds",
+          "59",
+          "--case-timeout-seconds",
+          "20"
+        ],
+        "exit_code": 1,
+        "report": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/report.json",
+        "status": "inconclusive",
+        "budget_before_seconds": 59,
+        "aggregate_elapsed_seconds_per_language": {
+          "rust": 15.581836749999999,
+          "csharp": 17.880482459
+        }
+      },
+      {
+        "label": "final-throughput",
+        "command": [
+          "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/release/examples/cpu_benchmark",
+          "--model",
+          "all",
+          "--threads",
+          "8",
+          "--fixture",
+          "imgs_00018069",
+          "--workload",
+          "throughput",
+          "--runs",
+          "3",
+          "--budget-seconds",
+          "42",
+          "--case-timeout-seconds",
+          "20"
+        ],
+        "exit_code": 1,
+        "report": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211787599-46710/report.json",
+        "status": "failed",
+        "budget_before_seconds": 42,
+        "aggregate_elapsed_seconds_per_language": {
+          "rust": 25.273222749,
+          "csharp": 27.13096025
+        }
+      },
+      {
+        "label": "final-serial",
+        "command": [
+          "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/release/examples/cpu_benchmark",
+          "--model",
+          "all",
+          "--threads",
+          "1",
+          "--fixture",
+          "imgs_00018069",
+          "--workload",
+          "latency",
+          "--runs",
+          "3",
+          "--budget-seconds",
+          "32",
+          "--case-timeout-seconds",
+          "20"
+        ],
+        "exit_code": 0,
+        "report": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211823851-46856/report.json",
+        "status": "passed",
+        "budget_before_seconds": 32,
+        "aggregate_elapsed_seconds_per_language": {
+          "rust": 46.639155124,
+          "csharp": 48.776497541
+        }
+      }
+    ],
+    "aggregate_elapsed_seconds_per_language": {
+      "rust": 46.639155124,
+      "csharp": 48.776497541
+    },
+    "budget_seconds_per_language": 60,
+    "rust_source_sha256": "2dbd1392c8a6ab9b877dc64e7b50b1827ef27edd46b78932e594d1904b4b8797",
+    "rust_executable_sha256": "c28c6b2a27caef0ad562cd5ecca8a77d35400ff20f35d6d653cad48bdc2b1553",
+    "diagnostic_reserve_seconds_per_language": {
+      "rust": 0.01,
+      "csharp": 0.0
+    },
+    "aggregate_worker_elapsed_seconds_per_language": {
+      "rust": 46.629155124,
+      "csharp": 48.776497541
+    },
+    "sampling_counts_per_language": {
+      "workers": 15,
+      "first_batches": 15,
+      "warmup_batches": 15,
+      "measured_batches": 45,
+      "measured_ocr_requests": 54,
+      "total_ocr_requests_including_first_and_warmup": 90
+    }
+  },
+  "final_reports": [
+    {
+      "label": "final-latency",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554",
+      "budget_seconds_per_language": 59,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 40630272,
+              "retained_inference_sessions": 7,
+              "retained_primitive_request_array_bytes_lower_bound": 17560813,
+              "retained_resize_scratch_bytes_lower_bound": 170816,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 166.4175,
+            "language": "csharp",
+            "load_compile_ms": 56.274,
+            "peak_resident_bytes": 135970816,
+            "process_cpu": {
+              "first_inference_ms": 493.13,
+              "samples_ms": [
+                250.144,
+                242.044,
+                233.68
+              ],
+              "warmup_ms": 252.736
+            },
+            "samples_ms": [
+              55.077,
+              52.0382,
+              50.2328
+            ],
+            "warmup_ms": 61.5288,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 52.0382
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.0119601177596456,
+          "memory_ratio": 0.5330762742499097,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40960000,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 5515572,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 56.724458,
+            "language": "rust",
+            "load_compile_ms": 6.446541,
+            "peak_resident_bytes": 72482816,
+            "process_cpu": {
+              "first_inference_ms": 251.082,
+              "samples_ms": [
+                245.585,
+                246.871,
+                244.813
+              ],
+              "warmup_ms": 243.576
+            },
+            "samples_ms": [
+              52.660582999999995,
+              53.037625,
+              52.501125
+            ],
+            "warmup_ms": 52.65375,
+            "result_summary": {
+              "detected_count": 3,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 52.660582999999995
+          },
+          "status": "passed",
+          "throughput_ratio": 0.988181236048982
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 9904128,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 17733231,
+              "retained_resize_scratch_bytes_lower_bound": 129952,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 209.4074,
+            "language": "csharp",
+            "load_compile_ms": 51.8462,
+            "peak_resident_bytes": 106889216,
+            "process_cpu": {
+              "first_inference_ms": 775.22,
+              "samples_ms": [
+                557.317,
+                550.203,
+                566.838
+              ],
+              "warmup_ms": 555.188
+            },
+            "samples_ms": [
+              99.4399,
+              94.4205,
+              98.9075
+            ],
+            "warmup_ms": 96.7465,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 98.9075
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 0.8636495311275686,
+          "memory_ratio": 0.39684242795830776,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 11257856,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6977741,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 87.84174999999999,
+            "language": "rust",
+            "load_compile_ms": 5.9095830000000005,
+            "peak_resident_bytes": 42418176,
+            "process_cpu": {
+              "first_inference_ms": 507.437,
+              "samples_ms": [
+                498.384,
+                493.469,
+                498.998
+              ],
+              "warmup_ms": 503.852
+            },
+            "samples_ms": [
+              85.421416,
+              84.120417,
+              85.873458
+            ],
+            "warmup_ms": 86.16529200000001,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 85.421416
+          },
+          "status": "passed",
+          "throughput_ratio": 1.1578770831895364
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 39297024,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 18095515,
+              "retained_resize_scratch_bytes_lower_bound": 296672,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 216.6341,
+            "language": "csharp",
+            "load_compile_ms": 51.4533,
+            "peak_resident_bytes": 140673024,
+            "process_cpu": {
+              "first_inference_ms": 807.857,
+              "samples_ms": [
+                493.923,
+                496.942,
+                496.802
+              ],
+              "warmup_ms": 504.951
+            },
+            "samples_ms": [
+              91.8615,
+              89.6931,
+              87.2067
+            ],
+            "warmup_ms": 88.609,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 89.6931
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 0.9840124268199003,
+          "memory_ratio": 0.539249941765665,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 40650752,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 9737457,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 91.292542,
+            "language": "rust",
+            "load_compile_ms": 6.030834,
+            "peak_resident_bytes": 75857920,
+            "process_cpu": {
+              "first_inference_ms": 491.723,
+              "samples_ms": [
+                492.67,
+                492.465,
+                486.341
+              ],
+              "warmup_ms": 490.959
+            },
+            "samples_ms": [
+              88.079792,
+              88.259125,
+              89.00474999999999
+            ],
+            "warmup_ms": 87.62220799999999,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 88.259125
+          },
+          "status": "passed",
+          "throughput_ratio": 1.0162473285340186
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 59863040,
+              "retained_inference_sessions": 5,
+              "retained_primitive_request_array_bytes_lower_bound": 42311914,
+              "retained_resize_scratch_bytes_lower_bound": 166016,
+              "shared_cached_weight_bytes_lower_bound": 34798976,
+              "source_weight_bytes": 31845632
+            },
+            "first_inference_ms": 259.4772,
+            "language": "csharp",
+            "load_compile_ms": 100.0666,
+            "peak_resident_bytes": 204963840,
+            "process_cpu": {
+              "first_inference_ms": 835.662,
+              "samples_ms": [
+                573.147,
+                572.917,
+                614.818
+              ],
+              "warmup_ms": 598.849
+            },
+            "samples_ms": [
+              117.6622,
+              117.793,
+              125.5628
+            ],
+            "warmup_ms": 135.009,
+            "result_summary": {
+              "detected_count": 2,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 117.793
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "small",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.0426539268037998,
+          "memory_ratio": 0.713189448441247,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 60413952,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6240532,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "first_inference_ms": 124.71525,
+            "language": "rust",
+            "load_compile_ms": 29.402083,
+            "peak_resident_bytes": 146178048,
+            "process_cpu": {
+              "first_inference_ms": 543.479,
+              "samples_ms": [
+                538.615,
+                546.903,
+                539.293
+              ],
+              "warmup_ms": 542.9159999999999
+            },
+            "samples_ms": [
+              122.817334,
+              123.9165,
+              122.72225
+            ],
+            "warmup_ms": 121.937208,
+            "result_summary": {
+              "detected_count": 2,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 122.817334
+          },
+          "status": "passed",
+          "throughput_ratio": 0.959091002577861
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 18227200,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 42619783,
+              "retained_resize_scratch_bytes_lower_bound": 130080,
+              "shared_cached_weight_bytes_lower_bound": 34798976,
+              "source_weight_bytes": 31845632
+            },
+            "first_inference_ms": 390.2233,
+            "language": "csharp",
+            "load_compile_ms": 100.9556,
+            "peak_resident_bytes": 170639360,
+            "process_cpu": {
+              "first_inference_ms": 1811.311,
+              "samples_ms": [
+                1556.335,
+                1547.947,
+                1542.018
+              ],
+              "warmup_ms": 1531.714
+            },
+            "samples_ms": [
+              242.6962,
+              249.2098,
+              230.6422
+            ],
+            "warmup_ms": 241.0099,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 242.6962
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "small",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 0.9515344368803468,
+          "memory_ratio": 0.6353336533845415,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 19802112,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 12002678,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "first_inference_ms": 234.623541,
+            "language": "rust",
+            "load_compile_ms": 19.618,
+            "peak_resident_bytes": 108412928,
+            "process_cpu": {
+              "first_inference_ms": 1358.084,
+              "samples_ms": [
+                1375.48,
+                1354.831,
+                1361.797
+              ],
+              "warmup_ms": 1368.2669999999998
+            },
+            "samples_ms": [
+              230.933792,
+              232.149792,
+              227.72
+            ],
+            "warmup_ms": 226.728625,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 230.933792
+          },
+          "status": "passed",
+          "throughput_ratio": 1.0509341136181576
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 69689344,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 43045387,
+              "retained_resize_scratch_bytes_lower_bound": 295264,
+              "shared_cached_weight_bytes_lower_bound": 34798976,
+              "source_weight_bytes": 31845632
+            },
+            "first_inference_ms": 417.2834,
+            "language": "csharp",
+            "load_compile_ms": 100.8931,
+            "peak_resident_bytes": 225624064,
+            "process_cpu": {
+              "first_inference_ms": 1922.76,
+              "samples_ms": [
+                1648.92,
+                1732.311,
+                1616.317
+              ],
+              "warmup_ms": 1638.241
+            },
+            "samples_ms": [
+              272.1842,
+              280.11,
+              257.5281
+            ],
+            "warmup_ms": 278.9315,
+            "result_summary": {
+              "detected_count": 33,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 272.1842
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "small",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 1.0215611045755044,
+          "memory_ratio": 0.7265267591315082,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 71264256,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 15408398,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "first_inference_ms": 293.57016699999997,
+            "language": "rust",
+            "load_compile_ms": 21.097833,
+            "peak_resident_bytes": 163921920,
+            "process_cpu": {
+              "first_inference_ms": 1532.232,
+              "samples_ms": [
+                1513.9830000000002,
+                1529.056,
+                1530.947
+              ],
+              "warmup_ms": 1518.146
+            },
+            "samples_ms": [
+              278.052792,
+              282.423,
+              273.829708
+            ],
+            "warmup_ms": 284.108542,
+            "result_summary": {
+              "detected_count": 33,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 278.052792
+          },
+          "status": "passed",
+          "throughput_ratio": 0.978893964855422
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 163303424,
+              "retained_inference_sessions": 5,
+              "retained_primitive_request_array_bytes_lower_bound": 149342489,
+              "retained_resize_scratch_bytes_lower_bound": 165920,
+              "shared_cached_weight_bytes_lower_bound": 151384544,
+              "source_weight_bytes": 138874476
+            },
+            "first_inference_ms": 533.5116,
+            "language": "csharp",
+            "load_compile_ms": 344.82,
+            "peak_resident_bytes": 534724608,
+            "process_cpu": {
+              "first_inference_ms": 2625.099,
+              "samples_ms": [
+                2355.107,
+                2227.622,
+                2162.649
+              ],
+              "warmup_ms": 2273.4
+            },
+            "samples_ms": [
+              372.056,
+              356.19,
+              343.1043
+            ],
+            "warmup_ms": 381.5042,
+            "result_summary": {
+              "detected_count": 2,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 356.19
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_1",
+            "height": 1150,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "medium",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_1.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 720
+          },
+          "latency_ratio": 1.0569597686627923,
+          "memory_ratio": 0.8806569231240616,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 163952640,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 6281328,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "first_inference_ms": 385.115792,
+            "language": "rust",
+            "load_compile_ms": 88.24787500000001,
+            "peak_resident_bytes": 470908928,
+            "process_cpu": {
+              "first_inference_ms": 2259.382,
+              "samples_ms": [
+                2245.724,
+                2286.142,
+                2246.498
+              ],
+              "warmup_ms": 2255.297
+            },
+            "samples_ms": [
+              375.526625,
+              381.392042,
+              376.4785
+            ],
+            "warmup_ms": 370.648833,
+            "result_summary": {
+              "detected_count": 2,
+              "detector_resized_height": 960,
+              "detector_resized_width": 608,
+              "id": "imgs_1"
+            },
+            "median_ms": 376.4785
+          },
+          "status": "inconclusive",
+          "throughput_ratio": 0.9461098044111417
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 38117376,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 149659579,
+              "retained_resize_scratch_bytes_lower_bound": 128704,
+              "shared_cached_weight_bytes_lower_bound": 151384544,
+              "source_weight_bytes": 138874476
+            },
+            "first_inference_ms": 932.574,
+            "language": "csharp",
+            "load_compile_ms": 319.3647,
+            "peak_resident_bytes": 417841152,
+            "process_cpu": {
+              "first_inference_ms": 5561.937,
+              "samples_ms": [
+                5193.889,
+                4876.211,
+                4921.52
+              ],
+              "warmup_ms": 5223.306
+            },
+            "samples_ms": [
+              738.3656,
+              705.4072,
+              713.8476
+            ],
+            "warmup_ms": 771.7473,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 713.8476
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "medium",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 1.0652385747321977,
+          "memory_ratio": 0.8438222954162256,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 39790592,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 11337408,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "first_inference_ms": 769.349666,
+            "language": "rust",
+            "load_compile_ms": 95.111458,
+            "peak_resident_bytes": 352583680,
+            "process_cpu": {
+              "first_inference_ms": 4627.302000000001,
+              "samples_ms": [
+                4582.134,
+                4624.679,
+                4594.021
+              ],
+              "warmup_ms": 4564.125
+            },
+            "samples_ms": [
+              764.1355,
+              760.418,
+              753.895875
+            ],
+            "warmup_ms": 755.17625,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 760.418
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9387568416318394
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 165519360,
+              "retained_inference_sessions": 9,
+              "retained_primitive_request_array_bytes_lower_bound": 150097740,
+              "retained_resize_scratch_bytes_lower_bound": 301792,
+              "shared_cached_weight_bytes_lower_bound": 151384544,
+              "source_weight_bytes": 138874476
+            },
+            "first_inference_ms": 1105.6518,
+            "language": "csharp",
+            "load_compile_ms": 319.2549,
+            "peak_resident_bytes": 549257216,
+            "process_cpu": {
+              "first_inference_ms": 6806.895,
+              "samples_ms": [
+                6332.703,
+                6153.165,
+                6127.287
+              ],
+              "warmup_ms": 6690.96
+            },
+            "samples_ms": [
+              922.4394,
+              903.4322,
+              892.2357
+            ],
+            "warmup_ms": 953.6485,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 903.4322
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00006737",
+            "height": 528,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "medium",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "3fd6cb0d5459ddbb204e824fb81b9a87369223571339e336508a75c3cecabf73",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211730913-46554/imgs_00006737.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 896
+          },
+          "latency_ratio": 1.0961235298011296,
+          "memory_ratio": 0.8762975778546713,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 167192576,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 15994310,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "first_inference_ms": 1007.744209,
+            "language": "rust",
+            "load_compile_ms": 91.500792,
+            "peak_resident_bytes": 481312768,
+            "process_cpu": {
+              "first_inference_ms": 6004.16,
+              "samples_ms": [
+                6116.885,
+                6084.5289999999995,
+                6088.543
+              ],
+              "warmup_ms": 6356.986
+            },
+            "samples_ms": [
+              1013.366416,
+              990.273292,
+              978.899333
+            ],
+            "warmup_ms": 1073.4740410000002,
+            "result_summary": {
+              "detected_count": 31,
+              "detector_resized_height": 544,
+              "detector_resized_width": 896,
+              "id": "imgs_00006737"
+            },
+            "median_ms": 990.273292
+          },
+          "status": "inconclusive",
+          "throughput_ratio": 0.912305933421054
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 9
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 17.880482459,
+        "rust": 15.57183675
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "51ea651c852883970ed75d2c2c4db0f818c558335955a4ad7de739842086c4ad",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "c28c6b2a27caef0ad562cd5ecca8a77d35400ff20f35d6d653cad48bdc2b1553",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "2dbd1392c8a6ab9b877dc64e7b50b1827ef27edd46b78932e594d1904b4b8797",
+        "rust_worktree": "M README.md\n M docs/cpu-performance.md\n M docs/cpu-usage.md\n M docs/macos-cpu-performance.md\n M docs/macos-cpu-validation.md\n M examples/cpu_benchmark.rs\n M examples/cpu_profile.rs\n M src/cpu.rs\n M src/lines.rs\n M src/ocr.rs\n M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/parallel_tests.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/row_policy_tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n M src/runtime/optimized/tests/performance.rs\n M src/runtime/optimized/tests/selection_policy.rs\n M src/runtime/simd.rs\n M src/runtime/simd/parallel.rs\n M src/runtime/simd/tensor.rs\n M src/runtime/simd/unary_policy_tests.rs\n?? docs/macos-arm64-optimization.md\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "inconclusive"
+    },
+    {
+      "label": "final-throughput",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211787599-46710",
+      "budget_seconds_per_language": 42,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 2,
+              "retained_activation_bytes_lower_bound": 19808256,
+              "retained_inference_sessions": 18,
+              "retained_primitive_request_array_bytes_lower_bound": 28376222,
+              "retained_resize_scratch_bytes_lower_bound": 260032,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 226.9752,
+            "language": "csharp",
+            "load_compile_ms": 49.7999,
+            "peak_resident_bytes": 116867072,
+            "process_cpu": {
+              "first_inference_ms": 1326.556,
+              "samples_ms": [
+                1079.843,
+                1046.177,
+                1053.095
+              ],
+              "warmup_ms": 1028.207
+            },
+            "samples_ms": [
+              121.2092,
+              120.1125,
+              119.121
+            ],
+            "warmup_ms": 114.8601,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 120.1125
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 2,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211787599-46710/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 1.1787157872827556,
+          "memory_ratio": 0.49362119725220804,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 20467712,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 12394554,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 165.75699999999998,
+            "language": "rust",
+            "load_compile_ms": 11.796167,
+            "peak_resident_bytes": 57688064,
+            "process_cpu": {
+              "first_inference_ms": 878.756,
+              "samples_ms": [
+                845.962,
+                702.568,
+                681.809
+              ],
+              "warmup_ms": 759.9209999999999
+            },
+            "samples_ms": [
+              148.248458,
+              141.5785,
+              138.2065
+            ],
+            "warmup_ms": 166.177,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 141.5785
+          },
+          "status": "failed",
+          "throughput_ratio": 0.8483809335457009
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 2,
+              "retained_activation_bytes_lower_bound": 36454400,
+              "retained_inference_sessions": 18,
+              "retained_primitive_request_array_bytes_lower_bound": 53382278,
+              "retained_resize_scratch_bytes_lower_bound": 260160,
+              "shared_cached_weight_bytes_lower_bound": 34798976,
+              "source_weight_bytes": 31845632
+            },
+            "first_inference_ms": 505.589,
+            "language": "csharp",
+            "load_compile_ms": 105.2867,
+            "peak_resident_bytes": 190234624,
+            "process_cpu": {
+              "first_inference_ms": 3448.954,
+              "samples_ms": [
+                3142.628,
+                3155.645,
+                3096.96
+              ],
+              "warmup_ms": 3104.963
+            },
+            "samples_ms": [
+              344.8087,
+              339.783,
+              347.0377
+            ],
+            "warmup_ms": 344.0925,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 344.8087
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 2,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "small",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211787599-46710/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 1.0824602395473202,
+          "memory_ratio": 0.7163035052967014,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 37556224,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 22439436,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "first_inference_ms": 374.315791,
+            "language": "rust",
+            "load_compile_ms": 21.439417,
+            "peak_resident_bytes": 136265728,
+            "process_cpu": {
+              "first_inference_ms": 2719.861,
+              "samples_ms": [
+                2675.459,
+                2636.901,
+                2683.469
+              ],
+              "warmup_ms": 2042.485
+            },
+            "samples_ms": [
+              373.241708,
+              394.044667,
+              371.00975000000005
+            ],
+            "warmup_ms": 475.869583,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 373.241708
+          },
+          "status": "inconclusive",
+          "throughput_ratio": 0.9238214610249291
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 2,
+              "retained_activation_bytes_lower_bound": 76234752,
+              "retained_inference_sessions": 18,
+              "retained_primitive_request_array_bytes_lower_bound": 160444874,
+              "retained_resize_scratch_bytes_lower_bound": 257600,
+              "shared_cached_weight_bytes_lower_bound": 151384544,
+              "source_weight_bytes": 138874476
+            },
+            "first_inference_ms": 1381.7785,
+            "language": "csharp",
+            "load_compile_ms": 319.9263,
+            "peak_resident_bytes": 457506816,
+            "process_cpu": {
+              "first_inference_ms": 11845.884,
+              "samples_ms": [
+                10619.974,
+                10564.36,
+                10585.004
+              ],
+              "warmup_ms": 11208.799
+            },
+            "samples_ms": [
+              1123.9425,
+              1119.8894,
+              1123.5975
+            ],
+            "warmup_ms": 1195.1034,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 1123.5975
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 2,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "medium",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211787599-46710/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 8,
+            "width": 430
+          },
+          "latency_ratio": 1.1642856983928853,
+          "memory_ratio": 0.8669961323592609,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 77533184,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+              "retained_requests": 2,
+              "retained_workspace_bytes": 21063616,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "first_inference_ms": 1321.725584,
+            "language": "rust",
+            "load_compile_ms": 144.39791599999998,
+            "peak_resident_bytes": 396656640,
+            "process_cpu": {
+              "first_inference_ms": 9833.94,
+              "samples_ms": [
+                9886.649,
+                9841.089,
+                9965.574
+              ],
+              "warmup_ms": 9854.223
+            },
+            "samples_ms": [
+              1303.030042,
+              1308.1885,
+              1478.273792
+            ],
+            "warmup_ms": 1308.9509160000002,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 1308.1885
+          },
+          "status": "failed",
+          "throughput_ratio": 0.8588957172456416
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 3
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 9.250477791,
+        "rust": 9.691385999
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "da9493540f426a9d0d65743fc55a52db9f777b62c95d3ccef06f68a7ef21abe8",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "c28c6b2a27caef0ad562cd5ecca8a77d35400ff20f35d6d653cad48bdc2b1553",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "2dbd1392c8a6ab9b877dc64e7b50b1827ef27edd46b78932e594d1904b4b8797",
+        "rust_worktree": "M README.md\n M docs/cpu-performance.md\n M docs/cpu-usage.md\n M docs/macos-cpu-performance.md\n M docs/macos-cpu-validation.md\n M examples/cpu_benchmark.rs\n M examples/cpu_profile.rs\n M src/cpu.rs\n M src/lines.rs\n M src/ocr.rs\n M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/parallel_tests.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/row_policy_tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n M src/runtime/optimized/tests/performance.rs\n M src/runtime/optimized/tests/selection_policy.rs\n M src/runtime/simd.rs\n M src/runtime/simd/parallel.rs\n M src/runtime/simd/tensor.rs\n M src/runtime/simd/unary_policy_tests.rs\n?? docs/macos-arm64-optimization.md\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "failed"
+    },
+    {
+      "label": "final-serial",
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211823851-46856",
+      "budget_seconds_per_language": 32,
+      "cases": [
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 7661568,
+              "retained_inference_sessions": 3,
+              "retained_primitive_request_array_bytes_lower_bound": 17528119,
+              "retained_resize_scratch_bytes_lower_bound": 25952,
+              "shared_cached_weight_bytes_lower_bound": 8687808,
+              "source_weight_bytes": 7096348
+            },
+            "first_inference_ms": 394.6855,
+            "language": "csharp",
+            "load_compile_ms": 51.88,
+            "peak_resident_bytes": 97730560,
+            "process_cpu": {
+              "first_inference_ms": 393.271,
+              "samples_ms": [
+                266.318,
+                263.598,
+                264.46
+              ],
+              "warmup_ms": 265.764
+            },
+            "samples_ms": [
+              266.4143,
+              263.737,
+              264.4934
+            ],
+            "warmup_ms": 265.8112,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 264.4934
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "tiny",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211823851-46856/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 1,
+            "width": 430
+          },
+          "latency_ratio": 1.0167761615223667,
+          "memory_ratio": 0.3480301760268231,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 7096348,
+              "retained_activation_bytes": 7661568,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 2048,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 2739164,
+              "shared_cached_weight_bytes": 7117184
+            },
+            "first_inference_ms": 269.256667,
+            "language": "rust",
+            "load_compile_ms": 5.743917000000001,
+            "peak_resident_bytes": 34013184,
+            "process_cpu": {
+              "first_inference_ms": 269.19,
+              "samples_ms": [
+                268.575,
+                268.855,
+                270.809
+              ],
+              "warmup_ms": 267.37
+            },
+            "samples_ms": [
+              268.668417,
+              268.93058399999995,
+              271.015042
+            ],
+            "warmup_ms": 267.467417,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 268.93058399999995
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9835006344983063
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 11560960,
+              "retained_inference_sessions": 3,
+              "retained_primitive_request_array_bytes_lower_bound": 42317747,
+              "retained_resize_scratch_bytes_lower_bound": 25952,
+              "shared_cached_weight_bytes_lower_bound": 34798976,
+              "source_weight_bytes": 31845632
+            },
+            "first_inference_ms": 1008.4295,
+            "language": "csharp",
+            "load_compile_ms": 98.6981,
+            "peak_resident_bytes": 162201600,
+            "process_cpu": {
+              "first_inference_ms": 1008.535,
+              "samples_ms": [
+                867.015,
+                871.793,
+                916.632
+              ],
+              "warmup_ms": 867.216
+            },
+            "samples_ms": [
+              867.8765,
+              872.1062,
+              808.4064
+            ],
+            "warmup_ms": 867.6138,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 867.8765
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "small",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211823851-46856/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 1,
+            "width": 430
+          },
+          "latency_ratio": 1.0005419837960816,
+          "memory_ratio": 0.583030303030303,
+          "planned_execution_order": [
+            "rust",
+            "csharp"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 31845632,
+              "retained_activation_bytes": 11560960,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 3072,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 4267473,
+              "shared_cached_weight_bytes": 31882304
+            },
+            "first_inference_ms": 870.7149589999999,
+            "language": "rust",
+            "load_compile_ms": 20.151333,
+            "peak_resident_bytes": 94568448,
+            "process_cpu": {
+              "first_inference_ms": 870.3340000000001,
+              "samples_ms": [
+                865.855,
+                869.955,
+                867.913
+              ],
+              "warmup_ms": 866.085
+            },
+            "samples_ms": [
+              866.33525,
+              871.063167,
+              868.346875
+            ],
+            "warmup_ms": 866.566417,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 868.346875
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9994583097912341
+        },
+        {
+          "csharp": {
+            "diagnostics": {
+              "concurrent_owned_results": 1,
+              "retained_activation_bytes_lower_bound": 30271488,
+              "retained_inference_sessions": 3,
+              "retained_primitive_request_array_bytes_lower_bound": 149359399,
+              "retained_resize_scratch_bytes_lower_bound": 25216,
+              "shared_cached_weight_bytes_lower_bound": 151384544,
+              "source_weight_bytes": 138874476
+            },
+            "first_inference_ms": 3254.7886,
+            "language": "csharp",
+            "load_compile_ms": 311.6424,
+            "peak_resident_bytes": 411828224,
+            "process_cpu": {
+              "first_inference_ms": 3350.671,
+              "samples_ms": [
+                2973.314,
+                3002.882,
+                2939.413
+              ],
+              "warmup_ms": 3008.88
+            },
+            "samples_ms": [
+              2943.3838,
+              3009.7264,
+              2940.1935
+            ],
+            "warmup_ms": 2954.4402,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 2943.3838
+          },
+          "differences": [],
+          "error": null,
+          "execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "job": {
+            "affinity": "unbound",
+            "concurrency": 1,
+            "fixture": "imgs_00018069",
+            "height": 267,
+            "manifest": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tests/baseline/manifest.json",
+            "model": "medium",
+            "models": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models",
+            "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+            "pixels": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/cpu-benchmark/1792211823851-46856/imgs_00018069.bgr",
+            "runs": 3,
+            "threads": 1,
+            "width": 430
+          },
+          "latency_ratio": 1.0546342104621218,
+          "memory_ratio": 0.8172342457033737,
+          "planned_execution_order": [
+            "csharp",
+            "rust"
+          ],
+          "rust": {
+            "diagnostics": {
+              "normalized_weight_bytes": 138874476,
+              "retained_activation_bytes": 30271488,
+              "retained_kernel_scratch_bytes_subset_of_workspace": 8192,
+              "retained_requests": 1,
+              "retained_workspace_bytes": 3979462,
+              "shared_cached_weight_bytes": 138618304
+            },
+            "first_inference_ms": 3123.3285,
+            "language": "rust",
+            "load_compile_ms": 86.36445900000001,
+            "peak_resident_bytes": 336560128,
+            "process_cpu": {
+              "first_inference_ms": 3118.546,
+              "samples_ms": [
+                3099.993,
+                3102.974,
+                3103.2320000000004
+              ],
+              "warmup_ms": 3103.344
+            },
+            "samples_ms": [
+              3101.60925,
+              3104.19325,
+              3104.57925
+            ],
+            "warmup_ms": 3104.083,
+            "result_summary": {
+              "detected_count": 69,
+              "detector_resized_height": 256,
+              "detector_resized_width": 416,
+              "id": "imgs_00018069"
+            },
+            "median_ms": 3104.19325
+          },
+          "status": "passed",
+          "throughput_ratio": 0.9481960570592698
+        }
+      ],
+      "coverage": {
+        "duplicate_case_count": 0,
+        "full_qualification_passed": false,
+        "required_case_count": 36,
+        "scope": "focused comparison",
+        "selected_unique_case_count": 3
+      },
+      "elapsed_seconds_per_language": {
+        "csharp": 21.645537291,
+        "rust": 21.365932375
+      },
+      "provenance": {
+        "balanced_order_rule": "v1: parity(model_index + thread_index + fixture_index); even Rust-first, odd C#-first; canonical indices; concurrency and selection order excluded",
+        "case_timeout_seconds": "20",
+        "cpu": "Apple M4",
+        "csharp_adapter_sha256": "9d67c087fd1584fd0961ea5daf4460c7a15655ee7c1e38c9cbf1f063450b9419",
+        "csharp_head": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "dotnet": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-benchmark/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "execution_order_strategy": "balanced",
+        "host_available_parallelism": "10",
+        "macos_version": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "measurement": "standard release/default features; CPU automatic SIMD/layout; fusion; owned results; predecoded BGR24; no profiling; one first inference + one warmup + fixed samples; platform-specific process peak memory before diagnostics",
+        "memory_metric": "peak resident bytes: getrusage(RUSAGE_SELF).ru_maxrss in both workers; includes shared resident pages",
+        "platform": "macos aarch64",
+        "power_settings": "AC Power:\n Sleep On Power Button 1\n autorestartatconnect 0\n lowpowermode         0\n standby              0\n ttyskeepawake        1\n powernap             1\n displaysleep         0\n womp                 1\n networkoversleep     0\n sleep                1\n tcpkeepalive         1\n autorestart          0\n disksleep            10",
+        "power_source": "Now drawing from 'AC Power'",
+        "process_cpu_measurement": "getrusage(RUSAGE_SELF) user+system time in both workers across all process threads; diagnostic only",
+        "rust_executable_sha256": "c28c6b2a27caef0ad562cd5ecca8a77d35400ff20f35d6d653cad48bdc2b1553",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "2dbd1392c8a6ab9b877dc64e7b50b1827ef27edd46b78932e594d1904b4b8797",
+        "rust_worktree": "M README.md\n M docs/cpu-performance.md\n M docs/cpu-usage.md\n M docs/macos-cpu-performance.md\n M docs/macos-cpu-validation.md\n M examples/cpu_benchmark.rs\n M examples/cpu_profile.rs\n M src/cpu.rs\n M src/lines.rs\n M src/ocr.rs\n M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/parallel_tests.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/row_policy_tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n M src/runtime/optimized/tests/performance.rs\n M src/runtime/optimized/tests/selection_policy.rs\n M src/runtime/simd.rs\n M src/runtime/simd/parallel.rs\n M src/runtime/simd/tensor.rs\n M src/runtime/simd/unary_policy_tests.rs\n?? docs/macos-arm64-optimization.md\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "scheduling": "unpinned macOS scheduling; matched OCR worker budgets and DOTNET_PROCESSOR_COUNT; no core-placement guarantee"
+      },
+      "schema_version": 2,
+      "status": "passed"
+    }
+  ],
+  "correctness_commands": [
+    {
+      "label": "final-saved-baseline",
+      "command": [
+        "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/release/examples/cpu_baseline",
+        "verify",
+        "--rust-only"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 81.98272770800001
+    },
+    {
+      "label": "final-qualification",
+      "command": [
+        "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/release/examples/cpu_qualify"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 203.200972583
+    }
+  ],
+  "build_and_test_checks": [
+    {
+      "name": "default-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 35.228046500000005
+    },
+    {
+      "name": "serial-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--release",
+        "--locked",
+        "--no-default-features",
+        "--lib"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 25.396209708
+    },
+    {
+      "name": "all-features-check",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--all-targets",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.3531587909999985
+    },
+    {
+      "name": "final-x86-check",
+      "command": [
+        "cargo",
+        "check",
+        "--release",
+        "--locked",
+        "--target",
+        "x86_64-apple-darwin",
+        "--all-targets",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.0883888749999997
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--release",
+        "--locked",
+        "--all-targets",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 2.6224114999999983
+    },
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.42518975000000125
+    },
+    {
+      "name": "whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.02407045900000071
+    },
+    {
+      "name": "final-benchmark-build",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--example",
+        "cpu_benchmark"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.14477741700000024
+    }
+  ],
+  "test_counts": {
+    "default_library": 329,
+    "default_integration": 29,
+    "doctests": 5,
+    "default_total": 363,
+    "serial_library": 319,
+    "profiling_library": 330,
+    "default_ignored_performance_diagnostics": 9,
+    "default_ignored_local_integration": 1
+  },
+  "correctness": {
+    "final-saved-baseline": {
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/baseline/1792211433862-verify-45928",
+      "run": {
+        "architecture": "aarch64",
+        "build": "standard release; default features; automatic SIMD; no custom RUSTFLAGS",
+        "cargo": "cargo 1.100.0-nightly (3c0b53475 2026-09-04)",
+        "case_timeout_seconds": "120",
+        "cpu": "see host CPU inventory",
+        "cpu_threads": "1",
+        "elapsed_seconds": "81.036",
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "mode": "verify",
+        "os": "macos",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_worktree": "M README.md\n M docs/cpu-performance.md\n M docs/cpu-usage.md\n M docs/macos-cpu-performance.md\n M docs/macos-cpu-validation.md\n M examples/cpu_benchmark.rs\n M examples/cpu_profile.rs\n M src/cpu.rs\n M src/lines.rs\n M src/ocr.rs\n M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/parallel_tests.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/row_policy_tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n M src/runtime/optimized/tests/performance.rs\n M src/runtime/optimized/tests/selection_policy.rs\n M src/runtime/simd.rs\n M src/runtime/simd/parallel.rs\n M src/runtime/simd/tensor.rs\n M src/runtime/simd/unary_policy_tests.rs\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "status": "passed",
+        "suite_timeout_seconds": "1800"
+      },
+      "differences": []
+    },
+    "final-qualification": {
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/target/qualification/1792211516248-46109",
+      "run": {
+        "build": "standard release; default features; automatic SIMD/layout; fusion enabled",
+        "case_count": 213,
+        "case_timeout_seconds": 120,
+        "completed_cases": 213,
+        "coverage": "full",
+        "csharp_adapter_sha256": "e91f1e9d130f02a3178b71373376ebd7bd40cef2c3336c619f0dc80b17faa8ef",
+        "dotnet_info": ".NET SDK:\n Version:           10.0.303\n Commit:            e730f1db75\n Workload version:  10.0.300-manifests.330ea142\n MSBuild version:   18.6.14+e730f1db7\n\n运行时环境:\n OS Name:     Mac OS X\n OS Version:  27.0\n OS Platform: Darwin\n RID:         osx-arm64\n Base Path:   /Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk/10.0.303/\n\n已安装 .NET 工作负载:\n没有要显示的已安装工作负载。\n已配置为在安装新清单时使用 workload sets。\n未安装任何 workload sets。运行 “dotnet workload restore” 以安装工作负载集。\n\nHost:\n  Version:      10.0.11\n  Architecture: arm64\n  Commit:       e2f47b0110\n\n.NET SDKs installed:\n  10.0.303 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/sdk]\n\n.NET runtimes installed:\n  Microsoft.AspNetCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.AspNetCore.App]\n  Microsoft.NETCore.App 10.0.11 [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet/shared/Microsoft.NETCore.App]\n\nOther architectures found:\n  None\n\nEnvironment variables:\n  DOTNET_CLI_TELEMETRY_OPTOUT              [1]\n  DOTNET_NOLOGO                            [1]\n  DOTNET_ROOT                              [/Users/chao/workspaces/simd-paddle-ocr-workspace/.tools/dotnet]\n\nglobal.json file:\n  /Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/tools/csharp-qualification/global.json\n\nLearn more:\n  https://aka.ms/dotnet/info\n\nDownload .NET:\n  https://aka.ms/dotnet/download",
+        "elapsed_seconds": 201.58412225,
+        "host_available_parallelism": 10,
+        "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+        "models": [
+          "tiny",
+          "small",
+          "medium"
+        ],
+        "profiles": [
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00006737",
+              "imgs_00009282",
+              "imgs_00015504",
+              "imgs_00018069",
+              "imgs_00056221",
+              "imgs_00057937",
+              "imgs_00059985",
+              "imgs_00077949",
+              "imgs_00111002",
+              "imgs_00207393",
+              "imgs_1",
+              "imgs_11",
+              "imgs_12",
+              "imgs_en_254",
+              "imgs_en_img_10",
+              "imgs_en_img_11",
+              "imgs_en_img_12",
+              "imgs_en_img_195",
+              "imgs_en_img623",
+              "imgs_11_rotate90",
+              "imgs_11_rotate180",
+              "blank"
+            ],
+            "format": "Bgr24",
+            "id": "default-parallel",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 1,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 1,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "serial",
+            "line_workers": 1,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 1,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 2,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 2,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "workers-2",
+            "line_workers": 2,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 2,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 4,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 4,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "workers-4",
+            "line_workers": 4,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 4,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 2,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "batch-2",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 4,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "batch-4",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": true,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737",
+              "imgs_11_rotate90",
+              "imgs_11_rotate180",
+              "blank"
+            ],
+            "format": "Bgr24",
+            "id": "alignment",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Rgb24",
+            "id": "rgb-padded",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 13,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgra32",
+            "id": "bgra-padded",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 13,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Rgba32",
+            "id": "rgba-padded",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 13,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": false,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_11_rotate90",
+              "imgs_11_rotate180",
+              "blank"
+            ],
+            "format": "Bgr24",
+            "id": "cls-off",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": false,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "fixed-width",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": true,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "default-thresholds",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": true,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737"
+            ],
+            "format": "Bgr24",
+            "id": "dilation",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_1",
+              "imgs_00018069",
+              "imgs_00006737",
+              "imgs_1"
+            ],
+            "format": "Bgr24",
+            "id": "reuse",
+            "line_workers": 0,
+            "max_image_pixels": 40000000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          },
+          {
+            "adaptive_width": true,
+            "batch_size": 1,
+            "capacity": 0,
+            "capture": false,
+            "classification": true,
+            "default_thresholds": false,
+            "detector_threads": 0,
+            "dilation": false,
+            "fixtures": [
+              "imgs_00018069",
+              "imgs_00018069",
+              "imgs_00006737",
+              "imgs_1",
+              "imgs_00018069"
+            ],
+            "format": "Bgr24",
+            "id": "recovery",
+            "line_workers": 0,
+            "max_image_pixels": 600000,
+            "padding": 0,
+            "preprocess_workers": 0,
+            "target_width": 320
+          }
+        ],
+        "reference_commit": "33ff8a81672452041d110e8ba52dcd2639e54228",
+        "rust_executable_sha256": "8b3efbfdc9079a7e4a42545dae8ba21c8f7d0e0f042a859d5c7d39a8676ae50b",
+        "rust_head": "af633772eb116789b6af99591890f11d9aa613fd",
+        "rust_source_sha256": "e4bb05404c8b3e751f84de91331181111fd88dc54e2da0a7b3578075c0b5bac4",
+        "rust_worktree": "M README.md\n M docs/cpu-performance.md\n M docs/cpu-usage.md\n M docs/macos-cpu-performance.md\n M docs/macos-cpu-validation.md\n M examples/cpu_benchmark.rs\n M examples/cpu_profile.rs\n M src/cpu.rs\n M src/lines.rs\n M src/ocr.rs\n M src/recognizer.rs\n M src/runtime/nchw.rs\n M src/runtime/nhwc.rs\n M src/runtime/nhwc/dense.rs\n M src/runtime/nhwc/dense/interior.rs\n M src/runtime/nhwc/misc.rs\n M src/runtime/nhwc/parallel_tests.rs\n M src/runtime/nhwc/pointwise.rs\n M src/runtime/nhwc/pointwise/tests.rs\n M src/runtime/nhwc/row_policy_tests.rs\n M src/runtime/nhwc/tests.rs\n M src/runtime/nhwc/transpose.rs\n M src/runtime/optimized.rs\n M src/runtime/optimized/tests.rs\n M src/runtime/optimized/tests/performance.rs\n M src/runtime/optimized/tests/selection_policy.rs\n M src/runtime/simd.rs\n M src/runtime/simd/parallel.rs\n M src/runtime/simd/tensor.rs\n M src/runtime/simd/unary_policy_tests.rs\n?? src/runtime/nhwc/dense/neon_tests.rs\n?? src/runtime/nhwc/neon_depthwise.rs\n?? src/runtime/nhwc/pointwise/neon.rs\n?? src/runtime/nhwc/pointwise/neon_bench.rs\n?? src/runtime/simd/neon.rs\n?? src/runtime/simd/neon/",
+        "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+        "schema_version": 1,
+        "source_hash_paths": [
+          "src",
+          "tools/baseline",
+          "tools/harness",
+          "tools/qualification",
+          "tools/csharp-qualification",
+          "examples/cpu_qualify.rs",
+          "Cargo.toml",
+          "Cargo.lock",
+          "rust-toolchain.toml",
+          ".cargo",
+          "build.rs"
+        ],
+        "status": "passed",
+        "suite_timeout_seconds": 3600
+      },
+      "differences": []
+    }
+  },
+  "diagnostics": {
+    "pointwise": {
+      "source_version": "neon-depthwise intermediate version; not final pipeline qualification",
+      "records": [
+        {
+          "backend": "portable4",
+          "budget_seconds": 10,
+          "calls_per_sample": 1,
+          "columns": 768,
+          "diagnostic": "arm64_pointwise_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 384,
+          "oracle_fma": false,
+          "order_in_shape": 0,
+          "rows": 96,
+          "samples_ms": [
+            0.952458,
+            0.955041,
+            0.954834
+          ],
+          "shape_index": 0,
+          "threads": 1,
+          "warmups": 1
+        },
+        {
+          "backend": "neon_fma",
+          "budget_seconds": 10,
+          "calls_per_sample": 1,
+          "columns": 768,
+          "diagnostic": "arm64_pointwise_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 384,
+          "oracle_fma": true,
+          "order_in_shape": 1,
+          "rows": 96,
+          "samples_ms": [
+            0.500667,
+            0.485833,
+            0.490917
+          ],
+          "shape_index": 0,
+          "threads": 1,
+          "warmups": 1
+        },
+        {
+          "backend": "neon_fma",
+          "budget_seconds": 10,
+          "calls_per_sample": 1,
+          "columns": 24,
+          "diagnostic": "arm64_pointwise_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 96,
+          "oracle_fma": true,
+          "order_in_shape": 0,
+          "rows": 36480,
+          "samples_ms": [
+            1.9879580000000001,
+            1.9631660000000002,
+            1.937708
+          ],
+          "shape_index": 1,
+          "threads": 1,
+          "warmups": 1
+        },
+        {
+          "backend": "portable4",
+          "budget_seconds": 10,
+          "calls_per_sample": 1,
+          "columns": 24,
+          "diagnostic": "arm64_pointwise_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 96,
+          "oracle_fma": false,
+          "order_in_shape": 1,
+          "rows": 36480,
+          "samples_ms": [
+            2.7216660000000004,
+            2.7265829999999998,
+            2.693625
+          ],
+          "shape_index": 1,
+          "threads": 1,
+          "warmups": 1
+        }
+      ]
+    },
+    "classifier": {
+      "source_version": "automatic-classifier-budget intermediate version; one warmup and one instrumented sample per policy",
+      "explicit_four": {
+        "budgets": "CpuBudgets { capacity: 8, line_workers: 4, preprocess_workers: 8, detector_threads: 8, recognizer_base_threads: 2 }",
+        "fixture": "imgs_00018069",
+        "instrumented": true,
+        "model": "tiny",
+        "profile": {
+          "binding_ns": 9866,
+          "classification_wall_ns": 24810708,
+          "cls_orientation_ns": 94693413,
+          "crop_ns": 653833,
+          "crop_work_ns": 3471961,
+          "ctc_ns": 23209,
+          "det_inference_ns": 10471667,
+          "det_postprocess_ns": 332333,
+          "det_preprocess_ns": 526416,
+          "projection_ns": 10414918,
+          "rec_backbone_ns": 164837166,
+          "rec_preprocess_ns": 4486628,
+          "recognition_wall_ns": 46203167,
+          "recognized_lines": 69,
+          "reshape_ns": 26550,
+          "result_storage_ns": 10956,
+          "total_ns": 83007667
+        },
+        "recognized_lines": 69,
+        "requested_line_workers": 4,
+        "retained_activation_bytes": {
+          "classifiers": 1280000,
+          "detector": 6815744,
+          "recognition_workers": 2064384,
+          "root_recognizer": 73728,
+          "total": 10233856
+        },
+        "retained_workspace_bytes": 6272701,
+        "threads": 8
+      },
+      "automatic": {
+        "budgets": "CpuBudgets { capacity: 8, line_workers: 4, preprocess_workers: 8, detector_threads: 8, recognizer_base_threads: 2 }",
+        "fixture": "imgs_00018069",
+        "instrumented": true,
+        "model": "tiny",
+        "profile": {
+          "binding_ns": 7376,
+          "classification_wall_ns": 18582334,
+          "cls_orientation_ns": 124762793,
+          "crop_ns": 672917,
+          "crop_work_ns": 3470753,
+          "ctc_ns": 16879,
+          "det_inference_ns": 10020875,
+          "det_postprocess_ns": 332291,
+          "det_preprocess_ns": 552500,
+          "projection_ns": 10521580,
+          "rec_backbone_ns": 165517046,
+          "rec_preprocess_ns": 3923204,
+          "recognition_wall_ns": 46600083,
+          "recognized_lines": 69,
+          "reshape_ns": 26540,
+          "result_storage_ns": 9170,
+          "total_ns": 76771292
+        },
+        "recognized_lines": 69,
+        "requested_line_workers": 0,
+        "retained_activation_bytes": {
+          "classifiers": 2304000,
+          "detector": 6815744,
+          "recognition_workers": 2064384,
+          "root_recognizer": 73728,
+          "total": 11257856
+        },
+        "retained_workspace_bytes": 6977741,
+        "threads": 8
+      }
+    },
+    "arena": {
+      "scope": "real TinyREC graph prefix, cached shape rebinding only; zero inference runs; distinct before/after arena source versions",
+      "control": [
+        {
+          "backend": "NeonFma",
+          "cycle_ms": [
+            0.019959,
+            0.020042,
+            0.019833
+          ],
+          "cycle_ns": [
+            19959,
+            20042,
+            19833
+          ],
+          "logical_cache_hits_after": 15,
+          "logical_cache_hits_before": 3,
+          "logical_cache_misses_after": 2,
+          "logical_cache_misses_before": 2,
+          "measured_cycles": 3,
+          "measured_inference_runs": 0,
+          "model": "tiny",
+          "model_path": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/../SimdPaddleOCR/models/rec.onnx",
+          "physical_cache_misses": 2,
+          "prefix_last_node": 155,
+          "retained_bytes": 737280,
+          "shape": [
+            1,
+            3,
+            48
+          ],
+          "transition_ns": [
+            [
+              9917,
+              125,
+              9792,
+              125
+            ],
+            [
+              9958,
+              84,
+              9875,
+              125
+            ],
+            [
+              9792,
+              125,
+              9791,
+              125
+            ]
+          ],
+          "transitions": [
+            {
+              "active_bytes": 737280,
+              "cycle": 0,
+              "elapsed_ns": 9917,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 663552,
+              "logical_cache_hits": 4,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 4,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 0,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 0,
+              "elapsed_ns": 125,
+              "initialized_bytes": 73728,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 5,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 5,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 1,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 0,
+              "elapsed_ns": 9792,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 663552,
+              "logical_cache_hits": 6,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 6,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 2,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 0,
+              "elapsed_ns": 125,
+              "initialized_bytes": 73728,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 7,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 7,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 3,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 1,
+              "elapsed_ns": 9958,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 663552,
+              "logical_cache_hits": 8,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 8,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 0,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 1,
+              "elapsed_ns": 84,
+              "initialized_bytes": 73728,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 9,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 9,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 1,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 1,
+              "elapsed_ns": 9875,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 663552,
+              "logical_cache_hits": 10,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 10,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 2,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 1,
+              "elapsed_ns": 125,
+              "initialized_bytes": 73728,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 11,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 11,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 3,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 2,
+              "elapsed_ns": 9792,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 663552,
+              "logical_cache_hits": 12,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 12,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 0,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 2,
+              "elapsed_ns": 125,
+              "initialized_bytes": 73728,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 13,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 13,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 1,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 2,
+              "elapsed_ns": 9791,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 663552,
+              "logical_cache_hits": 14,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 14,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 2,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 2,
+              "elapsed_ns": 125,
+              "initialized_bytes": 73728,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 15,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 15,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 3,
+              "width": 32
+            }
+          ],
+          "transitions_per_cycle": 4,
+          "warmup_cycles": 1,
+          "width_transitions": [
+            320,
+            32,
+            320,
+            32
+          ]
+        }
+      ],
+      "candidate": [
+        {
+          "backend": "NeonFma",
+          "cycle_ms": [
+            0.000334,
+            0.000208,
+            0.000335
+          ],
+          "cycle_ns": [
+            334,
+            208,
+            335
+          ],
+          "logical_cache_hits_after": 15,
+          "logical_cache_hits_before": 3,
+          "logical_cache_misses_after": 2,
+          "logical_cache_misses_before": 2,
+          "measured_cycles": 3,
+          "measured_inference_runs": 0,
+          "model": "tiny",
+          "model_path": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/../SimdPaddleOCR/models/rec.onnx",
+          "physical_cache_misses": 2,
+          "prefix_last_node": 155,
+          "retained_bytes": 737280,
+          "shape": [
+            1,
+            3,
+            48
+          ],
+          "transition_ns": [
+            [
+              125,
+              125,
+              42,
+              42
+            ],
+            [
+              41,
+              42,
+              42,
+              83
+            ],
+            [
+              209,
+              42,
+              42,
+              42
+            ]
+          ],
+          "transitions": [
+            {
+              "active_bytes": 737280,
+              "cycle": 0,
+              "elapsed_ns": 125,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 4,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 4,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 0,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 0,
+              "elapsed_ns": 125,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 5,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 5,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 1,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 0,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 6,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 6,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 2,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 0,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 7,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 7,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 3,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 1,
+              "elapsed_ns": 41,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 8,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 8,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 0,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 1,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 9,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 9,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 1,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 1,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 10,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 10,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 2,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 1,
+              "elapsed_ns": 83,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 11,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 11,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 3,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 2,
+              "elapsed_ns": 209,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 12,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 12,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 0,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 2,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 13,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 13,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 1,
+              "width": 32
+            },
+            {
+              "active_bytes": 737280,
+              "cycle": 2,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 14,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 14,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 2,
+              "width": 320
+            },
+            {
+              "active_bytes": 73728,
+              "cycle": 2,
+              "elapsed_ns": 42,
+              "initialized_bytes": 737280,
+              "initialized_growth_bytes": 0,
+              "logical_cache_hits": 15,
+              "logical_cache_misses": 2,
+              "physical_cache_hits": 15,
+              "physical_cache_misses": 2,
+              "retained_bytes": 737280,
+              "transition": 3,
+              "width": 32
+            }
+          ],
+          "transitions_per_cycle": 4,
+          "warmup_cycles": 1,
+          "width_transitions": [
+            320,
+            32,
+            320,
+            32
+          ]
+        }
+      ]
+    },
+    "attention": {
+      "scope": "unpacked NEON matmul; one warmup and three single-call samples per shape; control/candidate differ in bounded partial loads",
+      "control": [
+        {
+          "backend": "neon_fma",
+          "budget_seconds": 5,
+          "calls_per_sample": 1,
+          "columns": 8,
+          "diagnostic": "arm64_unpacked_attention_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 64,
+          "oracle_fma": true,
+          "packed": false,
+          "rows": 32,
+          "samples_ms": [
+            0.007500000000000001,
+            0.007458,
+            0.007458
+          ],
+          "shape_index": 0,
+          "threads": 1,
+          "warmups": 1
+        },
+        {
+          "backend": "neon_fma",
+          "budget_seconds": 5,
+          "calls_per_sample": 1,
+          "columns": 63,
+          "diagnostic": "arm64_unpacked_attention_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 64,
+          "oracle_fma": true,
+          "packed": false,
+          "rows": 64,
+          "samples_ms": [
+            0.041124999999999995,
+            0.041083,
+            0.041
+          ],
+          "shape_index": 1,
+          "threads": 1,
+          "warmups": 1
+        }
+      ],
+      "final_candidate": [
+        {
+          "backend": "neon_fma",
+          "budget_seconds": 5,
+          "calls_per_sample": 1,
+          "columns": 8,
+          "diagnostic": "arm64_unpacked_attention_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 64,
+          "oracle_fma": true,
+          "packed": false,
+          "rows": 32,
+          "samples_ms": [
+            0.001458,
+            0.0014169999999999999,
+            0.001458
+          ],
+          "shape_index": 0,
+          "threads": 1,
+          "warmups": 1
+        },
+        {
+          "backend": "neon_fma",
+          "budget_seconds": 5,
+          "calls_per_sample": 1,
+          "columns": 63,
+          "diagnostic": "arm64_unpacked_attention_fixed",
+          "exact_oracle_spots": 9,
+          "inner": 64,
+          "oracle_fma": true,
+          "packed": false,
+          "rows": 64,
+          "samples_ms": [
+            0.008667,
+            0.008708,
+            0.008749999999999999
+          ],
+          "shape_index": 1,
+          "threads": 1,
+          "warmups": 1
+        }
+      ]
+    },
+    "assembly": {
+      "local_artifacts": "/Users/chao/workspaces/simd-paddle-ocr-workspace/.local/performance-analysis-2026-10-17/assembly-final",
+      "binary_sha256": "c28c6b2a27caef0ad562cd5ecca8a77d35400ff20f35d6d653cad48bdc2b1553",
+      "findings": [
+        "No memcpy or other calls in matrix K loops",
+        "Complete matrix tiles and compact projection K loops have zero accumulator spills",
+        "Partial four-row matrix tiles retain four accumulator spills",
+        "Pointwise and production dense interior/border FMA loops have zero spills or calls; general dense fallback above 49 taps retains two vector spills"
+      ]
+    }
+  },
+  "limits": [
+    "Three fixed samples and one warmup per performance cell do not establish steady state or statistical confidence",
+    "Unbound macOS scheduling; no guaranteed performance-core placement",
+    "Final selected cases do not constitute the full 36-case platform matrix",
+    "No x86 runtime/performance validation; x86 macOS compilation only",
+    "Automatic classifiers may retain additional activation arenas; stage fairness uses snapshots",
+    "Both use nominal eight-CPU stage settings; Rust hard-caps a shared eight-worker pool across requests, while C# per-request nested budgets have no global admission cap on unbound macOS; C# has four shared CLS/REC line workers versus up to eight Rust classifiers and four Rust REC owners",
+    "Earlier diagnostic/source versions are optimization evidence and do not validate the final version"
+  ],
+  "completion_audit": {
+    "benchmark_source_hash_matches": true,
+    "benchmark_executable_hash_matches": true,
+    "qualification_source_hash_matches": true,
+    "reference_clean": true,
+    "goldens_models_tolerances_and_lock_unchanged": true,
+    "format_and_whitespace_pass": true,
+    "final_selected_performance_cells": {
+      "passed": 10,
+      "inconclusive": 3,
+      "failed": 2
+    },
+    "all_15_output_and_memory_gates_passed": true
+  },
+  "concurrent_budget_audit": {
+    "rust": "One shared CpuContext(8), shared by forks; fixed pool aggregate cap eight, current demand reduces each request share",
+    "csharp": "Each Run retains DET8, line4 and dense REC intra-op2 without global admission cap; DOTNET_PROCESSOR_COUNT=8 is not process-wide CPU enforcement",
+    "source_locations": [
+      "src/cpu.rs",
+      "examples/cpu_benchmark.rs:468",
+      "tools/csharp-benchmark/Program.cs:38",
+      "tools/csharp-benchmark/Program.cs:72",
+      "../SimdPaddleOCR/src/Sdcb.SimdPaddleOCR/PaddleOcrAll.cs:590"
+    ],
+    "interpretation": "The policy difference plausibly contributes to throughput, but the measurements do not quantify its contribution separately from scheduling and kernels"
+  }
+}

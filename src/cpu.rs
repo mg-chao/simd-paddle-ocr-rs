@@ -64,7 +64,7 @@ impl Drop for InlineAdmission<'_> {
     }
 }
 
-/// CPU budgets. Zero selects the original implementation's automatic budget.
+/// CPU budgets. Zero selects each stage's automatic budget.
 /// Positive values are maxima capped to the context capacity and 16.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CpuOptions {
@@ -132,11 +132,24 @@ impl CpuBudgets {
             .min((request_capacity / active).max(1))
     }
 
-    pub(crate) fn extraction_options(self, request_capacity: usize) -> CpuOptions {
+    pub(crate) fn extraction_options(
+        self,
+        request_capacity: usize,
+        automatic_line_workers: bool,
+    ) -> CpuOptions {
+        let available = request_capacity.max(1);
+        // Extraction has no recognition work. Automatic classifiers can use the
+        // request's CPU share without creating extra recognition owners, while
+        // positive line_workers still bounds both stages as configured.
+        let classifiers = if automatic_line_workers {
+            cap_stage_threads(available, self.capacity)
+        } else {
+            self.line_workers.min(available)
+        };
         CpuOptions {
-            line_workers: self.line_workers,
-            preprocess_workers: self.preprocess_workers.min(request_capacity.max(1)),
-            detector_threads: self.detector_threads.min(request_capacity.max(1)),
+            line_workers: classifiers,
+            preprocess_workers: self.preprocess_workers.min(available),
+            detector_threads: self.detector_threads.min(available),
         }
     }
 }
@@ -360,8 +373,8 @@ mod tests {
                 budgets.recognizer_threads_for_capacity(lines, share),
                 threads
             );
-            let extraction = budgets.extraction_options(share);
-            assert_eq!(extraction.line_workers, 4);
+            let extraction = budgets.extraction_options(share, true);
+            assert_eq!(extraction.line_workers, share);
             assert_eq!(extraction.detector_threads, share);
             assert_eq!(extraction.preprocess_workers, share);
         }
@@ -372,10 +385,39 @@ mod tests {
         }
         .resolve(8, true)
         .unwrap();
-        assert_eq!(explicit.extraction_options(4).preprocess_workers, 1);
-        assert_eq!(explicit.extraction_options(4).detector_threads, 2);
+        assert_eq!(explicit.extraction_options(4, false).preprocess_workers, 1);
+        assert_eq!(explicit.extraction_options(4, false).detector_threads, 2);
         assert_eq!(explicit.recognizer_threads_for_capacity(2, 4), 2);
         assert_eq!(explicit.recognizer_threads_for_capacity(1, 4), 4);
+    }
+
+    #[test]
+    fn automatic_classifiers_use_request_capacity_and_explicit_line_maxima_are_preserved() {
+        for capacity in [1, 4, 8, 32] {
+            for requested in [0, 1, 2, 17, usize::MAX] {
+                let budgets = CpuOptions {
+                    line_workers: requested,
+                    ..Default::default()
+                }
+                .resolve(capacity, true)
+                .unwrap();
+                let recognition_workers = budgets.line_workers;
+                for share in [0, 1, 2, 8, 32, usize::MAX] {
+                    let extraction = budgets.extraction_options(share, requested == 0);
+                    let expected = if requested == 0 {
+                        capacity.min(share.max(1)).min(16)
+                    } else {
+                        recognition_workers.min(share.max(1))
+                    };
+                    assert_eq!(extraction.line_workers, expected);
+                    assert_eq!(budgets.line_workers, recognition_workers);
+                }
+            }
+        }
+        let automatic = CpuOptions::default().resolve(8, true).unwrap();
+        assert_eq!(automatic.line_workers, 4);
+        assert_eq!(automatic.extraction_options(8, true).line_workers, 8);
+        assert_eq!(automatic.extraction_options(8, false).line_workers, 4);
     }
 
     #[test]

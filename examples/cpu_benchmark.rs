@@ -463,7 +463,9 @@ fn rust_worker(job: &Job) -> Result<()> {
         .builder()
         .cpu_context(Arc::new(CpuContext::new(capacity)?))
         .cpu_options(CpuOptions {
-            line_workers: if capacity == 1 { 1 } else { 4 },
+            // Automatic recognition still resolves to four owners at capacity
+            // eight; the separate classification phase can use the CPU share.
+            line_workers: 0,
             preprocess_workers: capacity,
             detector_threads: capacity,
         })

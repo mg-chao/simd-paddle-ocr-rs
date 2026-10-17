@@ -1,11 +1,19 @@
 # macOS CPU support and validation
 
 The Rust library and OCR example run natively on Apple Silicon macOS. Automatic
-dispatch selects `Portable4`, using four-lane Rust portable SIMD with separate
-multiply/add operations. AVX helpers are compiled only for x86 targets; forcing
-an unsupported AVX policy returns an error at model compilation. Inference
+dispatch selects `NeonFma`: ARM64 NEON convolution, matrix multiplication and
+compact recognition projection use ordered fused multiply/add. `Portable4`
+retains its separate multiply/add arithmetic as an explicit comparison policy.
+Canonical NCHW specializations and activation programs retain their established
+four-lane arithmetic where selected; execution statistics report these choices.
+Native NEON modules compile only for AArch64, and AVX helpers only for x86;
+forcing an unsupported policy returns an error at model compilation. Inference
 requires no .NET, ONNX Runtime, Metal, or other GPU runtime. The .NET SDK is needed
 only for live comparison with the pinned C# CPU reference.
+
+The [ARM64 optimization record](macos-arm64-optimization.md) reports validation
+and performance measurements for the native NEON implementation. The historical
+Portable4 results below remain separate.
 
 ## Setup
 
@@ -88,12 +96,12 @@ cargo test --release --locked --test harness_contract \
   isolated_builds_and_live_workers_can_overlap -- --ignored --nocapture
 ```
 
-## Recorded local validation
+## Recorded local validation before ARM64 kernel optimization
 
 Validated on the physical Apple M4, macOS 27.0.1, native
 `aarch64-apple-darwin`, on 2026-10-17 (Asia/Shanghai). The pinned Rust nightly,
 .NET SDK 10.0.303, and .NET runtime 10.0.11 were used with standard release
-settings. Automatic Rust dispatch selected `Portable4`; automatic parallel
+settings. This historical baseline selected `Portable4`; automatic parallel
 capacity was ten workers.
 
 - Release example builds and formatting checks passed.

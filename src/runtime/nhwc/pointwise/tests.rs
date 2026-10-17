@@ -1,7 +1,12 @@
 use super::*;
+#[cfg(target_arch = "aarch64")]
+#[path = "neon_bench.rs"]
+mod neon_bench;
 
 fn backends() -> Vec<Backend> {
     let mut available = vec![Backend::Scalar, Backend::Portable4];
+    #[cfg(target_arch = "aarch64")]
+    available.push(Backend::NeonFma);
     for (enabled, backend) in [
         (simd::avx_available(), Backend::Avx),
         (simd::avx_fma_available(), Backend::AvxFma),

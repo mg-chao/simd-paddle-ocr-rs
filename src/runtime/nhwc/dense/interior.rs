@@ -333,6 +333,67 @@ pub(super) unsafe fn accumulate_portable<const LANES: usize, const OFFSET: usize
     }
 }
 
+/// The ARM64 tile keeps all sixteen output channels in NEON registers and
+/// visits each scalar input once, including borders and unusual tap counts.
+/// SAFETY: the caller entered NEON and descriptors bind this exact input.
+#[cfg(target_arch = "aarch64")]
+#[allow(clippy::too_many_arguments)]
+pub(super) unsafe fn accumulate_neon<const LANES: usize, const VECTORS: usize>(
+    p: &Conv,
+    input: &[f32],
+    origins: &[(usize, usize, usize)],
+    taps: Option<&Taps>,
+    inputs: Option<&TileInputs<'_>>,
+    panel: &[f32],
+    k0: usize,
+    seeds: [[Simd<f32, LANES>; VECTORS]; ROWS],
+) -> [[Simd<f32, LANES>; VECTORS]; ROWS] {
+    use super::super::pointwise::neon::dense_tile;
+    assert_eq!(LANES, 4);
+    assert_eq!(VECTORS, 4);
+    assert_eq!(origins.len(), ROWS);
+    let seeds = std::array::from_fn(|row| {
+        std::array::from_fn(|vector| {
+            Simd::<f32, 4>::from_array(std::array::from_fn(|lane| seeds[row][vector][lane]))
+        })
+    });
+    // SAFETY: all readers cover the checked K interval. The descriptor paths
+    // retain the same span/sentinel proofs as Portable4 and AVX.
+    let result = unsafe {
+        match (taps, inputs) {
+            (Some(taps), Some(TileInputs::Interior(inputs))) => dense_tile(
+                &PortableBound { inputs, taps },
+                taps.count,
+                taps.channels,
+                panel,
+                k0,
+                seeds,
+            ),
+            (Some(taps), Some(TileInputs::Border(inputs))) => dense_tile(
+                &PortableBound { inputs, taps },
+                taps.count,
+                taps.channels,
+                panel,
+                k0,
+                seeds,
+            ),
+            _ => dense_tile(
+                &PortableGeneral { p, input, origins },
+                p.kh * p.kw,
+                p.cin,
+                panel,
+                k0,
+                seeds,
+            ),
+        }
+    };
+    std::array::from_fn(|row| {
+        std::array::from_fn(|vector| {
+            Simd::from_array(std::array::from_fn(|lane| result[row][vector][lane]))
+        })
+    })
+}
+
 macro_rules! tile {
     ($name:ident, $features:literal, $fused:literal) => {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]

@@ -19,6 +19,14 @@ repository. A consuming project must also select that nightly (for example,
 The default `parallel` feature uses a shared Rayon CPU pool. Disable default
 features for serial execution without Rayon; `profiling` adds diagnostic APIs.
 
+`CompileOptions::default()` selects the native CPU backend. On AArch64 this is
+`KernelPolicy::NeonFma` (`neon_fma` in serialized policy values), with ordered
+NEON FMA convolution and matrix kernels. `KernelPolicy::Portable4` retains
+separate multiply/add for numerical and performance comparisons; forcing
+`NeonFma` on an unsupported CPU fails during model compilation. x86 automatic
+AVX/FMA selection is unchanged. FMA can change F32 rounding, so retain the
+existing OCR accuracy tolerances when comparing policies.
+
 For deployment builds, the application's root `Cargo.toml` can opt into:
 
 ```toml
@@ -148,7 +156,10 @@ contexts have independent capacities.
 
 `CpuOptions` controls maximum line workers, detector threads and preprocessing
 workers. Zero selects automatic stage budgets; positive budgets are capped by
-the context capacity and 16. Defaults permit up to four line workers; nested
+the context capacity and 16. Automatic OCR budgets permit up to four recognition
+line workers and up to sixteen single-threaded classifiers, bounded by the
+request's available CPU share. A positive `line_workers` bounds both stages.
+Standalone line extractors retain the default four-classifier maximum. Nested
 recognizer work shares the context. `Ocr::fork()` creates another mutable
 request sharing compiled models, packed weights, dictionary and CPU capacity,
 while keeping its own activations and buffers. Recognition batching is opt-in
@@ -165,11 +176,13 @@ records the rejected unconditional and capacity-aware overlap experiments
 separately from the retained staged pipeline and historical full-matrix results.
 
 OCR calls register their CPU demand before entering the shared executor. At
-stage boundaries, each call limits detector/preprocessing workers and nested
-recognition threads to its share of the currently requested CPU capacity.
+stage boundaries, each call limits detector/preprocessing workers, classifiers
+and nested recognition threads to its share of the currently requested CPU
+capacity.
 Line-worker assignments remain stable, so concurrent traffic does not create
 extra recognition buffers. A single call retains the configured budgets;
-`cpu_budgets()` reports those maxima. The fixed pool enforces the overall cap
+`cpu_budgets()` reports recognition, detector and preprocessing maxima;
+automatic classifiers use the current request share. The fixed pool enforces the overall cap
 even when demand changes after a stage begins. Standalone detector/classifier/
 recognizer calls retain their explicit budgets.
 

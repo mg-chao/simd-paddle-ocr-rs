@@ -23,7 +23,7 @@ pub(super) fn batch_norm(
     }
     match backend {
         Backend::Scalar => batch_norm_kernel::<1>(input, output, channels, multiplier, bias, mean),
-        Backend::Portable4 => {
+        Backend::Portable4 | Backend::NeonFma => {
             batch_norm_kernel::<4>(input, output, channels, multiplier, bias, mean)
         }
         Backend::Avx => {
@@ -117,7 +117,7 @@ pub(super) fn execute_range(
 ) {
     match backend {
         Backend::Scalar => kernel::<1>(kind, input, shape, output, first),
-        Backend::Portable4 => kernel::<4>(kind, input, shape, output, first),
+        Backend::Portable4 | Backend::NeonFma => kernel::<4>(kind, input, shape, output, first),
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validated AVX for this backend.

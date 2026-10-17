@@ -7,7 +7,8 @@ The pinned `nightly-2026-09-08` toolchain is selected by `rust-toolchain.toml`.
 
 For native Apple Silicon setup, OCR commands, and local correctness checks, see
 [macOS CPU support](docs/macos-cpu-validation.md). Automatic dispatch uses the
-four-lane portable SIMD backend on ARM64; no Rosetta or GPU runtime is required.
+ARM64 NEON/FMA backend; no Rosetta or GPU runtime is required. The portable
+four-lane policy remains available for comparison.
 
 ## Run OCR
 
@@ -56,7 +57,9 @@ Recorded local checks and completion status are in
 
 The benchmark also supports macOS with native CPU-time and peak-resident-memory
 counters. See the [focused Apple M4 comparison](docs/macos-cpu-performance.md)
-for measured Rust/C# latency, memory, sample counts, and scheduling limits.
+for the original measurements and the
+[ARM64 optimization results](docs/macos-arm64-optimization.md) for the current
+NEON kernels, Rust/C# latency, memory, and validation scope.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

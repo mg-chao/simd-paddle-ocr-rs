@@ -13,6 +13,8 @@ mod activation;
 mod argmax;
 mod columns;
 pub(crate) mod matrix;
+#[cfg(target_arch = "aarch64")]
+mod neon;
 pub(crate) mod parallel;
 pub(crate) use columns::{ArgMaxWorkspace, try_compact_columns};
 
@@ -23,6 +25,7 @@ pub enum KernelPolicy {
     Auto,
     Scalar,
     Portable4,
+    NeonFma,
     Avx,
     AvxFma,
     Avx2Fma,
@@ -34,6 +37,7 @@ pub enum KernelPolicy {
 pub enum Backend {
     Scalar,
     Portable4,
+    NeonFma,
     Avx,
     AvxFma,
     Avx2Fma,
@@ -43,7 +47,10 @@ pub enum Backend {
 impl Backend {
     #[cfg(test)]
     pub(crate) fn uses_fma(self) -> bool {
-        matches!(self, Self::AvxFma | Self::Avx2Fma | Self::Avx512)
+        matches!(
+            self,
+            Self::NeonFma | Self::AvxFma | Self::Avx2Fma | Self::Avx512
+        )
     }
 }
 
@@ -235,7 +242,7 @@ pub(crate) fn layer_norm_affine(
     assert!(gamma.len() >= output.len() && beta.len() >= output.len());
     match backend {
         Backend::Scalar => layer_norm_affine_simd::<1>(input, gamma, beta, mean, deviation, output),
-        Backend::Portable4 => {
+        Backend::Portable4 | Backend::NeonFma => {
             layer_norm_affine_simd::<4>(input, gamma, beta, mean, deviation, output)
         }
         Backend::Avx2Fma => {
@@ -392,6 +399,24 @@ pub(crate) fn avx512_available() -> bool {
     }
 }
 
+/// NEON includes single-precision fused multiply/add on AArch64.
+pub(crate) fn neon_available() -> bool {
+    #[cfg(target_arch = "aarch64")]
+    {
+        std::arch::is_aarch64_feature_detected!("neon")
+    }
+    #[cfg(not(target_arch = "aarch64"))]
+    {
+        false
+    }
+}
+fn checked_neon() {
+    assert!(
+        neon_available(),
+        "NEON/FMA backend is unavailable on this CPU"
+    );
+}
+
 pub(crate) fn select_backend(policy: KernelPolicy) -> Result<Backend, &'static str> {
     select_backend_with_features(
         policy,
@@ -399,12 +424,13 @@ pub(crate) fn select_backend(policy: KernelPolicy) -> Result<Backend, &'static s
         avx_fma_available(),
         avx2_fma_available(),
         avx512_available(),
+        neon_available(),
     )
 }
 
 #[cfg(test)]
 fn select_backend_with_avx2(policy: KernelPolicy, avx2_fma: bool) -> Result<Backend, &'static str> {
-    select_backend_with_features(policy, avx2_fma, avx2_fma, avx2_fma, false)
+    select_backend_with_features(policy, avx2_fma, avx2_fma, avx2_fma, false, false)
 }
 
 fn select_backend_with_features(
@@ -413,6 +439,7 @@ fn select_backend_with_features(
     avx_fma: bool,
     avx2_fma: bool,
     avx512: bool,
+    neon: bool,
 ) -> Result<Backend, &'static str> {
     match policy {
         KernelPolicy::Auto => Ok(if avx512 {
@@ -423,11 +450,15 @@ fn select_backend_with_features(
             Backend::AvxFma
         } else if avx {
             Backend::Avx
+        } else if neon {
+            Backend::NeonFma
         } else {
             Backend::Portable4
         }),
         KernelPolicy::Scalar => Ok(Backend::Scalar),
         KernelPolicy::Portable4 => Ok(Backend::Portable4),
+        KernelPolicy::NeonFma if neon => Ok(Backend::NeonFma),
+        KernelPolicy::NeonFma => Err("NEON/FMA kernel policy is unsupported on this CPU"),
         KernelPolicy::Avx if avx => Ok(Backend::Avx),
         KernelPolicy::Avx => Err("AVX kernel policy is unsupported on this CPU"),
         KernelPolicy::AvxFma if avx_fma => Ok(Backend::AvxFma),
@@ -546,6 +577,14 @@ pub(crate) fn matmul(
         Backend::Scalar => scalar_matmul(input, weights, output, rows, inner, columns),
         Backend::Portable4 => {
             matmul_simd::<4, 4, false>(input, weights, packed, output, rows, inner, columns)
+        }
+        Backend::NeonFma => {
+            checked_neon();
+            #[cfg(target_arch = "aarch64")]
+            // SAFETY: feature detection and complete matrix extents were checked above.
+            unsafe {
+                neon::matmul(input, weights, packed, output, rows, inner, columns)
+            }
         }
         Backend::Avx2Fma => {
             checked_avx2();
@@ -668,6 +707,16 @@ pub(crate) fn matmul_bias_store(
         Backend::Portable4 => matmul_bias_simd::<4, 4, false>(
             input, weights, packed, bias, output, rows, inner, columns, store, offset,
         ),
+        Backend::NeonFma => {
+            checked_neon();
+            #[cfg(target_arch = "aarch64")]
+            // SAFETY: feature detection and complete matrix extents were checked above.
+            unsafe {
+                neon::matmul_bias_store(
+                    input, weights, packed, bias, output, rows, inner, columns, store, offset,
+                )
+            }
+        }
         Backend::Avx2Fma => {
             checked_avx2();
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -1141,6 +1190,20 @@ pub(crate) fn compact_argmax(
         Backend::Portable4 => argmax_simd::<4, 4, false>(
             input, weights, bias, packed, indices, scores, inner, columns,
         ),
+        Backend::NeonFma => {
+            if !neon_available() {
+                return Err("NEON/FMA backend is unavailable on this CPU");
+            }
+            #[cfg(target_arch = "aarch64")]
+            // SAFETY: feature detection and projection lengths were checked above.
+            unsafe {
+                neon::compact_argmax(
+                    input, weights, bias, packed, indices, scores, inner, columns,
+                )
+            }
+            #[cfg(not(target_arch = "aarch64"))]
+            Err("NEON/FMA backend is unavailable on this architecture")
+        }
         Backend::Avx2Fma => {
             if !avx2_fma_available() {
                 return Err("AVX2/FMA backend requires AVX2 and FMA support");
@@ -1689,7 +1752,7 @@ impl Conv2d {
         }
         let lanes = match backend {
             Backend::Scalar => return false,
-            Backend::Portable4 => 4,
+            Backend::Portable4 | Backend::NeonFma => 4,
             Backend::Avx | Backend::AvxFma | Backend::Avx2Fma => 8,
             Backend::Avx512 => {
                 if self.avx512_spatial() {
@@ -1812,6 +1875,7 @@ pub(crate) fn conv2d(
 ) {
     p.validate(input, weights, bias, output.len());
     match backend {
+        Backend::NeonFma => checked_neon(),
         Backend::Avx => checked_avx(),
         Backend::AvxFma => checked_avx_fma(),
         Backend::Avx2Fma => checked_avx2(),
@@ -1834,6 +1898,10 @@ pub(crate) fn conv2d(
     match backend {
         Backend::Scalar => convolution::<1, false>(p, input, weights, bias, output),
         Backend::Portable4 => convolution::<4, false>(p, input, weights, bias, output),
+        Backend::NeonFma => {
+            checked_neon();
+            convolution::<4, true>(p, input, weights, bias, output)
+        }
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: runtime CPU detection guards both enabled features.
@@ -1905,6 +1973,9 @@ pub(crate) fn conv2d_output_range(
             .expect("convolution range overflow")
     );
     let origin = (batch * p.output_channels + first_channel) * plane;
+    if backend == Backend::NeonFma {
+        checked_neon();
+    }
     match backend {
         Backend::Scalar => convolution_range::<1, false>(
             p,
@@ -1918,6 +1989,17 @@ pub(crate) fn conv2d_output_range(
             origin,
         ),
         Backend::Portable4 => convolution_range::<4, false>(
+            p,
+            input,
+            weights,
+            bias,
+            output,
+            batch,
+            first_channel,
+            count,
+            origin,
+        ),
+        Backend::NeonFma => convolution_range::<4, true>(
             p,
             input,
             weights,
@@ -2444,11 +2526,17 @@ pub(crate) fn conv_transpose2x2(
     assert_eq!(weights.len(), product(&[cin, cout, 4]));
     assert_eq!(output.len(), product(&[batch, cout, height, width, 4]));
     assert!(bias.is_empty() || bias.len() == cout);
+    if backend == Backend::NeonFma {
+        checked_neon();
+    }
     match backend {
         Backend::Scalar => transpose_convolution::<1, false>(
             input, weights, bias, output, batch, cin, cout, height, width,
         ),
         Backend::Portable4 => transpose_convolution::<4, false>(
+            input, weights, bias, output, batch, cin, cout, height, width,
+        ),
+        Backend::NeonFma => transpose_convolution::<4, true>(
             input, weights, bias, output, batch, cin, cout, height, width,
         ),
         Backend::Avx2Fma => {
@@ -2800,7 +2888,7 @@ pub(crate) fn unary(backend: Backend, operation: UnaryOp, input: &[f32], output:
                 *out = scalar_unary_value(operation, value);
             }
         }
-        Backend::Portable4 => unary_simd::<4>(
+        Backend::Portable4 | Backend::NeonFma => unary_simd::<4>(
             operation,
             input,
             output,
@@ -2913,7 +3001,7 @@ pub(crate) fn unary_inplace(backend: Backend, operation: UnaryOp, output: &mut [
                 *value = scalar_unary_value(operation, *value);
             }
         }
-        Backend::Portable4 => unary_inplace_simd::<4>(
+        Backend::Portable4 | Backend::NeonFma => unary_inplace_simd::<4>(
             operation,
             output,
             UnaryMath::for_backend(Backend::Portable4),
@@ -3026,7 +3114,7 @@ pub(crate) fn binary(
                 *out = binary_value(operation, a, b);
             }
         }
-        Backend::Portable4 => binary_simd::<4>(operation, a, b, output),
+        Backend::Portable4 | Backend::NeonFma => binary_simd::<4>(operation, a, b, output),
         Backend::Avx2Fma => {
             checked_avx2();
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -3113,7 +3201,9 @@ pub(crate) fn binary_inplace(
     }
     match backend {
         Backend::Scalar => binary_inplace_simd::<1>(operation, other, other_left, output),
-        Backend::Portable4 => binary_inplace_simd::<4>(operation, other, other_left, output),
+        Backend::Portable4 | Backend::NeonFma => {
+            binary_inplace_simd::<4>(operation, other, other_left, output)
+        }
         Backend::Avx2Fma => {
             checked_avx2();
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -3289,7 +3379,9 @@ fn channel_dispatch<const INPLACE: bool>(
 ) {
     match backend {
         Backend::Scalar => channel_simd::<1, INPLACE>(operation, full, gate, plan, nhwc, output),
-        Backend::Portable4 => channel_simd::<4, INPLACE>(operation, full, gate, plan, nhwc, output),
+        Backend::Portable4 | Backend::NeonFma => {
+            channel_simd::<4, INPLACE>(operation, full, gate, plan, nhwc, output)
+        }
         Backend::Avx2Fma => {
             checked_avx2();
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -3450,7 +3542,7 @@ pub(crate) fn binary_scalar(
                 };
             }
         }
-        Backend::Portable4 => {
+        Backend::Portable4 | Backend::NeonFma => {
             binary_scalar_simd::<4>(operation, input, scalar, scalar_left, output)
         }
         Backend::Avx2Fma => {
@@ -3582,7 +3674,7 @@ pub(crate) fn softmax(
     assert_eq!(input.len(), output.len());
     match backend {
         Backend::Scalar => softmax_simd::<1>(input, output, rows, columns),
-        Backend::Portable4 => softmax_simd::<4>(input, output, rows, columns),
+        Backend::Portable4 | Backend::NeonFma => softmax_simd::<4>(input, output, rows, columns),
         Backend::Avx2Fma => {
             checked_avx2();
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -3848,7 +3940,7 @@ mod tests {
             for backend in backends() {
                 let (lanes, pairs) = match backend {
                     Backend::Scalar => (1, false),
-                    Backend::Portable4 => (4, false),
+                    Backend::Portable4 | Backend::NeonFma => (4, false),
                     Backend::Avx512 => (16, true),
                     _ => (8, true),
                 };
@@ -3884,6 +3976,9 @@ mod tests {
     }
     fn backends() -> Vec<Backend> {
         let mut values = vec![Backend::Scalar, Backend::Portable4];
+        if neon_available() {
+            values.push(Backend::NeonFma);
+        }
         for (available, backend) in [
             (avx_available(), Backend::Avx),
             (avx_fma_available(), Backend::AvxFma),
@@ -3946,8 +4041,15 @@ mod tests {
 
     #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
     #[test]
-    fn non_x86_auto_uses_portable_simd_and_rejects_all_x86_policies() {
-        assert_eq!(select_backend(KernelPolicy::Auto), Ok(Backend::Portable4));
+    fn non_x86_auto_selects_native_or_portable_simd_and_rejects_x86_policies() {
+        assert_eq!(
+            select_backend(KernelPolicy::Auto),
+            Ok(if neon_available() {
+                Backend::NeonFma
+            } else {
+                Backend::Portable4
+            })
+        );
         assert_eq!(
             select_backend(KernelPolicy::Portable4),
             Ok(Backend::Portable4)
@@ -3963,6 +4065,32 @@ mod tests {
     }
 
     #[test]
+    fn neon_policy_is_guarded_and_portable_rounding_stays_explicit() {
+        assert_eq!(
+            select_backend_with_features(KernelPolicy::Auto, false, false, false, false, true),
+            Ok(Backend::NeonFma)
+        );
+        assert_eq!(
+            select_backend_with_features(KernelPolicy::NeonFma, false, false, false, false, true),
+            Ok(Backend::NeonFma)
+        );
+        assert!(
+            select_backend_with_features(KernelPolicy::NeonFma, false, false, false, false, false)
+                .is_err()
+        );
+        assert_eq!(
+            select_backend_with_features(KernelPolicy::Portable4, false, false, false, false, true),
+            Ok(Backend::Portable4)
+        );
+        assert_eq!(
+            select_backend(KernelPolicy::NeonFma).is_ok(),
+            neon_available()
+        );
+        assert!(Backend::NeonFma.uses_fma());
+        assert!(!Backend::Portable4.uses_fma());
+    }
+
+    #[test]
     fn isa_ladder_forcing_and_projection_shape_guards_are_explicit() {
         for (features, expected) in [
             ((false, false, false, false), Backend::Portable4),
@@ -3973,7 +4101,8 @@ mod tests {
         ] {
             let (avx, fma, avx2, avx512) = features;
             assert_eq!(
-                select_backend_with_features(KernelPolicy::Auto, avx, fma, avx2, avx512).unwrap(),
+                select_backend_with_features(KernelPolicy::Auto, avx, fma, avx2, avx512, false)
+                    .unwrap(),
                 expected
             );
             for (policy, available) in [
@@ -3983,7 +4112,7 @@ mod tests {
                 (KernelPolicy::Avx512, avx512),
             ] {
                 assert_eq!(
-                    select_backend_with_features(policy, avx, fma, avx2, avx512).is_ok(),
+                    select_backend_with_features(policy, avx, fma, avx2, avx512, false).is_ok(),
                     available
                 );
             }
@@ -4669,7 +4798,7 @@ mod tests {
                     let mut actual = vec![f32::NAN; input.len()];
                     softmax(backend, &input, &mut actual, rows, columns);
                     let native = match backend {
-                        Backend::Portable4 => columns >= 4,
+                        Backend::Portable4 | Backend::NeonFma => columns >= 4,
                         Backend::Avx | Backend::AvxFma | Backend::Avx2Fma => columns >= 8,
                         Backend::Avx512 => columns >= 8,
                         _ => false,
@@ -5015,9 +5144,24 @@ mod tests {
                 &cpu,
                 cpu.capacity(),
             );
-            if backend.uses_fma() || backend == Backend::Scalar {
+            if p.uses_original_convolution(backend) || backend == Backend::Scalar {
                 assert_bits(&output, &expected);
             } else {
+                // Four-lane policies can vectorize this six-pixel interior.
+                // Verify exact worker-band invariance as well as numerical
+                // agreement with the independent scalar convolution.
+                let mut serial = vec![f32::NAN; expected.len()];
+                crate::runtime::kernels::execute_optimized(
+                    &kind,
+                    &inputs,
+                    data,
+                    &mut serial,
+                    backend,
+                    None,
+                    &cpu,
+                    1,
+                );
+                assert_bits(&output, &serial);
                 assert_close(&output, &expected);
             }
         }
