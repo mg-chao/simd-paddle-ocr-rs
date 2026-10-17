@@ -90,6 +90,7 @@ fn dense_and_depthwise_row_bands_keep_independent_reduction_bits_and_global_stor
     let cpu = CpuContext::new(if cfg!(feature = "parallel") { 8 } else { 1 }).unwrap();
     let mut backends = vec![Backend::Scalar, Backend::Portable4];
     for (available, backend) in [
+        (simd::neon_available(), Backend::NeonFma),
         (simd::avx_available(), Backend::Avx),
         (simd::avx_fma_available(), Backend::AvxFma),
         (simd::avx2_fma_available(), Backend::Avx2Fma),

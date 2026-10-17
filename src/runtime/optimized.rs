@@ -207,7 +207,31 @@ fn conv_nhwc_capable(compiled: &CompiledModel, index: usize, p: &kernels::Conv) 
         return false;
     }
     if p.cpg == p.cin {
-        p.cout >= 16 && p.cout.is_multiple_of(16)
+        // Native ARM convolutions can keep their surrounding NHWC segment
+        // through narrow spatial reductions. The existing dense kernel binds
+        // padded coefficient panels and stores only the active output channels.
+        let pad_end = p.cin >= 8
+            && matches!(p.cout, 8 | 12 | 24)
+            && p.kh == 2
+            && p.kw == 2
+            && p.sh == 1
+            && p.sw == 1
+            && p.pt == 0
+            && p.pl == 0
+            && p.oh == p.height
+            && p.ow == p.width;
+        let narrow_three = p.cin >= 32
+            && p.cout == 24
+            && p.kh == 3
+            && p.kw == 3
+            && matches!(p.sh, 1 | 2)
+            && p.sw == p.sh
+            && p.pt == 1
+            && p.pl == 1
+            && p.oh == p.height.div_ceil(p.sh)
+            && p.ow == p.width.div_ceil(p.sw);
+        (p.cout >= 16 && p.cout.is_multiple_of(16))
+            || (compiled.backend == Backend::NeonFma && (pad_end || narrow_three))
     } else {
         p.cpg == 1 && p.opg == 1 && p.cout == p.cin && p.cout.is_multiple_of(8)
     }
@@ -271,10 +295,12 @@ fn closed(
         if instruction.output == selected {
             return false;
         }
-        if compiled.instructions[..first]
-            .iter()
-            .chain(compiled.instructions[end + 1..count].iter())
-            .any(|n| n.inputs.contains(&instruction.output))
+        // Compilation validates source order: a produced tensor cannot have a
+        // consumer before this group. Only later uses inside this execution
+        // prefix can require an intermediate to remain materialized.
+        if compiled
+            .graph_uses
+            .used_after(instruction.output, end, count)
         {
             return false;
         }
@@ -922,7 +948,10 @@ impl State {
             let arena = allocate_buffer(next.elements)?;
             check_retained_limit(std::slice::from_ref(&arena), limits)?;
             self.arena = arena;
-        } else {
+        } else if self.arena.len() < next.elements {
+            // Keep the initialized high-water span across smaller bindings.
+            // Every live value is written by fill or its producing step;
+            // regrowing a retained shape must not zero the same tail again.
             self.arena.resize(next.elements, 0.);
         }
         let old = std::mem::replace(&mut self.plan, next);
@@ -1013,7 +1042,11 @@ impl State {
             self.workspaces
                 .try_reserve(workers.saturating_sub(self.workspaces.len()))
                 .map_err(|e| {
-                    RuntimeError::new(format!("packing scratch allocation failed: {e}"))
+                    RuntimeError::caused_by(
+                        crate::error::ErrorKind::Allocation,
+                        "packing scratch allocation failed",
+                        e,
+                    )
                 })?;
             while self.workspaces.len() < workers {
                 self.workspaces.push(Vec::new());
@@ -1372,7 +1405,7 @@ impl State {
                         kind,
                         epilogues,
                     } => {
-                        let operator = compiled.model.graph().nodes[*index].op_type.as_str();
+                        let operator = compiled.model.graph().nodes[*index].op_type();
                         let nhwc = step
                             .inputs
                             .first()
@@ -1444,7 +1477,7 @@ impl State {
                 };
                 match &s.op {
                     Operation::Native { index, kind, .. } => (
-                        compiled.model.graph().nodes[*index].op_type.as_str(),
+                        compiled.model.graph().nodes[*index].op_type(),
                         layout,
                         (self.plan.values[s.inputs[0]].layout == Layout::Nhwc
                             && (compiled.conv_packed.contains_key(index)
@@ -1569,7 +1602,9 @@ pub(super) fn native_selection(
                 && super::nhwc::pointwise_matrix_eligible(backend, packed, *rows, *inner, *columns)
             {
                 return (
-                    if backend == Backend::Portable4 {
+                    if super::nhwc::pointwise::inline_avx2_eligible(backend, *inner, *columns) {
+                        "nhwc_constant_matmul_6x16_inline"
+                    } else if backend == Backend::Portable4 {
                         "nhwc_constant_matmul_6x8_pair2"
                     } else {
                         "nhwc_constant_matmul_6x16"
@@ -1583,7 +1618,8 @@ pub(super) fn native_selection(
                     format!("{:?}", simd::matrix::actual_backend(backend)),
                 );
             }
-            let wide = simd::wide_projection_eligible(*rows, *inner, *columns, packed);
+            let wide = backend != Backend::NeonFma
+                && simd::wide_projection_eligible(*rows, *inner, *columns, packed);
             let isa = if backend == Backend::Avx512 {
                 #[cfg(feature = "parallel")]
                 let sharded = threads > 1 && rows * inner * columns >= 262_144 && *rows >= 8;
@@ -1656,7 +1692,17 @@ pub(super) fn native_selection(
                 ("nchw_spatial_4oc", format!("{backend:?}"))
             }
         }
-        BoundKind::ConvTranspose(_) => ("nchw_transpose2x2_spatial", format!("{backend:?}")),
+        BoundKind::ConvTranspose(_) => (
+            "nchw_transpose2x2_spatial",
+            format!(
+                "{:?}",
+                if backend == Backend::NeonFma {
+                    Backend::Portable4
+                } else {
+                    backend
+                }
+            ),
+        ),
         BoundKind::MaxPool { .. } | BoundKind::AveragePool { .. } => {
             ("nchw_spatial_pool", format!("{backend:?}"))
         }

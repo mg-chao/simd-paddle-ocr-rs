@@ -1,9 +1,12 @@
-//! Bounded, separate-process Windows CPU benchmark contract.
+//! Bounded, separate-process CPU benchmark contract.
 #![allow(dead_code)]
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 pub const FIXTURES: [&str; 3] = ["imgs_1", "imgs_00018069", "imgs_00006737"];
+pub mod platform;
+/// Explicitly unpinned scheduling, used on macOS instead of an invented CPU mask.
+pub const UNBOUND_AFFINITY: &str = "unbound";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OrderStrategy {
     Balanced,
@@ -85,9 +88,11 @@ impl Job {
         {
             return Err("invalid benchmark job".into());
         }
-        let mask = u64::from_str_radix(self.affinity.trim_start_matches("0x"), 16)?;
-        if mask.count_ones() != self.threads as u32 {
-            return Err("affinity CPU count must equal thread budget".into());
+        if self.affinity != UNBOUND_AFFINITY {
+            let mask = u64::from_str_radix(self.affinity.trim_start_matches("0x"), 16)?;
+            if mask.count_ones() != self.threads as u32 {
+                return Err("affinity CPU count must equal thread budget".into());
+            }
         }
         Ok(())
     }
@@ -102,7 +107,10 @@ pub struct Measurement {
     pub samples_ms: Vec<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub process_cpu: Option<ProcessCpuTiming>,
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub peak_private_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peak_resident_bytes: Option<u64>,
     pub diagnostics: BTreeMap<String, u64>,
     pub result: super::baseline::CaseResult,
 }
@@ -116,9 +124,20 @@ pub struct ProcessCpuTiming {
     pub samples_ms: Vec<f64>,
 }
 impl Measurement {
+    /// Keep legacy Windows commitment and macOS resident high-water marks distinct.
+    pub fn peak_memory(&self) -> Result<(&'static str, u64)> {
+        match (self.peak_private_bytes, self.peak_resident_bytes) {
+            (private, None) if private > 0 => Ok(("peak_private_commit", private)),
+            (0, Some(resident)) if resident > 0 => Ok(("peak_resident", resident)),
+            _ => Err("exactly one positive process memory metric is required".into()),
+        }
+    }
     pub fn validate(&self, job: &Job) -> Result<()> {
+        let (metric, _) = self.peak_memory()?;
+        if (job.affinity == UNBOUND_AFFINITY) != (metric == "peak_resident") {
+            return Err("process memory metric does not match job scheduling platform".into());
+        }
         if self.samples_ms.len() != job.runs
-            || self.peak_private_bytes == 0
             || self
                 .samples_ms
                 .iter()
@@ -132,16 +151,15 @@ impl Measurement {
         {
             return Err("incomplete or invalid benchmark measurement".into());
         }
-        if let Some(cpu) = &self.process_cpu {
-            if cpu.samples_ms.len() != job.runs
+        if let Some(cpu) = &self.process_cpu
+            && (cpu.samples_ms.len() != job.runs
                 || cpu
                     .samples_ms
                     .iter()
                     .chain([&cpu.first_inference_ms, &cpu.warmup_ms])
-                    .any(|v| !v.is_finite() || *v < 0.)
-            {
-                return Err("incomplete or invalid process CPU measurement".into());
-            }
+                    .any(|v| !v.is_finite() || *v < 0.))
+        {
+            return Err("incomplete or invalid process CPU measurement".into());
         }
         self.result.validate()?;
         Ok(())
@@ -157,7 +175,7 @@ pub fn median(values: &[f64]) -> f64 {
     if n == 0 {
         return f64::NAN;
     }
-    if n % 2 == 0 {
+    if n.is_multiple_of(2) {
         (values[n / 2 - 1] + values[n / 2]) / 2.
     } else {
         values[n / 2]
@@ -205,7 +223,12 @@ impl Comparison {
         self.differences = super::baseline::compare(&self.job.model, &csharp.result, &rust.result);
         let latency = rust.median_ms() / csharp.median_ms();
         let throughput = csharp.median_ms() / rust.median_ms();
-        let memory = rust.peak_private_bytes as f64 / csharp.peak_private_bytes as f64;
+        let (rust_metric, rust_memory) = rust.peak_memory()?;
+        let (csharp_metric, csharp_memory) = csharp.peak_memory()?;
+        if rust_metric != csharp_metric {
+            return Err("cannot compare different process memory metrics".into());
+        }
+        let memory = rust_memory as f64 / csharp_memory as f64;
         self.latency_ratio = Some(latency);
         self.throughput_ratio = Some(throughput);
         self.memory_ratio = Some(memory);
@@ -274,10 +297,21 @@ pub fn coverage(cases: &[Comparison]) -> Coverage {
             }
         }
     }
-    let full = keys == required && keys.len() == cases.len();
+    let unbound = cases
+        .first()
+        .is_some_and(|c| c.job.affinity == UNBOUND_AFFINITY);
+    let full = keys == required
+        && keys.len() == cases.len()
+        && cases
+            .iter()
+            .all(|c| (c.job.affinity == UNBOUND_AFFINITY) == unbound);
     Coverage {
         scope: if full {
-            "full Windows x64 matrix"
+            if unbound {
+                "full macOS matrix"
+            } else {
+                "full Windows x64 matrix"
+            }
         } else {
             "focused comparison"
         }
@@ -299,7 +333,12 @@ pub fn write_report(path: &Path, report: &Report) -> Result<()> {
         .insert("coverage".into(), serde_json::to_value(&coverage)?);
     super::baseline::write_json(&path.join("report.json"), &json)?;
     let mut md = format!(
-        "# Windows x64 CPU comparison\n\nStatus: **{}**. One first inference, one warm-up, and 1–3 fixed measured batches per case. Throughput batches contain two concurrent owned results. Build time excluded; worker startup, model load, first inference and warm-up count toward the per-language budget.\n\n| Model | Fixture | Threads | Requests | Rust wall ms | C# wall ms | Rust CPU ms | C# CPU ms | Worker order | Rust/C# memory | Status |\n|---|---|---:|---:|---:|---:|---:|---:|---|---:|---|\n",
+        "# {} CPU comparison\n\nStatus: **{}**. One first inference, one warm-up, and 1–3 fixed measured batches per case. Throughput batches contain two concurrent owned results. Build time excluded; worker startup, model load, first inference and warm-up count toward the per-language budget.\n\n| Model | Fixture | Threads | Requests | Rust wall ms | C# wall ms | Rust CPU ms | C# CPU ms | Worker order | Rust/C# memory | Status |\n|---|---|---:|---:|---:|---:|---:|---:|---|---:|---|\n",
+        report
+            .provenance
+            .get("platform")
+            .map(String::as_str)
+            .unwrap_or("Windows x64"),
         report.status
     );
     for c in &report.cases {
@@ -342,13 +381,25 @@ pub fn write_report(path: &Path, report: &Report) -> Result<()> {
         coverage.required_case_count,
         coverage.full_qualification_passed
     ));
-    md.push_str("\nPeak private memory is Windows process peak commit (`GetProcessMemoryInfo.PeakPagefileUsage`), captured before diagnostic inspection. It includes runtime, loading, requests and retained allocations. Diagnostic counters are partial capacity/accounting data, not the memory gate. See report.json and per-worker logs for raw samples, output agreement, errors, affinity and provenance. One or two samples cannot establish a final pass; no automatic retries or sampling growth occur.\n");
+    let memory_description = if report
+        .cases
+        .first()
+        .is_some_and(|c| c.job.affinity == UNBOUND_AFFINITY)
+    {
+        "macOS process peak resident bytes (`getrusage(RUSAGE_SELF).ru_maxrss`), including shared resident pages. This is not Windows private commit. Both workers use unpinned macOS scheduling with matched OCR worker budgets; no CPU affinity or performance-core placement is guaranteed"
+    } else {
+        "Windows process peak private commit (`GetProcessMemoryInfo.PeakPagefileUsage`)"
+    };
+    md.push_str(&format!("\nMemory gate: {memory_description}. Capture occurs before diagnostic inspection and includes runtime, loading, requests and retained allocations. Diagnostic counters are partial capacity/accounting data, not the memory gate. See report.json and per-worker logs for raw samples, output agreement, errors, affinity and provenance. One or two samples cannot establish a final pass; no automatic retries or sampling growth occur.\n"));
     md.push_str(&format!(
         "\nExecution strategy: **{}**. Planned order and successfully spawned workers are recorded per case. CPU columns are medians of process-wide kernel plus user milliseconds for the same batches; they can exceed wall time when multiple threads run. CPU time is diagnostic and does not change any gate. Missing CPU/order fields in older reports remain unavailable. One warm-up is a bounded warm measurement, not evidence of steady state.\n",
         report.provenance.get("execution_order_strategy").map(String::as_str).unwrap_or("unrecorded")
     ));
     std::fs::write(path.join("report.md"), md)?;
     Ok(())
+}
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 #[cfg(windows)]
 pub mod windows {

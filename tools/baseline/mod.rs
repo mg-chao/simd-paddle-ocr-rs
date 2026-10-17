@@ -301,7 +301,7 @@ pub fn decode_frames(manifest: &Manifest, root: &Path, check_pixels: bool) -> Re
         };
         let (width, height) = rgb.dimensions();
         let mut pixels = rgb.into_raw();
-        for p in pixels.chunks_exact_mut(3) {
+        for p in pixels.as_chunks_mut::<3>().0 {
             p.swap(0, 2);
         }
         if check_pixels {

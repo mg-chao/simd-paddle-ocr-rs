@@ -139,6 +139,7 @@ mod tests {
     fn backends() -> Vec<Backend> {
         let mut result = vec![Backend::Scalar, Backend::Portable4];
         for (available, backend) in [
+            (super::super::neon_available(), Backend::NeonFma),
             (super::super::avx_available(), Backend::Avx),
             (super::super::avx_fma_available(), Backend::AvxFma),
             (super::super::avx2_fma_available(), Backend::Avx2Fma),

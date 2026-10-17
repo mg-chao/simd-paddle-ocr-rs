@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 fn native_backends() -> Vec<Backend> {
     let mut result = vec![Backend::Portable4];
     for (available, backend) in [
+        (simd::neon_available(), Backend::NeonFma),
         (simd::avx_available(), Backend::Avx),
         (simd::avx_fma_available(), Backend::AvxFma),
         (simd::avx2_fma_available(), Backend::Avx2Fma),
@@ -144,6 +145,7 @@ fn pointwise_one_two_four_eight_budgets_preserve_ordered_math_and_global_store_i
         (96, 192, 128),
         (432, 64, 80),
         (433, 273, 17),
+        (97, 191, 129),
     ] {
         let input = values(rows * inner, 3);
         let weights = values(inner * columns, 5);

@@ -468,7 +468,7 @@ fn rust_worker(
         directory.join(&model.det),
         directory.join(&model.rec),
         directory.join(&model.dictionary),
-        Some(directory.join(&model.cls)),
+        Some(&directory.join(&model.cls)),
     )?;
     let cpu = if profile.capacity == 0 {
         Arc::new(CpuContext::automatic()?)

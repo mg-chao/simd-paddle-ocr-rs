@@ -29,6 +29,7 @@ fn measurement(samples: &[f64]) -> Measurement {
         samples_ms: samples.to_vec(),
         process_cpu: None,
         peak_private_bytes: 100,
+        peak_resident_bytes: None,
         diagnostics: BTreeMap::new(),
         result: baseline::CaseResult {
             id: "imgs_1".into(),
@@ -101,6 +102,85 @@ fn missing_or_invalid_measurements_cannot_pass() {
     c.csharp.as_mut().unwrap().peak_private_bytes = 0;
     assert!(c.evaluate().is_err());
 }
+
+#[test]
+fn resident_memory_is_explicit_and_never_accepted_as_private_commit() {
+    let mut c = comparison(&[50., 50., 50.], &[100., 100., 100.]);
+    c.job.affinity = UNBOUND_AFFINITY.into();
+    c.job.validate().unwrap();
+    // Windows private commit cannot validate an unbound macOS job.
+    assert!(c.evaluate().is_err());
+    for m in [&mut c.rust, &mut c.csharp] {
+        let m = m.as_mut().unwrap();
+        m.peak_private_bytes = 0;
+        m.peak_resident_bytes = Some(100);
+    }
+    c.evaluate().unwrap();
+    assert_eq!(c.status, "passed");
+    assert_eq!(c.memory_ratio, Some(1.));
+    let raw = serde_json::to_value(c.rust.as_ref().unwrap()).unwrap();
+    assert!(raw.get("peak_private_bytes").is_none());
+    assert_eq!(raw["peak_resident_bytes"], 100);
+    let restored: Measurement = serde_json::from_value(raw).unwrap();
+    restored.validate(&c.job).unwrap();
+    for bad in [Some(0), None] {
+        c.rust.as_mut().unwrap().peak_resident_bytes = bad;
+        assert!(c.evaluate().is_err());
+    }
+    c.rust.as_mut().unwrap().peak_resident_bytes = Some(100);
+    c.rust.as_mut().unwrap().peak_private_bytes = 100;
+    assert!(c.evaluate().is_err(), "two memory metrics are ambiguous");
+    c.rust.as_mut().unwrap().peak_resident_bytes = None;
+    assert!(
+        c.evaluate().is_err(),
+        "cross-platform metrics cannot be compared"
+    );
+    c.job.affinity = "1".into();
+    assert!(c.evaluate().is_err(), "RSS cannot validate a Windows job");
+}
+
+#[test]
+fn macos_reports_label_rss_and_unpinned_scheduling() {
+    let mut c = comparison(&[50.; 3], &[100.; 3]);
+    c.job.affinity = UNBOUND_AFFINITY.into();
+    for m in [&mut c.rust, &mut c.csharp] {
+        let m = m.as_mut().unwrap();
+        m.peak_private_bytes = 0;
+        m.peak_resident_bytes = Some(100);
+    }
+    c.evaluate().unwrap();
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/macos-report-contract-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&path).unwrap();
+    let report = Report {
+        schema_version: 2,
+        status: "passed".into(),
+        provenance: BTreeMap::from([("platform".into(), "macos aarch64".into())]),
+        budget_seconds_per_language: 60,
+        elapsed_seconds_per_language: BTreeMap::new(),
+        cases: vec![c],
+    };
+    write_report(&path, &report).unwrap();
+    let md = std::fs::read_to_string(path.join("report.md")).unwrap();
+    assert!(md.starts_with("# macos aarch64 CPU comparison"));
+    assert!(md.contains("peak resident bytes"));
+    assert!(md.contains("unpinned macOS scheduling"));
+    let value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(path.join("report.json")).unwrap()).unwrap();
+    assert!(
+        !value["coverage"]["full_qualification_passed"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        value["cases"][0]["rust"]
+            .get("peak_private_bytes")
+            .is_none()
+    );
+    std::fs::remove_dir_all(path).unwrap();
+}
 #[test]
 fn jobs_are_bounded_and_affinity_is_matched() {
     let j = job();
@@ -138,6 +218,17 @@ fn focused_and_duplicate_jobs_cannot_complete_the_full_matrix() {
         }
     }
     assert!(coverage(&cases).full_qualification_passed);
+    for case in &mut cases {
+        case.job.affinity = UNBOUND_AFFINITY.into();
+    }
+    assert_eq!(coverage(&cases).scope, "full macOS matrix");
+    assert!(coverage(&cases).full_qualification_passed);
+    cases[0].job.affinity = "1".into();
+    assert!(
+        !coverage(&cases).full_qualification_passed,
+        "mixed platform jobs cannot qualify one host"
+    );
+    cases[0].job.affinity = UNBOUND_AFFINITY.into();
     let missing = cases.pop().unwrap();
     assert!(!coverage(&cases).full_qualification_passed);
     cases.push(missing);

@@ -1,0 +1,998 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-17",
+  "purpose": "Validate a selective inline AVX2/FMA NHWC pointwise kernel that removes the per-six-row Windows vector save/restore and tile-return boundary without changing packed weights or arithmetic order.",
+  "status": "completed_fixed_scope",
+  "assessment": "Retained only the short-reduction inline kernel. Final kernel medians were 1.97-3.92% lower, but all final observed sample ranges overlap. Small and Medium full-page medians were 0.83% and 0.36% higher respectively, also within overlapping ranges. These bounded measurements do not establish an end-to-end dense-page latency improvement. The new path is a modest kernel-level optimization candidate, not a claim that the dominant large-channel recognition work has been accelerated.",
+  "source_commit": "052180d7f65359c0b2279bf43406b0ed043d5c8c",
+  "selected_dispatch": {
+    "os": "windows",
+    "architecture": "x86_64",
+    "backend": "Avx2Fma",
+    "minimum_input_channels": 96,
+    "maximum_input_channels": 192,
+    "minimum_output_channels": 128
+  },
+  "arithmetic_contract": "Bias-first ascending-K fused multiply-add; no split reduction, reassociation, quantization, new weight packing or scratch allocation. Existing final-store transforms handle fused activations, residuals and tails.",
+  "machine": {
+    "cpu": "AMD Ryzen 9 5950X 16-Core Processor",
+    "os_reported_cores": 12,
+    "os_reported_logical_processors": 24,
+    "os": "Windows 11 Pro 10.0.26300",
+    "physical_local_execution": true
+  },
+  "rustc": "rustc 1.100.0-nightly (cea272fa3 2026-09-07)\nbinary: rustc\ncommit-hash: cea272fa356e94bd2ee2cadf376630aa0683867a\ncommit-date: 2026-09-07\nhost: x86_64-pc-windows-msvc\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+  "build": "cargo build --release --locked --example cpu_benchmark; default features; no profiling or custom Rust flags",
+  "executable_sha256": {
+    "baseline": "8bff7a1a05f76dbbecef7faf4d5db1e5a313cb3316ad2f4e8dd0d1114e157346",
+    "candidate": "ce1c9a78ce73e43e0d94d7201f33e25481c622972fafa6ddfdc09e844a0dd1fc"
+  },
+  "candidate_changed_runtime_source_sha256": {
+    "src/runtime/nhwc/parallel_tests.rs": "444acd3737f2b67b44063207afe4f7ddc91a67f53fca020d5fd537d9a7fb7d02",
+    "src/runtime/nhwc/pointwise/avx2/tests.rs": "3b77258f78e13833722ffbf1bda7762135b93218bc2062ed887490fe575ea234",
+    "src/runtime/nhwc/pointwise/avx2.rs": "a47573d44af412492e8f9861f405e46b026671afb6c75508c881229ee52d2552",
+    "src/runtime/nhwc/pointwise/tests.rs": "da1323c01887720d0b8148724a5bf8bf57949156e6daad3c0ef57e684af10b5b",
+    "src/runtime/nhwc/pointwise.rs": "5bc78a6f5e608fd1855b3f101d60c4fb63a293e3e26158379ca97d0b057c09d5",
+    "src/runtime/nhwc.rs": "5c25e200d386039d5b52ff9619a442afbd8a38e69d688cd50689b1af503a0dc6",
+    "src/runtime/optimized.rs": "dd81a4a082f77ac0a9756e87ff76cca83b2973d2119686af8ba1eed47a2df26e"
+  },
+  "harness_and_build_source_sha256": {
+    "Cargo.lock": "8c38fef11dfb812509986378a278c81554bca54c8b56fb877cf86895b2759288",
+    "Cargo.toml": "2a82a7beed1c6e80908fe9849d1ca311c430f9d2478715d401da60b1a57202a6",
+    "examples/cpu_benchmark.rs": "de8c00c8dd49d3cf6f529e937e64661a6c77886ab728a2b2b6a64339dde96224",
+    "rust-toolchain.toml": "1d405aef485d32fe4c42ed6221a40ca825b3a7553ca19675de936747cc4b277a",
+    "tools/baseline/mod.rs": "344e3c88b6daae059f84d7ac15e26cdf532d4f58e31b744ec66d42366e155044",
+    "tools/benchmark/mod.rs": "e68ce33a5cea58078a88e848099f5c78218d1c7441247b9dea2c3870cda394ef",
+    "tools/benchmark/platform.rs": "467051d8d9371b536b13a869378ecb170eeb1ac25c22156efa025c149495b5e7",
+    "tools/harness/mod.rs": "ef797c623cd4ed51334b0bf7a1662fd47cd2318e9c0c63a8bb1ca3eb88bdff0f"
+  },
+  "manifest_sha256": "0ecc7c2634c3da2d2bee2ee7021d6abe91f2685cc9b64fc34d8db6ebcf5e440e",
+  "validation": {
+    "focused_command": "cargo test --release --locked --lib pointwise -- --test-threads=1",
+    "focused_passed": 21,
+    "focused_ignored": 3,
+    "full_command": "cargo test --release --locked -- --test-threads=1",
+    "suite_order": [
+      "library",
+      "baseline_contract",
+      "benchmark_contract",
+      "harness_contract",
+      "import_contract",
+      "public_contract",
+      "qualification_contract",
+      "doc_tests"
+    ],
+    "suite_results": [
+      {
+        "passed": 323,
+        "failed": 0,
+        "ignored": 10,
+        "seconds": 3.91
+      },
+      {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.09
+      },
+      {
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.0
+      },
+      {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 1,
+        "seconds": 6.41
+      },
+      {
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.1
+      },
+      {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.0
+      },
+      {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.0
+      },
+      {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "seconds": 0.33
+      }
+    ],
+    "full_test_log_sha256": "70eff73092d20407e460e815b8d0002c624f6b272c91f04482f242d059c28b02",
+    "additional_checks": [
+      "cargo check --locked --no-default-features --lib",
+      "cargo clippy --locked --lib -- -D warnings",
+      "rustfmt --check on changed Rust files",
+      "git diff --check"
+    ],
+    "known_warning": "Existing unused UNBOUND_AFFINITY import in the benchmark harness; library clippy uses -D warnings."
+  },
+  "kernel_comparison": {
+    "command": "cargo test --release --locked --lib runtime::nhwc::pointwise::avx2::tests::inline_pointwise_comparison -- --exact --ignored --nocapture --test-threads=1",
+    "affinity": "One logical CPU: lowest bit of inherited process affinity",
+    "configuration": "Original full-K AVX2/FMA versus production dispatcher in the same release test executable, identity final store, one warm-up per variant and three single-call samples per shape, alternating AB/BA/AB",
+    "execution": {
+      "elapsed_seconds": 0.1059055,
+      "exit_code": 0,
+      "executable_sha256": "43725E91B7A33A636C1A73B438C1F34BC7B2D6C2A2A677851CECF59661BF1F36",
+      "deadline_seconds": 15
+    },
+    "cases": [
+      {
+        "calls_per_sample": 1,
+        "columns": 192,
+        "equal_bits": true,
+        "full_k": true,
+        "full_k_ms": [
+          0.1661,
+          0.1146,
+          0.1148
+        ],
+        "inline_ms": [
+          0.1306,
+          0.1103,
+          0.1091
+        ],
+        "inner": 96,
+        "rows": 384,
+        "warmups_per_variant": 1,
+        "baseline_median_ms": 0.1148,
+        "candidate_median_ms": 0.1103,
+        "latency_reduction_percent": 3.919860627177707,
+        "observed_ranges_overlap": true
+      },
+      {
+        "calls_per_sample": 1,
+        "columns": 256,
+        "equal_bits": true,
+        "full_k": true,
+        "full_k_ms": [
+          1.0034,
+          1.0162,
+          1.0009000000000001
+        ],
+        "inline_ms": [
+          1.0142,
+          0.9836,
+          0.9729
+        ],
+        "inner": 128,
+        "rows": 1920,
+        "warmups_per_variant": 1,
+        "baseline_median_ms": 1.0034,
+        "candidate_median_ms": 0.9836,
+        "latency_reduction_percent": 1.973290811241779,
+        "observed_ranges_overlap": true
+      },
+      {
+        "calls_per_sample": 1,
+        "columns": 384,
+        "equal_bits": true,
+        "full_k": true,
+        "full_k_ms": [
+          0.21660000000000001,
+          0.22269999999999998,
+          0.22440000000000002
+        ],
+        "inline_ms": [
+          0.2141,
+          0.2142,
+          0.2318
+        ],
+        "inner": 192,
+        "rows": 192,
+        "warmups_per_variant": 1,
+        "baseline_median_ms": 0.22269999999999998,
+        "candidate_median_ms": 0.2142,
+        "latency_reduction_percent": 3.8167938931297662,
+        "observed_ranges_overlap": true
+      }
+    ]
+  },
+  "page_comparison": {
+    "configuration": "Three fixed cases; 8-thread shared pool, affinity ff, one request, automatic SIMD and scheduling, batch size 1, adaptive recognition width; no profiling or build during timing",
+    "repetitions_per_version_per_case": {
+      "separately_reported_cold_batch": 1,
+      "warmup": 1,
+      "measured_batches": 3
+    },
+    "process_deadline_seconds": 15,
+    "execution_seconds_per_version": {
+      "baseline": 5.494571299997915,
+      "candidate": 5.8114497999958985
+    },
+    "script_sha256": "aea19e45428807905424af41dd8fc6f11e9cffb8d0ce99942f294a91881285f6",
+    "cases": [
+      {
+        "job": {
+          "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+          "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+          "model": "small",
+          "fixture": "imgs_00018069",
+          "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792221478849-17784\\imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "ff"
+        },
+        "execution_order": [
+          "baseline",
+          "candidate"
+        ],
+        "complete_outputs_exactly_equal": true,
+        "summary": {
+          "baseline_median_ms": 197.4253,
+          "candidate_median_ms": 199.0606,
+          "latency_reduction_percent": -0.8283132911536706,
+          "observed_ranges_overlap": true,
+          "baseline_peak_private_bytes": 115965952,
+          "candidate_peak_private_bytes": 115290112
+        },
+        "baseline": {
+          "first_inference_ms": 207.1839,
+          "warmup_ms": 196.7537,
+          "samples_ms": [
+            197.4253,
+            196.5377,
+            198.776
+          ],
+          "peak_private_bytes": 115965952,
+          "diagnostics": {
+            "normalized_weight_bytes": 31845632,
+            "retained_activation_bytes": 26880000,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+            "retained_requests": 1,
+            "retained_workspace_bytes": 17888311,
+            "shared_cached_weight_bytes": 31882304
+          },
+          "result_sha256": "2ef871823f88dc9bf67fcd9499ff8c11f55cb33951198cf030a68def8273212e",
+          "detected_count": 69
+        },
+        "candidate": {
+          "first_inference_ms": 210.785,
+          "warmup_ms": 198.7769,
+          "samples_ms": [
+            199.0606,
+            197.76170000000002,
+            199.7099
+          ],
+          "peak_private_bytes": 115290112,
+          "diagnostics": {
+            "normalized_weight_bytes": 31845632,
+            "retained_activation_bytes": 26880000,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 24576,
+            "retained_requests": 1,
+            "retained_workspace_bytes": 17888311,
+            "shared_cached_weight_bytes": 31882304
+          },
+          "result_sha256": "2ef871823f88dc9bf67fcd9499ff8c11f55cb33951198cf030a68def8273212e",
+          "detected_count": 69
+        }
+      },
+      {
+        "job": {
+          "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+          "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+          "model": "medium",
+          "fixture": "imgs_00018069",
+          "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792221478849-17784\\imgs_00018069.bgr",
+          "pixel_sha256": "56a72b4007824149794e776783aeed745a756566033d3e2204d6b1c5b871c463",
+          "width": 430,
+          "height": 267,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "ff"
+        },
+        "execution_order": [
+          "candidate",
+          "baseline"
+        ],
+        "complete_outputs_exactly_equal": true,
+        "summary": {
+          "baseline_median_ms": 751.5075,
+          "candidate_median_ms": 754.1968999999999,
+          "latency_reduction_percent": -0.35786735328653396,
+          "observed_ranges_overlap": true,
+          "baseline_peak_private_bytes": 353116160,
+          "candidate_peak_private_bytes": 353243136
+        },
+        "baseline": {
+          "first_inference_ms": 760.1952,
+          "warmup_ms": 756.6324,
+          "samples_ms": [
+            736.4202,
+            751.5075,
+            759.0008
+          ],
+          "peak_private_bytes": 353116160,
+          "diagnostics": {
+            "normalized_weight_bytes": 138874476,
+            "retained_activation_bytes": 49227776,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+            "retained_requests": 1,
+            "retained_workspace_bytes": 18345237,
+            "shared_cached_weight_bytes": 138618304
+          },
+          "result_sha256": "de6c84662107994fee9e0631ed535b32648dbdf33a51dc9bf1ecda8f432c05b1",
+          "detected_count": 69
+        },
+        "candidate": {
+          "first_inference_ms": 753.4516,
+          "warmup_ms": 731.4947000000001,
+          "samples_ms": [
+            742.2532,
+            754.1968999999999,
+            755.8424
+          ],
+          "peak_private_bytes": 353243136,
+          "diagnostics": {
+            "normalized_weight_bytes": 138874476,
+            "retained_activation_bytes": 49227776,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 65536,
+            "retained_requests": 1,
+            "retained_workspace_bytes": 18345237,
+            "shared_cached_weight_bytes": 138618304
+          },
+          "result_sha256": "de6c84662107994fee9e0631ed535b32648dbdf33a51dc9bf1ecda8f432c05b1",
+          "detected_count": 69
+        }
+      },
+      {
+        "job": {
+          "manifest": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\tests/baseline/manifest.json",
+          "models": "D:\\simd-paddle-ocr-workspace\\SimdPaddleOCR\\models",
+          "model": "tiny",
+          "fixture": "imgs_1",
+          "pixels": "D:\\simd-paddle-ocr-workspace\\simd-paddle-ocr-rs\\target/cpu-benchmark/1792221478849-17784\\imgs_1.bgr",
+          "pixel_sha256": "ae5ff3ad9b5ac12de55aaf2d097a00ec3781ccd829a11884b7d97b0ea09bda63",
+          "width": 720,
+          "height": 1150,
+          "threads": 8,
+          "concurrency": 1,
+          "runs": 3,
+          "affinity": "ff"
+        },
+        "execution_order": [
+          "baseline",
+          "candidate"
+        ],
+        "complete_outputs_exactly_equal": true,
+        "summary": {
+          "baseline_median_ms": 47.3825,
+          "candidate_median_ms": 45.622099999999996,
+          "latency_reduction_percent": 3.715295731546464,
+          "observed_ranges_overlap": true,
+          "baseline_peak_private_bytes": 67661824,
+          "candidate_peak_private_bytes": 67629056
+        },
+        "baseline": {
+          "first_inference_ms": 52.2443,
+          "warmup_ms": 45.7071,
+          "samples_ms": [
+            47.4095,
+            45.943,
+            47.3825
+          ],
+          "peak_private_bytes": 67661824,
+          "diagnostics": {
+            "normalized_weight_bytes": 7096348,
+            "retained_activation_bytes": 40960000,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+            "retained_requests": 1,
+            "retained_workspace_bytes": 5515636,
+            "shared_cached_weight_bytes": 7117184
+          },
+          "result_sha256": "2a786f24cffe5512caa261d5a7d34ed550c81dda45036da002ac45f3c8f56c0a",
+          "detected_count": 3
+        },
+        "candidate": {
+          "first_inference_ms": 54.632600000000004,
+          "warmup_ms": 49.004,
+          "samples_ms": [
+            46.172900000000006,
+            44.9482,
+            45.622099999999996
+          ],
+          "peak_private_bytes": 67629056,
+          "diagnostics": {
+            "normalized_weight_bytes": 7096348,
+            "retained_activation_bytes": 40960000,
+            "retained_kernel_scratch_bytes_subset_of_workspace": 16384,
+            "retained_requests": 1,
+            "retained_workspace_bytes": 5515636,
+            "shared_cached_weight_bytes": 7117184
+          },
+          "result_sha256": "2a786f24cffe5512caa261d5a7d34ed550c81dda45036da002ac45f3c8f56c0a",
+          "detected_count": 3
+        }
+      }
+    ]
+  },
+  "rejected_experiments": [
+    {
+      "version": "v1_ordered_kc256",
+      "decision": "Regressed the two larger products despite a small gain at 768 input channels.",
+      "cases": [
+        {
+          "blocked_ms": [
+            0.4253,
+            0.4229,
+            0.4148
+          ],
+          "calls_per_sample": 1,
+          "columns": 384,
+          "equal_bits": true,
+          "full_k_ms": [
+            0.4321,
+            0.4389,
+            0.43179999999999996
+          ],
+          "inner": 768,
+          "kc": 256,
+          "rows": 96,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.4321,
+          "candidate_median_ms": 0.4229,
+          "latency_reduction_percent": 2.129136773894924,
+          "observed_ranges_overlap": false
+        },
+        {
+          "blocked_ms": [
+            7.9036,
+            7.666,
+            7.62
+          ],
+          "calls_per_sample": 1,
+          "columns": 1024,
+          "equal_bits": true,
+          "full_k_ms": [
+            7.430400000000001,
+            7.3864,
+            7.31
+          ],
+          "inner": 512,
+          "kc": 256,
+          "rows": 960,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 7.3864,
+          "candidate_median_ms": 7.666,
+          "latency_reduction_percent": -3.7853352106574256,
+          "observed_ranges_overlap": false
+        },
+        {
+          "blocked_ms": [
+            8.4715,
+            8.4422,
+            8.4995
+          ],
+          "calls_per_sample": 1,
+          "columns": 768,
+          "equal_bits": true,
+          "full_k_ms": [
+            8.2432,
+            8.1896,
+            8.2639
+          ],
+          "inner": 1536,
+          "kc": 256,
+          "rows": 480,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 8.2432,
+          "candidate_median_ms": 8.4715,
+          "latency_reduction_percent": -2.7695555124223725,
+          "observed_ranges_overlap": false
+        }
+      ]
+    },
+    {
+      "version": "v2_input_packing_kc256",
+      "decision": "Regressed every sampled product; packing and partial-output traffic did not pay off.",
+      "cases": [
+        {
+          "blocked_ms": [
+            0.437,
+            0.43600000000000005,
+            0.4512
+          ],
+          "calls_per_sample": 1,
+          "columns": 384,
+          "equal_bits": true,
+          "full_k_ms": [
+            0.4063,
+            0.42969999999999997,
+            0.4062
+          ],
+          "inner": 768,
+          "kc": 256,
+          "rows": 96,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.4063,
+          "candidate_median_ms": 0.437,
+          "latency_reduction_percent": -7.555993108540493,
+          "observed_ranges_overlap": false
+        },
+        {
+          "blocked_ms": [
+            7.6629000000000005,
+            7.7447,
+            7.6997
+          ],
+          "calls_per_sample": 1,
+          "columns": 1024,
+          "equal_bits": true,
+          "full_k_ms": [
+            7.4622,
+            7.33,
+            7.3863
+          ],
+          "inner": 512,
+          "kc": 256,
+          "rows": 960,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 7.3863,
+          "candidate_median_ms": 7.6997,
+          "latency_reduction_percent": -4.242990401148061,
+          "observed_ranges_overlap": false
+        },
+        {
+          "blocked_ms": [
+            8.781799999999999,
+            8.8073,
+            8.733400000000001
+          ],
+          "calls_per_sample": 1,
+          "columns": 768,
+          "equal_bits": true,
+          "full_k_ms": [
+            8.0675,
+            8.2085,
+            8.1516
+          ],
+          "inner": 1536,
+          "kc": 256,
+          "rows": 480,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 8.1516,
+          "candidate_median_ms": 8.781799999999999,
+          "latency_reduction_percent": -7.7309975955640375,
+          "observed_ranges_overlap": false
+        }
+      ]
+    },
+    {
+      "version": "v3_inline_full_k",
+      "decision": "No clear large-product improvement.",
+      "cases": [
+        {
+          "calls_per_sample": 1,
+          "columns": 384,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            0.4249,
+            0.4138,
+            0.4939
+          ],
+          "inline_ms": [
+            0.4127,
+            0.4268,
+            0.4223
+          ],
+          "inner": 768,
+          "rows": 96,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.4249,
+          "candidate_median_ms": 0.4223,
+          "latency_reduction_percent": 0.6119086843963228,
+          "observed_ranges_overlap": true
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 1024,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            7.8003,
+            7.7275,
+            7.5327
+          ],
+          "inline_ms": [
+            7.8825,
+            7.7200999999999995,
+            7.5100999999999996
+          ],
+          "inner": 512,
+          "rows": 960,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 7.7275,
+          "candidate_median_ms": 7.7200999999999995,
+          "latency_reduction_percent": 0.09576188935620511,
+          "observed_ranges_overlap": true
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 768,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            8.308,
+            8.298,
+            8.266
+          ],
+          "inline_ms": [
+            8.2312,
+            8.1329,
+            8.2825
+          ],
+          "inner": 1536,
+          "rows": 480,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 8.298,
+          "candidate_median_ms": 8.2312,
+          "latency_reduction_percent": 0.8050132562063217,
+          "observed_ranges_overlap": true
+        }
+      ]
+    },
+    {
+      "version": "v4_explicit_row_stores",
+      "decision": "Useful short-product signal; no clear benefit for larger reductions.",
+      "cases": [
+        {
+          "calls_per_sample": 1,
+          "columns": 192,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            0.1363,
+            0.11739999999999999,
+            0.1146
+          ],
+          "inline_ms": [
+            0.1144,
+            0.1069,
+            0.107
+          ],
+          "inner": 96,
+          "rows": 384,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.11739999999999999,
+          "candidate_median_ms": 0.107,
+          "latency_reduction_percent": 8.85860306643952,
+          "observed_ranges_overlap": false
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 768,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            0.4289,
+            0.4115,
+            0.4084
+          ],
+          "inline_ms": [
+            0.40640000000000004,
+            0.4086,
+            0.4986
+          ],
+          "inner": 384,
+          "rows": 96,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.4115,
+          "candidate_median_ms": 0.4086,
+          "latency_reduction_percent": 0.7047387606318289,
+          "observed_ranges_overlap": true
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 1024,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            7.4824,
+            7.6560999999999995,
+            7.3942
+          ],
+          "inline_ms": [
+            7.5438,
+            7.4510000000000005,
+            7.4419
+          ],
+          "inner": 512,
+          "rows": 960,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 7.4824,
+          "candidate_median_ms": 7.4510000000000005,
+          "latency_reduction_percent": 0.4196514487330272,
+          "observed_ranges_overlap": true
+        }
+      ]
+    },
+    {
+      "version": "v5_dispatch_through_k256",
+      "decision": "Medium page median regressed by 2.41%; rejected the wider dispatch.",
+      "cases": [
+        {
+          "calls_per_sample": 1,
+          "columns": 192,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            0.132,
+            0.1138,
+            0.114
+          ],
+          "inline_ms": [
+            0.1094,
+            0.10959999999999999,
+            0.10900000000000001
+          ],
+          "inner": 96,
+          "rows": 384,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.114,
+          "candidate_median_ms": 0.1094,
+          "latency_reduction_percent": 4.035087719298247,
+          "observed_ranges_overlap": false
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 384,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            0.21589999999999998,
+            0.2268,
+            0.2164
+          ],
+          "inline_ms": [
+            0.2112,
+            0.21139999999999998,
+            0.2493
+          ],
+          "inner": 192,
+          "rows": 192,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.2164,
+          "candidate_median_ms": 0.21139999999999998,
+          "latency_reduction_percent": 2.31053604436231,
+          "observed_ranges_overlap": true
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 512,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            3.8775,
+            3.7659,
+            3.8293
+          ],
+          "inline_ms": [
+            3.8611,
+            3.7772,
+            3.7103
+          ],
+          "inner": 256,
+          "rows": 1920,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 3.8293,
+          "candidate_median_ms": 3.7772,
+          "latency_reduction_percent": 1.3605619826077775,
+          "observed_ranges_overlap": true
+        }
+      ],
+      "page_summaries": [
+        {
+          "model": "small",
+          "summary": {
+            "baseline_median_ms": 201.9256,
+            "candidate_median_ms": 198.12630000000001,
+            "latency_reduction_percent": 1.8815345850154652,
+            "observed_ranges_overlap": true,
+            "baseline_peak_private_bytes": 115027968,
+            "candidate_peak_private_bytes": 114712576
+          }
+        },
+        {
+          "model": "medium",
+          "summary": {
+            "baseline_median_ms": 735.2627,
+            "candidate_median_ms": 752.9819,
+            "latency_reduction_percent": -2.409914170812688,
+            "observed_ranges_overlap": false,
+            "baseline_peak_private_bytes": 353075200,
+            "candidate_peak_private_bytes": 352636928
+          }
+        },
+        {
+          "model": "tiny",
+          "summary": {
+            "baseline_median_ms": 47.248,
+            "candidate_median_ms": 45.5583,
+            "latency_reduction_percent": 3.5762360311547448,
+            "observed_ranges_overlap": false,
+            "baseline_peak_private_bytes": 67756032,
+            "candidate_peak_private_bytes": 67936256
+          }
+        }
+      ]
+    },
+    {
+      "version": "v6_two_step_reduction",
+      "decision": "No large-product benefit; discarded loop unrolling.",
+      "cases": [
+        {
+          "calls_per_sample": 1,
+          "columns": 192,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            0.1292,
+            0.12469999999999999,
+            0.1176
+          ],
+          "inline_ms": [
+            0.1139,
+            0.1148,
+            0.1105
+          ],
+          "inner": 96,
+          "rows": 384,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 0.12469999999999999,
+          "candidate_median_ms": 0.1139,
+          "latency_reduction_percent": 8.660785886126698,
+          "observed_ranges_overlap": false
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 1024,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            7.6212,
+            7.6717,
+            7.4719
+          ],
+          "inline_ms": [
+            8.0731,
+            7.825199999999999,
+            7.589300000000001
+          ],
+          "inner": 512,
+          "rows": 960,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 7.6212,
+          "candidate_median_ms": 7.825199999999999,
+          "latency_reduction_percent": -2.6767438198708637,
+          "observed_ranges_overlap": true
+        },
+        {
+          "calls_per_sample": 1,
+          "columns": 768,
+          "equal_bits": true,
+          "full_k": true,
+          "full_k_ms": [
+            8.3359,
+            8.170399999999999,
+            8.1575
+          ],
+          "inline_ms": [
+            8.172799999999999,
+            8.2148,
+            8.1788
+          ],
+          "inner": 1536,
+          "rows": 480,
+          "warmups_per_variant": 1,
+          "baseline_median_ms": 8.170399999999999,
+          "candidate_median_ms": 8.1788,
+          "latency_reduction_percent": -0.10281014393422883,
+          "observed_ranges_overlap": true
+        }
+      ]
+    }
+  ],
+  "pre_annotation_kernel_comparison": {
+    "note": "Same selected algorithm before the final Clippy fix made the inferred transmute types explicit. Kept separate; final-source results follow a fresh release build and are not pooled with these samples.",
+    "cases": [
+      {
+        "calls_per_sample": 1,
+        "columns": 192,
+        "equal_bits": true,
+        "full_k": true,
+        "full_k_ms": [
+          0.1157,
+          0.1153,
+          0.1155
+        ],
+        "inline_ms": [
+          0.1099,
+          0.1098,
+          0.1095
+        ],
+        "inner": 96,
+        "rows": 384,
+        "warmups_per_variant": 1,
+        "baseline_median_ms": 0.1155,
+        "candidate_median_ms": 0.1098,
+        "latency_reduction_percent": 4.935064935064948,
+        "observed_ranges_overlap": false
+      },
+      {
+        "calls_per_sample": 1,
+        "columns": 256,
+        "equal_bits": true,
+        "full_k": true,
+        "full_k_ms": [
+          1.0181,
+          1.0127000000000002,
+          1.0219
+        ],
+        "inline_ms": [
+          1.0056,
+          0.9835,
+          0.9844
+        ],
+        "inner": 128,
+        "rows": 1920,
+        "warmups_per_variant": 1,
+        "baseline_median_ms": 1.0181,
+        "candidate_median_ms": 0.9844,
+        "latency_reduction_percent": 3.310087417738916,
+        "observed_ranges_overlap": false
+      },
+      {
+        "calls_per_sample": 1,
+        "columns": 384,
+        "equal_bits": true,
+        "full_k": true,
+        "full_k_ms": [
+          0.2171,
+          0.2175,
+          0.2173
+        ],
+        "inline_ms": [
+          0.2141,
+          0.2216,
+          0.214
+        ],
+        "inner": 192,
+        "rows": 192,
+        "warmups_per_variant": 1,
+        "baseline_median_ms": 0.2173,
+        "candidate_median_ms": 0.2141,
+        "latency_reduction_percent": 1.4726184997698955,
+        "observed_ranges_overlap": true
+      }
+    ]
+  },
+  "limits": [
+    "Measured locally on one Windows AVX2 host; no ARM, AVX-512, other operating system or full-corpus qualification claimed.",
+    "Three fixed measured samples describe observed variation, not statistical confidence. Results from different candidate versions are not pooled.",
+    "Page timings are complete OCR latency, not isolated recognition stage latency. Serial backbone percentages must not be multiplied into a claimed page-level gain.",
+    "All cold, warm and measured calls count toward the 60-second per-version performance budget; build time is excluded."
+  ],
+  "full_qualification_passed": false,
+  "local_raw_artifacts": "target/pointwise-blocking-20261017"
+}

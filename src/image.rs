@@ -1,22 +1,10 @@
 //! Checked borrowed interleaved images. Alpha is ignored by OCR processing.
-use std::fmt;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ImageError(String);
-impl ImageError {
-    pub fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
-    }
-}
-impl fmt::Display for ImageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-impl std::error::Error for ImageError {}
+crate::error::stage_error!(ImageError, InvalidInput);
+
 impl From<crate::runtime::RuntimeError> for ImageError {
     fn from(value: crate::runtime::RuntimeError) -> Self {
-        Self::new(value.to_string())
+        Self::caused_by(value.kind(), "runtime", value)
     }
 }
 pub type ImageResult<T> = Result<T, ImageError>;
@@ -128,18 +116,26 @@ pub(crate) fn resize_vec<T: Default + Clone>(
         ));
     }
     if values.len() < length {
-        values
-            .try_reserve(length - values.len())
-            .map_err(|e| ImageError::new(format!("workspace allocation failed: {e}")))?;
+        values.try_reserve(length - values.len()).map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "workspace allocation failed",
+                e,
+            )
+        })?;
         values.resize(length, T::default());
     }
     Ok(())
 }
 pub(crate) fn push<T>(values: &mut Vec<T>, value: T) -> ImageResult<()> {
     if values.len() == values.capacity() {
-        values
-            .try_reserve(1)
-            .map_err(|e| ImageError::new(format!("workspace allocation failed: {e}")))?;
+        values.try_reserve(1).map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "workspace allocation failed",
+                e,
+            )
+        })?;
     }
     values.push(value);
     Ok(())

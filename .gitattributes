@@ -5,3 +5,5 @@
 /tests/baseline/corpus/* binary
 # Preserve the upstream license bytes and recorded provenance checksums.
 /licenses/*.txt text eol=lf
+# Keep native shell entry points usable after Windows checkouts too.
+*.sh text eol=lf

@@ -3,12 +3,31 @@
 //! Each input row is sliced before reduction. Zipped row/panel iterators keep
 //! indexing checks outside K, and paired low/high updates shorten broadcast
 //! lifetimes while all twelve AVX accumulators remain live. No convolution
-//! origins or reduction-block scratch is needed. The isolated AVX tile returns
-//! its completed six-row accumulators once, outside the reduction loop.
+//! origins or reduction-block scratch is needed. Short Windows x64 AVX2
+//! reductions inline a register-contained loop to avoid per-tile ABI overhead;
+//! larger reductions keep the isolated AVX tile.
 use super::*;
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+mod avx2;
+#[cfg(target_arch = "aarch64")]
+pub(super) mod neon;
 
 const ROWS: usize = 6;
 const GROUP_ROWS: usize = ROWS * 8;
+
+/// Short reductions amortize the Windows vector save/restore and tile-return
+/// boundary poorly. Larger reductions did not benefit in local measurements.
+/// Keep other ISAs/platforms and large full-K panels on their existing tiles.
+pub(in crate::runtime) fn inline_avx2_eligible(
+    backend: Backend,
+    inner: usize,
+    columns: usize,
+) -> bool {
+    cfg!(all(target_arch = "x86_64", target_os = "windows"))
+        && backend == Backend::Avx2Fma
+        && (96..=192).contains(&inner)
+        && columns >= 128
+}
 
 pub(super) fn avx_group_rows(inner: usize, columns: usize) -> usize {
     // Reduce repeated weight-matrix traversals in channel-heavy recognition
@@ -52,6 +71,14 @@ pub(super) fn execute(
             narrow::<1, false>(input, bias, packed, output, first, inner, columns, store)
         }
         Backend::Portable4 => portable(input, bias, packed, output, first, inner, columns, store),
+        Backend::NeonFma => {
+            #[cfg(target_arch = "aarch64")]
+            // SAFETY: CompiledModel validates the selected NEON/FMA policy;
+            // the checked input and packed spans cover every complete tile.
+            unsafe {
+                neon::execute(input, bias, packed, output, first, inner, columns, store)
+            }
+        }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validates the selected AVX policy.
@@ -70,6 +97,11 @@ pub(super) fn execute(
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validates AVX2 and FMA.
             unsafe {
+                #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+                if inline_avx2_eligible(backend, inner, columns) {
+                    avx2::execute(input, bias, packed, output, first, inner, columns, store);
+                    return;
+                }
                 avx2(input, bias, packed, output, first, inner, columns, store)
             }
         }
@@ -222,6 +254,7 @@ tile_kernel!(tile_fma, "avx,fma", true);
 
 /// The AVX policies use two eight-lane vectors per row. Keep each broadcast
 /// next to both updates instead of keeping six broadcasts live across halves.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 fn wide<const LANES: usize, const FUSED: bool>(
@@ -238,7 +271,8 @@ fn wide<const LANES: usize, const FUSED: bool>(
 }
 
 /// A zero fixed group selects production's shape policy. Test-only controls
-/// instantiate 48 directly; the six-row ISA reduction remains the same leaf.
+/// can select a fixed group; the six-row ISA reduction remains the same leaf.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>(
@@ -294,8 +328,8 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>
 }
 
 /// Both halves of a paired diagnostic enter the same checked native wrapper.
-/// `FIXED_GROUP=48` is the old policy; zero is the production adaptive policy.
-#[cfg(test)]
+/// Zero selects production; 48 is the old policy and 192 is a diagnostic only.
+#[cfg(all(test, any(target_arch = "x86", target_arch = "x86_64")))]
 pub(super) fn execute_group_control<const FIXED_GROUP: usize>(
     input: &[f32],
     bias: &[f32],
@@ -304,7 +338,7 @@ pub(super) fn execute_group_control<const FIXED_GROUP: usize>(
     inner: usize,
     columns: usize,
 ) {
-    assert!(matches!(FIXED_GROUP, 0 | 48));
+    assert!(matches!(FIXED_GROUP, 0 | 48 | 192));
     assert!(simd::avx2_fma_available());
     assert!(packed.matches(inner, columns));
     assert_eq!(output.len() % columns, 0);
@@ -524,5 +558,7 @@ fn narrow<const LANES: usize, const FUSED: bool>(
     }
 }
 
+#[cfg(all(test, target_arch = "x86_64"))]
+mod large_channel_tests;
 #[cfg(test)]
 mod tests;

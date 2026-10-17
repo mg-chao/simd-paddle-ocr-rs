@@ -9,7 +9,11 @@ use std::simd::{Simd, StdFloat};
 mod concat;
 mod dense;
 mod misc;
+#[cfg(target_arch = "aarch64")]
+mod neon_depthwise;
 pub(super) mod pointwise;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+mod short_depthwise;
 mod strip;
 mod transpose;
 
@@ -187,6 +191,7 @@ pub(super) fn try_pointwise_matrix(
     );
     let supported = match backend {
         Backend::Scalar | Backend::Portable4 => true,
+        Backend::NeonFma => simd::neon_available(),
         Backend::Avx => simd::avx_available(),
         Backend::AvxFma => simd::avx_fma_available(),
         Backend::Avx2Fma => simd::avx2_fma_available(),
@@ -216,9 +221,22 @@ pub(super) fn selection(
     backend: Backend,
     packed: bool,
 ) -> (&'static str, Backend) {
+    #[cfg(target_arch = "aarch64")]
+    if let BoundKind::Conv(p) = kind
+        && backend == Backend::NeonFma
+        && packed
+        && p.cpg == 1
+        && p.cout == p.cin
+        && p.opg == 1
+        && neon_depthwise::use_bounded_strip(p)
+    {
+        return ("nhwc_depthwise_neon_strip64", backend);
+    }
     match kind {
         BoundKind::Conv(p) if p.cpg == 1 && p.cout == p.cin && p.opg == 1 => (
-            if p.kh >= 6 {
+            if backend == Backend::NeonFma && packed && p.cout >= 32 {
+                "nhwc_depthwise_neon_2x32"
+            } else if p.kh >= 6 {
                 "nhwc_depthwise_strip"
             } else {
                 "nhwc_depthwise_pixel8"
@@ -239,7 +257,9 @@ pub(super) fn selection(
                 && p.oh == p.height
                 && p.ow == p.width
             {
-                if backend == Backend::Portable4 {
+                if pointwise::inline_avx2_eligible(backend, p.cin, p.cout) {
+                    "nhwc_pointwise_6x16_inline"
+                } else if backend == Backend::Portable4 {
                     "nhwc_pointwise_6x8_pair2_group8"
                 } else if matches!(backend, Backend::Avx | Backend::AvxFma | Backend::Avx2Fma)
                     && pointwise::avx_group_rows(p.cin, p.cout) == 96
@@ -267,7 +287,13 @@ pub(super) fn selection(
             },
         ),
         BoundKind::ConvTranspose(p) if packed && p.cout >= 16 => (
-            "nhwc_transpose_4tap_matrix",
+            if cfg!(all(target_os = "windows", target_arch = "x86_64"))
+                && backend == Backend::Avx2Fma
+            {
+                "nhwc_transpose_4tap_direct"
+            } else {
+                "nhwc_transpose_4tap_matrix"
+            },
             if backend == Backend::Avx512 {
                 Backend::Avx2Fma
             } else {
@@ -741,6 +767,12 @@ fn transpose_packed_rows_store(
     workspace: &mut [f32],
     store: &impl StoreTransform,
 ) {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    if backend == Backend::Avx2Fma {
+        // SAFETY: CompiledModel validates AVX2/FMA before selecting this backend.
+        unsafe { transpose::packed_direct(p, input, bias, panels, out, first_row, store) };
+        return;
+    }
     let backend = if backend == Backend::Avx512 {
         Backend::Avx2Fma
     } else {
@@ -860,6 +892,7 @@ fn conv_dispatch_store(
             }
         }
         Backend::Portable4 => conv::<4, false>(p, input, weights, bias, packed, out, first, store),
+        Backend::NeonFma => conv::<4, true>(p, input, weights, bias, packed, out, first, store),
         Backend::Scalar => conv::<1, false>(p, input, weights, bias, packed, out, first, store),
     }
 }
@@ -949,6 +982,13 @@ fn depthwise_dispatch(
         Backend::Portable4 => {
             depthwise::<4, false>(p, input, weights, bias, packed, out, first, store)
         }
+        Backend::NeonFma => {
+            #[cfg(target_arch = "aarch64")]
+            if neon_depthwise::try_execute(p, input, weights, bias, packed, out, first, store) {
+                return;
+            }
+            depthwise::<4, true>(p, input, weights, bias, packed, out, first, store)
+        }
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validates the selected backend's target features.
@@ -993,7 +1033,7 @@ unsafe fn depthwise_avx2(
     first: usize,
     store: &impl StoreTransform,
 ) {
-    depthwise::<8, true>(p, input, weights, bias, packed, out, first, store);
+    depthwise_core::<8, true, true>(p, input, weights, bias, packed, out, first, store);
 }
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -1056,10 +1096,32 @@ fn depthwise<const LANES: usize, const FUSED: bool>(
     first: usize,
     store: &impl StoreTransform,
 ) {
+    depthwise_core::<LANES, FUSED, false>(p, input, weights, bias, packed, out, first, store);
+}
+
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+fn depthwise_core<const LANES: usize, const FUSED: bool, const INTERIOR: bool>(
+    p: &Conv,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    packed: Option<&PackedMatrix>,
+    out: &mut [f32],
+    first: usize,
+    store: &impl StoreTransform,
+) {
     if p.kh >= 6 {
         strip::execute::<LANES, FUSED>(p, input, weights, bias, packed, out, first, store);
         return;
     }
+    // Only the AVX2/FMA wrapper (and its paired diagnostic) enables INTERIOR.
+    // Other policies instantiate the exact original checked traversal.
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let interior = INTERIOR
+        && LANES == 8
+        && FUSED
+        && short_depthwise::eligible(p, input, bias, packed, out.len(), first);
     let pixels = out.len() / p.cout;
     let vector_channels = p.cout / LANES * LANES;
     let mut local = 0;
@@ -1073,7 +1135,25 @@ fn depthwise<const LANES: usize, const FUSED: bool>(
         } else {
             1
         };
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        let origin = if interior && tile == 8 {
+            short_depthwise::interior_origin(p, batch, y, x)
+        } else {
+            None
+        };
         for channel in (0..vector_channels).step_by(LANES) {
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            if let (Some(origin), Some(packed)) = (origin, packed) {
+                // SAFETY: INTERIOR is enabled only under AVX2/FMA, LANES=8.
+                // eligible validates this same storage and geometry, while
+                // interior_origin proves the complete eight-pixel field.
+                unsafe {
+                    short_depthwise::interior_tile(
+                        p, input, bias, packed, out, origin, local, channel, first, store,
+                    );
+                }
+                continue;
+            }
             if tile == 8 {
                 depthwise_pixels::<LANES, FUSED, 8>(
                     p, input, weights, bias, packed, out, local, batch, y, x, channel, first, store,

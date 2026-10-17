@@ -122,6 +122,50 @@ fn process_failures_and_deadlines_remain_errors() {
             .to_string()
             .contains("before launch")
     );
+    #[cfg(unix)]
+    {
+        let mut failed = Command::new("/bin/sh");
+        failed.args(["-c", "exit 7"]);
+        assert!(
+            harness::run_logged(
+                &mut failed,
+                &root.join("failure.log"),
+                Duration::from_secs(5)
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("exited")
+        );
+        let pid_file = root.join("timeout.pid");
+        let mut timed = Command::new("/bin/sh");
+        timed
+            .args([
+                "-c",
+                "printf '%s\\n' \"$$\" > \"$1\"; exec /bin/sleep 30",
+                "timeout-test",
+            ])
+            .arg(&pid_file);
+        assert!(
+            harness::run_logged(
+                &mut timed,
+                &root.join("timeout.log"),
+                Duration::from_secs(1)
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("deadline")
+        );
+        let pid: u32 = fs::read_to_string(pid_file)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let output = Command::new("/bin/kill")
+            .args(["-0", &pid.to_string()])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "timed-out child must be reaped");
+    }
     #[cfg(windows)]
     {
         let mut failed = Command::new("powershell");

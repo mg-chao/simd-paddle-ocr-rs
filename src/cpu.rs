@@ -1,12 +1,12 @@
 //! One bounded CPU executor shared by requests and their nested kernels.
 use crate::image::{ImageError, ImageResult};
-use crate::runtime::{RuntimeError, RuntimeResult};
+use crate::runtime::{Backend, RuntimeError, RuntimeResult};
 use std::{
     cell::RefCell,
     marker::PhantomData,
     rc::Rc,
     sync::{
-        Arc, Mutex, MutexGuard, OnceLock,
+        Arc, Mutex, MutexGuard,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -64,7 +64,7 @@ impl Drop for InlineAdmission<'_> {
     }
 }
 
-/// CPU budgets. Zero selects the original implementation's automatic budget.
+/// CPU budgets. Zero selects each stage's automatic budget.
 /// Positive values are maxima capped to the context capacity and 16.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CpuOptions {
@@ -75,16 +75,16 @@ pub struct CpuOptions {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CpuBudgets {
-    pub capacity: usize,
-    pub line_workers: usize,
-    pub preprocess_workers: usize,
-    pub detector_threads: usize,
-    pub recognizer_base_threads: usize,
+    capacity: usize,
+    line_workers: usize,
+    preprocess_workers: usize,
+    detector_threads: usize,
+    recognizer_base_threads: usize,
 }
 impl CpuOptions {
     pub fn resolve(self, capacity: usize, channels_last: bool) -> ImageResult<CpuBudgets> {
-        if capacity == 0 {
-            return Err(ImageError::new("CPU capacity must be positive"));
+        if !(1..=1024).contains(&capacity) {
+            return Err(ImageError::new("CPU capacity must be within 1..=1024"));
         }
         let lines = if self.line_workers == 0 {
             capacity.min(4)
@@ -114,6 +114,57 @@ pub(crate) fn cap_stage_threads(requested: usize, capacity: usize) -> usize {
     requested.min(capacity).min(16)
 }
 impl CpuBudgets {
+    pub fn capacity(self) -> usize {
+        self.capacity
+    }
+    pub fn line_workers(self) -> usize {
+        self.line_workers
+    }
+    pub fn preprocess_workers(self) -> usize {
+        self.preprocess_workers
+    }
+    pub fn detector_threads(self) -> usize {
+        self.detector_threads
+    }
+    pub fn recognizer_base_threads(self) -> usize {
+        self.recognizer_base_threads
+    }
+
+    /// AVX2/FMA and native ARM recognition benefit from independent lines
+    /// instead of nested kernels when a complete eight-unit wave is available.
+    /// On Windows AVX2, dense pages on 24–31-thread contexts use sixteen
+    /// single-threaded owners to avoid three-way nested kernel scheduling.
+    /// Depend only on page geometry and configuration, never on request timing:
+    /// stable ownership keeps worker-private shape caches and arenas reusable.
+    pub(crate) fn for_recognition_units(
+        self,
+        units: usize,
+        automatic: bool,
+        backend: Backend,
+    ) -> Self {
+        if !automatic
+            || !matches!(backend, Backend::NeonFma | Backend::Avx2Fma)
+            || self.capacity < 8
+            || units < 8
+        {
+            return self;
+        }
+        let owners = if cfg!(all(target_os = "windows", target_arch = "x86_64"))
+            && backend == Backend::Avx2Fma
+            && (24..32).contains(&self.capacity)
+            && units >= 32
+        {
+            16
+        } else {
+            8
+        };
+        Self {
+            line_workers: owners,
+            recognizer_base_threads: (self.capacity / owners).clamp(1, 8),
+            ..self
+        }
+    }
+
     /// Static sparse-page boost; scheduling progress never changes arithmetic.
     pub fn recognizer_threads(self, line_count: usize) -> usize {
         let active = self.line_workers.min(line_count).max(1);
@@ -132,11 +183,24 @@ impl CpuBudgets {
             .min((request_capacity / active).max(1))
     }
 
-    pub(crate) fn extraction_options(self, request_capacity: usize) -> CpuOptions {
+    pub(crate) fn extraction_options(
+        self,
+        request_capacity: usize,
+        automatic_line_workers: bool,
+    ) -> CpuOptions {
+        let available = request_capacity.max(1);
+        // Extraction has no recognition work. Automatic classifiers can use the
+        // request's CPU share without creating extra recognition owners, while
+        // positive line_workers still bounds both stages as configured.
+        let classifiers = if automatic_line_workers {
+            cap_stage_threads(available, self.capacity)
+        } else {
+            self.line_workers.min(available)
+        };
         CpuOptions {
-            line_workers: self.line_workers,
-            preprocess_workers: self.preprocess_workers.min(request_capacity.max(1)),
-            detector_threads: self.detector_threads.min(request_capacity.max(1)),
+            line_workers: classifiers,
+            preprocess_workers: self.preprocess_workers.min(available),
+            detector_threads: self.detector_threads.min(available),
         }
     }
 }
@@ -158,6 +222,22 @@ impl std::fmt::Debug for CpuContext {
             .finish_non_exhaustive()
     }
 }
+// Only successful construction is cached; serialize initializers to avoid
+// temporarily creating multiple process-wide pools under concurrent callers.
+fn shared_context(
+    cache: &Mutex<Option<Arc<CpuContext>>>,
+    initialize: impl FnOnce() -> RuntimeResult<CpuContext>,
+) -> RuntimeResult<Arc<CpuContext>> {
+    let mut cached = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(context) = cached.as_ref() {
+        return Ok(context.clone());
+    }
+    let context = Arc::new(initialize()?);
+    *cached = Some(context.clone());
+    Ok(context)
+}
 impl CpuContext {
     pub fn new(capacity: usize) -> RuntimeResult<Self> {
         if capacity == 0 || capacity > 1024 {
@@ -171,7 +251,13 @@ impl CpuContext {
                         .num_threads(capacity)
                         .thread_name(|i| format!("simd-ocr-{i}"))
                         .build()
-                        .map_err(|e| RuntimeError::new(format!("CPU pool creation: {e}")))?,
+                        .map_err(|e| {
+                            RuntimeError::caused_by(
+                                crate::error::ErrorKind::Allocation,
+                                "CPU pool creation",
+                                e,
+                            )
+                        })?,
                 )
             } else {
                 None
@@ -206,10 +292,8 @@ impl CpuContext {
     }
     /// Default engines and requests share one process-wide worker capacity.
     pub fn shared_default() -> RuntimeResult<Arc<Self>> {
-        static DEFAULT: OnceLock<RuntimeResult<Arc<CpuContext>>> = OnceLock::new();
-        DEFAULT
-            .get_or_init(|| Self::automatic().map(Arc::new))
-            .clone()
+        static DEFAULT: Mutex<Option<Arc<CpuContext>>> = Mutex::new(None);
+        shared_context(&DEFAULT, Self::automatic)
     }
     pub fn serial() -> Arc<Self> {
         Arc::new(Self::new(1).expect("inline CPU context needs no resources"))
@@ -345,6 +429,114 @@ mod tests {
     use super::*;
 
     #[test]
+    fn shared_initialization_retries_failure_and_publishes_one_success() {
+        let cache = Mutex::new(None);
+        let error =
+            shared_context(&cache, || Err(RuntimeError::new("transient failure"))).unwrap_err();
+        assert!(error.to_string().contains("transient failure"));
+        let calls = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            let handles = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        shared_context(&cache, || {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            CpuContext::new(1)
+                        })
+                        .unwrap()
+                    })
+                })
+                .collect::<Vec<_>>();
+            let contexts = handles
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .collect::<Vec<_>>();
+            assert!(contexts.iter().all(|c| Arc::ptr_eq(c, &contexts[0])));
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn automatic_recognition_expands_only_supported_complete_eight_unit_waves() {
+        for capacity in [1, 4, 7, 8, 10, 16, 23, 32, 48] {
+            let base = CpuOptions::default().resolve(capacity, true).unwrap();
+            for units in [0, 1, 4, 7, 8, 9, 31, 32, 33, 69] {
+                for backend in [Backend::NeonFma, Backend::Avx2Fma] {
+                    assert_eq!(base.for_recognition_units(units, false, backend), base);
+                    let selected = base.for_recognition_units(units, true, backend);
+                    if capacity < 8 || units < 8 {
+                        assert_eq!(selected, base);
+                    } else {
+                        assert_eq!(selected.line_workers, 8);
+                        assert_eq!(selected.recognizer_base_threads, (capacity / 8).clamp(1, 8));
+                        assert_eq!(selected.detector_threads, base.detector_threads);
+                        assert_eq!(selected.preprocess_workers, base.preprocess_workers);
+                        // Demand can reduce nested work without changing the
+                        // stable owners or exceeding the shared pool's cap.
+                        for share in [1, 2, 4, 8] {
+                            assert_eq!(selected.recognizer_threads_for_capacity(units, share), 1);
+                            assert_eq!(selected.line_workers, 8);
+                        }
+                    }
+                }
+                for backend in [
+                    Backend::Scalar,
+                    Backend::Portable4,
+                    Backend::Avx,
+                    Backend::AvxFma,
+                    Backend::Avx512,
+                ] {
+                    assert_eq!(base.for_recognition_units(units, true, backend), base);
+                }
+            }
+        }
+        for line_workers in [1, 2, 4, 8, 12, 16] {
+            let explicit = CpuOptions {
+                line_workers,
+                ..Default::default()
+            }
+            .resolve(24, true)
+            .unwrap();
+            for backend in [Backend::NeonFma, Backend::Avx2Fma] {
+                assert_eq!(explicit.for_recognition_units(69, false, backend), explicit);
+            }
+        }
+    }
+
+    #[test]
+    fn dense_windows_avx2_ownership_has_bounded_capacity_and_geometry() {
+        let windows_avx2 = cfg!(all(target_os = "windows", target_arch = "x86_64"));
+        for (capacity, units, windows_owners) in [
+            (23, 32, 8),
+            (24, 31, 8),
+            (24, 32, 16),
+            (24, 69, 16),
+            (31, 32, 16),
+            (32, 32, 8),
+        ] {
+            let base = CpuOptions::default().resolve(capacity, true).unwrap();
+            let selected = base.for_recognition_units(units, true, Backend::Avx2Fma);
+            let owners = if windows_avx2 { windows_owners } else { 8 };
+            assert_eq!(selected.line_workers, owners);
+            assert_eq!(selected.recognizer_base_threads, capacity / owners);
+            assert_eq!(selected.preprocess_workers, base.preprocess_workers);
+            assert_eq!(selected.detector_threads, base.detector_threads);
+            for share in [1, 8, 16, capacity] {
+                assert!(
+                    selected.recognizer_threads_for_capacity(units, share) <= capacity / owners
+                );
+                assert_eq!(selected.line_workers, owners);
+            }
+            let neon = base.for_recognition_units(units, true, Backend::NeonFma);
+            assert_eq!(neon.line_workers, 8);
+            assert_eq!(
+                base.for_recognition_units(units, false, Backend::Avx2Fma),
+                base
+            );
+        }
+    }
+
+    #[test]
     fn request_shares_reduce_nested_work_without_reassigning_lines() {
         let budgets = CpuOptions::default().resolve(8, true).unwrap();
         for (share, lines, threads) in [
@@ -360,8 +552,8 @@ mod tests {
                 budgets.recognizer_threads_for_capacity(lines, share),
                 threads
             );
-            let extraction = budgets.extraction_options(share);
-            assert_eq!(extraction.line_workers, 4);
+            let extraction = budgets.extraction_options(share, true);
+            assert_eq!(extraction.line_workers, share);
             assert_eq!(extraction.detector_threads, share);
             assert_eq!(extraction.preprocess_workers, share);
         }
@@ -372,10 +564,39 @@ mod tests {
         }
         .resolve(8, true)
         .unwrap();
-        assert_eq!(explicit.extraction_options(4).preprocess_workers, 1);
-        assert_eq!(explicit.extraction_options(4).detector_threads, 2);
+        assert_eq!(explicit.extraction_options(4, false).preprocess_workers, 1);
+        assert_eq!(explicit.extraction_options(4, false).detector_threads, 2);
         assert_eq!(explicit.recognizer_threads_for_capacity(2, 4), 2);
         assert_eq!(explicit.recognizer_threads_for_capacity(1, 4), 4);
+    }
+
+    #[test]
+    fn automatic_classifiers_use_request_capacity_and_explicit_line_maxima_are_preserved() {
+        for capacity in [1, 4, 8, 32] {
+            for requested in [0, 1, 2, 17, usize::MAX] {
+                let budgets = CpuOptions {
+                    line_workers: requested,
+                    ..Default::default()
+                }
+                .resolve(capacity, true)
+                .unwrap();
+                let recognition_workers = budgets.line_workers;
+                for share in [0, 1, 2, 8, 32, usize::MAX] {
+                    let extraction = budgets.extraction_options(share, requested == 0);
+                    let expected = if requested == 0 {
+                        capacity.min(share.max(1)).min(16)
+                    } else {
+                        recognition_workers.min(share.max(1))
+                    };
+                    assert_eq!(extraction.line_workers, expected);
+                    assert_eq!(budgets.line_workers, recognition_workers);
+                }
+            }
+        }
+        let automatic = CpuOptions::default().resolve(8, true).unwrap();
+        assert_eq!(automatic.line_workers, 4);
+        assert_eq!(automatic.extraction_options(8, true).line_workers, 8);
+        assert_eq!(automatic.extraction_options(8, false).line_workers, 4);
     }
 
     #[test]

@@ -176,7 +176,13 @@ pub(crate) fn det_with_context_layout(
     workspace
         .workers
         .try_reserve(workers.saturating_sub(workspace.workers.len()))
-        .map_err(|e| ImageError::new(format!("resize workers allocation: {e}")))?;
+        .map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "resize workers allocation",
+                e,
+            )
+        })?;
     while workspace.workers.len() < workers {
         workspace.workers.push(ResizeWorkspace::default());
     }
@@ -188,8 +194,13 @@ pub(crate) fn det_with_context_layout(
     let (mut a, mut b, mut c) = (a, b, c);
     let mut first = 0;
     let mut jobs = Vec::new();
-    jobs.try_reserve_exact(workers)
-        .map_err(|e| ImageError::new(format!("resize jobs allocation: {e}")))?;
+    jobs.try_reserve_exact(workers).map_err(|e| {
+        ImageError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "resize jobs allocation",
+            e,
+        )
+    })?;
     for (index, scratch) in workspace.workers[..workers].iter_mut().enumerate() {
         let end = height * (index + 1) / workers;
         let bytes = (end - first) * width;

@@ -52,18 +52,80 @@ pub struct LineView<'a> {
 }
 
 pub struct OrientedLines<'a> {
-    pub resized_width: usize,
-    pub resized_height: usize,
-    pub width_ratio: f32,
-    pub height_ratio: f32,
-    pub lines: &'a [LineMetadata],
-    pub pixels: &'a [u8],
+    resized_width: usize,
+    resized_height: usize,
+    width_ratio: f32,
+    height_ratio: f32,
+    lines: &'a [LineMetadata],
+    pixels: &'a [u8],
 }
 impl<'a> OrientedLines<'a> {
+    /// Validate all crop ranges once so iteration cannot silently drop a line.
+    pub fn new(
+        resized_width: usize,
+        resized_height: usize,
+        width_ratio: f32,
+        height_ratio: f32,
+        lines: &'a [LineMetadata],
+        pixels: &'a [u8],
+    ) -> ImageResult<Self> {
+        if resized_width == 0
+            || resized_height == 0
+            || !width_ratio.is_finite()
+            || !height_ratio.is_finite()
+            || width_ratio <= 0.0
+            || height_ratio <= 0.0
+        {
+            return Err(ImageError::new("invalid resized image geometry"));
+        }
+        for (index, line) in lines.iter().enumerate() {
+            let end = line
+                .offset
+                .checked_add(line.bytes)
+                .ok_or_else(|| ImageError::new("crop range overflow"))?;
+            let crop = pixels.get(line.offset..end).ok_or_else(|| {
+                ImageError::new(format!("line {index}: crop range exceeds pixel buffer"))
+            })?;
+            ImageView::new(crop, line.width, line.height, 0, PixelFormat::Bgr24)
+                .map_err(|e| e.context(format!("line {index}")))?;
+        }
+        Ok(Self {
+            resized_width,
+            resized_height,
+            width_ratio,
+            height_ratio,
+            lines,
+            pixels,
+        })
+    }
+    pub fn metadata(&self) -> &'a [LineMetadata] {
+        self.lines
+    }
+    pub fn pixels(&self) -> &'a [u8] {
+        self.pixels
+    }
+    pub fn resized_width(&self) -> usize {
+        self.resized_width
+    }
+    pub fn resized_height(&self) -> usize {
+        self.resized_height
+    }
+    pub fn width_ratio(&self) -> f32 {
+        self.width_ratio
+    }
+    pub fn height_ratio(&self) -> f32 {
+        self.height_ratio
+    }
+    pub fn len(&self) -> usize {
+        self.lines.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
     pub fn get(&self, index: usize) -> Option<LineView<'a>> {
         let metadata = self.lines.get(index)?;
-        let end = metadata.offset.checked_add(metadata.bytes)?;
-        let pixels = self.pixels.get(metadata.offset..end)?;
+        let end = metadata.offset + metadata.bytes;
+        let pixels = &self.pixels[metadata.offset..end];
         let image = ImageView::new(
             pixels,
             metadata.width,
@@ -71,22 +133,30 @@ impl<'a> OrientedLines<'a> {
             0,
             PixelFormat::Bgr24,
         )
-        .ok()?;
+        .expect("validated oriented crop");
         Some(LineView { metadata, image })
     }
-    pub fn iter(&self) -> impl Iterator<Item = LineView<'a>> + '_ {
-        (0..self.lines.len()).filter_map(|index| self.get(index))
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = LineView<'a>> + DoubleEndedIterator + '_ {
+        (0..self.lines.len()).map(|index| self.get(index).expect("in-bounds line"))
     }
     pub fn try_to_owned(&self) -> ImageResult<OwnedOrientedLines> {
         let mut lines = Vec::new();
-        lines
-            .try_reserve_exact(self.lines.len())
-            .map_err(|e| ImageError::new(format!("line copy allocation: {e}")))?;
+        lines.try_reserve_exact(self.lines.len()).map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "line copy allocation",
+                e,
+            )
+        })?;
         lines.extend_from_slice(self.lines);
         let mut pixels = Vec::new();
-        pixels
-            .try_reserve_exact(self.pixels.len())
-            .map_err(|e| ImageError::new(format!("crop copy allocation: {e}")))?;
+        pixels.try_reserve_exact(self.pixels.len()).map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "crop copy allocation",
+                e,
+            )
+        })?;
         pixels.extend_from_slice(self.pixels);
         Ok(OwnedOrientedLines {
             resized_width: self.resized_width,
@@ -99,14 +169,46 @@ impl<'a> OrientedLines<'a> {
     }
 }
 pub struct OwnedOrientedLines {
-    pub resized_width: usize,
-    pub resized_height: usize,
-    pub width_ratio: f32,
-    pub height_ratio: f32,
-    pub lines: Vec<LineMetadata>,
-    pub pixels: Vec<u8>,
+    resized_width: usize,
+    resized_height: usize,
+    width_ratio: f32,
+    height_ratio: f32,
+    lines: Vec<LineMetadata>,
+    pixels: Vec<u8>,
 }
 impl OwnedOrientedLines {
+    pub fn new(
+        resized_width: usize,
+        resized_height: usize,
+        width_ratio: f32,
+        height_ratio: f32,
+        lines: Vec<LineMetadata>,
+        pixels: Vec<u8>,
+    ) -> ImageResult<Self> {
+        OrientedLines::new(
+            resized_width,
+            resized_height,
+            width_ratio,
+            height_ratio,
+            &lines,
+            &pixels,
+        )?;
+        Ok(Self {
+            resized_width,
+            resized_height,
+            width_ratio,
+            height_ratio,
+            lines,
+            pixels,
+        })
+    }
+    pub fn metadata(&self) -> &[LineMetadata] {
+        &self.lines
+    }
+    pub fn pixels(&self) -> &[u8] {
+        &self.pixels
+    }
+
     pub fn as_view(&self) -> OrientedLines<'_> {
         OrientedLines {
             resized_width: self.resized_width,
@@ -236,7 +338,7 @@ impl OrientedLineExtractor {
             ),
         )?;
         self.detector
-            .set_execution_context(cpu.clone(), budgets.detector_threads)?;
+            .set_execution_context(cpu.clone(), budgets.detector_threads())?;
         if let Some(classifier) = &mut self.classifier {
             classifier.set_execution_context(cpu.clone(), 1)?;
         }
@@ -314,10 +416,22 @@ impl OrientedLineExtractor {
         self.metadata.clear();
         self.transforms
             .try_reserve(detection.boxes.len())
-            .map_err(|e| ImageError::new(format!("crop transform allocation: {e}")))?;
+            .map_err(|e| {
+                ImageError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "crop transform allocation",
+                    e,
+                )
+            })?;
         self.metadata
             .try_reserve(detection.boxes.len())
-            .map_err(|e| ImageError::new(format!("line metadata allocation: {e}")))?;
+            .map_err(|e| {
+                ImageError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "line metadata allocation",
+                    e,
+                )
+            })?;
         let mut total = 0usize;
         // Every transform and budget is checked before writing any crop bytes.
         for detection_box in detection.boxes {
@@ -356,7 +470,13 @@ impl OrientedLineExtractor {
         }
         self.slab
             .try_reserve_exact(total.saturating_sub(self.slab.len()))
-            .map_err(|e| ImageError::new(format!("crop slab allocation: {e}")))?;
+            .map_err(|e| {
+                ImageError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "crop slab allocation",
+                    e,
+                )
+            })?;
         self.slab.resize(total, 0);
         if PROFILE {
             profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
@@ -428,11 +548,17 @@ impl OrientedLineExtractor {
                         line_observer(event)
                     })?
                 } else {
-                    classifier.classify(crop)?
+                    classifier.classify_profiled::<PROFILE>(crop, profile)?
                 };
                 metadata.classification = Some(result);
                 if should_rotate(result, self.options.classifier_threshold) {
+                    let rotation_timer = crate::profile::Timer::<PROFILE>::start();
                     crop::rotate180(pixels, metadata.width, metadata.height)?;
+                    if PROFILE {
+                        profile.cls_rotation_ns = profile
+                            .cls_rotation_ns
+                            .saturating_add(rotation_timer.elapsed());
+                    }
                     metadata.applied_rotation_degrees = 180;
                 }
             }
@@ -544,6 +670,7 @@ struct ClassifyTask<'a> {
     jobs: Vec<ClassifyJob<'a>>,
     error: Option<(usize, ImageError)>,
     work_ns: u64,
+    profile: crate::profile::StageProfile,
 }
 #[allow(clippy::too_many_arguments)]
 fn extract_parallel<const PROFILE: bool>(
@@ -566,8 +693,13 @@ fn extract_parallel<const PROFILE: bool>(
             sum.checked_add(line.height.div_ceil(16))
         })
         .ok_or_else(|| ImageError::new("crop band count overflow"))?;
-    jobs.try_reserve_exact(bands)
-        .map_err(|e| ImageError::new(format!("crop bands allocation: {e}")))?;
+    jobs.try_reserve_exact(bands).map_err(|e| {
+        ImageError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "crop bands allocation",
+            e,
+        )
+    })?;
     let mut remaining = &mut *slab;
     for (transform, line) in transforms.iter().zip(metadata.iter()) {
         let (pixels, tail) = remaining.split_at_mut(line.bytes);
@@ -583,7 +715,7 @@ fn extract_parallel<const PROFILE: bool>(
             });
         }
     }
-    cpu.for_each_mut(&mut jobs, budgets.preprocess_workers, |_, job| {
+    cpu.for_each_mut(&mut jobs, budgets.preprocess_workers(), |_, job| {
         let timer = crate::profile::Timer::<PROFILE>::start();
         job.error = job
             .transform
@@ -606,28 +738,50 @@ fn extract_parallel<const PROFILE: bool>(
         return Ok(());
     };
     let cls_timer = crate::profile::Timer::<PROFILE>::start();
-    let active = budgets.line_workers.min(metadata.len());
+    // Other requests can arrive during detection/cropping. Recheck demand at
+    // this stage boundary; retained workers do not reserve CPU capacity.
+    let active = budgets
+        .line_workers()
+        .min(cpu.request_capacity())
+        .min(metadata.len());
     classifiers
         .try_reserve(active.saturating_sub(classifiers.len()))
-        .map_err(|e| ImageError::new(format!("classifier workers allocation: {e}")))?;
+        .map_err(|e| {
+            ImageError::caused_by(
+                crate::error::ErrorKind::Allocation,
+                "classifier workers allocation",
+                e,
+            )
+        })?;
     while classifiers.len() < active {
         let mut worker = classifier.fork()?;
         worker.set_execution_context(cpu.clone(), 1)?;
         classifiers.push(worker);
     }
     let mut tasks = Vec::new();
-    tasks
-        .try_reserve_exact(active)
-        .map_err(|e| ImageError::new(format!("classification tasks allocation: {e}")))?;
+    tasks.try_reserve_exact(active).map_err(|e| {
+        ImageError::caused_by(
+            crate::error::ErrorKind::Allocation,
+            "classification tasks allocation",
+            e,
+        )
+    })?;
     for classifier in &mut classifiers[..active] {
         let mut jobs = Vec::new();
         jobs.try_reserve_exact(metadata.len().div_ceil(active))
-            .map_err(|e| ImageError::new(format!("classification jobs allocation: {e}")))?;
+            .map_err(|e| {
+                ImageError::caused_by(
+                    crate::error::ErrorKind::Allocation,
+                    "classification jobs allocation",
+                    e,
+                )
+            })?;
         tasks.push(ClassifyTask {
             classifier,
             jobs,
             error: None,
             work_ns: 0,
+            profile: crate::profile::StageProfile::default(),
         });
     }
     let mut remaining = &mut *slab;
@@ -651,10 +805,19 @@ fn extract_parallel<const PROFILE: bool>(
                     0,
                     PixelFormat::Bgr24,
                 )?;
-                let result = task.classifier.classify(crop)?;
+                let result = task
+                    .classifier
+                    .classify_profiled::<PROFILE>(crop, &mut task.profile)?;
                 job.metadata.classification = Some(result);
                 if should_rotate(result, threshold) {
+                    let rotation_timer = crate::profile::Timer::<PROFILE>::start();
                     crop::rotate180(job.pixels, job.metadata.width, job.metadata.height)?;
+                    if PROFILE {
+                        task.profile.cls_rotation_ns = task
+                            .profile
+                            .cls_rotation_ns
+                            .saturating_add(rotation_timer.elapsed());
+                    }
                     job.metadata.applied_rotation_degrees = 180;
                 }
                 Ok(())
@@ -674,6 +837,7 @@ fn extract_parallel<const PROFILE: bool>(
     for task in tasks {
         if PROFILE {
             profile.cls_orientation_ns = profile.cls_orientation_ns.saturating_add(task.work_ns);
+            profile.merge(task.profile);
         }
         if let Some((index, cause)) = task.error
             && error.as_ref().is_none_or(|(earlier, _)| index < *earlier)
@@ -695,6 +859,143 @@ fn extract_parallel<const PROFILE: bool>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn automatic_classifier_wave_matches_serial_and_respects_standalone_and_request_limits() {
+        let cpu = Arc::new(CpuContext::new(8).unwrap());
+        let mut template = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
+        let detector = template.extractor_mut().detector().fork().unwrap();
+        let mut standalone = OrientedLineExtractor::new(
+            detector,
+            Some(crate::ocr::tests::synthetic_classifier()),
+            LineOptions::default(),
+        )
+        .unwrap();
+        standalone
+            .set_execution_context(cpu.clone(), CpuOptions::default())
+            .unwrap();
+        let automatic = CpuOptions::default().resolve(8, true).unwrap();
+        let mut expanded = standalone.fork().unwrap();
+        expanded
+            .set_execution_context(cpu.clone(), automatic.extraction_options(8, true))
+            .unwrap();
+        let mut explicit = standalone.fork().unwrap();
+        explicit
+            .set_execution_context(
+                cpu.clone(),
+                CpuOptions {
+                    line_workers: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(standalone.budgets.line_workers(), 4);
+        assert_eq!(expanded.budgets.line_workers(), 8);
+        assert_eq!(explicit.budgets.line_workers(), 2);
+
+        let pixels = (0..24 * 24 * 3)
+            .map(|index| ((index * 29 + index / 72) % 256) as u8)
+            .collect::<Vec<_>>();
+        let image = ImageView::new(&pixels, 24, 24, 0, PixelFormat::Bgr24).unwrap();
+        let transforms = (0..17)
+            .map(|index| {
+                let left = (index % 3 * 8) as f32;
+                let top = (index / 3 % 3 * 8) as f32;
+                CropTransform::new(&DetectionBox {
+                    points: [
+                        [left, top],
+                        [left + 7., top],
+                        [left + 7., top + 5.],
+                        [left, top + 5.],
+                    ],
+                    score: 1.,
+                })
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut total = 0;
+        let metadata = transforms
+            .iter()
+            .map(|transform| {
+                let bytes = transform.byte_count().unwrap();
+                let line = LineMetadata {
+                    detection: DetectionBox {
+                        points: [[0.; 2]; 4],
+                        score: 1.,
+                    },
+                    offset: total,
+                    bytes,
+                    width: transform.width(),
+                    height: transform.height(),
+                    unrotated_width: transform.unrotated_width(),
+                    unrotated_height: transform.unrotated_height(),
+                    vertical_rotation: transform.vertical_rotation(),
+                    classification: None,
+                    applied_rotation_degrees: 0,
+                };
+                total += bytes;
+                line
+            })
+            .collect::<Vec<_>>();
+        let mut expected = metadata.clone();
+        let mut expected_pixels = vec![0; total];
+        let mut serial = standalone.classifier.as_ref().unwrap().fork().unwrap();
+        for (line, transform) in expected.iter_mut().zip(&transforms) {
+            let crop = &mut expected_pixels[line.offset..line.offset + line.bytes];
+            transform.extract_into(image, crop).unwrap();
+            let result = serial
+                .classify(
+                    ImageView::new(crop, line.width, line.height, 0, PixelFormat::Bgr24).unwrap(),
+                )
+                .unwrap();
+            line.classification = Some(result);
+            if should_rotate(result, 0.) {
+                crop::rotate180(crop, line.width, line.height).unwrap();
+                line.applied_rotation_degrees = 180;
+            }
+        }
+        let run = |extractor: &mut OrientedLineExtractor| {
+            let mut actual = metadata.clone();
+            let mut actual_pixels = vec![0; total];
+            extract_parallel::<false>(
+                &cpu,
+                extractor.budgets,
+                image,
+                &transforms,
+                &mut actual,
+                &mut actual_pixels,
+                &extractor.classifier,
+                &mut extractor.classifier_workers,
+                0.,
+                &mut crate::profile::StageProfile::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&expected).unwrap()
+            );
+            assert_eq!(actual_pixels, expected_pixels);
+        };
+        run(&mut standalone);
+        run(&mut expanded);
+        run(&mut explicit);
+        assert_eq!(standalone.classifier_workers.len(), 4);
+        assert_eq!(expanded.classifier_workers.len(), 8);
+        assert_eq!(explicit.classifier_workers.len(), 2);
+
+        let retained = expanded.classifier_retained_activation_bytes();
+        let demand = (0..4).map(|_| cpu.register_request()).collect::<Vec<_>>();
+        assert_eq!(cpu.request_capacity(), 2);
+        let mut contended = expanded.fork().unwrap();
+        run(&mut contended);
+        assert_eq!(contended.classifier_workers.len(), 2);
+        run(&mut expanded);
+        assert_eq!(expanded.classifier_workers.len(), 8);
+        assert_eq!(expanded.classifier_retained_activation_bytes(), retained);
+        drop(demand);
+        assert_eq!(cpu.request_capacity(), 8);
+    }
 
     #[test]
     fn retained_workspace_counts_reserved_classifier_worker_storage() {

@@ -1,10 +1,12 @@
 //! Shared process/build boundary for the local CPU validation tools.
 #![allow(dead_code)]
 use sha2::{Digest, Sha256};
+#[cfg(windows)]
+use std::process::Stdio;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Child, Command},
     time::{Duration, Instant},
 };
 

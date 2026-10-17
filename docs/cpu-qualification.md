@@ -6,8 +6,9 @@ CPU implementation on the same hash-verified decoded pixels in independent
 reusable worker processes. The C# project and all its references build into the
 invocation's artifact directory, so qualification can coexist with other runners.
 
-Use the pinned nightly, physical Windows x64 machine, .NET 10 SDK, clean pinned
-sibling `SimdPaddleOCR` checkout, and models/corpus described by the baseline guide:
+Use the pinned nightly, a physical Windows x64 or Apple Silicon macOS machine,
+.NET 10 SDK, a clean pinned sibling `SimdPaddleOCR` checkout, and the models/corpus
+described by the baseline guide:
 
 ```powershell
 cargo run --release --locked --example cpu_qualify -- --list

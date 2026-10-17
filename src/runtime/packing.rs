@@ -248,4 +248,141 @@ mod tests {
         assert!(PackedMatrix::new(&[1.0], 2, 2).is_err());
         assert!(PackedMatrix::new(&[], usize::MAX, 16).is_err());
     }
+
+    /// Inspect one allocation of each real recognition model. This diagnostic
+    /// performs compilation and shape binding only; it never runs inference or
+    /// samples latency. A panel's 64-byte stride preserves its initial offset,
+    /// so a base address not divisible by 32 splits one of its two AVX loads.
+    #[cfg(target_arch = "x86_64")]
+    #[test]
+    #[ignore = "local real-model packed-weight alignment census; three imports and bindings, no inference"]
+    fn real_recognition_large_pointwise_alignment_census() {
+        use crate::{
+            model::Model,
+            runtime::{CompileOptions, CompiledModel, ExecutionLimits, KernelPolicy, Session},
+            tensor::TensorData,
+        };
+        use sha2::{Digest, Sha256};
+
+        assert!(crate::runtime::simd::avx2_fma_available());
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("tests/baseline/manifest.json")).unwrap(),
+        )
+        .unwrap();
+        let directory = root.join("../SimdPaddleOCR/models");
+        for name in ["tiny", "small", "medium"] {
+            let spec = manifest["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|spec| spec["id"].as_str() == Some(name))
+                .unwrap();
+            let file = spec["rec"].as_str().unwrap();
+            let expected_hash = manifest["assets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|asset| asset["file"].as_str() == Some(file))
+                .unwrap()["sha256"]
+                .as_str()
+                .unwrap();
+            let bytes = std::fs::read(directory.join(file)).unwrap();
+            let actual_hash = format!("{:x}", Sha256::digest(&bytes));
+            assert_eq!(actual_hash, expected_hash, "recognition model {file}");
+            let model = Arc::new(Model::load_bytes(&bytes).unwrap());
+            drop(bytes);
+            let compiled = Arc::new(
+                CompiledModel::compile(
+                    model.clone(),
+                    CompileOptions {
+                        kernels: KernelPolicy::Avx2Fma,
+                        ..CompileOptions::default()
+                    },
+                )
+                .unwrap(),
+            );
+            let session = Session::new_serial(
+                compiled.clone(),
+                &[1, 3, 48, 32],
+                ExecutionLimits::default(),
+            )
+            .unwrap();
+            let matrices = model
+                .packed_weights
+                .matrices
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut panels = matrices
+                .iter()
+                .filter(|((id, kind), panel)| {
+                    if *kind != MatrixPacking::ConvOutputMajor
+                        || panel.info.inner < 384
+                        || panel.info.columns < 384
+                    {
+                        return false;
+                    }
+                    let Some(TensorData::F32(weight)) = &model.graph().tensors[id.0].constant
+                    else {
+                        return false;
+                    };
+                    let shape = weight.shape();
+                    let dims = shape.dimensions();
+                    dims.len() == 4 && dims[2..] == [1, 1]
+                })
+                .collect::<Vec<_>>();
+            panels.sort_unstable_by_key(|((id, _), _)| id.0);
+            let mut total_bytes = 0usize;
+            let mut unaligned_64_count = 0usize;
+            let mut split_load_count = 0usize;
+            let mut split_load_weight_bytes = 0usize;
+            for ((id, _), panel) in &panels {
+                let offset = panel.data().as_ptr() as usize % 64;
+                let split = offset % 32 != 0;
+                total_bytes += panel.bytes();
+                unaligned_64_count += usize::from(offset != 0);
+                split_load_count += usize::from(split);
+                split_load_weight_bytes += if split { panel.bytes() } else { 0 };
+                println!(
+                    "recognition_packed_alignment_panel {}",
+                    serde_json::json!({
+                        "model": name,
+                        "tensor_id": id.0,
+                        "tensor": model.graph().tensors[id.0].name,
+                        "inner": panel.info.inner,
+                        "columns": panel.info.columns,
+                        "bytes": panel.bytes(),
+                        "address_mod_64": offset,
+                        "split_32_byte_loads_per_64_byte_k_step": usize::from(split),
+                    })
+                );
+            }
+            let weight_share = if total_bytes == 0 {
+                0.0
+            } else {
+                split_load_weight_bytes as f64 / total_bytes as f64
+            };
+            println!(
+                "recognition_packed_alignment_summary {}",
+                serde_json::json!({
+                    "model": name,
+                    "file": file,
+                    "model_sha256": actual_hash,
+                    "backend": format!("{:?}", compiled.backend()),
+                    "bound_input": [1, 3, 48, 32],
+                    "retained_activation_bytes": session.retained_activation_bytes(),
+                    "large_pointwise_matrices": panels.len(),
+                    "large_pointwise_bytes": total_bytes,
+                    "address_mod_64_nonzero_matrices": unaligned_64_count,
+                    "matrices_with_split_32_byte_loads": split_load_count,
+                    "weight_bytes_with_split_32_byte_loads": split_load_weight_bytes,
+                    "split_load_weight_share": weight_share,
+                    "storage_weighted_split_vector_load_share": weight_share / 2.0,
+                    "inference_calls": 0,
+                    "allocation_samples_per_model": 1,
+                    "scope": "cached group-one 1x1 convolution matrices with K and N at least 384; shares weight storage, not runtime call counts or traffic",
+                })
+            );
+        }
+    }
 }

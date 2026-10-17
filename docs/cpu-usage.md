@@ -7,6 +7,9 @@ Correctness qualification and performance qualification are separate; consult
 the [baseline guide](cpu-baseline.md) for recorded validation and reproducible
 comparison commands.
 
+Native Apple Silicon setup and local verification are documented in
+[macOS CPU support](macos-cpu-validation.md).
+
 ## Toolchain and model files
 
 Build with `nightly-2026-09-08`, pinned in `rust-toolchain.toml`, because the
@@ -15,6 +18,14 @@ repository. A consuming project must also select that nightly (for example,
 `cargo +nightly-2026-09-08 build --release`). No custom `RUSTFLAGS` are needed.
 The default `parallel` feature uses a shared Rayon CPU pool. Disable default
 features for serial execution without Rayon; `profiling` adds diagnostic APIs.
+
+`CompileOptions::default()` selects the native CPU backend. On AArch64 this is
+`KernelPolicy::NeonFma` (`neon_fma` in serialized policy values), with ordered
+NEON FMA convolution and matrix kernels. `KernelPolicy::Portable4` retains
+separate multiply/add for numerical and performance comparisons; forcing
+`NeonFma` on an unsupported CPU fails during model compilation. x86 automatic
+AVX/FMA selection is unchanged. FMA can change F32 rounding, so retain the
+existing OCR accuracy tolerances when comparing policies.
 
 For deployment builds, the application's root `Cargo.toml` can opt into:
 
@@ -75,7 +86,17 @@ cropping's vertical-line rotation still applies.
 
 `OcrModelSet::from_paths` accepts explicit model filenames, and `from_readers`
 accepts non-seekable buffered streams. Parsing releases the raw ONNX input and
-shares immutable models/dictionaries through `Arc`.
+shares immutable models/dictionaries through `Arc`. The optional classifier is
+`Option<&Path>` for paths and `Option<&mut dyn BufRead>` for readers, so `None`
+needs no type annotation. For example:
+
+```rust,no_run
+use simd_paddle_ocr_rs::OcrModelSet;
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let models = OcrModelSet::from_paths("det.onnx", "rec.onnx", "keys.txt", None)?;
+# Ok(())
+# }
+```
 
 ## Run an image
 
@@ -145,7 +166,29 @@ contexts have independent capacities.
 
 `CpuOptions` controls maximum line workers, detector threads and preprocessing
 workers. Zero selects automatic stage budgets; positive budgets are capped by
-the context capacity and 16. Defaults permit up to four line workers; nested
+the context capacity and 16. Automatic OCR starts with up to four recognition
+line workers. With AVX2/FMA or the native NEON backend, a context of at least
+eight workers and at least eight independent recognition units selects eight line workers
+and correspondingly less nested kernel parallelism. Windows x64 AVX2/FMA contexts
+with 24–31 workers select sixteen single-threaded recognition owners when there
+are at least 32 units; see the [measured latency and memory tradeoff](windows-large-channel-optimization.md).
+A same-width batch counts
+as one unit. Selection depends on the page and configuration, so concurrent
+request timing does not change line ownership. `Ocr::cpu_budgets()` reports the
+selected budgets after a run. More line workers retain additional activation
+and workspace buffers; see the measured [Windows AVX2/FMA](windows-avx2-recognition-scheduling.md)
+and [ARM64](macos-arm64-recognition-optimization.md) tradeoffs.
+On NEON, automatic scheduling with eight owners and a base kernel budget of
+one can give one uniquely dominant, single-crop owner two kernel workers when
+the request has its full CPU share. The shared pool still bounds execution;
+jobs and recognizer buffers keep their owners. Explicit positive line-worker
+settings retain their selected policy. See the
+[mixed-width measurements](macos-arm64-medium-mixed-regression.md).
+`cpu_budgets()` reports the base budget; profiling owner records expose the
+individual kernel budgets.
+Automatic classifiers can use up to sixteen single-threaded workers, bounded
+by the request's available CPU share. A positive `line_workers` bounds both stages.
+Standalone line extractors retain the default four-classifier maximum. Nested
 recognizer work shares the context. `Ocr::fork()` creates another mutable
 request sharing compiled models, packed weights, dictionary and CPU capacity,
 while keeping its own activations and buffers. Recognition batching is opt-in
@@ -162,11 +205,13 @@ records the rejected unconditional and capacity-aware overlap experiments
 separately from the retained staged pipeline and historical full-matrix results.
 
 OCR calls register their CPU demand before entering the shared executor. At
-stage boundaries, each call limits detector/preprocessing workers and nested
-recognition threads to its share of the currently requested CPU capacity.
+stage boundaries, each call limits detector/preprocessing workers, classifiers
+and nested recognition threads to its share of the currently requested CPU
+capacity.
 Line-worker assignments remain stable, so concurrent traffic does not create
 extra recognition buffers. A single call retains the configured budgets;
-`cpu_budgets()` reports those maxima. The fixed pool enforces the overall cap
+`cpu_budgets()` reports recognition, detector and preprocessing maxima;
+automatic classifiers use the current request share. The fixed pool enforces the overall cap
 even when demand changes after a stage begins. Standalone detector/classifier/
 recognizer calls retain their explicit budgets.
 
@@ -220,14 +265,31 @@ allocations. Kernels retain reusable scratch and requests retain high-water
 capacities; the `retained_*_bytes()` APIs expose these capacities. Kernel
 scratch is already included in retained workspace bytes, so do not add it
 twice. Low-level `Model::load_*_with_limits` accepts `onnx::LoadLimits` for
-input-byte, nesting and rank limits.
+input-byte, protobuf nesting, tensor rank, graph-node and shape-program limits.
+Defaults are 1 GiB of input, nesting depth 64, rank 8, 100,000 source nodes and
+64 combined shape-program nodes. The shape-node limit may be tightened below 64.
+`max_constant_bytes` caps the normalization constant store (default 1 GiB), and
+`max_generated_bytes` caps cumulative generated coefficients (default 1 GiB).
+Generated arrays are reserved fallibly before rewriting the graph. An optional
+rewrite that exceeds either budget is skipped; oversized source constants are
+rejected. Branch merging also requires the merged dense kernel to contain no
+more coefficients than its source kernels. These limits are separate from
+process memory: protobuf metadata, small shape-program copies, allocator
+capacity and concurrent imports also use memory.
 
 Recognition result caches retain one UTF-8 buffer and compact alignment offsets
 per line. Shorter text, capture toggles and smaller pages retain the high-water
 capacity for later reuse. Inactive line caches are included in retained
 workspace accounting and the engine's idle-cache budget.
 
-This importer/runtime supports the OCR subset used by the shipped bundles.
+This importer/runtime supports the OCR subset used by the shipped bundles,
+with declared standard-domain source opsets 7 through 18. Domains, opsets,
+attribute names and source topology are checked before nodes can be erased.
+Resize supports spatial scales 2, 4 and 8 with nearest/asymmetric/floor
+sampling; opset 11+ defaults are half_pixel/round_prefer_floor, which this
+runtime rejects unless the model explicitly selects the supported modes.
+Resize 10 uses its legacy asymmetric/floor defaults. GlobalAveragePool reduces
+all spatial axes of a rank-three-through-eight input.
 Graphs require one F32 input and output and supported normalized operators;
 arbitrary ONNX graphs are not guaranteed to load. Detection requires a
 `[1, 1, H, W]` probability map matching input spatial dimensions. Recognition
@@ -242,5 +304,50 @@ Default recognition is height 48 with adaptive width rounded up to 32 and no
 320-pixel upper cap. Use `RecognizerOptions { adaptive_width: false,
 target_width: 320, ..Default::default() }` for fixed width. The default detector
 limit is 960 and its inferred box threshold is 0.4 for tiny, 0.45 for the other
-shipped bundles. AVX-512 and additional platforms require their own physical
-machine qualification; the Windows x64 gate does not establish those results.
+shipped bundles. Each CPU/backend and operating system requires its own physical
+machine qualification; the Windows x64 gate does not establish macOS or AVX-512
+results. See [macOS CPU support](macos-cpu-validation.md) for the Apple Silicon
+validation scope.
+
+## Import policy and API migration
+
+Import performs optional BN folding and convolution-branch merging by default.
+These rewrites can change floating-point rounding. For an independent arithmetic
+reference, disable both import rewrites and execution optimizations:
+
+```rust,no_run
+use simd_paddle_ocr_rs::model::{LoadOptions, Model, OptimizationPolicy};
+use simd_paddle_ocr_rs::runtime::{CompileOptions, CompiledModel};
+use std::sync::Arc;
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let model = Model::load_path_with_options("det.onnx", &LoadOptions {
+    optimization: OptimizationPolicy::PreserveArithmetic,
+    ..Default::default()
+})?;
+let compiled = CompiledModel::compile(Arc::new(model), CompileOptions::reference())?;
+# Ok(())
+# }
+```
+
+`CompileOptions::reference()` alone preserves the arithmetic of an already
+imported model. Structural alias removal and shape lowering still occur in
+both import modes.
+
+The normalized graph now stores `Node::operator: Operator`; use `op_type()`
+for its name and match the enum for its parameters. This replaces the separate
+`op_type` and `EffectiveAttributes` fields. Classifier and recognizer heads
+share the same structural validator.
+
+Construct `CpuBudgets` with `CpuOptions::resolve`, and read values through
+accessors such as `line_workers()`. `OrientedLines` and `OwnedOrientedLines`
+provide checked `new` constructors, `metadata()` and `pixels()` accessors, and
+an immutable borrowed view. Iteration includes every validated line; only an
+out-of-range `get` returns `None`. Their storage fields are private.
+
+`Tensor::defaulted` replaces the generic `Tensor::zeros`: it fills elements
+with `T::default()`, which is not necessarily numeric zero. The public error
+types expose `kind()` and retain concrete causes through `Error::source()`;
+inspect kinds and sources rather than comparing error strings. Errors remain
+cloneable but no longer implement equality. The shared CPU context caches
+only successful initialization, allowing a later call to retry a transient
+pool-creation failure.

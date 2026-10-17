@@ -133,6 +133,11 @@ fn interior(p: &Conv2d) -> std::ops::Range<usize> {
     first..end
 }
 fn select(backend: Backend, p: &Conv2d, packed: bool, threads: usize) -> Option<Kind> {
+    // Canonical specializations retain Portable4 arithmetic and fused stores;
+    // the ARM64 FMA tiles specialize channels-last execution.
+    if backend == Backend::NeonFma {
+        return select(Backend::Portable4, p, packed, threads);
+    }
     if backend == Backend::Scalar
         || p.groups == 0
         || p.dilation_height != 1
@@ -366,6 +371,9 @@ pub(super) fn selected_backend_for_threads(
     packed: bool,
     threads: usize,
 ) -> Backend {
+    if backend == Backend::NeonFma {
+        return Backend::Portable4;
+    }
     if backend == Backend::Avx512 {
         let kind = select(backend, p, packed, threads);
         if matches!(
@@ -403,6 +411,7 @@ pub(super) fn uses_pack_for_threads(
 fn check_backend(backend: Backend) {
     let supported = match backend {
         Backend::Scalar | Backend::Portable4 => true,
+        Backend::NeonFma => simd::neon_available(),
         Backend::Avx => simd::avx_available(),
         Backend::AvxFma => simd::avx_fma_available(),
         Backend::Avx2Fma => simd::avx2_fma_available(),
@@ -537,8 +546,8 @@ pub(super) fn try_conv_store(
         });
         return true;
     }
-    #[cfg(feature = "parallel")]
-    if spatial_shard_eligible(backend, p, packed.is_some(), threads.min(cpu.capacity())) {
+    #[cfg(all(feature = "parallel", target_arch = "x86_64"))]
+    if spatial_shard_eligible(actual, p, packed.is_some(), threads.min(cpu.capacity())) {
         spatial_shards(
             actual, p, input, weights, bias, packed, output, cpu, threads, store,
         );
@@ -797,7 +806,7 @@ fn channel_shard_eligible(backend: Backend, kind: Kind, p: &Conv2d, threads: usi
 /// The source plain dense path splits rows to retain its complete eight-OC
 /// accumulator set for narrow output channel counts. Pad-end 2x2 likewise
 /// splits rows when its single eight-OC tile cannot be split across channels.
-#[cfg(any(feature = "parallel", test))]
+#[cfg(any(all(feature = "parallel", target_arch = "x86_64"), test))]
 fn spatial_shard_eligible(backend: Backend, p: &Conv2d, packed: bool, threads: usize) -> bool {
     if threads <= 1 {
         return false;
@@ -830,7 +839,7 @@ fn spatial_shard_eligible(backend: Backend, p: &Conv2d, packed: bool, threads: u
     }
 }
 
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "parallel", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 fn spatial_shards(
     backend: Backend,
@@ -888,7 +897,7 @@ fn spatial_shards(
         }
     }
 }
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "parallel", target_arch = "x86_64"))]
 #[allow(clippy::too_many_arguments)]
 fn spatial_rows_run(
     backend: Backend,
@@ -951,7 +960,7 @@ target_spatial_rows!(spatial_rows_fma, "avx,fma", 8, true);
 target_spatial_rows!(spatial_rows_avx2, "avx2,fma", 8, true);
 target_spatial_rows!(spatial_rows_avx512, "avx512f,avx2,fma", 16, true);
 
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "parallel", target_arch = "x86_64"))]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn spatial_rows_impl<const N: usize, const FMA: bool>(
@@ -1061,7 +1070,7 @@ fn spatial_rows_impl<const N: usize, const FMA: bool>(
     }
 }
 
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "parallel", target_arch = "x86_64"))]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn packed_rows_impl<const N: usize, const FMA: bool>(
@@ -1108,7 +1117,7 @@ fn packed_rows_impl<const N: usize, const FMA: bool>(
 /// Four-pixel/channel-vector packed9 microkernel over scoped NCHW row slices.
 /// Each coefficient vector is reused across four positions. Safe gathers avoid
 /// full-layout scratch and preserve the source FMA chain, including all edges.
-#[cfg(feature = "parallel")]
+#[cfg(all(feature = "parallel", target_arch = "x86_64"))]
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn packed_depth_rows_impl<const N: usize, const FMA: bool>(
@@ -1175,7 +1184,7 @@ fn packed_depth_rows_impl<const N: usize, const FMA: bool>(
 
 #[allow(clippy::too_many_arguments)]
 fn run(
-    backend: Backend,
+    _backend: Backend,
     kind: Kind,
     p: &Conv2d,
     input: &[f32],
@@ -1191,7 +1200,7 @@ fn run(
     #[cfg(target_arch = "x86_64")]
     // SAFETY: try_conv validates the requested ISA before selecting this entry.
     unsafe {
-        match backend {
+        match _backend {
             Backend::Avx => {
                 run_avx(
                     kind, p, input, weights, bias, packed, out, batch, first, count, store,
@@ -1290,6 +1299,9 @@ fn run_core<const N: usize, const FMA: bool>(
             count,
             store,
         ),
+        #[cfg(not(target_arch = "x86_64"))]
+        Kind::PackedDepth9 => unreachable!("packed depthwise9 requires x86-64"),
+        #[cfg(target_arch = "x86_64")]
         Kind::PackedDepth9 => packed_depth9(
             p,
             input,
@@ -2724,6 +2736,7 @@ fn pointwise_working_set_impl<const N: usize, const FMA: bool, const SPATIAL: us
     }
 }
 
+#[cfg(target_arch = "x86_64")]
 #[allow(clippy::too_many_arguments)]
 fn packed_depth9(
     p: &Conv2d,
@@ -2895,7 +2908,7 @@ pub(super) fn try_transpose_store(
 }
 #[allow(clippy::too_many_arguments)]
 fn transpose_run(
-    backend: Backend,
+    _backend: Backend,
     p: &super::kernels::ConvTranspose,
     input: &[f32],
     weights: &[f32],
@@ -2909,7 +2922,7 @@ fn transpose_run(
     #[cfg(target_arch = "x86_64")]
     // SAFETY: try_transpose validates the policy's runtime CPU features.
     unsafe {
-        match backend {
+        match _backend {
             Backend::Avx => {
                 transpose_avx(p, input, weights, bias, out, batch, first, count, store);
                 return;
@@ -3131,7 +3144,7 @@ native::outline! {
 }
 
 native::outline! {
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", target_arch = "x86_64"))]
     fn spatial_rows => spatial_rows_impl <
         const N: usize,
         const FMA: bool,
@@ -3150,7 +3163,7 @@ native::outline! {
 }
 
 native::outline! {
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", target_arch = "x86_64"))]
     fn packed_rows => packed_rows_impl <
         const N: usize,
         const FMA: bool,
@@ -3168,7 +3181,7 @@ native::outline! {
 }
 
 native::outline! {
-    #[cfg(feature = "parallel")]
+    #[cfg(all(feature = "parallel", target_arch = "x86_64"))]
     fn packed_depth_rows => packed_depth_rows_impl <
         const N: usize,
         const FMA: bool,

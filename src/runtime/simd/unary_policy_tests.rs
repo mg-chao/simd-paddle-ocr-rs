@@ -34,6 +34,7 @@ const SIGMOID_NATIVE: [u32; 8] = [
 fn optimized_backends() -> Vec<Backend> {
     let mut result = vec![Backend::Portable4];
     for (available, backend) in [
+        (neon_available(), Backend::NeonFma),
         (avx_available(), Backend::Avx),
         (avx_fma_available(), Backend::AvxFma),
         (avx2_fma_available(), Backend::Avx2Fma),
@@ -67,7 +68,7 @@ fn check(backend: Backend, operation: UnaryOp, input: &[u32; 8], expected: &[u32
 #[test]
 fn optimized_erf_uses_the_reference_fma_eligibility() {
     for backend in optimized_backends() {
-        let expected = if backend.uses_fma() {
+        let expected = if UnaryMath::for_backend(backend).erf_fma {
             &ERF_FMA
         } else {
             &ERF_SEPARATE
@@ -79,7 +80,7 @@ fn optimized_erf_uses_the_reference_fma_eligibility() {
 #[test]
 fn optimized_gelu_multiplies_the_reference_inverse_sqrt_two() {
     for backend in optimized_backends() {
-        let expected = if backend.uses_fma() {
+        let expected = if UnaryMath::for_backend(backend).erf_fma {
             &GELU_NATIVE_FMA
         } else {
             &GELU_NATIVE_SEPARATE
@@ -98,7 +99,7 @@ fn optimized_sigmoid_uses_vector_exp_and_reference_negative_subtraction() {
 #[test]
 fn optimized_policy_goldens_preserve_all_tail_and_partition_bits() {
     for backend in optimized_backends() {
-        let fused = backend.uses_fma();
+        let fused = UnaryMath::for_backend(backend).erf_fma;
         let cases = [
             (
                 UnaryOp::Erf,
@@ -161,7 +162,7 @@ fn activation_packets_preserve_goldens_across_store_widths() {
     // width. Independent goldens protect the arithmetic across outlined SIMD
     // call boundaries, including wide portable packets and one-lane FMA tails.
     for backend in optimized_backends() {
-        let fused = backend.uses_fma();
+        let fused = UnaryMath::for_backend(backend).erf_fma;
         for (operation, inputs, expected) in [
             (
                 UnaryOp::Erf,
@@ -224,13 +225,20 @@ fn forced_policy_and_default_helper_math_are_explicit() {
     for backend in [
         Backend::Scalar,
         Backend::Portable4,
+        Backend::NeonFma,
         Backend::Avx,
         Backend::AvxFma,
         Backend::Avx2Fma,
         Backend::Avx512,
     ] {
         let math = UnaryMath::for_backend(backend);
-        assert_eq!(math.erf_fma, backend.uses_fma());
+        assert_eq!(
+            math.erf_fma,
+            matches!(
+                backend,
+                Backend::AvxFma | Backend::Avx2Fma | Backend::Avx512
+            )
+        );
         assert_eq!(math.inverse_gelu_scale, backend != Backend::Scalar);
         assert_eq!(math.sigmoid_vector_exp, backend != Backend::Scalar);
     }

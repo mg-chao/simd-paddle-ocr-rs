@@ -741,8 +741,8 @@ mod tests {
                                 admitted.wait();
                             }
                             assert!(Arc::ptr_eq(request.cpu_context(), cpu));
-                            assert_eq!(request.cpu_budgets().line_workers, budget);
-                            assert_eq!(request.cpu_budgets().detector_threads, budget);
+                            assert_eq!(request.cpu_budgets().line_workers(), budget);
+                            assert_eq!(request.cpu_budgets().detector_threads(), budget);
                             let owned =
                                 request.run(image, capture).unwrap().try_to_owned().unwrap();
                             drop(request);

@@ -8,6 +8,7 @@ pub mod crop;
 mod db;
 pub mod detector;
 pub mod engine;
+pub mod error;
 pub mod image;
 pub mod lines;
 mod math;
@@ -18,8 +19,9 @@ pub mod orientation;
 mod pixel_kernels;
 pub mod preprocess;
 mod profile;
+mod projection;
 #[cfg(feature = "profiling")]
-pub use profile::StageProfile;
+pub use profile::{RecognitionOwnerProfile, StageProfile};
 pub mod recognizer;
 pub mod runtime;
 pub mod tensor;

@@ -183,3 +183,6 @@ Wrong-reference and custom-Rust-flag CLI checks failed before inference as
 intended. Deleting and restoring one original through the download script
 reproduced its exact SHA-256. Other CPUs and operating systems have not been
 validated by this run.
+
+For the independent Apple M4 / macOS ARM64 validation, see
+[macOS CPU support](macos-cpu-validation.md).

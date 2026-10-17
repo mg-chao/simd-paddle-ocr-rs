@@ -5,6 +5,11 @@ dispatch. Detection, perspective cropping, optional orientation classification,
 CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 The pinned `nightly-2026-09-08` toolchain is selected by `rust-toolchain.toml`.
 
+For native Apple Silicon setup, OCR commands, and local correctness checks, see
+[macOS CPU support](docs/macos-cpu-validation.md). Automatic dispatch uses the
+ARM64 NEON/FMA backend; no Rosetta or GPU runtime is required. The portable
+four-lane policy remains available for comparison.
+
 ## Run OCR
 
 Acquire the shipped model files from the pinned reference checkout, then run
@@ -49,6 +54,20 @@ performance parity claim.
 
 Recorded local checks and completion status are in
 [Windows CPU validation](docs/windows-cpu-validation.md).
+
+The benchmark also supports macOS with native CPU-time and peak-resident-memory
+counters. See the [focused Apple M4 comparison](docs/macos-cpu-performance.md)
+for the original measurements and the
+[ARM64 optimization results](docs/macos-arm64-optimization.md) for NEON kernels,
+Rust/C# latency, memory, and validation scope. The subsequent
+[recognition scheduling results](docs/macos-arm64-recognition-optimization.md)
+record the current dense-page latency improvement and its memory tradeoffs.
+The [narrow convolution results](docs/macos-arm64-narrow-convolution-optimization.md)
+cover the subsequent Tiny/Small latency improvements, numerical validation,
+and measured Medium and memory limitations.
+The [Medium mixed-width follow-up](docs/macos-arm64-medium-mixed-regression.md)
+addresses the long-crop recognition bottleneck while retaining the Tiny/Small
+gains, with a fresh three-version comparison and owner timing evidence.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --
