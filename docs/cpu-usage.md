@@ -156,9 +156,16 @@ contexts have independent capacities.
 
 `CpuOptions` controls maximum line workers, detector threads and preprocessing
 workers. Zero selects automatic stage budgets; positive budgets are capped by
-the context capacity and 16. Automatic OCR budgets permit up to four recognition
-line workers and up to sixteen single-threaded classifiers, bounded by the
-request's available CPU share. A positive `line_workers` bounds both stages.
+the context capacity and 16. Automatic OCR starts with up to four recognition
+line workers. With the native NEON backend, a context of at least eight workers
+and at least eight independent recognition units selects eight line workers
+and correspondingly less nested kernel parallelism. A same-width batch counts
+as one unit. Selection depends on the page and configuration, so concurrent
+request timing does not change line ownership. `Ocr::cpu_budgets()` reports the
+selected budgets after a run. More line workers retain additional activation
+and workspace buffers; see the [measured ARM64 tradeoff](macos-arm64-recognition-optimization.md).
+Automatic classifiers can use up to sixteen single-threaded workers, bounded
+by the request's available CPU share. A positive `line_workers` bounds both stages.
 Standalone line extractors retain the default four-classifier maximum. Nested
 recognizer work shares the context. `Ocr::fork()` creates another mutable
 request sharing compiled models, packed weights, dictionary and CPU capacity,

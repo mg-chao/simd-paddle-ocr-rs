@@ -463,8 +463,8 @@ fn rust_worker(job: &Job) -> Result<()> {
         .builder()
         .cpu_context(Arc::new(CpuContext::new(capacity)?))
         .cpu_options(CpuOptions {
-            // Automatic recognition still resolves to four owners at capacity
-            // eight; the separate classification phase can use the CPU share.
+            // Keep production automatic scheduling, including eight NEON
+            // recognition owners when enough independent units are available.
             line_workers: 0,
             preprocess_workers: capacity,
             detector_threads: capacity,

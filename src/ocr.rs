@@ -658,7 +658,8 @@ impl Ocr {
         if scheduled {
             recognize_parallel::<PROFILE>(
                 &self.cpu,
-                self.budgets,
+                &mut self.budgets,
+                self.cpu_options.line_workers == 0,
                 &self.recognizer,
                 &mut self.workers,
                 &mut self.recognition_results,
@@ -799,7 +800,8 @@ impl Ocr {
 #[allow(clippy::too_many_arguments)]
 fn recognize_parallel<const PROFILE: bool>(
     cpu: &Arc<CpuContext>,
-    budgets: CpuBudgets,
+    budgets: &mut CpuBudgets,
+    automatic_line_workers: bool,
     template: &Recognizer,
     workers: &mut Vec<RecognitionWorker>,
     results: &mut Vec<Mutex<RecognitionSlot>>,
@@ -827,6 +829,11 @@ fn recognize_parallel<const PROFILE: bool>(
         position = recognition_unit_end(order, position, batch_size, template, lines.lines);
         units += 1;
     }
+    *budgets = budgets.for_recognition_units(
+        units,
+        automatic_line_workers,
+        template.compiled().backend() == crate::runtime::Backend::NeonFma,
+    );
     let active = budgets.line_workers.min(units).max(1);
     workers
         .try_reserve(active.saturating_sub(workers.len()))
@@ -2025,7 +2032,8 @@ pub(crate) mod tests {
         let cpu = parallel.cpu_context().clone();
         recognize_parallel::<false>(
             &cpu,
-            parallel.budgets,
+            &mut parallel.budgets,
+            parallel.cpu_options.line_workers == 0,
             &parallel.recognizer,
             &mut parallel.workers,
             &mut parallel.recognition_results,

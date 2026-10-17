@@ -58,8 +58,10 @@ Recorded local checks and completion status are in
 The benchmark also supports macOS with native CPU-time and peak-resident-memory
 counters. See the [focused Apple M4 comparison](docs/macos-cpu-performance.md)
 for the original measurements and the
-[ARM64 optimization results](docs/macos-arm64-optimization.md) for the current
-NEON kernels, Rust/C# latency, memory, and validation scope.
+[ARM64 optimization results](docs/macos-arm64-optimization.md) for NEON kernels,
+Rust/C# latency, memory, and validation scope. The subsequent
+[recognition scheduling results](docs/macos-arm64-recognition-optimization.md)
+record the current dense-page latency improvement and its memory tradeoffs.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

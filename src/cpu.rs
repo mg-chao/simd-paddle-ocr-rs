@@ -114,6 +114,21 @@ pub(crate) fn cap_stage_threads(requested: usize, capacity: usize) -> usize {
     requested.min(capacity).min(16)
 }
 impl CpuBudgets {
+    /// Native ARM recognition benefits from more independent lines instead of
+    /// nested two-worker kernels when a complete eight-line wave is available.
+    /// Depend only on page geometry and configuration, never on request timing:
+    /// stable ownership keeps worker-private shape caches and arenas reusable.
+    pub(crate) fn for_recognition_units(self, units: usize, automatic: bool, neon: bool) -> Self {
+        if !automatic || !neon || self.capacity < 8 || units < 8 {
+            return self;
+        }
+        Self {
+            line_workers: 8,
+            recognizer_base_threads: (self.capacity / 8).clamp(1, 8),
+            ..self
+        }
+    }
+
     /// Static sparse-page boost; scheduling progress never changes arithmetic.
     pub fn recognizer_threads(self, line_count: usize) -> usize {
         let active = self.line_workers.min(line_count).max(1);
@@ -356,6 +371,37 @@ impl CpuContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn automatic_neon_recognition_expands_only_complete_eight_unit_waves() {
+        for capacity in [1, 4, 8, 10, 16, 32] {
+            let base = CpuOptions::default().resolve(capacity, true).unwrap();
+            for units in [0, 1, 4, 7, 8, 9, 69] {
+                assert_eq!(base.for_recognition_units(units, false, true), base);
+                assert_eq!(base.for_recognition_units(units, true, false), base);
+                let selected = base.for_recognition_units(units, true, true);
+                if capacity < 8 || units < 8 {
+                    assert_eq!(selected, base);
+                } else {
+                    assert_eq!(selected.line_workers, 8);
+                    assert_eq!(selected.recognizer_base_threads, (capacity / 8).clamp(1, 8));
+                    assert_eq!(selected.detector_threads, base.detector_threads);
+                    assert_eq!(selected.preprocess_workers, base.preprocess_workers);
+                    // Concurrent demand may lower nested work; it must not
+                    // change the eight stable line owners or exceed the pool.
+                    assert_eq!(selected.recognizer_threads_for_capacity(units, 4), 1);
+                    assert_eq!(selected.line_workers, 8);
+                }
+            }
+        }
+        let explicit = CpuOptions {
+            line_workers: 2,
+            ..Default::default()
+        }
+        .resolve(8, true)
+        .unwrap();
+        assert_eq!(explicit.for_recognition_units(69, false, true), explicit);
+    }
 
     #[test]
     fn request_shares_reduce_nested_work_without_reassigning_lines() {
