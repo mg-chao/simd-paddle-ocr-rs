@@ -114,9 +114,204 @@ fn neon_dense_preserves_fma_order_across_panels_k_blocks_and_receptive_fields() 
     }
 }
 
+#[test]
+fn neon_narrow_pad_end_preserves_ordered_fma_padding_and_channel_tails() {
+    // Pair each shipped channel family with a distinct short spatial shape;
+    // these include a single row, full/partial six-row tiles and batch edges.
+    for (cin, cout, height, width) in [
+        (16, 8, 1, 5),
+        (24, 12, 3, 6),
+        (12, 24, 2, 5),
+        (48, 24, 3, 7),
+        (96, 24, 4, 17),
+    ] {
+        let mut p = plan(cin, cout, 2, 1);
+        p.height = height;
+        p.oh = height;
+        p.width = width;
+        p.ow = width;
+        let input = (0..p.batch * height * width * cin)
+            .map(|i| [1.0000001, 1., -1., -0.0, 0.375][i % 5])
+            .collect::<Vec<_>>();
+        let weights = (0..cout * cin * 4)
+            .map(|i| [1.0000001, -1., 1., 0.5, -0.25, 0.][i % 6])
+            .collect::<Vec<_>>();
+        let bias = (0..cout)
+            .map(|i| [-1., 1., -0.0][i % 3])
+            .collect::<Vec<_>>();
+        let packed = pack(&p, &weights);
+        for bias in [bias.as_slice(), &[]] {
+            // The independent oracle explicitly executes zero-valued padding
+            // taps; skipping them would change signed-zero/FMA semantics.
+            let expected = oracle(&p, &input, &weights, bias);
+            let mut actual = vec![f32::NAN; expected.len()];
+            execute(
+                Backend::NeonFma,
+                &p,
+                &input,
+                bias,
+                &packed,
+                &mut actual,
+                0,
+                &IdentityStore,
+            );
+            assert_bits(&actual, &expected);
+        }
+    }
+}
+
 struct ResidualRelu<'a> {
     residual: &'a [f32],
     columns: usize,
+}
+
+#[test]
+fn neon_narrow_three_preserves_ordered_fma_for_both_strides_and_worker_borders() {
+    for stride in [1usize, 2] {
+        let mut p = plan(32, 24, 3, 1);
+        p.sh = stride;
+        p.sw = stride;
+        p.oh = p.height.div_ceil(stride);
+        p.ow = p.width.div_ceil(stride);
+        let input = values(p.batch * p.height * p.width * p.cin, 7);
+        let weights = values(p.cout * p.cin * 9, 11);
+        let bias = values(p.cout, 13);
+        let packed = pack(&p, &weights);
+        for bias in [bias.as_slice(), &[]] {
+            let expected = oracle(&p, &input, &weights, bias);
+            let mut actual = vec![f32::NAN; expected.len()];
+            execute(
+                Backend::NeonFma,
+                &p,
+                &input,
+                bias,
+                &packed,
+                &mut actual,
+                0,
+                &IdentityStore,
+            );
+            assert_bits(&actual, &expected);
+        }
+        let residual = values(p.batch * p.oh * p.ow * p.cout, 17);
+        let store = ResidualRelu {
+            residual: &residual,
+            columns: p.cout,
+        };
+        let mut expected = oracle(&p, &input, &weights, &bias);
+        for (index, value) in expected.iter_mut().enumerate() {
+            *value = store.scalar(*value, index);
+        }
+        for (first, count) in [(1, 5), (p.ow - 1, 6), (p.oh * p.ow - 3, 7)] {
+            let sentinel = f32::from_bits(0x7fc0_1234);
+            let mut guarded = vec![sentinel; count * p.cout + 6];
+            execute(
+                Backend::NeonFma,
+                &p,
+                &input,
+                &bias,
+                &packed,
+                &mut guarded[3..3 + count * p.cout],
+                first,
+                &store,
+            );
+            assert!(
+                guarded[..3]
+                    .iter()
+                    .chain(&guarded[3 + count * p.cout..])
+                    .all(|value| value.to_bits() == sentinel.to_bits())
+            );
+            assert_bits(
+                &guarded[3..3 + count * p.cout],
+                &expected[first * p.cout..(first + count) * p.cout],
+            );
+        }
+    }
+}
+
+struct PadEndEpilogue<'a> {
+    residual: &'a [f32],
+    channel_bias: &'a [f32],
+}
+impl StoreTransform for PadEndEpilogue<'_> {
+    fn scalar(&self, value: f32, index: usize) -> f32 {
+        (((value + self.channel_bias[index % self.channel_bias.len()]) + 0.125)
+            + self.residual[index])
+            .max(0.)
+    }
+    fn vector<const LANES: usize>(
+        &self,
+        value: Simd<f32, LANES>,
+        index: usize,
+    ) -> Simd<f32, LANES> {
+        self.vector_channel(value, index, index % self.channel_bias.len())
+    }
+    fn vector_channel<const LANES: usize>(
+        &self,
+        value: Simd<f32, LANES>,
+        index: usize,
+        channel: usize,
+    ) -> Simd<f32, LANES> {
+        assert_eq!(channel, index % self.channel_bias.len());
+        let bias = Simd::load_or_default(
+            &self.channel_bias[channel..(channel + LANES).min(self.channel_bias.len())],
+        );
+        let residual =
+            Simd::load_or_default(&self.residual[index..(index + LANES).min(self.residual.len())]);
+        (((value + bias) + Simd::splat(0.125)) + residual).simd_max(Simd::splat(0.))
+    }
+}
+
+#[test]
+fn neon_narrow_pad_end_preserves_fused_stores_and_guarded_worker_bands() {
+    let p = plan(24, 12, 2, 1);
+    let input = values(p.batch * p.height * p.width * p.cin, 7);
+    let weights = values(p.cout * p.cin * 4, 11);
+    let bias = values(p.cout, 13);
+    let packed = pack(&p, &weights);
+    let residual = values(p.batch * p.oh * p.ow * p.cout, 17);
+    let channel_bias = values(p.cout, 19);
+    let store = PadEndEpilogue {
+        residual: &residual,
+        channel_bias: &channel_bias,
+    };
+    let mut expected = oracle(&p, &input, &weights, &bias);
+    for (index, value) in expected.iter_mut().enumerate() {
+        *value = store.scalar(*value, index);
+    }
+    // A band crosses a batch, one spans a 48-row group, and the remaining
+    // bands exercise all six short-tile lengths and both padding edges.
+    for (first, count) in [
+        (16, 1),
+        (32, 2),
+        (47, 3),
+        (73, 4),
+        (148, 5),
+        (197, 6),
+        (149, 49),
+    ] {
+        let sentinel = f32::from_bits(0x7fc0_1234);
+        let mut guarded = vec![sentinel; count * p.cout + 6];
+        execute(
+            Backend::NeonFma,
+            &p,
+            &input,
+            &bias,
+            &packed,
+            &mut guarded[3..3 + count * p.cout],
+            first,
+            &store,
+        );
+        assert!(
+            guarded[..3]
+                .iter()
+                .chain(&guarded[3 + count * p.cout..])
+                .all(|value| value.to_bits() == sentinel.to_bits())
+        );
+        assert_bits(
+            &guarded[3..3 + count * p.cout],
+            &expected[first * p.cout..(first + count) * p.cout],
+        );
+    }
 }
 impl StoreTransform for ResidualRelu<'_> {
     fn scalar(&self, value: f32, index: usize) -> f32 {

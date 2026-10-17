@@ -146,9 +146,8 @@ fn neutral_layout_changes_are_storage_aliases_without_conversion_or_extra_arena(
     }
 }
 
-#[test]
-fn a_narrow_pad_end_segment_has_two_internal_layout_transitions_and_restarts_at_dense() {
-    let parsed = model(
+fn narrow_pad_end_segment() -> Arc<Model> {
+    model(
         vec![
             tensor("a", &[16, 3, 1, 1], &[0.125; 48]),
             tensor("b", &[8, 16, 2, 2], &vec![0.0625; 512]),
@@ -166,11 +165,16 @@ fn a_narrow_pad_end_segment_has_two_internal_layout_transitions_and_restarts_at_
         ],
         &[1, 3, 5, 17],
         &[1, 16, 5, 17],
-    );
+    )
+}
+
+#[test]
+fn a_narrow_pad_end_segment_has_two_internal_layout_transitions_and_restarts_at_dense() {
     let request = session(
-        parsed,
+        narrow_pad_end_segment(),
         CompileOptions {
             fusion: false,
+            kernels: KernelPolicy::Portable4,
             ..CompileOptions::default()
         },
         &[1, 3, 5, 17],
@@ -180,6 +184,313 @@ fn a_narrow_pad_end_segment_has_two_internal_layout_transitions_and_restarts_at_
     assert_eq!(input_layout_at(&request, 4), Layout::Nhwc);
     // Two internal conversions plus the required canonical public output.
     assert_eq!(request.statistics().layout_conversions, 3);
+}
+
+#[test]
+fn neon_narrow_pad_end_keeps_a_segment_and_preserves_explicit_nchw() {
+    if !simd::neon_available() {
+        return;
+    }
+    for (layout, conversions) in [(LayoutPolicy::Auto, 1), (LayoutPolicy::Nchw, 0)] {
+        let request = session(
+            narrow_pad_end_segment(),
+            CompileOptions {
+                fusion: false,
+                kernels: KernelPolicy::NeonFma,
+                layout,
+            },
+            &[1, 3, 5, 17],
+        );
+        if layout == LayoutPolicy::Auto {
+            assert_eq!(input_layout_at(&request, 2), Layout::Nhwc);
+        } else {
+            assert!(request.optimized.is_none());
+        }
+        assert_eq!(request.statistics().layout_conversions, conversions);
+        let (family, isa) = if layout == LayoutPolicy::Auto {
+            ("nhwc_dense_6x16_k512", "NeonFma")
+        } else {
+            ("nchw_dense_2x2_pad_end", "Portable4")
+        };
+        assert!(
+            request
+                .statistics()
+                .specialized_kernels
+                .iter()
+                .any(|kernel| { kernel.family == family && kernel.isa == isa })
+        );
+    }
+}
+
+#[test]
+fn neon_narrow_pad_end_eligibility_is_limited_to_native_detector_geometry() {
+    if !simd::neon_available() {
+        return;
+    }
+    for (cin, cout) in [(16, 8), (24, 12), (12, 24), (48, 24), (96, 24)] {
+        let parsed = model(
+            vec![
+                tensor("w", &[cout, cin, 2, 2], &vec![0.125; cout * cin * 4]),
+                node(
+                    "Conv",
+                    &["x", "w"],
+                    "y",
+                    [attr("kernel_shape", &[2, 2]), attr("pads", &[0, 0, 1, 1])].concat(),
+                ),
+            ],
+            &[2, cin as i64, 3, 7],
+            &[2, cout as i64, 3, 7],
+        );
+        let request = session(
+            parsed,
+            CompileOptions {
+                kernels: KernelPolicy::NeonFma,
+                ..CompileOptions::default()
+            },
+            &[2, cin, 3, 7],
+        );
+        assert_eq!(input_layout_at(&request, 0), Layout::Nhwc);
+        // The exception must not broaden native pointwise eligibility.
+        let pointwise = session(
+            single_conv(cin, cout, 1, 1),
+            CompileOptions {
+                kernels: KernelPolicy::NeonFma,
+                ..CompileOptions::default()
+            },
+            &[2, cin, 3, 7],
+        );
+        assert_eq!(input_layout_at(&pointwise, 0), Layout::Canonical);
+        let BoundKind::Conv(base) = &request.plan.steps[0].kind else {
+            panic!("expected the pad-end convolution");
+        };
+        for variant in 0..7 {
+            let mut changed = base.clone();
+            match variant {
+                0 => changed.kh = 3,
+                1 => changed.sw = 2,
+                2 => changed.pt = 1,
+                3 => changed.dh = 2,
+                4 => changed.ow -= 1,
+                5 => changed.cout = 20,
+                _ => {
+                    changed.cin = 4;
+                    changed.cpg = 4;
+                }
+            }
+            assert!(!conv_nhwc_capable(&request.compiled, 0, &changed));
+        }
+    }
+}
+
+#[test]
+fn neon_narrow_pad_end_session_keeps_fused_bias_channel_and_full_residual_results() {
+    for (cin, cout) in [(16, 8), (24, 12), (12, 24)] {
+        check_neon_narrow_session(cin, cout, 2, 1);
+    }
+}
+
+#[test]
+fn neon_narrow_three_eligibility_keeps_other_policies_and_geometry() {
+    if !simd::neon_available() {
+        return;
+    }
+    for stride in [1usize, 2] {
+        let (cin, cout, height, width) = (32, 24, 9usize, 17usize);
+        let parsed = model(
+            vec![
+                tensor("w", &[cout, cin, 3, 3], &vec![0.125; cout * cin * 9]),
+                node(
+                    "Conv",
+                    &["x", "w"],
+                    "y",
+                    [
+                        attr("kernel_shape", &[3, 3]),
+                        attr("pads", &[1; 4]),
+                        attr("strides", &[stride as i64; 2]),
+                    ]
+                    .concat(),
+                ),
+            ],
+            &[2, cin as i64, height as i64, width as i64],
+            &[
+                2,
+                cout as i64,
+                height.div_ceil(stride) as i64,
+                width.div_ceil(stride) as i64,
+            ],
+        );
+        for kernels in policies().into_iter().chain([KernelPolicy::NeonFma]) {
+            let request = session(
+                parsed.clone(),
+                CompileOptions {
+                    kernels,
+                    ..CompileOptions::default()
+                },
+                &[2, cin, height, width],
+            );
+            assert_eq!(
+                input_layout_at(&request, 0),
+                if kernels == KernelPolicy::NeonFma {
+                    Layout::Nhwc
+                } else {
+                    Layout::Canonical
+                }
+            );
+            if kernels == KernelPolicy::NeonFma {
+                let BoundKind::Conv(base) = &request.plan.steps[0].kind else {
+                    panic!("expected a dense 3x3 convolution");
+                };
+                for variant in 0..8 {
+                    let mut changed = base.clone();
+                    match variant {
+                        0 => {
+                            changed.cin = 24;
+                            changed.cpg = 24;
+                        }
+                        1 => changed.cout = 12,
+                        2 => changed.kw = 5,
+                        3 => {
+                            changed.sh = 3;
+                            changed.sw = 3;
+                        }
+                        4 => changed.sw = 3 - stride,
+                        5 => changed.pl = 0,
+                        6 => changed.oh -= 1,
+                        _ => changed.dw = 2,
+                    }
+                    assert!(!conv_nhwc_capable(&request.compiled, 0, &changed));
+                }
+            }
+        }
+        let canonical = session(
+            parsed,
+            CompileOptions {
+                kernels: KernelPolicy::NeonFma,
+                layout: LayoutPolicy::Nchw,
+                fusion: false,
+            },
+            &[2, cin, height, width],
+        );
+        assert!(canonical.optimized.is_none());
+    }
+}
+
+#[test]
+fn neon_narrow_three_session_keeps_fused_results_for_both_strides() {
+    for stride in [1, 2] {
+        check_neon_narrow_session(32, 24, 3, stride);
+    }
+}
+
+fn check_neon_narrow_session(cin: usize, cout: usize, kernel: usize, stride: usize) {
+    if !simd::neon_available() {
+        return;
+    }
+    let cpu = Arc::new(CpuContext::new(if cfg!(feature = "parallel") { 2 } else { 1 }).unwrap());
+    // This spatial size reaches the dense two-worker threshold even for the
+    // smallest head, while remaining small enough for focused correctness.
+    let (batch, height, width): (usize, usize, usize) = if kernel == 2 {
+        (2, 49, 41)
+    } else {
+        (2, 25, 25)
+    };
+    let (oh, ow) = (height.div_ceil(stride), width.div_ceil(stride));
+    let pads = if kernel == 2 { [0, 0, 1, 1] } else { [1; 4] };
+    let values = |length, seed| {
+        (0..length)
+            .map(|i| ((i * 31 + seed) % 103) as f32 / 79. - 0.625)
+            .collect::<Vec<_>>()
+    };
+    let parsed = model(
+        vec![
+            tensor("r", &[cout, cin, 1, 1], &values(cout * cin, 7)),
+            tensor(
+                "w",
+                &[cout, cin, kernel, kernel],
+                &values(cout * cin * kernel * kernel, 11),
+            ),
+            tensor("b", &[cout], &values(cout, 13)),
+            tensor("channel", &[1, cout, 1, 1], &values(cout, 17)),
+            tensor("factor", &[], &[0.5]),
+            node(
+                "Conv",
+                &["x", "r"],
+                "residual",
+                [
+                    attr("kernel_shape", &[1, 1]),
+                    attr("strides", &[stride as i64; 2]),
+                ]
+                .concat(),
+            ),
+            // Mul keeps the residual branch outside Conv epilogue groups,
+            // so the tested fused store belongs to the narrow spatial head.
+            node("Mul", &["residual", "factor"], "scaled", vec![]),
+            node(
+                "Conv",
+                &["x", "w", "b"],
+                "c",
+                [
+                    attr("kernel_shape", &[kernel as i64; 2]),
+                    attr("pads", &pads),
+                    attr("strides", &[stride as i64; 2]),
+                ]
+                .concat(),
+            ),
+            node("Add", &["c", "scaled"], "sum", vec![]),
+            node("Add", &["sum", "channel"], "biased", vec![]),
+            node("Relu", &["biased"], "y", vec![]),
+        ],
+        &[batch as i64, cin as i64, height as i64, width as i64],
+        &[batch as i64, cout as i64, oh as i64, ow as i64],
+    );
+    let request = |fusion| {
+        Session::new(
+            Arc::new(
+                CompiledModel::compile(
+                    parsed.clone(),
+                    CompileOptions {
+                        kernels: KernelPolicy::NeonFma,
+                        layout: LayoutPolicy::Auto,
+                        fusion,
+                    },
+                )
+                .unwrap(),
+            ),
+            cpu.clone(),
+            &[batch, cin, height, width],
+            ExecutionOptions::default(),
+        )
+        .unwrap()
+    };
+    let mut unfused = request(false);
+    let mut fused = request(true);
+    assert_eq!(input_layout_at(&fused, 2), Layout::Nhwc);
+    assert_eq!(fused.statistics().store_fused_steps, 1);
+    assert!(
+        fused
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|kernel| { kernel.family == "nhwc_dense_6x16_k512" && kernel.store_fused })
+    );
+    let input = values(batch * cin * height * width, 19);
+    for budget in [1, 2] {
+        unfused
+            .set_intra_op_threads(budget.min(cpu.capacity()))
+            .unwrap();
+        fused
+            .set_intra_op_threads(budget.min(cpu.capacity()))
+            .unwrap();
+        let expected = unfused.run(&input).unwrap().data().to_vec();
+        let actual = fused.run(&input).unwrap().data();
+        assert!(
+            actual
+                .iter()
+                .zip(&expected)
+                .all(|(a, b)| a.to_bits() == b.to_bits()),
+            "cin={cin} cout={cout} kernel={kernel} stride={stride} budget={budget}"
+        );
+    }
 }
 
 #[test]

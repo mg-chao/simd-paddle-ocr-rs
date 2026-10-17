@@ -21,7 +21,7 @@ pub mod preprocess;
 mod profile;
 mod projection;
 #[cfg(feature = "profiling")]
-pub use profile::StageProfile;
+pub use profile::{RecognitionOwnerProfile, StageProfile};
 pub mod recognizer;
 pub mod runtime;
 pub mod tensor;

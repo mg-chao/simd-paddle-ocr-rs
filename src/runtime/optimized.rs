@@ -207,7 +207,31 @@ fn conv_nhwc_capable(compiled: &CompiledModel, index: usize, p: &kernels::Conv) 
         return false;
     }
     if p.cpg == p.cin {
-        p.cout >= 16 && p.cout.is_multiple_of(16)
+        // Native ARM convolutions can keep their surrounding NHWC segment
+        // through narrow spatial reductions. The existing dense kernel binds
+        // padded coefficient panels and stores only the active output channels.
+        let pad_end = p.cin >= 8
+            && matches!(p.cout, 8 | 12 | 24)
+            && p.kh == 2
+            && p.kw == 2
+            && p.sh == 1
+            && p.sw == 1
+            && p.pt == 0
+            && p.pl == 0
+            && p.oh == p.height
+            && p.ow == p.width;
+        let narrow_three = p.cin >= 32
+            && p.cout == 24
+            && p.kh == 3
+            && p.kw == 3
+            && matches!(p.sh, 1 | 2)
+            && p.sw == p.sh
+            && p.pt == 1
+            && p.pl == 1
+            && p.oh == p.height.div_ceil(p.sh)
+            && p.ow == p.width.div_ceil(p.sw);
+        (p.cout >= 16 && p.cout.is_multiple_of(16))
+            || (compiled.backend == Backend::NeonFma && (pad_end || narrow_three))
     } else {
         p.cpg == 1 && p.opg == 1 && p.cout == p.cin && p.cout.is_multiple_of(8)
     }

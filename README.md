@@ -62,6 +62,12 @@ for the original measurements and the
 Rust/C# latency, memory, and validation scope. The subsequent
 [recognition scheduling results](docs/macos-arm64-recognition-optimization.md)
 record the current dense-page latency improvement and its memory tradeoffs.
+The [narrow convolution results](docs/macos-arm64-narrow-convolution-optimization.md)
+cover the subsequent Tiny/Small latency improvements, numerical validation,
+and measured Medium and memory limitations.
+The [Medium mixed-width follow-up](docs/macos-arm64-medium-mixed-regression.md)
+addresses the long-crop recognition bottleneck while retaining the Tiny/Small
+gains, with a fresh three-version comparison and owner timing evidence.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

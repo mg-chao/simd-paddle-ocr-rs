@@ -178,6 +178,14 @@ request timing does not change line ownership. `Ocr::cpu_budgets()` reports the
 selected budgets after a run. More line workers retain additional activation
 and workspace buffers; see the measured [Windows AVX2/FMA](windows-avx2-recognition-scheduling.md)
 and [ARM64](macos-arm64-recognition-optimization.md) tradeoffs.
+On NEON, automatic scheduling with eight owners and a base kernel budget of
+one can give one uniquely dominant, single-crop owner two kernel workers when
+the request has its full CPU share. The shared pool still bounds execution;
+jobs and recognizer buffers keep their owners. Explicit positive line-worker
+settings retain their selected policy. See the
+[mixed-width measurements](macos-arm64-medium-mixed-regression.md).
+`cpu_budgets()` reports the base budget; profiling owner records expose the
+individual kernel budgets.
 Automatic classifiers can use up to sixteen single-threaded workers, bounded
 by the request's available CPU share. A positive `line_workers` bounds both stages.
 Standalone line extractors retain the default four-classifier maximum. Nested

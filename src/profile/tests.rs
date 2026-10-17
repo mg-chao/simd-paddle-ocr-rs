@@ -55,11 +55,151 @@ fn disabled_timers_have_no_clock_state() {
     let timer = Timer::<false>::start();
     assert!(timer.0.is_none());
     assert_eq!(timer.elapsed(), 0);
+    #[cfg(feature = "profiling")]
+    assert_eq!(super::thread_cpu_ns::<false>(), None);
     #[cfg(not(feature = "profiling"))]
     {
         let timer = Timer::<true>::start();
         assert!(timer.0.is_none());
         assert_eq!(timer.elapsed(), 0);
+    }
+}
+
+#[cfg(feature = "profiling")]
+#[test]
+fn recognition_owner_merge_keeps_one_snapshot_without_summing_intervals() {
+    use super::RecognitionOwnerProfile;
+    let record = RecognitionOwnerProfile {
+        owner_index: 0,
+        dispatch_start_offset_ns: 11,
+        dispatch_end_offset_ns: 31,
+        wall_ns: 20,
+        job_count: 2,
+        line_count: 3,
+        scheduled_width_cost: 640,
+        maximum_tensor_width: 320,
+        kernel_threads: 1,
+        ..Default::default()
+    };
+    let mut profile = StageProfile {
+        recognition_owner_count: 1,
+        ..Default::default()
+    };
+    profile.recognition_owners[0] = record;
+    // Ordinary worker merges add stage work but never duplicate owner records.
+    profile.merge(StageProfile {
+        rec_backbone_ns: 100,
+        recognized_lines: 3,
+        ..Default::default()
+    });
+    assert_eq!(profile.recognition_owner_count, 1);
+    assert_eq!(profile.recognition_owners[0], record);
+    let mut next = StageProfile {
+        recognition_owner_count: 1,
+        recognized_lines: 2,
+        ..Default::default()
+    };
+    next.recognition_owners[0] = RecognitionOwnerProfile {
+        line_count: 2,
+        ..record
+    };
+    profile.merge(next);
+    assert_eq!(profile.recognized_lines, 5);
+    assert_eq!(profile.recognition_owner_count, 1);
+    assert_eq!(profile.recognition_owners[0].line_count, 2);
+    assert_eq!(profile.recognition_owners[0].wall_ns, 20);
+    assert!(
+        profile.recognition_owners[1..]
+            .iter()
+            .all(|record| *record == RecognitionOwnerProfile::default())
+    );
+    let json = serde_json::to_value(profile).unwrap();
+    assert_eq!(json["recognition_owner_count"], 1);
+    assert_eq!(json["recognition_owners"][0]["scheduled_width_cost"], 640);
+    assert!(json["recognition_owners"][0]["thread_cpu_ns"].is_null());
+}
+
+#[cfg(feature = "profiling")]
+#[test]
+fn recognition_owner_records_account_for_serial_parallel_and_same_width_batches() {
+    use super::RecognitionOwnerProfile;
+    use std::sync::Arc;
+    let mut pixels = vec![0; 96 * 96 * 3];
+    for top in [10, 58] {
+        for y in top..top + 13 {
+            for x in 12..52 {
+                pixels[(y * 96 + x) * 3..(y * 96 + x) * 3 + 3].fill(255);
+            }
+        }
+    }
+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+    #[cfg(feature = "parallel")]
+    let capacities = [1, 2];
+    #[cfg(not(feature = "parallel"))]
+    let capacities = [1];
+    for capacity in capacities {
+        for batch_size in [1, 2] {
+            let cpu = Arc::new(CpuContext::new(capacity).unwrap());
+            let mut pipeline = crate::ocr::tests::synthetic_ocr(cpu);
+            pipeline.set_recognition_batch_size(batch_size).unwrap();
+            let expected = pipeline.run(image, true).unwrap().try_to_owned().unwrap();
+            let (actual, profile) = pipeline.run_profiled(image, true).unwrap();
+            assert_eq!(actual.try_to_owned().unwrap(), expected);
+            let expected_count = if batch_size == 2 {
+                1
+            } else if capacity > 1 {
+                2
+            } else {
+                0
+            };
+            assert_eq!(profile.recognition_owner_count, expected_count);
+            assert_eq!(profile.recognized_lines, 2);
+            let records = &profile.recognition_owners[..expected_count];
+            if expected_count != 0 {
+                assert_eq!(records.iter().map(|r| r.line_count).sum::<usize>(), 2);
+                assert_eq!(
+                    records.iter().map(|r| r.job_count).sum::<usize>(),
+                    if batch_size == 2 { 1 } else { 2 }
+                );
+                assert_eq!(
+                    records
+                        .iter()
+                        .map(|r| r.scheduled_width_cost)
+                        .sum::<usize>(),
+                    expected
+                        .lines
+                        .iter()
+                        .map(|line| line.recognition_tensor_width)
+                        .sum::<usize>()
+                );
+            }
+            for (index, record) in records.iter().enumerate() {
+                assert_eq!(record.owner_index, index);
+                assert_eq!(
+                    record.maximum_tensor_width,
+                    expected.lines[0].recognition_tensor_width
+                );
+                assert_eq!(
+                    record.scheduled_width_cost,
+                    record.maximum_tensor_width * record.line_count
+                );
+                assert!((1..=capacity).contains(&record.kernel_threads));
+                assert_eq!(record.rayon_worker_index.is_some(), capacity > 1);
+                assert!(record.dispatch_end_offset_ns >= record.dispatch_start_offset_ns);
+                assert_eq!(
+                    record.wall_ns,
+                    record.dispatch_end_offset_ns - record.dispatch_start_offset_ns
+                );
+                assert!(record.dispatch_end_offset_ns <= profile.recognition_wall_ns);
+                #[cfg(not(target_os = "macos"))]
+                assert_eq!(record.thread_cpu_ns, None);
+            }
+            assert!(
+                profile.recognition_owners[expected_count..]
+                    .iter()
+                    .all(|record| *record == RecognitionOwnerProfile::default())
+            );
+        }
     }
 }
 

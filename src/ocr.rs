@@ -285,6 +285,8 @@ struct RecognitionWorker {
     scheduled_cost: usize,
     error: Option<(usize, ImageError)>,
     profile: StageProfile,
+    #[cfg(feature = "profiling")]
+    owner_profile: crate::profile::RecognitionOwnerProfile,
 }
 impl Ocr {
     pub fn new(
@@ -846,15 +848,9 @@ fn recognize_parallel<const PROFILE: bool>(
             scheduled_cost: 0,
             error: None,
             profile: StageProfile::default(),
+            #[cfg(feature = "profiling")]
+            owner_profile: crate::profile::RecognitionOwnerProfile::default(),
         });
-    }
-    let threads = budgets.recognizer_threads_for_capacity(units, cpu.request_capacity());
-    for worker in &mut workers[..active] {
-        worker
-            .recognizer
-            .set_execution_context(cpu.clone(), threads)?;
-        worker.error = None;
-        worker.profile = StageProfile::default();
     }
     assign_recognition_jobs(
         &mut workers[..active],
@@ -863,9 +859,87 @@ fn recognize_parallel<const PROFILE: bool>(
         template,
         lines.metadata(),
     )?;
+    let request_capacity = cpu.request_capacity();
+    let threads = budgets.recognizer_threads_for_capacity(units, request_capacity);
+    let borrowing_owner = recognition_borrowing_owner(
+        *budgets,
+        automatic_line_workers,
+        template.compiled().backend(),
+        request_capacity,
+        workers[..active].iter().map(|worker| {
+            (
+                worker.scheduled_cost,
+                if worker.jobs.len() == 1 {
+                    worker.jobs[0].len()
+                } else {
+                    0
+                },
+            )
+        }),
+    );
+    for (index, worker) in workers[..active].iter_mut().enumerate() {
+        let kernel_threads = if borrowing_owner == Some(index) {
+            2
+        } else {
+            threads
+        };
+        worker
+            .recognizer
+            .set_execution_context(cpu.clone(), kernel_threads)?;
+        worker.error = None;
+        worker.profile = StageProfile::default();
+        #[cfg(feature = "profiling")]
+        {
+            worker.owner_profile = if PROFILE {
+                crate::profile::RecognitionOwnerProfile {
+                    kernel_threads,
+                    ..Default::default()
+                }
+            } else {
+                Default::default()
+            };
+        }
+    }
+    #[cfg(feature = "profiling")]
+    if PROFILE {
+        for (index, worker) in workers[..active].iter_mut().enumerate() {
+            worker.owner_profile = crate::profile::RecognitionOwnerProfile {
+                owner_index: index,
+                job_count: worker.jobs.len(),
+                line_count: worker.jobs.iter().map(Range::len).sum(),
+                scheduled_width_cost: worker.scheduled_cost,
+                maximum_tensor_width: worker
+                    .jobs
+                    .iter()
+                    .map(|job| {
+                        let line = &lines.metadata()[order[job.start]];
+                        template
+                            .select_width(line.width, line.height)
+                            .expect("recognition width was preflighted")
+                            .tensor_width
+                    })
+                    .max()
+                    .unwrap_or(0),
+                kernel_threads: worker.owner_profile.kernel_threads,
+                ..Default::default()
+            };
+        }
+    }
     let result_bytes = AtomicUsize::new(0);
     let budget_exceeded = AtomicBool::new(false);
+    #[cfg(feature = "profiling")]
+    let dispatch_timer = Timer::<PROFILE>::start();
     cpu.for_each_mut(&mut workers[..active], active, |_, worker| {
+        #[cfg(feature = "profiling")]
+        let owner_start = if PROFILE {
+            worker.owner_profile.rayon_worker_index = crate::profile::rayon_worker_index();
+            Some((
+                dispatch_timer.elapsed(),
+                crate::profile::thread_cpu_ns::<PROFILE>(),
+            ))
+        } else {
+            None
+        };
         for job in &worker.jobs {
             let position = job.start;
             let index = order[position];
@@ -919,6 +993,17 @@ fn recognize_parallel<const PROFILE: bool>(
                 Err(error) => remember_error(&mut worker.error, index, error),
             }
         }
+        #[cfg(feature = "profiling")]
+        if let Some((start, cpu_start)) = owner_start {
+            let cpu_end = crate::profile::thread_cpu_ns::<PROFILE>();
+            let end = dispatch_timer.elapsed();
+            worker.owner_profile.dispatch_start_offset_ns = start;
+            worker.owner_profile.dispatch_end_offset_ns = end;
+            worker.owner_profile.wall_ns = end.saturating_sub(start);
+            worker.owner_profile.thread_cpu_ns = cpu_start
+                .zip(cpu_end)
+                .and_then(|(start, end)| end.checked_sub(start));
+        }
     });
     let mut error = None;
     for worker in &mut workers[..active] {
@@ -929,6 +1014,19 @@ fn recognize_parallel<const PROFILE: bool>(
             remember_error(&mut error, index, cause);
         }
     }
+    #[cfg(feature = "profiling")]
+    if PROFILE {
+        debug_assert!(active <= profile.recognition_owners.len());
+        profile.recognition_owner_count = active.min(profile.recognition_owners.len());
+        profile.recognition_owners.fill(Default::default());
+        for (record, worker) in profile
+            .recognition_owners
+            .iter_mut()
+            .zip(&workers[..active])
+        {
+            *record = worker.owner_profile;
+        }
+    }
     if let Some((_, error)) = error {
         return Err(error);
     }
@@ -936,6 +1034,45 @@ fn recognize_parallel<const PROFILE: bool>(
         return Err(ImageError::new("OCR exceeds max_total_result_bytes"));
     }
     Ok(())
+}
+
+/// A long individual crop can outlast every other owner even after descending
+/// width assignment. Let at most one such owner expose two kernel bands to
+/// the same bounded pool, so completed owners can help its remaining work.
+/// Geometry alone selects the hint; ownership and warm buffers never migrate.
+fn recognition_borrowing_owner(
+    budgets: CpuBudgets,
+    automatic_line_workers: bool,
+    backend: crate::runtime::Backend,
+    request_capacity: usize,
+    owners: impl ExactSizeIterator<Item = (usize, usize)>,
+) -> Option<usize> {
+    let active = owners.len();
+    if !automatic_line_workers
+        || backend != crate::runtime::Backend::NeonFma
+        || budgets.recognizer_base_threads() != 1
+        || active < 8
+        || request_capacity != budgets.capacity()
+        || request_capacity < active
+    {
+        return None;
+    }
+    let (mut total, mut maximum, mut selected, mut tied) = (0u128, 0usize, None, false);
+    for (index, (cost, single_job_lines)) in owners.enumerate() {
+        total += cost as u128;
+        if cost > maximum {
+            maximum = cost;
+            selected = (single_job_lines == 1).then_some(index);
+            tied = false;
+        } else if cost == maximum {
+            tied = true;
+        }
+    }
+    // Widen before either sum or multiplication: theoretical width costs near
+    // usize::MAX must not wrap into a false dominant-owner decision.
+    (!tied && maximum as u128 * active as u128 > total)
+        .then_some(selected)
+        .flatten()
 }
 
 fn assign_recognition_jobs(
@@ -1713,6 +1850,8 @@ pub(crate) mod tests {
                 scheduled_cost: 0,
                 error: None,
                 profile: StageProfile::default(),
+                #[cfg(feature = "profiling")]
+                owner_profile: crate::profile::RecognitionOwnerProfile::default(),
             })
             .collect();
         assign_recognition_jobs(&mut workers, &order, 2, &ocr.recognizer, &lines).unwrap();
@@ -1754,6 +1893,26 @@ pub(crate) mod tests {
         ocr.set_recognition_batch_size(7).unwrap();
         assert_eq!(ocr.fork().unwrap().recognition_batch_size(), 7);
         assert_eq!(ocr.into_factory()().unwrap().recognition_batch_size(), 7);
+    }
+
+    #[cfg(feature = "profiling")]
+    #[test]
+    fn unprofiled_recognition_clears_owner_diagnostics_on_reuse() {
+        let mut ocr = synthetic_ocr(CpuContext::serial());
+        ocr.set_recognition_batch_size(2).unwrap();
+        let pixels = two_lines();
+        let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+        let (_, profile) = ocr.run_profiled(image, true).unwrap();
+        assert_eq!(profile.recognition_owner_count, 1);
+        ocr.run(image, true).unwrap();
+        for worker in &ocr.workers {
+            assert_eq!(
+                worker.owner_profile,
+                crate::profile::RecognitionOwnerProfile::default()
+            );
+            assert_eq!(worker.profile.recognition_owner_count, 0);
+            assert_eq!(worker.profile.rec_backbone_ns, 0);
+        }
     }
 
     #[test]
@@ -1846,6 +2005,266 @@ pub(crate) mod tests {
         assert!(added > 0);
         assert_eq!(request.retained_workspace_bytes(), before + added);
     }
+    #[test]
+    fn recognition_borrowing_requires_automatic_neon_and_a_unique_dominant_crop() {
+        use crate::runtime::Backend;
+        let budgets = CpuOptions::default()
+            .resolve(8, true)
+            .unwrap()
+            .for_recognition_units(16, true, Backend::NeonFma);
+        let owners = [
+            (512, 1),
+            (128, 2),
+            (128, 2),
+            (128, 2),
+            (128, 2),
+            (128, 2),
+            (128, 2),
+            (128, 2),
+        ];
+        let select = |budgets, automatic, backend, share, owners: &[(usize, usize)]| {
+            recognition_borrowing_owner(budgets, automatic, backend, share, owners.iter().copied())
+        };
+        assert_eq!(select(budgets, true, Backend::NeonFma, 8, &owners), Some(0));
+        assert_eq!(select(budgets, false, Backend::NeonFma, 8, &owners), None);
+        for backend in [
+            Backend::Scalar,
+            Backend::Portable4,
+            Backend::Avx,
+            Backend::AvxFma,
+            Backend::Avx2Fma,
+            Backend::Avx512,
+        ] {
+            assert_eq!(select(budgets, true, backend, 8, &owners), None);
+        }
+        for share in [1, 4, 7, 9] {
+            assert_eq!(
+                select(budgets, true, Backend::NeonFma, share, &owners),
+                None
+            );
+        }
+        assert_eq!(
+            select(budgets, true, Backend::NeonFma, 8, &owners[..7]),
+            None
+        );
+        let nested = CpuOptions::default()
+            .resolve(16, true)
+            .unwrap()
+            .for_recognition_units(16, true, Backend::NeonFma);
+        assert_eq!(select(nested, true, Backend::NeonFma, 16, &owners), None);
+        let mut divisible = owners;
+        divisible[0].1 = 2;
+        assert_eq!(select(budgets, true, Backend::NeonFma, 8, &divisible), None);
+        assert_eq!(
+            select(budgets, true, Backend::NeonFma, 8, &[(128, 1); 8]),
+            None
+        );
+        assert_eq!(
+            select(budgets, true, Backend::NeonFma, 8, &[(0, 1); 8]),
+            None
+        );
+        let mut moved = owners;
+        moved.swap(0, 4);
+        assert_eq!(select(budgets, true, Backend::NeonFma, 8, &moved), Some(4));
+        // Tied maxima provide no unique owner to borrow an additional band.
+        let mut tied = owners;
+        tied[1] = (512, 1);
+        assert_eq!(select(budgets, true, Backend::NeonFma, 8, &tied), None);
+        let mut large = [(usize::MAX - 1, 2); 8];
+        large[0] = (usize::MAX, 1);
+        assert_eq!(select(budgets, true, Backend::NeonFma, 8, &large), Some(0));
+    }
+
+    #[cfg(all(feature = "parallel", target_arch = "aarch64"))]
+    #[test]
+    fn automatic_recognition_borrowing_preserves_ownership_outputs_and_warm_storage() {
+        fn lines(widths: &[usize]) -> crate::lines::OwnedOrientedLines {
+            let mut pixels = Vec::new();
+            let metadata = widths
+                .iter()
+                .map(|&width| {
+                    let offset = pixels.len();
+                    let bytes = width * 48 * 3;
+                    pixels.resize(offset + bytes, 255);
+                    crate::lines::LineMetadata {
+                        detection: DetectionBox {
+                            points: [[0., 0.], [width as f32, 0.], [width as f32, 48.], [0., 48.]],
+                            score: 1.,
+                        },
+                        offset,
+                        bytes,
+                        width,
+                        height: 48,
+                        unrotated_width: width,
+                        unrotated_height: 48,
+                        vertical_rotation: false,
+                        classification: None,
+                        applied_rotation_degrees: 0,
+                    }
+                })
+                .collect();
+            crate::lines::OwnedOrientedLines::new(
+                *widths.iter().max().unwrap(),
+                48,
+                1.,
+                1.,
+                metadata,
+                pixels,
+            )
+            .unwrap()
+        }
+        fn run(
+            request: &mut Ocr,
+            lines: &crate::lines::OwnedOrientedLines,
+            batch: usize,
+        ) -> StageProfile {
+            let cpu = request.cpu.clone();
+            request.budgets = request.cpu_options.resolve(cpu.capacity(), true).unwrap();
+            let mut profile = StageProfile::default();
+            recognize_parallel::<{ cfg!(feature = "profiling") }>(
+                &cpu,
+                &mut request.budgets,
+                request.cpu_options.line_workers == 0,
+                &request.recognizer,
+                &mut request.workers,
+                &mut request.recognition_results,
+                &mut request.recognition_order,
+                batch,
+                &lines.as_view(),
+                true,
+                usize::MAX,
+                &mut profile,
+            )
+            .unwrap();
+            let mut reference = request.recognizer.fork().unwrap();
+            reference
+                .set_execution_context(CpuContext::serial(), 1)
+                .unwrap();
+            for (slot, line) in request
+                .recognition_results
+                .iter()
+                .zip(lines.as_view().iter())
+            {
+                assert_eq!(
+                    serde_json::to_value(slot.lock().unwrap().as_view()).unwrap(),
+                    serde_json::to_value(reference.recognize(line.image, true).unwrap()).unwrap(),
+                );
+            }
+            profile
+        }
+        let threads = |request: &Ocr| {
+            request
+                .workers
+                .iter()
+                .map(|worker| worker.recognizer.projection_statistics().unwrap().threads)
+                .collect::<Vec<_>>()
+        };
+        let storage = |request: &Ocr| {
+            request
+                .workers
+                .iter()
+                .map(|worker| {
+                    (
+                        worker.jobs.clone(),
+                        worker.jobs.as_ptr() as usize,
+                        worker.jobs.capacity(),
+                        worker.recognizer.retained_activation_bytes(),
+                        worker.recognizer.retained_workspace_bytes(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let cpu = Arc::new(CpuContext::new(8).unwrap());
+        // Direct recognition dispatch normally runs inside Ocr's registered
+        // request. Keep that same demand accounting while bypassing detection.
+        let _active_request = cpu.register_request();
+        let mut request = synthetic_ocr(cpu.clone());
+        assert_eq!(
+            request.recognizer.compiled().backend(),
+            crate::runtime::Backend::NeonFma
+        );
+        let mixed = lines(&[512, 64, 64, 64, 64, 64, 64, 64, 64]);
+        let profile = run(&mut request, &mixed, 1);
+        assert_eq!(threads(&request), [2, 1, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(request.workers[0].jobs.len(), 1);
+        assert_eq!(request.workers[0].jobs[0], 0..1);
+        #[cfg(feature = "profiling")]
+        {
+            assert_eq!(profile.recognition_owner_count, 8);
+            assert_eq!(profile.recognition_owners[0].kernel_threads, 2);
+            assert!(
+                profile.recognition_owners[1..8]
+                    .iter()
+                    .all(|owner| owner.kernel_threads == 1)
+            );
+        }
+        #[cfg(not(feature = "profiling"))]
+        let _ = profile;
+        let jobs = request
+            .workers
+            .iter()
+            .map(|worker| worker.jobs.clone())
+            .collect::<Vec<_>>();
+        let warmed = storage(&request);
+        run(&mut request, &mixed, 1);
+        assert_eq!(storage(&request), warmed);
+
+        let balanced = lines(&[64; 9]);
+        run(&mut request, &balanced, 1);
+        assert_eq!(threads(&request), [1; 8]);
+        run(&mut request, &mixed, 1);
+        assert_eq!(threads(&request), [2, 1, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(
+            request
+                .workers
+                .iter()
+                .map(|worker| worker.jobs.clone())
+                .collect::<Vec<_>>(),
+            jobs
+        );
+        let rewarmed = storage(&request);
+        let waiting = cpu.register_request();
+        run(&mut request, &mixed, 1);
+        assert_eq!(threads(&request), [1; 8]);
+        assert_eq!(storage(&request), rewarmed);
+        drop(waiting);
+        run(&mut request, &mixed, 1);
+        assert_eq!(threads(&request), [2, 1, 1, 1, 1, 1, 1, 1]);
+        assert_eq!(storage(&request), rewarmed);
+
+        request
+            .set_execution_context(
+                cpu.clone(),
+                CpuOptions {
+                    line_workers: 8,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        run(&mut request, &mixed, 1);
+        assert_eq!(threads(&request), [1; 8]);
+        assert_eq!(storage(&request), rewarmed);
+        request
+            .set_execution_context(cpu.clone(), CpuOptions::default())
+            .unwrap();
+        // A batch is already independent work over several crops. Eight units
+        // remain eight owners, but a multi-crop unit does not borrow a thread.
+        let batched = lines(&[
+            512, 512, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+        ]);
+        run(&mut request, &batched, 2);
+        assert_eq!(threads(&request), [1; 8]);
+        assert!(
+            request
+                .workers
+                .iter()
+                .all(|worker| worker.jobs.len() == 1 && worker.jobs[0].len() == 2)
+        );
+        let batch_warmed = storage(&request);
+        run(&mut request, &batched, 2);
+        assert_eq!(storage(&request), batch_warmed);
+    }
+
     #[cfg(feature = "parallel")]
     #[test]
     fn automatic_recognition_preserves_dense_owners_and_counts_batches() {
