@@ -255,7 +255,9 @@ pub(super) fn selection(
                 && p.oh == p.height
                 && p.ow == p.width
             {
-                if backend == Backend::Portable4 {
+                if pointwise::inline_avx2_eligible(backend, p.cin, p.cout) {
+                    "nhwc_pointwise_6x16_inline"
+                } else if backend == Backend::Portable4 {
                     "nhwc_pointwise_6x8_pair2_group8"
                 } else if matches!(backend, Backend::Avx | Backend::AvxFma | Backend::Avx2Fma)
                     && pointwise::avx_group_rows(p.cin, p.cout) == 96

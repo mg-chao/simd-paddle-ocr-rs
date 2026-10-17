@@ -3,14 +3,31 @@
 //! Each input row is sliced before reduction. Zipped row/panel iterators keep
 //! indexing checks outside K, and paired low/high updates shorten broadcast
 //! lifetimes while all twelve AVX accumulators remain live. No convolution
-//! origins or reduction-block scratch is needed. The isolated AVX tile returns
-//! its completed six-row accumulators once, outside the reduction loop.
+//! origins or reduction-block scratch is needed. Short Windows x64 AVX2
+//! reductions inline a register-contained loop to avoid per-tile ABI overhead;
+//! larger reductions keep the isolated AVX tile.
 use super::*;
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+mod avx2;
 #[cfg(target_arch = "aarch64")]
 pub(super) mod neon;
 
 const ROWS: usize = 6;
 const GROUP_ROWS: usize = ROWS * 8;
+
+/// Short reductions amortize the Windows vector save/restore and tile-return
+/// boundary poorly. Larger reductions did not benefit in local measurements.
+/// Keep other ISAs/platforms and large full-K panels on their existing tiles.
+pub(in crate::runtime) fn inline_avx2_eligible(
+    backend: Backend,
+    inner: usize,
+    columns: usize,
+) -> bool {
+    cfg!(all(target_arch = "x86_64", target_os = "windows"))
+        && backend == Backend::Avx2Fma
+        && (96..=192).contains(&inner)
+        && columns >= 128
+}
 
 pub(super) fn avx_group_rows(inner: usize, columns: usize) -> usize {
     // Reduce repeated weight-matrix traversals in channel-heavy recognition
@@ -80,6 +97,11 @@ pub(super) fn execute(
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
             // SAFETY: CompiledModel validates AVX2 and FMA.
             unsafe {
+                #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+                if inline_avx2_eligible(backend, inner, columns) {
+                    avx2::execute(input, bias, packed, output, first, inner, columns, store);
+                    return;
+                }
                 avx2(input, bias, packed, output, first, inner, columns, store)
             }
         }

@@ -20,13 +20,42 @@ fn backends() -> Vec<Backend> {
     available
 }
 
-fn values(length: usize, seed: usize) -> Vec<f32> {
+pub(super) fn values(length: usize, seed: usize) -> Vec<f32> {
     (0..length)
         .map(|i| ((i * 37 + seed * 19) % 113) as f32 / 71. - 0.75)
         .collect()
 }
 
-fn assert_bits(actual: &[f32], expected: &[f32], context: &str) {
+#[test]
+fn inline_avx2_selection_keeps_platform_isa_and_shape_boundaries() {
+    let enabled = cfg!(all(target_arch = "x86_64", target_os = "windows"));
+    for (inner, columns, expected) in [
+        (95, 128, false),
+        (96, 127, false),
+        (96, 128, true),
+        (192, 384, true),
+        (193, 384, false),
+        (256, 512, false),
+        (257, 512, false),
+    ] {
+        assert_eq!(
+            inline_avx2_eligible(Backend::Avx2Fma, inner, columns),
+            enabled && expected
+        );
+        for backend in [
+            Backend::Scalar,
+            Backend::Portable4,
+            Backend::NeonFma,
+            Backend::Avx,
+            Backend::AvxFma,
+            Backend::Avx512,
+        ] {
+            assert!(!inline_avx2_eligible(backend, inner, columns));
+        }
+    }
+}
+
+pub(super) fn assert_bits(actual: &[f32], expected: &[f32], context: &str) {
     assert_eq!(actual.len(), expected.len());
     for (i, (a, b)) in actual.iter().zip(expected).enumerate() {
         assert_eq!(
@@ -37,7 +66,7 @@ fn assert_bits(actual: &[f32], expected: &[f32], context: &str) {
     }
 }
 
-fn oracle(
+pub(super) fn oracle(
     backend: Backend,
     input: &[f32],
     weights: &[f32],

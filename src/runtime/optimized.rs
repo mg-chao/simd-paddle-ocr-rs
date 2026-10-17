@@ -1578,7 +1578,9 @@ pub(super) fn native_selection(
                 && super::nhwc::pointwise_matrix_eligible(backend, packed, *rows, *inner, *columns)
             {
                 return (
-                    if backend == Backend::Portable4 {
+                    if super::nhwc::pointwise::inline_avx2_eligible(backend, *inner, *columns) {
+                        "nhwc_constant_matmul_6x16_inline"
+                    } else if backend == Backend::Portable4 {
                         "nhwc_constant_matmul_6x8_pair2"
                     } else {
                         "nhwc_constant_matmul_6x16"
