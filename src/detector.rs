@@ -5,7 +5,7 @@ use crate::{
     db,
     image::{ImageError, ImageResult, ImageView, resize_vec},
     model::Operator,
-    preprocess::{self, ResizeWorkspace},
+    preprocess::{DET_MAX_SIDE, DetSourceGeometry, ResizeWorkspace},
     runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
     tensor::Shape,
 };
@@ -17,6 +17,7 @@ pub struct DetectionBox {
     pub points: [[f32; 2]; 4],
     pub score: f32,
 }
+
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct DetectorOptions {
     pub limit_side_length: usize,
@@ -44,7 +45,7 @@ impl Default for DetectorOptions {
 }
 impl DetectorOptions {
     fn validate(self) -> ImageResult<()> {
-        if !(32..=4096).contains(&self.limit_side_length)
+        if !(32..=DET_MAX_SIDE).contains(&self.limit_side_length)
             || !(1..=10_000).contains(&self.max_candidates)
             || self.max_image_pixels == 0
             || !self.bitmap_threshold.is_finite()
@@ -218,7 +219,8 @@ impl Detector {
     pub fn retained_kernel_scratch_bytes(&self) -> usize {
         self.session.retained_scratch_bytes()
     }
-    /// Replay a frozen map through the same reusable DB workspace, without inference.
+    /// Replay a frozen detector map through the same reusable DB workspace,
+    /// including implicit source padding, without inference.
     #[allow(clippy::too_many_arguments)]
     pub fn postprocess(
         &mut self,
@@ -244,8 +246,7 @@ impl Detector {
             map_width,
             map_height,
             &self.options,
-            source.width(),
-            source.height(),
+            DetSourceGeometry::new(source.width(), source.height())?,
             &mut self.db,
         )?;
         Ok(DetectionView {
@@ -294,14 +295,8 @@ impl Detector {
         if image.pixel_count()? > self.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
-        let original_width = image.width();
-        let original_height = image.height();
-        let size = preprocess::compute_det_size_with_policy(
-            original_width,
-            original_height,
-            self.options.limit_side_length,
-            self.options.resize_policy,
-        )?;
+        let geometry = DetSourceGeometry::new(image.width(), image.height())?;
+        let size = geometry.resize(self.options.limit_side_length, self.options.resize_policy)?;
         // Reshape is transactional; no processing starts before a valid binding exists.
         if PROFILE {
             profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
@@ -318,9 +313,9 @@ impl Detector {
                 "detector output spatial shape differs from resized input",
             ));
         }
-        let source = if original_width + original_height < 64 {
-            let w = original_width.max(32);
-            let h = original_height.max(32);
+        let source = if geometry.requires_padding() {
+            let w = geometry.padded_width;
+            let h = geometry.padded_height;
             let bpp = image.format().bytes_per_pixel();
             let stride = w * bpp;
             let bytes = stride
@@ -328,8 +323,8 @@ impl Detector {
                 .ok_or_else(|| ImageError::new("padded source size overflow"))?;
             resize_vec(&mut self.padded, bytes)?;
             self.padded[..bytes].fill(0);
-            for y in 0..original_height {
-                let row = original_width * bpp;
+            for y in 0..geometry.original_height {
+                let row = geometry.original_width * bpp;
                 self.padded[y * stride..y * stride + row]
                     .copy_from_slice(&image.pixels()[y * image.stride()..y * image.stride() + row]);
             }
@@ -347,7 +342,7 @@ impl Detector {
         let threads = self.session.intra_op_threads();
         let mut fill = |input: &mut [f32], nhwc: bool| {
             let timer = Timer::<PROFILE>::start();
-            preprocess::det_with_context_layout(
+            crate::preprocess::det_with_context_layout(
                 source,
                 size.width,
                 size.height,
@@ -397,8 +392,7 @@ impl Detector {
             size.width,
             size.height,
             &self.options,
-            original_width,
-            original_height,
+            geometry,
             &mut self.db,
         )?;
         if PROFILE {
@@ -419,3 +413,6 @@ impl Detector {
         Ok(view)
     }
 }
+
+#[cfg(test)]
+mod tests;
