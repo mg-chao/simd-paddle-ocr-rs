@@ -1,0 +1,40 @@
+# Rust build, packaging, and profiling outputs
+target/
+# Old local comparison-tool builds can remain after removing their sources.
+/tools/csharp-*/bin/
+/tools/csharp-*/obj/
+*.rs.bk
+*.profraw
+*.profdata
+/coverage/
+/lcov.info
+
+# Local model assets and generated reports
+/models/
+/reports/
+/docs/reports/
+*.log
+
+# Local environment and tool caches
+.env
+.env.*
+!.env.example
+!.env.*.example
+.ruff_cache/
+__pycache__/
+
+# Editor settings and scratch files
+.idea/
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+*.tmp
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep Cargo.lock tracked for reproducible local builds and examples.

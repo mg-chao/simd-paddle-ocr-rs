@@ -1,0 +1,593 @@
+//! macOS SME 32x32 pointwise blocks with reusable input packing.
+//!
+//! The same immutable 16-column weight panels and bias-first ascending FMA
+//! order are used by NEON. Four independent 16x16 accumulators reuse each
+//! input/weight vector twice; short row or channel tails retain a single tile.
+//! Full row groups share one guarded streaming interval across two tiles.
+//! Small shapes and unsupported thread state fall back.
+#[cfg(feature = "parallel")]
+use super::super::PointwiseBands;
+use super::*;
+use std::arch::aarch64::{
+    vcombine_f32, vget_high_f32, vget_low_f32, vld1q_f32, vst1q_f32, vtrn1q_f32, vtrn2q_f32,
+};
+use std::arch::asm;
+
+pub(in crate::runtime::nhwc) const GROUP: usize = 64;
+
+pub(in crate::runtime::nhwc) fn available() -> bool {
+    std::arch::is_aarch64_feature_detected!("sme")
+}
+
+/// Transpose sixteen input rows into each K-major panel. Four-by-four NEON
+/// transposes keep loads contiguous along K; short panels repeat their last
+/// row just like the computation's masked output tail. Only bit moves occur.
+fn pack_rows(input: &[f32], inner: usize, count: usize, scratch: &mut [f32]) {
+    assert!(inner > 0 && (1..=GROUP).contains(&count));
+    assert_eq!(input.len(), count * inner);
+    assert!(scratch.len() >= count.div_ceil(16) * 16 * inner);
+    for first in (0..count).step_by(16) {
+        let rows: [&[f32]; 16] = std::array::from_fn(|row| {
+            let start = (first + row).min(count - 1) * inner;
+            &input[start..start + inner]
+        });
+        let panel = &mut scratch[first * inner..(first + 16) * inner];
+        for row in (0..16).step_by(4) {
+            for k in (0..inner / 4 * 4).step_by(4) {
+                // SAFETY: this module is macOS ARM64 (NEON is baseline).
+                // Each checked row contains k..k+4, and each store writes
+                // four row lanes of one of the four in-bounds K columns.
+                unsafe {
+                    let a = vld1q_f32(rows[row].as_ptr().add(k));
+                    let b = vld1q_f32(rows[row + 1].as_ptr().add(k));
+                    let c = vld1q_f32(rows[row + 2].as_ptr().add(k));
+                    let d = vld1q_f32(rows[row + 3].as_ptr().add(k));
+                    let ab0 = vtrn1q_f32(a, b);
+                    let ab1 = vtrn2q_f32(a, b);
+                    let cd0 = vtrn1q_f32(c, d);
+                    let cd1 = vtrn2q_f32(c, d);
+                    let destination = panel.as_mut_ptr().add(k * 16 + row);
+                    vst1q_f32(
+                        destination,
+                        vcombine_f32(vget_low_f32(ab0), vget_low_f32(cd0)),
+                    );
+                    vst1q_f32(
+                        destination.add(16),
+                        vcombine_f32(vget_low_f32(ab1), vget_low_f32(cd1)),
+                    );
+                    vst1q_f32(
+                        destination.add(32),
+                        vcombine_f32(vget_high_f32(ab0), vget_high_f32(cd0)),
+                    );
+                    vst1q_f32(
+                        destination.add(48),
+                        vcombine_f32(vget_high_f32(ab1), vget_high_f32(cd1)),
+                    );
+                }
+            }
+        }
+        for k in inner / 4 * 4..inner {
+            for (row, values) in rows.iter().enumerate() {
+                panel[k * 16 + row] = values[k];
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn try_execute(
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    first: usize,
+    inner: usize,
+    columns: usize,
+    scratch: &mut [f32],
+    store: &impl StoreTransform,
+) -> bool {
+    if !available() || inner == 0 || columns == 0 {
+        return false;
+    }
+    let Some(required) = GROUP.checked_mul(inner) else {
+        return false;
+    };
+    if scratch.len() < required {
+        return false;
+    }
+    assert!(packed.matches(inner, columns));
+    assert_eq!(output.len() % columns, 0);
+    assert!(bias.is_empty() || bias.len() == columns);
+    let rows = output.len() / columns;
+    let start = first.checked_mul(inner).expect("SME input offset overflow");
+    let length = rows.checked_mul(inner).expect("SME input size overflow");
+    let input = &input[start..start.checked_add(length).expect("SME input end overflow")];
+    for group in (0..rows).step_by(GROUP) {
+        let count = (rows - group).min(GROUP);
+        pack_rows(
+            &input[group * inner..(group + count) * inner],
+            inner,
+            count,
+            scratch,
+        );
+        if !packed_group(
+            scratch,
+            bias,
+            packed,
+            &mut output[group * columns..(group + count) * columns],
+            first + group,
+            inner,
+            columns,
+            count,
+            store,
+        ) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Consume one K-major group using the common guarded SME tiles. Both the
+/// pointwise and spatial packers retain IC/KY/KX reduction order and pad row
+/// tails to sixteen; only the valid output rows are stored.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::runtime::nhwc) fn packed_group(
+    scratch: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    first: usize,
+    inner: usize,
+    columns: usize,
+    count: usize,
+    store: &impl StoreTransform,
+) -> bool {
+    assert!((1..=GROUP).contains(&count));
+    assert!(scratch.len() >= count.div_ceil(16) * 16 * inner);
+    assert!(packed.matches(inner, columns));
+    assert_eq!(output.len(), count * columns);
+    for (block, panels) in packed.data().chunks(inner * 32).enumerate() {
+        let column = block * 32;
+        let seed: [f32; 32] = std::array::from_fn(|v| bias.get(column + v).copied().unwrap_or(0.));
+        if count > 48 && panels.len() == inner * 32 {
+            let mut sums = [0f32; 2048];
+            // SAFETY: a group with more than 48 rows has four padded input
+            // panels. Both row tiles use the same complete weight/bias panels.
+            if !unsafe {
+                tile32_repeated::<2>(
+                    scratch.as_ptr(),
+                    panels.as_ptr(),
+                    seed.as_ptr(),
+                    sums.as_mut_ptr(),
+                    inner,
+                )
+            } {
+                return false;
+            }
+            for r in 0..count {
+                for v in 0..2 {
+                    let tile = r / 32 * 4 + r % 32 / 16 * 2 + v;
+                    let offset = tile * 256 + r % 16 * 16;
+                    store_row(
+                        Simd::<f32, 16>::from_slice(&sums[offset..]),
+                        output,
+                        r,
+                        column + v * 16,
+                        columns,
+                        first,
+                        store,
+                    );
+                }
+            }
+            continue;
+        }
+        let mut t = 0;
+        while t < count {
+            if count - t > 16 && panels.len() == inner * 32 {
+                let mut sums = [0f32; 1024];
+                // SAFETY: two full packed input/weight panels and fixed
+                // arrays cover all four tiles. Each panel has inner*16
+                // values, including duplicated input rows at the tail.
+                if !unsafe {
+                    tile32(
+                        scratch[t * inner..].as_ptr(),
+                        panels.as_ptr(),
+                        seed.as_ptr(),
+                        sums.as_mut_ptr(),
+                        inner,
+                    )
+                } {
+                    return false;
+                }
+                // Each ZA row is sixteen contiguous channels. Apply the
+                // fused recipe once per row instead of dispatching it for
+                // four separate NEON vectors; LLVM lowers the wider value
+                // to native vectors without changing lane arithmetic.
+                for r in 0..(count - t).min(32) {
+                    for v in 0..2 {
+                        let tile = r / 16 * 2 + v;
+                        let offset = tile * 256 + r % 16 * 16;
+                        store_row(
+                            Simd::<f32, 16>::from_slice(&sums[offset..]),
+                            output,
+                            t + r,
+                            column + v * 16,
+                            columns,
+                            first,
+                            store,
+                        );
+                    }
+                }
+                t += 32;
+                continue;
+            }
+            for (panel_index, panel) in panels.chunks_exact(inner * 16).enumerate() {
+                let mut sums = [0f32; 256];
+                // SAFETY: checked full input/weight panels and fixed local
+                // arrays cover all loads and stores; available() detected SME.
+                if !unsafe {
+                    tile(
+                        scratch[t * inner..].as_ptr(),
+                        panel.as_ptr(),
+                        seed[panel_index * 16..].as_ptr(),
+                        sums.as_mut_ptr(),
+                        inner,
+                    )
+                } {
+                    return false;
+                }
+                for r in 0..(count - t).min(16) {
+                    store_row(
+                        Simd::<f32, 16>::from_slice(&sums[r * 16..]),
+                        output,
+                        t + r,
+                        column + panel_index * 16,
+                        columns,
+                        first,
+                        store,
+                    );
+                }
+            }
+            t += 16;
+        }
+    }
+    true
+}
+
+/// Compute one full 16-by-16 tile in ascending K order, seeded with bias.
+///
+/// SAFETY: the caller detected SME; a/b contain k*16 readable floats, bias
+/// contains 16 and c contains 256 writable floats, with k > 0. No aliases.
+/// The entire streaming region is a single asm block, with no calls or unwind.
+/// AAPCS64 private-ZA callers can have dormant state: skip both live ZA/SM and
+/// any pending TPIDR2 save block, without touching either. A non-default FPCR
+/// also falls back to the existing NEON semantics. Fixed loads/stores require
+/// exactly 64-byte streaming vectors, checked on the executing thread.
+/// SMSTART/SMSTOP invalidate vector/predicate registers, so all are clobbered;
+/// Rust consequently preserves the ABI's callee-saved vector portions.
+#[inline(never)]
+unsafe fn tile(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k: usize) -> bool {
+    let succeeded: usize;
+    unsafe {
+        asm!(
+            ".arch_extension sme",
+            "mrs {state}, SVCR",
+            "cbnz {state}, 9f",
+            "mrs {state}, TPIDR2_EL0",
+            "cbnz {state}, 9f",
+            "rdsvl {state}, #1",
+            "cmp {state}, #64",
+            "b.ne 9f",
+            "mrs {state}, FPCR",
+            "cbnz {state}, 9f",
+            "smstart",
+            "ptrue p0.s",
+            "zero {{za}}",
+            "ld1w {{z2.s}}, p0/z, [{bias}]",
+            "mov w12, #0",
+            "2:",
+            "mova za0h.s[w12, 0], p0/m, z2.s",
+            "add w12, w12, #1",
+            "cmp w12, #16",
+            "b.ne 2b",
+            "3:",
+            "ld1w {{z0.s}}, p0/z, [{a}]",
+            "ld1w {{z1.s}}, p0/z, [{b}]",
+            "fmopa za0.s, p0/m, p0/m, z0.s, z1.s",
+            "add {a}, {a}, #64",
+            "add {b}, {b}, #64",
+            "subs {k}, {k}, #1",
+            "b.ne 3b",
+            "mov w12, #0",
+            "4:",
+            "st1w {{za0h.s[w12, 0]}}, p0, [{c}]",
+            "add {c}, {c}, #64",
+            "add w12, w12, #1",
+            "cmp w12, #16",
+            "b.ne 4b",
+            "smstop",
+            "mov {state}, #1",
+            "b 10f",
+            "9:",
+            "mov {state}, #0",
+            "10:",
+            state = out(reg) succeeded,
+            a = inout(reg) a => _, b = inout(reg) b => _,
+            bias = in(reg) bias, c = inout(reg) c => _, k = inout(reg) k => _,
+            out("x12") _,
+            out("v0") _, out("v1") _, out("v2") _, out("v3") _,
+            out("v4") _, out("v5") _, out("v6") _, out("v7") _,
+            out("v8") _, out("v9") _, out("v10") _, out("v11") _,
+            out("v12") _, out("v13") _, out("v14") _, out("v15") _,
+            out("v16") _, out("v17") _, out("v18") _, out("v19") _,
+            out("v20") _, out("v21") _, out("v22") _, out("v23") _,
+            out("v24") _, out("v25") _, out("v26") _, out("v27") _,
+            out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+            out("p0") _, out("p1") _, out("p2") _, out("p3") _,
+            out("p4") _, out("p5") _, out("p6") _, out("p7") _,
+            out("p8") _, out("p9") _, out("p10") _, out("p11") _,
+            out("p12") _, out("p13") _, out("p14") _, out("p15") _,
+            options(nostack)
+        );
+    }
+    succeeded != 0
+}
+
+/// Compute a 32-by-32 block with four independent 16-by-16 accumulators.
+/// Two input and weight panels are reused in ascending K order, seeded with bias.
+///
+/// SAFETY: the caller detected SME; a/b contain 2*k*16 readable floats, bias
+/// contains 32 and c contains 1024 writable floats, with k > 0. No aliases.
+/// The entire streaming region is a single asm block, with no calls or unwind.
+/// AAPCS64 private-ZA callers can have dormant state: skip both live ZA/SM and
+/// any pending TPIDR2 save block, without touching either. A non-default FPCR
+/// also falls back to the existing NEON semantics. Fixed loads/stores require
+/// exactly 64-byte streaming vectors, checked on the executing thread.
+/// SMSTART/SMSTOP invalidate vector/predicate registers, so all are clobbered;
+/// Rust consequently preserves the ABI's callee-saved vector portions.
+#[inline(always)]
+unsafe fn tile32(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k: usize) -> bool {
+    // SAFETY: one tile has exactly the original readable/writable extents.
+    unsafe { tile32_repeated::<1>(a, b, bias, c, k) }
+}
+
+/// One or two 32x32 row tiles share the guarded streaming interval. Each
+/// tile reloads its bias and repeats the original ascending-K FMA sequence.
+/// SAFETY: a covers TILES*32*k floats, b covers 32*k, bias covers 32 and
+/// c covers TILES*1024. All guards and clobbers match the single-tile entry.
+#[inline(never)]
+unsafe fn tile32_repeated<const TILES: usize>(
+    a: *const f32,
+    b: *const f32,
+    bias: *const f32,
+    c: *mut f32,
+    k: usize,
+) -> bool {
+    assert!(TILES == 1 || TILES == 2);
+    let succeeded: usize;
+    // SAFETY: the caller provides two full panels.
+    let a1 = unsafe { a.add(k * 16) };
+    let b1 = unsafe { b.add(k * 16) };
+    let bias1 = unsafe { bias.add(16) };
+    let c1 = unsafe { c.add(256) };
+    let c2 = unsafe { c.add(512) };
+    let c3 = unsafe { c.add(768) };
+    unsafe {
+        asm!(
+            ".arch_extension sme",
+            "mrs {state}, SVCR",
+            "cbnz {state}, 9f",
+            "mrs {state}, TPIDR2_EL0",
+            "cbnz {state}, 9f",
+            "rdsvl {state}, #1",
+            "cmp {state}, #64",
+            "b.ne 9f",
+            "mrs {state}, FPCR",
+            "cbnz {state}, 9f",
+            "smstart",
+            "ptrue p0.s",
+            "mov {tiles}, #{tile_count}",
+            "11:",
+            "mov {k}, {inner}",
+            "zero {{za}}",
+            "ld1w {{z2.s}}, p0/z, [{bias}]",
+            "ld1w {{z3.s}}, p0/z, [{bias1}]",
+            "mov w12, #0",
+            "2:",
+            "mova za0h.s[w12, 0], p0/m, z2.s",
+            "mova za1h.s[w12, 0], p0/m, z3.s",
+            "mova za2h.s[w12, 0], p0/m, z2.s",
+            "mova za3h.s[w12, 0], p0/m, z3.s",
+            "add w12, w12, #1",
+            "cmp w12, #16",
+            "b.ne 2b",
+            "3:",
+            "ld1w {{z0.s}}, p0/z, [{a}]",
+            "ld1w {{z1.s}}, p0/z, [{a1}]",
+            "ld1w {{z2.s}}, p0/z, [{b}]",
+            "ld1w {{z3.s}}, p0/z, [{b1}]",
+            "fmopa za0.s, p0/m, p0/m, z0.s, z2.s",
+            "fmopa za1.s, p0/m, p0/m, z0.s, z3.s",
+            "fmopa za2.s, p0/m, p0/m, z1.s, z2.s",
+            "fmopa za3.s, p0/m, p0/m, z1.s, z3.s",
+            "add {a}, {a}, #64",
+            "add {b}, {b}, #64",
+            "add {a1}, {a1}, #64",
+            "add {b1}, {b1}, #64",
+            "subs {k}, {k}, #1",
+            "b.ne 3b",
+            "mov w12, #0",
+            "4:",
+            "st1w {{za0h.s[w12, 0]}}, p0, [{c}]",
+            "st1w {{za1h.s[w12, 0]}}, p0, [{c1}]",
+            "st1w {{za2h.s[w12, 0]}}, p0, [{c2}]",
+            "st1w {{za3h.s[w12, 0]}}, p0, [{c3}]",
+            "add {c}, {c}, #64",
+            "add {c1}, {c1}, #64",
+            "add {c2}, {c2}, #64",
+            "add {c3}, {c3}, #64",
+            "add w12, w12, #1",
+            "cmp w12, #16",
+            "b.ne 4b",
+            "subs {tiles}, {tiles}, #1",
+            "b.eq 12f",
+            "mov {a}, {a1}",
+            "add {a1}, {a}, {inner}, lsl #6",
+            "mov {b}, {base_b}",
+            "add {b1}, {b}, {inner}, lsl #6",
+            "mov {c}, {c3}",
+            "add {c1}, {c}, #1024",
+            "add {c2}, {c}, #2048",
+            "add {c3}, {c}, #3072",
+            "b 11b",
+            "12:",
+            "smstop",
+            "mov {state}, #1",
+            "b 10f",
+            "9:",
+            "mov {state}, #0",
+            "10:",
+            state = out(reg) succeeded,
+            a = inout(reg) a => _, b = inout(reg) b => _,
+            a1 = inout(reg) a1 => _, b1 = inout(reg) b1 => _,
+            bias = in(reg) bias, bias1 = in(reg) bias1,
+            c = inout(reg) c => _, c1 = inout(reg) c1 => _,
+            c2 = inout(reg) c2 => _, c3 = inout(reg) c3 => _,
+            k = out(reg) _, inner = in(reg) k,
+            base_b = in(reg) b,
+            tiles = out(reg) _, tile_count = const TILES,
+            out("x12") _,
+            out("v0") _, out("v1") _, out("v2") _, out("v3") _,
+            out("v4") _, out("v5") _, out("v6") _, out("v7") _,
+            out("v8") _, out("v9") _, out("v10") _, out("v11") _,
+            out("v12") _, out("v13") _, out("v14") _, out("v15") _,
+            out("v16") _, out("v17") _, out("v18") _, out("v19") _,
+            out("v20") _, out("v21") _, out("v22") _, out("v23") _,
+            out("v24") _, out("v25") _, out("v26") _, out("v27") _,
+            out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+            out("p0") _, out("p1") _, out("p2") _, out("p3") _,
+            out("p4") _, out("p5") _, out("p6") _, out("p7") _,
+            out("p8") _, out("p9") _, out("p10") _, out("p11") _,
+            out("p12") _, out("p13") _, out("p14") _, out("p15") _,
+            options(nostack)
+        );
+    }
+    succeeded != 0
+}
+
+/// Split exclusive output slices recursively. Rayon join uses stack jobs;
+/// no per-call Vec of bands or heap-allocated scoped job list is needed.
+#[cfg(feature = "parallel")]
+pub(in crate::runtime::nhwc) fn sme_bands(
+    output: &mut [f32],
+    columns: usize,
+    bands: PointwiseBands,
+    workspaces: &mut [Vec<f32>],
+    action: impl Fn(&mut [f32], usize, &mut [f32]) + Sync,
+) {
+    fn visit(
+        output: &mut [f32],
+        columns: usize,
+        bands: PointwiseBands,
+        first_worker: usize,
+        workers: usize,
+        workspaces: &mut [Vec<f32>],
+        action: &(impl Fn(&mut [f32], usize, &mut [f32]) + Sync),
+    ) {
+        let first = bands.boundary(first_worker);
+        if workers == 1 {
+            let scratch = workspaces
+                .first_mut()
+                .map(Vec::as_mut_slice)
+                .unwrap_or(&mut []);
+            action(output, first, scratch);
+            return;
+        }
+        let left_workers = workers / 2;
+        let middle_worker = first_worker + left_workers;
+        let split = (bands.boundary(middle_worker) - first) * columns;
+        let (left, right) = output.split_at_mut(split);
+        let (left_scratch, right_scratch) =
+            workspaces.split_at_mut(left_workers.min(workspaces.len()));
+        rayon::join(
+            || {
+                visit(
+                    left,
+                    columns,
+                    bands,
+                    first_worker,
+                    left_workers,
+                    left_scratch,
+                    action,
+                )
+            },
+            || {
+                visit(
+                    right,
+                    columns,
+                    bands,
+                    middle_worker,
+                    workers - left_workers,
+                    right_scratch,
+                    action,
+                )
+            },
+        );
+    }
+    visit(
+        output,
+        columns,
+        bands,
+        0,
+        bands.workers,
+        workspaces,
+        &action,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn execute_bands(
+    backend: Backend,
+    input: &[f32],
+    bias: &[f32],
+    packed: &PackedMatrix,
+    output: &mut [f32],
+    inner: usize,
+    columns: usize,
+    cpu: &CpuContext,
+    threads: usize,
+    workspaces: &mut [Vec<f32>],
+    store: &impl StoreTransform,
+) {
+    #[cfg(feature = "parallel")]
+    {
+        let bands = PointwiseBands::new(
+            output.len() / columns,
+            inner,
+            columns,
+            threads.max(1).min(cpu.capacity()),
+        );
+        if bands.workers > 1 {
+            cpu.install(|| {
+                sme_bands(output, columns, bands, workspaces, |out, first, scratch| {
+                    execute_with_scratch(
+                        backend, input, bias, packed, out, first, inner, columns, scratch, store,
+                    );
+                });
+            });
+            return;
+        }
+    }
+    #[cfg(not(feature = "parallel"))]
+    let _ = (cpu, threads);
+    let scratch = workspaces
+        .first_mut()
+        .map(Vec::as_mut_slice)
+        .unwrap_or(&mut []);
+    execute_with_scratch(
+        backend, input, bias, packed, output, 0, inner, columns, scratch, store,
+    );
+}
+
+#[cfg(test)]
+mod tests;

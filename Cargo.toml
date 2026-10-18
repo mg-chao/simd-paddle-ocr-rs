@@ -1,0 +1,41 @@
+[package]
+name = "simd-paddle-ocr-rs"
+version = "0.1.0"
+edition = "2024"
+description = "SIMD PaddleOCR CPU inference in Rust"
+license = "Apache-2.0"
+repository = "https://github.com/mg-chao/simd-paddle-ocr-rs"
+keywords = ["ocr", "paddleocr", "simd", "onnx", "inference"]
+categories = ["computer-vision", "science"]
+include = [
+    "src/**",
+    "examples/ocr.rs",
+    "docs/cpu-usage.md",
+    "docs/macos-cpu-validation.md",
+    "licenses/**",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+]
+
+[features]
+default = ["parallel"]
+parallel = ["dep:rayon"]
+profiling = ["dep:libc"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+rayon = { version = "1.11", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = { version = "0.2", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+libc = "0.2"
