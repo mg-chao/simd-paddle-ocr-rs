@@ -305,6 +305,18 @@ supported bundles. Validate accuracy and performance with your deployment
 models and images on each target CPU and operating system. See
 [macOS CPU support](macos-cpu-validation.md) for Apple Silicon setup.
 
+Applications can set `RecognizerOptions::min_width` to impose an adaptive
+width floor before 32-pixel alignment (for example, 320 or 48). Its default is
+zero, preserving natural-width selection; fixed-width mode ignores it.
+`DetectorOptions::resize_policy` defaults to `DetResizePolicy::Max`, which
+reduces the longest side to `limit_side_length` only when necessary. `Min`
+enlarges the shortest side to that limit only when necessary. Both align the
+result to 32 pixels. `Detector::set_resize_options` validates and updates these
+two controls without recompiling weights. Requests, forks, and factories retain
+the configured controls. The integer shape evaluator also accepts scalar/vector
+Reshape metadata, including the singleton-to-scalar shape programs in Snow Shot's
+original Small and Medium PP-OCRv6 recognition models.
+
 ## Import policy and API details
 
 Import performs optional BN folding and convolution-branch merging by default.

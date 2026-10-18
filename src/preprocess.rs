@@ -56,7 +56,23 @@ pub struct DetSize {
     pub width_ratio: f32,
     pub height_ratio: f32,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub enum DetResizePolicy {
+    #[default]
+    Max,
+    Min,
+}
+
 pub fn compute_det_size(width: usize, height: usize, limit: usize) -> ImageResult<DetSize> {
+    compute_det_size_with_policy(width, height, limit, DetResizePolicy::Max)
+}
+
+pub fn compute_det_size_with_policy(
+    width: usize,
+    height: usize,
+    limit: usize,
+    policy: DetResizePolicy,
+) -> ImageResult<DetSize> {
     if width == 0
         || height == 0
         || width > i32::MAX as usize
@@ -70,12 +86,19 @@ pub fn compute_det_size(width: usize, height: usize, limit: usize) -> ImageResul
     } else {
         (width, height)
     };
-    let maximum = width.max(height);
-    let ratio = if maximum > limit {
-        limit as f64 / maximum as f64
-    } else {
-        1.
+    let side = match policy {
+        DetResizePolicy::Max => width.max(height),
+        DetResizePolicy::Min => width.min(height),
     };
+    let ratio = match policy {
+        DetResizePolicy::Max if side > limit => limit as f64 / side as f64,
+        DetResizePolicy::Min if side < limit => limit as f64 / side as f64,
+        _ => 1.,
+    };
+    if width as f64 * ratio > i32::MAX as f64 - 32. || height as f64 * ratio > i32::MAX as f64 - 32.
+    {
+        return Err(ImageError::new("detector resized dimensions overflow"));
+    }
     let scaled_width = (width as f64 * ratio) as usize;
     let scaled_height = (height as f64 * ratio) as usize;
     let w = (((scaled_width as f64 / 32. + 0.5).floor() as usize) * 32).max(32);
@@ -477,6 +500,23 @@ fn resize_planes<const DET: bool>(
 mod tests {
     use super::*;
     use crate::{cpu::CpuContext, image::PixelFormat};
+    #[test]
+    fn detector_resize_policies_preserve_defaults_and_bound_dimensions() {
+        assert_eq!(
+            compute_det_size(640, 480, 960).unwrap(),
+            compute_det_size_with_policy(640, 480, 960, DetResizePolicy::Max).unwrap()
+        );
+        let size = compute_det_size_with_policy(640, 320, 736, DetResizePolicy::Min).unwrap();
+        assert_eq!((size.width, size.height), (1472, 736));
+        let size = compute_det_size_with_policy(1920, 1080, 736, DetResizePolicy::Min).unwrap();
+        assert_eq!((size.width, size.height), (1920, 1088));
+        let size = compute_det_size_with_policy(1920, 1080, 960, DetResizePolicy::Max).unwrap();
+        assert_eq!((size.width, size.height), (960, 544));
+        assert!(compute_det_size_with_policy(0, 320, 736, DetResizePolicy::Min).is_err());
+        assert!(
+            compute_det_size_with_policy(i32::MAX as usize, 1, 736, DetResizePolicy::Min).is_err()
+        );
+    }
     #[test]
     fn explicit_stage_budget_caps_det_resize_workers_and_preserves_serial_pixels() {
         #[cfg(feature = "parallel")]

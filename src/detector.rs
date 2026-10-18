@@ -1,4 +1,5 @@
 //! Reusable serial image detector with borrowed results and synchronous tracing.
+pub use crate::preprocess::DetResizePolicy;
 use crate::profile::{StageProfile, Timer};
 use crate::{
     db,
@@ -19,6 +20,7 @@ pub struct DetectionBox {
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct DetectorOptions {
     pub limit_side_length: usize,
+    pub resize_policy: DetResizePolicy,
     pub max_candidates: usize,
     pub use_dilation: bool,
     pub bitmap_threshold: f32,
@@ -30,6 +32,7 @@ impl Default for DetectorOptions {
     fn default() -> Self {
         Self {
             limit_side_length: 960,
+            resize_policy: DetResizePolicy::Max,
             max_candidates: 3000,
             use_dilation: false,
             bitmap_threshold: 0.2,
@@ -181,6 +184,18 @@ impl Detector {
     pub fn resolved_options(&self) -> DetectorOptions {
         self.options
     }
+    /// Change image-dependent resizing without recompiling the model. Invalid
+    /// options leave the reusable detector unchanged.
+    pub fn set_resize_options(&mut self, policy: DetResizePolicy, limit: usize) -> ImageResult<()> {
+        let options = DetectorOptions {
+            resize_policy: policy,
+            limit_side_length: limit,
+            ..self.options
+        };
+        options.validate()?;
+        self.options = options;
+        Ok(())
+    }
     pub fn compiled(&self) -> &Arc<CompiledModel> {
         &self.compiled
     }
@@ -281,10 +296,11 @@ impl Detector {
         }
         let original_width = image.width();
         let original_height = image.height();
-        let size = preprocess::compute_det_size(
+        let size = preprocess::compute_det_size_with_policy(
             original_width,
             original_height,
             self.options.limit_side_length,
+            self.options.resize_policy,
         )?;
         // Reshape is transactional; no processing starts before a valid binding exists.
         if PROFILE {

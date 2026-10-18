@@ -139,6 +139,11 @@ enum Value {
     Constant(Integers),
     Shape(usize),
     Identity(usize),
+    Reshape {
+        input: usize,
+        target: usize,
+        allowzero: bool,
+    },
     Slice {
         input: usize,
         parameters: SliceParameters,
@@ -221,6 +226,22 @@ impl ShapeProgram {
                         return Err(fail("Identity requires one input and no attributes"));
                     }
                     Value::Identity(source(&node.inputs[0])?)
+                }
+                "Reshape" => {
+                    if node.inputs.len() != 2
+                        || node.attributes.iter().any(|a| a.name != "allowzero")
+                    {
+                        return Err(fail("Reshape requires data and shape inputs"));
+                    }
+                    let allowzero = int(node, "allowzero")?.unwrap_or(0);
+                    if !matches!(allowzero, 0 | 1) {
+                        return Err(fail("invalid Reshape allowzero"));
+                    }
+                    Value::Reshape {
+                        input: source(&node.inputs[0])?,
+                        target: source(&node.inputs[1])?,
+                        allowzero: allowzero != 0,
+                    }
                 }
                 "Slice" => {
                     let parameters = if node.inputs.len() == 1 {
@@ -392,6 +413,15 @@ impl ShapeProgram {
         let value = match &self.values[id] {
             Value::Constant(value) => *value,
             Value::Identity(input) => self.value(*input, shapes, cache)?,
+            Value::Reshape {
+                input,
+                target,
+                allowzero,
+            } => {
+                let source = self.value(*input, shapes, cache)?;
+                let target = self.value(*target, shapes, cache)?;
+                source.with_shape(reshape(source.shape()?, target.vector()?, *allowzero)?)?
+            }
             Value::Shape(tensor) => {
                 let shape = shapes[*tensor]
                     .ok_or_else(|| RuntimeError::new("Shape source has not yet been inferred"))?;
@@ -574,4 +604,41 @@ pub(super) fn reshape(input: Shape, target: &[i64], allowzero: bool) -> RuntimeR
         return Err(RuntimeError::new("reshape changes element count"));
     }
     Ok(Shape::new(&dims[..target.len()])?)
+}
+
+#[cfg(test)]
+mod metadata_reshape_tests {
+    use super::*;
+
+    fn evaluate(input: &[i64], target: &[i64]) -> RuntimeResult<Integers> {
+        let program = ShapeProgram {
+            values: vec![
+                Value::Constant(Integers::new(input)?),
+                Value::Constant(Integers::new(target)?),
+                Value::Reshape {
+                    input: 0,
+                    target: 1,
+                    allowzero: false,
+                },
+            ],
+            targets: HashMap::new(),
+        };
+        program.value(2, &[], &mut program.cache())
+    }
+
+    #[test]
+    fn singleton_shape_value_can_be_reshaped_to_scalar_without_float_conversion() {
+        let value = evaluate(&[9_007_199_254_740_993], &[]).unwrap();
+        assert!(value.scalar);
+        assert_eq!(value.values(), &[9_007_199_254_740_993]);
+        assert_eq!(evaluate(&[42], &[-1]).unwrap().vector().unwrap(), &[42]);
+    }
+
+    #[test]
+    fn metadata_reshape_rejects_changed_counts_and_higher_rank() {
+        assert!(evaluate(&[1, 2], &[]).is_err());
+        assert!(evaluate(&[1], &[2]).is_err());
+        assert!(evaluate(&[1], &[1, 1]).is_err());
+        assert!(evaluate(&[1], &[-1, -1]).is_err());
+    }
 }

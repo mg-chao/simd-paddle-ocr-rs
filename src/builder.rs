@@ -304,6 +304,71 @@ mod tests {
     }
 
     #[test]
+    fn resize_and_width_options_survive_fork_and_factory() {
+        let (det, rec) = crate::ocr::tests::synthetic_sources();
+        let models = OcrModelSet::from_readers(&det[..], &rec[..], &b"A\n"[..], None).unwrap();
+        let mut request = models
+            .builder()
+            .cpu_context(CpuContext::serial())
+            .recognizer_options(RecognizerOptions {
+                min_width: 48,
+                ..Default::default()
+            })
+            .build()
+            .unwrap();
+        request
+            .extractor_mut()
+            .detector_mut()
+            .set_resize_options(crate::detector::DetResizePolicy::Min, 736)
+            .unwrap();
+        assert!(
+            request
+                .extractor_mut()
+                .detector_mut()
+                .set_resize_options(crate::detector::DetResizePolicy::Max, 0)
+                .is_err()
+        );
+        for mut copy in [request.fork().unwrap(), request.into_factory()().unwrap()] {
+            let options = copy.extractor_mut().detector().resolved_options();
+            assert_eq!(options.resize_policy, crate::detector::DetResizePolicy::Min);
+            assert_eq!(options.limit_side_length, 736);
+            assert_eq!(
+                copy.recognizer_mut()
+                    .select_width(10, 48)
+                    .unwrap()
+                    .tensor_width,
+                64
+            );
+            assert_eq!(
+                copy.recognizer_mut()
+                    .select_width(321, 48)
+                    .unwrap()
+                    .tensor_width,
+                352
+            );
+        }
+        let (det, rec) = crate::ocr::tests::synthetic_sources();
+        let mut accuracy = OcrModelSet::from_readers(&det[..], &rec[..], &b"A\n"[..], None)
+            .unwrap()
+            .builder()
+            .cpu_context(CpuContext::serial())
+            .recognizer_options(RecognizerOptions {
+                min_width: 320,
+                ..Default::default()
+            })
+            .build()
+            .unwrap();
+        assert_eq!(
+            accuracy
+                .recognizer_mut()
+                .select_width(10, 48)
+                .unwrap()
+                .tensor_width,
+            320
+        );
+    }
+
+    #[test]
     fn reader_errors_identify_the_failed_stage() {
         let (det, rec) = crate::ocr::tests::synthetic_sources();
         let error = OcrModelSet::from_readers(&b"invalid"[..], &rec[..], &b"A\n"[..], None)

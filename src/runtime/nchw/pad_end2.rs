@@ -79,7 +79,7 @@ pub(super) fn execute_rows<const FMA: bool>(
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
-    out: [&mut [f32]; 8],
+    mut out: [&mut [f32]; 8],
     first_row: usize,
     batch: usize,
     co: usize,
@@ -117,9 +117,9 @@ pub(super) fn execute_rows<const FMA: bool>(
         let y = first_row + local_y;
         let mut x = 0;
         while x < valid.start {
-            for lane in 0..8 {
+            for (lane, destination) in out.iter_mut().enumerate() {
                 let index = y * p.output_width + x;
-                out[lane][local_y * p.output_width + x] = store.scalar(
+                destination[local_y * p.output_width + x] = store.scalar(
                     edge(p, input, weights, bias, batch, co + lane, y, x),
                     (batch * p.output_channels + co + lane) * output_plane + index,
                 );

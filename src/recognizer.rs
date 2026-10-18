@@ -82,6 +82,9 @@ pub struct RecognizerOptions {
     /// Round the natural height-48 content width up to a multiple of 32,
     /// without a 320-pixel upper cap.
     pub adaptive_width: bool,
+    /// Minimum adaptive tensor width before rounding up to 32. Zero preserves
+    /// natural-width selection. Fixed-width mode ignores this floor.
+    pub min_width: usize,
     pub max_image_pixels: usize,
     /// Active UTF-8 and alignment records; excludes shared dictionary and activations.
     pub max_result_bytes: usize,
@@ -91,6 +94,7 @@ impl Default for RecognizerOptions {
         Self {
             target_width: 320,
             adaptive_width: true,
+            min_width: 0,
             max_image_pixels: 40_000_000,
             max_result_bytes: i32::MAX as usize,
         }
@@ -780,6 +784,7 @@ impl Recognizer {
     ) -> ImageResult<Self> {
         if options.target_width == 0
             || options.target_width > i32::MAX as usize
+            || options.min_width > (i32::MAX as usize / 32) * 32
             || options.max_image_pixels == 0
             || options.max_result_bytes == 0
         {
@@ -792,7 +797,7 @@ impl Recognizer {
             "recognizer",
         )?;
         let width = if options.adaptive_width {
-            32
+            options.min_width.max(1).div_ceil(32) * 32
         } else {
             options.target_width
         };
@@ -838,7 +843,7 @@ impl Recognizer {
         }
         let natural = (48u64 * width as u64).div_ceil(height as u64);
         let target = if self.options.adaptive_width {
-            natural.div_ceil(32) * 32
+            natural.max(self.options.min_width as u64).div_ceil(32) * 32
         } else {
             self.options.target_width as u64
         };
