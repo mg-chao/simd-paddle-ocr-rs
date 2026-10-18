@@ -293,8 +293,9 @@ pub(super) fn selection(
             },
         ),
         BoundKind::ConvTranspose(p) if packed && p.cout >= 16 => (
-            if cfg!(all(target_os = "windows", target_arch = "x86_64"))
-                && backend == Backend::Avx2Fma
+            if (cfg!(all(target_os = "windows", target_arch = "x86_64"))
+                && backend == Backend::Avx2Fma)
+                || transpose::neon_direct_eligible(backend, p)
             {
                 "nhwc_transpose_4tap_direct"
             } else {
@@ -804,6 +805,12 @@ fn transpose_packed_rows_store(
     workspace: &mut [f32],
     store: &impl StoreTransform,
 ) {
+    #[cfg(target_arch = "aarch64")]
+    if transpose::neon_direct_eligible(backend, p) {
+        // SAFETY: CompiledModel validates the selected NEON backend.
+        unsafe { transpose::neon_packed_direct(p, input, bias, panels, out, first_row, store) };
+        return;
+    }
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     if backend == Backend::Avx2Fma {
         // SAFETY: CompiledModel validates AVX2/FMA before selecting this backend.

@@ -9,6 +9,55 @@ use std::arch::aarch64::*;
 const ROW_GROUP: usize = 128;
 const WEIGHT_PANEL_BYTES: usize = 256 * 1024;
 
+/// Expose the same bias-first matrix reduction to noncontiguous destinations.
+/// The caller owns the final store, including channel tails and fused operands.
+#[target_feature(enable = "neon")]
+#[allow(clippy::too_many_arguments)]
+pub(in crate::runtime) unsafe fn packed_bias_tile<const ROWS: usize>(
+    input: &[f32],
+    packed: &PackedMatrix,
+    bias: &[f32],
+    first_row: usize,
+    column: usize,
+    inner: usize,
+    columns: usize,
+) -> [Simd<f32, 16>; ROWS] {
+    assert!(inner > 0 && columns > 0 && ROWS > 0);
+    assert!(packed.matches(inner, columns));
+    assert!(bias.is_empty() || bias.len() == columns);
+    assert!(column < columns && column.is_multiple_of(16));
+    assert!(first_row + ROWS <= input.len() / inner);
+    // SAFETY: the checks cover the packed panel, input rows and bias. The
+    // final bias panel uses bounded loads, exactly as the contiguous GEMM.
+    let sums = unsafe {
+        if column + 16 <= columns {
+            tile::<ROWS, true, false, false>(
+                input,
+                packed.data(),
+                bias,
+                first_row,
+                column,
+                inner,
+                columns,
+            )
+        } else {
+            tile::<ROWS, true, true, false>(
+                input,
+                packed.data(),
+                bias,
+                first_row,
+                column,
+                inner,
+                columns,
+            )
+        }
+    };
+    sums.map(|vectors| {
+        let vectors = vectors.map(as_simd);
+        Simd::from_array(std::array::from_fn(|i| vectors[i / 4][i % 4]))
+    })
+}
+
 #[target_feature(enable = "neon")]
 #[allow(clippy::too_many_arguments)]
 pub(super) unsafe fn matmul(

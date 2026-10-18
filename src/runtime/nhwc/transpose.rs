@@ -2,6 +2,98 @@
 //! directly to exclusive output-row pairs; single-channel lanes own pixels.
 use super::*;
 
+/// Local macOS graph measurements favor direct stores for the larger ARM64 head.
+/// Narrow heads retain the existing matrix path; their benefit was inconclusive.
+pub(super) fn neon_direct_eligible(backend: Backend, p: &kernels::ConvTranspose) -> bool {
+    cfg!(all(target_arch = "aarch64", target_os = "macos"))
+        && backend == Backend::NeonFma
+        && p.cin >= 64
+        && p.cout >= 64
+}
+
+/// Reuse the native four-row GEMM reduction, writing its channel panels
+/// directly to their interleaved 2x2 destinations without output scratch.
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[allow(clippy::too_many_arguments)]
+pub(super) unsafe fn neon_packed_direct(
+    p: &kernels::ConvTranspose,
+    input: &[f32],
+    bias: &[f32],
+    panels: &[PackedMatrix; 4],
+    output: &mut [f32],
+    first_row: usize,
+    store: &impl StoreTransform,
+) {
+    assert!(p.cin > 0 && p.cout > 0 && p.width > 0);
+    assert!(output.len().is_multiple_of(4 * p.width * p.cout));
+    let pixels = output.len() / (4 * p.cout);
+    let first = first_row * p.width;
+    assert!(first + pixels <= p.batch * p.height * p.width);
+    assert_eq!(input.len(), p.batch * p.height * p.width * p.cin);
+    assert!(bias.is_empty() || bias.len() == p.cout);
+    assert!(panels.iter().all(|panel| panel.matches(p.cin, p.cout)));
+    let input = &input[first * p.cin..(first + pixels) * p.cin];
+    let mut pixel = 0;
+    while pixel + 4 <= pixels {
+        // SAFETY: four complete input rows and all destination extents exist.
+        unsafe { neon_direct_tile::<4>(p, input, bias, panels, output, first_row, pixel, store) };
+        pixel += 4;
+    }
+    while pixel < pixels {
+        // SAFETY: one complete input row and its destination extent exist.
+        unsafe { neon_direct_tile::<1>(p, input, bias, panels, output, first_row, pixel, store) };
+        pixel += 1;
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline(always)]
+#[allow(clippy::too_many_arguments)]
+unsafe fn neon_direct_tile<const ROWS: usize>(
+    p: &kernels::ConvTranspose,
+    input: &[f32],
+    bias: &[f32],
+    panels: &[PackedMatrix; 4],
+    output: &mut [f32],
+    first_row: usize,
+    pixel: usize,
+    store: &impl StoreTransform,
+) {
+    let destinations: [usize; ROWS] = std::array::from_fn(|r| {
+        let local = pixel + r;
+        (local / p.width * 4 * p.width + local % p.width * 2) * p.cout
+    });
+    for (tap, panel) in panels.iter().enumerate() {
+        let tap_offset = (tap / 2 * 2 * p.width + tap % 2) * p.cout;
+        for channel in (0..p.cout).step_by(16) {
+            // SAFETY: the entry enables NEON and validates all matrix spans.
+            let sums = unsafe {
+                simd::packed_bias_tile::<ROWS>(input, panel, bias, pixel, channel, p.cin, p.cout)
+            };
+            for (r, sum) in sums.into_iter().enumerate() {
+                let at = destinations[r] + tap_offset + channel;
+                let global = first_row * 4 * p.width * p.cout + at;
+                if channel + 16 <= p.cout {
+                    store
+                        .vector_channel(sum, global, channel)
+                        .copy_to_slice(&mut output[at..at + 16]);
+                } else {
+                    // Never read residual/scale operands beyond a channel tail.
+                    for (lane, value) in sum
+                        .to_array()
+                        .into_iter()
+                        .take(p.cout - channel)
+                        .enumerate()
+                    {
+                        output[at + lane] = store.scalar(value, global + lane);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Four source pixels share each packed coefficient walk. The existing GEMM
 /// reduction is inlined here, with its bias-first ascending-channel FMA order;
 /// only the destination changes from scratch to the final interleaved image.
@@ -199,5 +291,11 @@ fn kernel<const LANES: usize, const FUSED: bool>(
     }
 }
 
-#[cfg(all(test, target_os = "windows", target_arch = "x86_64"))]
+#[cfg(all(
+    test,
+    any(
+        target_arch = "aarch64",
+        all(target_os = "windows", target_arch = "x86_64")
+    )
+))]
 mod tests;

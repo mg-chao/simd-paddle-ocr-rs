@@ -15,6 +15,8 @@ mod columns;
 pub(crate) mod matrix;
 #[cfg(target_arch = "aarch64")]
 mod neon;
+#[cfg(target_arch = "aarch64")]
+pub(super) use neon::packed_bias_tile;
 pub(crate) mod parallel;
 pub(crate) use columns::{ArgMaxWorkspace, try_compact_columns};
 

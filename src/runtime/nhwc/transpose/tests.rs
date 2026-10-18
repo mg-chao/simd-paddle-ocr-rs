@@ -1,5 +1,35 @@
 use super::*;
 
+#[test]
+fn direct_transpose_selection_keeps_narrow_heads_and_other_backends_on_fallback() {
+    for (cin, cout) in [(16, 16), (24, 24), (63, 64), (64, 63), (64, 64), (65, 65)] {
+        let p = kernels::ConvTranspose {
+            batch: 1,
+            cin,
+            cout,
+            height: 2,
+            width: 3,
+        };
+        for backend in [
+            Backend::Scalar,
+            Backend::Portable4,
+            Backend::NeonFma,
+            Backend::Avx,
+            Backend::AvxFma,
+            Backend::Avx2Fma,
+            Backend::Avx512,
+        ] {
+            assert_eq!(
+                neon_direct_eligible(backend, &p),
+                cfg!(all(target_arch = "aarch64", target_os = "macos"))
+                    && backend == Backend::NeonFma
+                    && cin >= 64
+                    && cout >= 64
+            );
+        }
+    }
+}
+
 struct ResidualRelu<'a>(&'a [f32]);
 impl StoreTransform for ResidualRelu<'_> {
     fn scalar(&self, value: f32, index: usize) -> f32 {
@@ -15,6 +45,11 @@ impl StoreTransform for ResidualRelu<'_> {
 
 #[test]
 fn direct_transpose_matches_buffered_bits_with_fused_stores_and_row_bands() {
+    #[cfg(target_arch = "aarch64")]
+    let backend = Backend::NeonFma;
+    #[cfg(target_arch = "x86_64")]
+    let backend = Backend::Avx2Fma;
+    #[cfg(target_arch = "x86_64")]
     if !simd::avx2_fma_available() {
         return;
     }
@@ -24,6 +59,7 @@ fn direct_transpose_matches_buffered_bits_with_fused_stores_and_row_bands() {
         (24, 24, 3, 9),
         (64, 64, 2, 33),
         (65, 31, 3, 5),
+        (65, 65, 3, 5),
     ] {
         let p = kernels::ConvTranspose {
             batch: 2,
@@ -57,7 +93,7 @@ fn direct_transpose_matches_buffered_bits_with_fused_stores_and_row_bands() {
             let mut temporary = vec![0.; 2 * height * width * cout];
             for (tap, panel) in panels.iter().enumerate() {
                 simd::matmul_bias(
-                    Backend::Avx2Fma,
+                    backend,
                     &input,
                     &[],
                     Some(panel),
@@ -87,6 +123,17 @@ fn direct_transpose_matches_buffered_bits_with_fused_stores_and_row_bands() {
                 {
                     // SAFETY: runtime guard above and checked owned extents.
                     unsafe {
+                        #[cfg(target_arch = "aarch64")]
+                        neon_packed_direct(
+                            &p,
+                            &input,
+                            bias,
+                            &panels,
+                            destination,
+                            band * band_rows,
+                            &store,
+                        );
+                        #[cfg(target_arch = "x86_64")]
                         packed_direct(
                             &p,
                             &input,

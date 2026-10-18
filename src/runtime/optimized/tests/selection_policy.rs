@@ -981,69 +981,83 @@ fn spatial_sme_reserves_and_reuses_accounted_scratch_across_shapes() {
     if !std::arch::is_aarch64_feature_detected!("sme") {
         return;
     }
-    let channels = 64;
-    let model = model(
-        vec![
-            tensor(
-                "w",
-                &[channels, channels, 3, 3],
-                &vec![0.125; channels * channels * 9],
-            ),
-            node("Relu", &["x"], "positive", vec![]),
-            node(
-                "Conv",
-                &["positive", "w"],
-                "y",
-                [attr("kernel_shape", &[3, 3]), attr("pads", &[1, 1, 1, 1])].concat(),
-            ),
-        ],
-        &[-1, channels as i64, -1, -1],
-        &[-1, channels as i64, -1, -1],
-    );
-    let shape = [2, channels, 5, 17];
-    let threads = if cfg!(feature = "parallel") { 4 } else { 1 };
-    let mut reference = session(model.clone(), CompileOptions::reference(), &shape);
-    let mut request = session(model, CompileOptions::default(), &shape);
-    request
-        .set_execution_context(Arc::new(CpuContext::new(threads).unwrap()), threads)
-        .unwrap();
-    let before = request.retained_scratch_bytes();
-    let mut addresses = None;
-    let mut retained = None;
-    for width in [17, 9, 17] {
-        let shape = [2, channels, 5, width];
-        reference.reshape(&shape).unwrap();
-        request.reshape(&shape).unwrap();
-        let input = vec![0.25; shape.iter().product()];
-        let expected = reference.run(&input).unwrap().data().to_vec();
-        assert_eq!(request.run(&input).unwrap().data(), expected);
-        assert!(
-            request
-                .statistics()
-                .specialized_kernels
-                .iter()
-                .any(|s| s.family == "nhwc_dense_sme32x32_or_neon")
+    for kernel in [2, 3, 5, 7] {
+        let channels = 64;
+        let model = model(
+            vec![
+                tensor(
+                    "w",
+                    &[channels, channels, kernel, kernel],
+                    &vec![0.125; channels * channels * kernel * kernel],
+                ),
+                node("Relu", &["x"], "positive", vec![]),
+                node(
+                    "Conv",
+                    &["positive", "w"],
+                    "y",
+                    [
+                        attr("kernel_shape", &[kernel as i64; 2]),
+                        attr(
+                            "pads",
+                            &[
+                                (kernel as i64 - 1) / 2,
+                                (kernel as i64 - 1) / 2,
+                                kernel as i64 / 2,
+                                kernel as i64 / 2,
+                            ],
+                        ),
+                    ]
+                    .concat(),
+                ),
+            ],
+            &[-1, channels as i64, -1, -1],
+            &[-1, channels as i64, -1, -1],
         );
-        let state = request.optimized.as_ref().unwrap();
-        assert_eq!(state.workspaces.len(), threads);
-        assert!(
-            state
-                .workspaces
-                .iter()
-                .all(|s| s.len() == 64 * channels * 9)
-        );
-        let current: Vec<_> = state.workspaces.iter().map(Vec::as_ptr).collect();
-        assert!(
-            request.retained_scratch_bytes() - before
-                >= threads * 64 * channels * 9 * size_of::<f32>()
-        );
-        if let Some(expected) = &addresses {
-            assert_eq!(&current, expected);
+        let shape = [2, channels, 5, 17];
+        let threads = if cfg!(feature = "parallel") { 4 } else { 1 };
+        let mut reference = session(model.clone(), CompileOptions::reference(), &shape);
+        let mut request = session(model, CompileOptions::default(), &shape);
+        request
+            .set_execution_context(Arc::new(CpuContext::new(threads).unwrap()), threads)
+            .unwrap();
+        let before = request.retained_scratch_bytes();
+        let mut addresses = None;
+        let mut retained = None;
+        for width in [17, 9, 17] {
+            let shape = [2, channels, 5, width];
+            reference.reshape(&shape).unwrap();
+            request.reshape(&shape).unwrap();
+            let input = vec![0.25; shape.iter().product()];
+            let expected = reference.run(&input).unwrap().data().to_vec();
+            assert_eq!(request.run(&input).unwrap().data(), expected);
+            assert!(
+                request
+                    .statistics()
+                    .specialized_kernels
+                    .iter()
+                    .any(|s| s.family == "nhwc_dense_sme32x32_or_neon")
+            );
+            let state = request.optimized.as_ref().unwrap();
+            assert_eq!(state.workspaces.len(), threads);
+            assert!(
+                state
+                    .workspaces
+                    .iter()
+                    .all(|s| s.len() == 64 * channels * kernel * kernel)
+            );
+            let current: Vec<_> = state.workspaces.iter().map(Vec::as_ptr).collect();
+            assert!(
+                request.retained_scratch_bytes() - before
+                    >= threads * 64 * channels * kernel * kernel * size_of::<f32>()
+            );
+            if let Some(expected) = &addresses {
+                assert_eq!(&current, expected);
+            }
+            if let Some(expected) = retained {
+                assert_eq!(request.retained_scratch_bytes(), expected);
+            }
+            addresses = Some(current);
+            retained = Some(request.retained_scratch_bytes());
         }
-        if let Some(expected) = retained {
-            assert_eq!(request.retained_scratch_bytes(), expected);
-        }
-        addresses = Some(current);
-        retained = Some(request.retained_scratch_bytes());
     }
 }

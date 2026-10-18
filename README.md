@@ -98,6 +98,12 @@ imbalance, and workload-specific optimization priorities on the physical Apple M
 The [spatial SME optimization](docs/macos-arm64-spatial-sme-optimization.md)
 accelerates eligible 3×3 convolutions with bounded reusable scratch, with measured
 sparse-page gains, exact output validation, and documented timing and memory limits.
+The [pipeline analysis after spatial SME](docs/macos-spatial-sme-pipeline-analysis.md)
+details current stage latencies, remaining operator costs, recognition worker
+imbalance, and the next optimization priorities on the physical Apple M4.
+The [streaming and spatial optimization](docs/macos-arm64-streaming-spatial-optimization.md)
+pairs SME tiles, extends spatial kernels and adds direct transpose stores, with
+measured Medium and Small dense/mixed gains and unchanged retained memory.
 
 ```powershell
 cargo run --release --locked --example cpu_qualify --

@@ -1,5 +1,6 @@
 //! Ordered NHWC spatial convolution with bounded worker storage.
-//! Eligible macOS ARM64 3x3 layers pack sixty-four receptive fields for SME.
+//! Eligible macOS ARM64 2x2, 3x3, 5x5 and 7x7 layers pack sixty-four
+//! receptive fields for SME.
 //! The fallback uses six-row / sixteen-column tiles and 512-K reduction blocks;
 //! neither path materializes an image-sized im2col tensor.
 use super::*;
@@ -15,14 +16,14 @@ pub(in crate::runtime) fn sme_scratch_elements(backend: Backend, p: &Conv) -> us
         && p.cpg == p.cin
         && p.cin >= 32
         && p.cout >= 16
-        && p.kh == 3
-        && p.kw == 3
+        && matches!(p.kh, 2 | 3 | 5 | 7)
+        && p.kw == p.kh
         && p.batch.saturating_mul(p.oh).saturating_mul(p.ow) >= 32
         && super::pointwise::sme::available()
     {
         return p
             .cin
-            .checked_mul(9 * super::pointwise::sme::GROUP)
+            .checked_mul(p.kh * p.kw * super::pointwise::sme::GROUP)
             .unwrap_or(0);
     }
     let _ = (backend, p);

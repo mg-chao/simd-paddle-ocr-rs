@@ -3,6 +3,7 @@
 //! The same immutable 16-column weight panels and bias-first ascending FMA
 //! order are used by NEON. Four independent 16x16 accumulators reuse each
 //! input/weight vector twice; short row or channel tails retain a single tile.
+//! Full row groups share one guarded streaming interval across two tiles.
 //! Small shapes and unsupported thread state fall back.
 #[cfg(feature = "parallel")]
 use super::super::PointwiseBands;
@@ -148,6 +149,38 @@ pub(in crate::runtime::nhwc) fn packed_group(
     for (block, panels) in packed.data().chunks(inner * 32).enumerate() {
         let column = block * 32;
         let seed: [f32; 32] = std::array::from_fn(|v| bias.get(column + v).copied().unwrap_or(0.));
+        if count > 48 && panels.len() == inner * 32 {
+            let mut sums = [0f32; 2048];
+            // SAFETY: a group with more than 48 rows has four padded input
+            // panels. Both row tiles use the same complete weight/bias panels.
+            if !unsafe {
+                tile32_repeated::<2>(
+                    scratch.as_ptr(),
+                    panels.as_ptr(),
+                    seed.as_ptr(),
+                    sums.as_mut_ptr(),
+                    inner,
+                )
+            } {
+                return false;
+            }
+            for r in 0..count {
+                for v in 0..2 {
+                    let tile = r / 32 * 4 + r % 32 / 16 * 2 + v;
+                    let offset = tile * 256 + r % 16 * 16;
+                    store_row(
+                        Simd::<f32, 16>::from_slice(&sums[offset..]),
+                        output,
+                        r,
+                        column + v * 16,
+                        columns,
+                        first,
+                        store,
+                    );
+                }
+            }
+            continue;
+        }
         let mut t = 0;
         while t < count {
             if count - t > 16 && panels.len() == inner * 32 {
@@ -312,8 +345,25 @@ unsafe fn tile(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k: u
 /// exactly 64-byte streaming vectors, checked on the executing thread.
 /// SMSTART/SMSTOP invalidate vector/predicate registers, so all are clobbered;
 /// Rust consequently preserves the ABI's callee-saved vector portions.
-#[inline(never)]
+#[inline(always)]
 unsafe fn tile32(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k: usize) -> bool {
+    // SAFETY: one tile has exactly the original readable/writable extents.
+    unsafe { tile32_repeated::<1>(a, b, bias, c, k) }
+}
+
+/// One or two 32x32 row tiles share the guarded streaming interval. Each
+/// tile reloads its bias and repeats the original ascending-K FMA sequence.
+/// SAFETY: a covers TILES*32*k floats, b covers 32*k, bias covers 32 and
+/// c covers TILES*1024. All guards and clobbers match the single-tile entry.
+#[inline(never)]
+unsafe fn tile32_repeated<const TILES: usize>(
+    a: *const f32,
+    b: *const f32,
+    bias: *const f32,
+    c: *mut f32,
+    k: usize,
+) -> bool {
+    assert!(TILES == 1 || TILES == 2);
     let succeeded: usize;
     // SAFETY: the caller provides two full panels.
     let a1 = unsafe { a.add(k * 16) };
@@ -336,6 +386,9 @@ unsafe fn tile32(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k:
             "cbnz {state}, 9f",
             "smstart",
             "ptrue p0.s",
+            "mov {tiles}, #{tile_count}",
+            "11:",
+            "mov {k}, {inner}",
             "zero {{za}}",
             "ld1w {{z2.s}}, p0/z, [{bias}]",
             "ld1w {{z3.s}}, p0/z, [{bias1}]",
@@ -376,6 +429,18 @@ unsafe fn tile32(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k:
             "add w12, w12, #1",
             "cmp w12, #16",
             "b.ne 4b",
+            "subs {tiles}, {tiles}, #1",
+            "b.eq 12f",
+            "mov {a}, {a1}",
+            "add {a1}, {a}, {inner}, lsl #6",
+            "mov {b}, {base_b}",
+            "add {b1}, {b}, {inner}, lsl #6",
+            "mov {c}, {c3}",
+            "add {c1}, {c}, #1024",
+            "add {c2}, {c}, #2048",
+            "add {c3}, {c}, #3072",
+            "b 11b",
+            "12:",
             "smstop",
             "mov {state}, #1",
             "b 10f",
@@ -388,7 +453,9 @@ unsafe fn tile32(a: *const f32, b: *const f32, bias: *const f32, c: *mut f32, k:
             bias = in(reg) bias, bias1 = in(reg) bias1,
             c = inout(reg) c => _, c1 = inout(reg) c1 => _,
             c2 = inout(reg) c2 => _, c3 = inout(reg) c3 => _,
-            k = inout(reg) k => _,
+            k = out(reg) _, inner = in(reg) k,
+            base_b = in(reg) b,
+            tiles = out(reg) _, tile_count = const TILES,
             out("x12") _,
             out("v0") _, out("v1") _, out("v2") _, out("v3") _,
             out("v4") _, out("v5") _, out("v6") _, out("v7") _,
