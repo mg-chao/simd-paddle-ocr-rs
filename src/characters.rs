@@ -220,11 +220,11 @@ mod tests {
         let s = spans(&[(0, 1)]);
         check(
             &estimate(&tall, Some(CtcSpans::from_owned(&s)), 4, 4, 4, 0).unwrap()[0],
-            [[10., 90.], [10., 70.], [30., 70.], [30., 90.]],
+            [[30., 10.], [30., 30.], [10., 30.], [10., 10.]],
         );
         check(
             &estimate(&tall, Some(CtcSpans::from_owned(&s)), 4, 4, 4, 180).unwrap()[0],
-            [[10., 30.], [10., 10.], [30., 10.], [30., 30.]],
+            [[30., 70.], [30., 90.], [10., 90.], [10., 70.]],
         );
         let quad = DetectionBox {
             points: [[0., 0.], [100., 0.], [80., 40.], [10., 40.]],
@@ -243,6 +243,40 @@ mod tests {
             &estimate(&slant, Some(CtcSpans::from_owned(&s)), 8, 8, 8, 0).unwrap()[0],
             [[20., 4.], [40., 8.], [40., 28.], [20., 24.]],
         );
+    }
+    #[test]
+    fn vertical_perspective_spans_follow_reading_direction_with_padding_and_classification() {
+        let quad = DetectionBox {
+            points: [[10., 10.], [30., 10.], [40., 90.], [0., 90.]],
+            score: 1.,
+        };
+        // Two content columns followed by two padding columns. Each token
+        // covers half of the rectified crop, not half the source-image height.
+        let s = spans(&[(0, 1), (1, 2)]);
+        let expected = [
+            [
+                [30., 10.],
+                [100. / 3., 110. / 3.],
+                [20. / 3., 110. / 3.],
+                [10., 10.],
+            ],
+            [
+                [100. / 3., 110. / 3.],
+                [40., 90.],
+                [0., 90.],
+                [20. / 3., 110. / 3.],
+            ],
+        ];
+        for rotation in [0, 180] {
+            let boxes = estimate(&quad, Some(CtcSpans::from_owned(&s)), 4, 2, 4, rotation).unwrap();
+            assert_eq!(boxes.len(), 2);
+            for (index, actual) in boxes.iter().enumerate() {
+                check(
+                    actual,
+                    expected[if rotation == 0 { index } else { 1 - index }],
+                );
+            }
+        }
     }
     #[test]
     fn rejects_missing_overlapping_and_invalid_alignment() {

@@ -105,18 +105,16 @@ impl CropTransform {
     pub fn unrotated_height(self) -> usize {
         self.height
     }
+    /// Tall crops are rotated 90 degrees counterclockwise before classification
+    /// or recognition, so source top-to-bottom becomes crop left-to-right.
     pub fn vertical_rotation(self) -> bool {
         self.vertical
     }
     /// Map a normalized interval in the oriented crop back onto the source quad.
     pub(crate) fn map_span(self, left: f64, right: f64) -> ImageResult<[[f32; 2]; 4]> {
         let coordinates = if self.vertical {
-            [
-                [0., 1. - left],
-                [0., 1. - right],
-                [1., 1. - right],
-                [1., 1. - left],
-            ]
+            // Undo the CCW rotation in crop-corner order (TL, TR, BR, BL).
+            [[1., left], [1., right], [0., right], [0., left]]
         } else {
             [[left, 0.], [right, 0.], [right, 1.], [left, 1.]]
         };
@@ -190,16 +188,18 @@ impl CropTransform {
             let dy = first_row + local_y;
             for first in (0..self.width()).step_by(kernel.map_lanes()) {
                 let count = kernel.map_lanes().min(self.width() - first);
+                // Inverse of a 90-degree CCW rotation: (dst_x, dst_y) maps
+                // to (unrotated_width - 1 - dst_y, dst_x) before perspective.
                 let x = std::array::from_fn(|lane| {
                     if self.vertical {
-                        dy as f64
+                        (self.width - 1 - dy) as f64
                     } else {
                         (first + lane.min(count - 1)) as f64
                     }
                 });
                 let y = std::array::from_fn(|lane| {
                     if self.vertical {
-                        (self.height - 1 - first - lane.min(count - 1)) as f64
+                        (first + lane.min(count - 1)) as f64
                     } else {
                         dy as f64
                     }
@@ -309,6 +309,7 @@ mod tests {
                 [[2.3, 3.1], [31.4, 2.5], [30.2, 27.7], [3.5, 29.2]],
                 [[-2.3, -1.7], [16.1, 0.2], [16.8, 14.1], [-1.2, 13.6]],
                 [[0., 0.], [7., 0.], [7., 19.], [0., 19.]],
+                [[10., 2.], [17., 3.], [20., 32.], [5., 29.]],
                 [[5., 5.], [14., 5.], [14., 14.], [5., 14.]],
             ] {
                 let transform = CropTransform::new(&DetectionBox { points, score: 1. }).unwrap();
@@ -343,7 +344,7 @@ mod tests {
         }
     }
     #[test]
-    fn output_row_bands_preserve_vertical_rotation_and_perspective_coordinates() {
+    fn output_row_bands_preserve_vertical_counterclockwise_rotation_and_perspective_coordinates() {
         let image: Vec<u8> = (0..100)
             .flat_map(|i| [i as u8, (i * 2) as u8, (i + 3) as u8])
             .collect();
@@ -354,17 +355,23 @@ mod tests {
         })
         .unwrap();
         assert_eq!((vertical.width(), vertical.height()), (7, 3));
-        let mut output = vec![0; vertical.byte_count().unwrap()];
-        for (row, band) in output.chunks_mut(7 * 3).enumerate() {
-            vertical.extract_rows_into(source, row, band).unwrap();
-        }
-        for y in 0..3 {
-            for x in 0..7 {
-                let input = ((6 - x) * 10 + y) * 3;
-                assert_eq!(
-                    &output[(y * 7 + x) * 3..(y * 7 + x) * 3 + 3],
-                    &image[input..input + 3]
-                );
+        // The rightmost source column becomes the top output row, read from
+        // top to bottom, matching numpy.rot90 / a 90-degree CCW rotation.
+        let expected: Vec<u8> = [
+            2, 12, 22, 32, 42, 52, 62, 1, 11, 21, 31, 41, 51, 61, 0, 10, 20, 30, 40, 50, 60,
+        ]
+        .into_iter()
+        .flat_map(|value| [value, value * 2, value + 3])
+        .collect();
+        for kernel in crate::pixel_kernels::PixelKernel::test_kernels() {
+            for rows_per_band in [1, 2, 3] {
+                let mut output = vec![0; vertical.byte_count().unwrap()];
+                for (band, pixels) in output.chunks_mut(7 * 3 * rows_per_band).enumerate() {
+                    vertical
+                        .extract_rows_with_kernel(source, band * rows_per_band, pixels, kernel)
+                        .unwrap();
+                }
+                assert_eq!(output, expected, "{kernel:?}/{rows_per_band}");
             }
         }
         let skew = CropTransform::new(&DetectionBox {

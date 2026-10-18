@@ -64,7 +64,8 @@ set succeeds with classification omitted even though the builder defaults to
 classification enabled. `.direction_classification(false)` also skips a
 classifier that was already loaded. With no classifier, OCR line metadata has
 classification score and label zero, and classifier rotation zero. Perspective
-cropping's vertical-line rotation still applies.
+cropping still rotates tall lines 90 degrees counterclockwise, so top-to-bottom
+text reaches recognition in left-to-right order even without classification.
 
 `OcrModelSet::from_paths` accepts explicit model filenames, and `from_readers`
 accepts non-seekable buffered streams. Parsing releases the raw ONNX input and
