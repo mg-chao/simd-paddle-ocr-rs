@@ -54,6 +54,37 @@ pub(super) fn execute<const FMA: bool>(
     first: usize,
     store: &impl simd::StoreTransform,
 ) {
+    let plane = p.output_height * p.output_width;
+    let offset = (co - first) * plane;
+    let mut planes = out[offset..offset + 8 * plane].chunks_exact_mut(plane);
+    execute_rows::<FMA>(
+        p,
+        input,
+        weights,
+        bias,
+        std::array::from_fn(|_| planes.next().expect("eight output planes")),
+        0,
+        batch,
+        co,
+        store,
+    );
+}
+
+/// Serial channel tiles and parallel row shards share the same reduction and
+/// tail arithmetic. Each destination is an exclusive band of one NCHW plane;
+/// final transforms still receive indices in the complete output tensor.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn execute_rows<const FMA: bool>(
+    p: &Conv2d,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    out: [&mut [f32]; 8],
+    first_row: usize,
+    batch: usize,
+    co: usize,
+    store: &impl simd::StoreTransform,
+) {
     // This additional safe-entry proof is outside every pixel/reduction loop.
     assert!(std::is_x86_feature_detected!("avx"));
     assert!(!FMA || std::is_x86_feature_detected!("fma"));
@@ -62,6 +93,14 @@ pub(super) fn execute<const FMA: bool>(
     debug_assert!(p.pad_top == 0 && p.pad_left == 0);
     let input_plane = p.height * p.width;
     let output_plane = p.output_height * p.output_width;
+    assert!(p.output_width > 0 && out[0].len().is_multiple_of(p.output_width));
+    let rows = out[0].len() / p.output_width;
+    assert!(out.iter().all(|plane| plane.len() == rows * p.output_width));
+    assert!(
+        first_row
+            .checked_add(rows)
+            .is_some_and(|end| end <= p.output_height)
+    );
     let weight_plane = p.input_channels * 4;
     let panels = std::array::from_fn(|lane| {
         weights[(co + lane) * weight_plane..][..weight_plane]
@@ -74,12 +113,13 @@ pub(super) fn execute<const FMA: bool>(
         .and_then(|value| value.checked_add(9))
         .expect("PadEnd2 input span overflow");
     let valid = interior(p);
-    for y in 0..p.output_height {
+    for local_y in 0..rows {
+        let y = first_row + local_y;
         let mut x = 0;
         while x < valid.start {
             for lane in 0..8 {
                 let index = y * p.output_width + x;
-                out[(co + lane - first) * output_plane + index] = store.scalar(
+                out[lane][local_y * p.output_width + x] = store.scalar(
                     edge(p, input, weights, bias, batch, co + lane, y, x),
                     (batch * p.output_channels + co + lane) * output_plane + index,
                 );
@@ -117,7 +157,7 @@ pub(super) fn execute<const FMA: bool>(
                         sum,
                         (batch * p.output_channels + co + lane) * output_plane + index,
                     )
-                    .copy_to_slice(&mut out[(co + lane - first) * output_plane + index..][..8]);
+                    .copy_to_slice(&mut out[lane][local_y * p.output_width + x..][..8]);
             }
             x += 8;
         }
@@ -131,7 +171,7 @@ pub(super) fn execute<const FMA: bool>(
             for (lane, sum) in sums.iter().enumerate() {
                 for column in 0..count {
                     let index = y * p.output_width + x + column;
-                    out[(co + lane - first) * output_plane + index] = store.scalar(
+                    out[lane][local_y * p.output_width + x + column] = store.scalar(
                         sum[column],
                         (batch * p.output_channels + co + lane) * output_plane + index,
                     );

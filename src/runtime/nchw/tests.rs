@@ -135,12 +135,10 @@ fn packed_packet_case(p: Conv2d, kind: Kind, vector_spatial: impl Fn(usize, usiz
                 threads,
                 &store
             ));
-            assert!(
-                output[..4]
-                    .iter()
-                    .chain(&output[4 + length..])
-                    .all(|v| v.to_bits() == guard.to_bits())
-            );
+            assert!(output[..4]
+                .iter()
+                .chain(&output[4 + length..])
+                .all(|v| v.to_bits() == guard.to_bits()));
             for (index, value) in output[4..4 + length].iter().enumerate() {
                 assert_eq!(
                     value.to_bits(),
@@ -177,12 +175,10 @@ fn packed_packet_case(p: Conv2d, kind: Kind, vector_spatial: impl Fn(usize, usiz
                 count,
                 &band_store,
             );
-            assert!(
-                band[..4]
-                    .iter()
-                    .chain(&band[4 + count * plane..])
-                    .all(|v| v.to_bits() == guard.to_bits())
-            );
+            assert!(band[..4]
+                .iter()
+                .chain(&band[4 + count * plane..])
+                .all(|v| v.to_bits() == guard.to_bits()));
             for (offset, value) in band[4..4 + count * plane].iter().enumerate() {
                 assert_eq!(
                     value.to_bits(),
@@ -791,23 +787,21 @@ fn output_bands_are_bitwise_stable_across_cpu_budgets_and_reject_unavailable_pol
         assert_eq!(actual, expected);
     }
     if !simd::avx512_available() {
-        assert!(
-            std::panic::catch_unwind(|| {
-                let mut actual = vec![0.; expected.len()];
-                try_conv(
-                    Backend::Avx512,
-                    &p,
-                    &input,
-                    &weights,
-                    &bias,
-                    Some(&panel),
-                    &mut actual,
-                    &CpuContext::new(1).unwrap(),
-                    1,
-                );
-            })
-            .is_err()
-        );
+        assert!(std::panic::catch_unwind(|| {
+            let mut actual = vec![0.; expected.len()];
+            try_conv(
+                Backend::Avx512,
+                &p,
+                &input,
+                &weights,
+                &bias,
+                Some(&panel),
+                &mut actual,
+                &CpuContext::new(1).unwrap(),
+                1,
+            );
+        })
+        .is_err());
     }
 }
 
@@ -1350,6 +1344,99 @@ fn pad_end_two_forced_dispatch_keeps_ordered_reduction_borders_and_indexed_store
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[test]
+fn pad_end_row_bands_preserve_global_indices_and_destination_guards() {
+    fn check<const FMA: bool>() {
+        for width in [7, 9, 17] {
+            let mut p = parameters(3, 24, 3, width, [2, 2], [1, 1], [0, 0], 1);
+            p.batch = 2;
+            p.output_height = p.height;
+            p.output_width = p.width;
+            let plane = p.height * width;
+            let input: Vec<_> = (0..p.batch * p.input_channels * plane)
+                .map(|i| ((i % 23) as f32 - 11.) / 17.)
+                .collect();
+            let weights: Vec<_> = (0..p.output_channels * p.input_channels * 4)
+                .map(|i| ((i % 19) as f32 - 9.) / 13.)
+                .collect();
+            for with_bias in [false, true] {
+                let bias: Vec<_> = if with_bias {
+                    (0..p.output_channels).map(|i| i as f32 / 19.).collect()
+                } else {
+                    vec![]
+                };
+                let sentinel = -12345.;
+                let mut destinations: [Vec<f32>; 8] =
+                    std::array::from_fn(|_| vec![sentinel; 2 * width + 2]);
+                let mut bands = destinations.iter_mut();
+                let store = IndexedStore::new(p.batch * p.output_channels * plane);
+                // The second batch, second channel tile and final two rows
+                // independently exercise every offset in the shared writer.
+                pad_end2::execute_rows::<FMA>(
+                    &p,
+                    &input,
+                    &weights,
+                    &bias,
+                    std::array::from_fn(|_| &mut bands.next().unwrap()[1..1 + 2 * width]),
+                    1,
+                    1,
+                    8,
+                    &store,
+                );
+                let vector_end = (width - 1) / 8 * 8;
+                for (lane, destination) in destinations.iter().enumerate() {
+                    assert_eq!(destination[0], sentinel);
+                    assert_eq!(destination[1 + 2 * width], sentinel);
+                    let co = 8 + lane;
+                    for y in 1..3 {
+                        for x in 0..width {
+                            let mut sum = if with_bias { bias[co] } else { 0. };
+                            for ci in 0..p.input_channels {
+                                for ky in 0..2 {
+                                    for kx in 0..2 {
+                                        if y + ky < p.height && x + kx < width {
+                                            let value = input[(p.input_channels + ci) * plane
+                                                + (y + ky) * width
+                                                + x
+                                                + kx];
+                                            let weight = weights
+                                                [(co * p.input_channels + ci) * 4 + ky * 2 + kx];
+                                            sum = if FMA && x < vector_end {
+                                                value.mul_add(weight, sum)
+                                            } else {
+                                                value * weight + sum
+                                            };
+                                        }
+                                    }
+                                }
+                            }
+                            let index = (p.output_channels + co) * plane + y * width + x;
+                            assert_eq!(
+                                destination[1 + (y - 1) * width + x].to_bits(),
+                                IndexedStore::expected(sum, index).to_bits(),
+                                "fma={FMA} bias={with_bias} width={width} index={index}"
+                            );
+                        }
+                    }
+                }
+                for (index, visits) in store.visits.iter().enumerate() {
+                    let channel = index / plane;
+                    let row = index % plane / width;
+                    let expected = usize::from((32..40).contains(&channel) && row >= 1);
+                    assert_eq!(visits.load(std::sync::atomic::Ordering::Relaxed), expected);
+                }
+            }
+        }
+    }
+    if std::is_x86_feature_detected!("avx") {
+        check::<false>();
+        if std::is_x86_feature_detected!("fma") {
+            check::<true>();
         }
     }
 }

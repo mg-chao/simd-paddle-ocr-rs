@@ -1004,6 +1004,34 @@ fn spatial_rows_impl<const N: usize, const FMA: bool>(
         );
         return;
     }
+    // PadEnd2's eight-channel spatial shards previously bypassed its native
+    // descriptor kernel and repeated generic geometry/weight indexing in K.
+    // Share the serial tile while retaining the existing eight-lane FMA/tail
+    // boundary. AVX-512 keeps its sixteen-lane arithmetic on the general path.
+    if N == 8
+        && p.output_channels == 8
+        && p.kernel_height == 2
+        && p.kernel_width == 2
+        && p.stride_height == 1
+        && p.stride_width == 1
+        && p.pad_top == 0
+        && p.pad_left == 0
+        && p.output_height == p.height
+        && p.output_width == p.width
+    {
+        pad_end2::execute_rows::<FMA>(
+            p,
+            input,
+            weights,
+            bias,
+            std::array::from_fn(|channel| band[channel].take().expect("eight-channel row band")),
+            begin,
+            batch,
+            first,
+            store,
+        );
+        return;
+    }
     let plane = p.output_height * p.output_width;
     let rows = band[0].as_ref().expect("nonempty row band").len() / p.output_width;
     let valid = interior(p);

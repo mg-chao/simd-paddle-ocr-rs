@@ -54,6 +54,15 @@ performance parity claim.
 
 Recorded local checks and completion status are in
 [Windows CPU validation](docs/windows-cpu-validation.md).
+The [current Windows pipeline analysis](docs/windows-2026-10-18-pipeline-analysis.md)
+records stage latency, convolution costs, recognition worker completion times,
+and remaining optimization priorities on the physical Ryzen CPU.
+The [parallel PadEnd2 follow-up](docs/windows-avx2-pad-end-optimization.md)
+records the adopted detector optimization, exact output checks, and bounded
+before/after results, including the limits of whole-page timing gains.
+The [Medium slowdown investigation](docs/windows-medium-regression-investigation.md)
+records an alternating-version comparison that did not reproduce the reported
+10.6% slowdown and retained the Tiny improvement.
 
 The benchmark also supports macOS with native CPU-time and peak-resident-memory
 counters. See the [focused Apple M4 comparison](docs/macos-cpu-performance.md)

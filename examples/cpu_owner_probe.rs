@@ -4,18 +4,32 @@ mod baseline;
 #[path = "../tools/benchmark/mod.rs"]
 mod benchmark;
 
-use baseline::{Manifest, Result, read_json};
+use baseline::{read_json, Manifest, Result};
 use simd_paddle_ocr_rs::{
-    OcrModelSet,
     cpu::{CpuContext, CpuOptions},
     detector::DetectorOptions,
     image::{ImageView, PixelFormat},
     lines::LineOptions,
     recognizer::RecognizerOptions,
+    OcrModelSet,
 };
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use std::{io::Write, path::PathBuf, sync::Arc, time::Instant};
 
 const CAPACITY: usize = 24;
+
+fn event(value: &serde_json::Value) -> Result<()> {
+    println!("{}", serde_json::to_string(value)?);
+    std::io::stdout().flush()?;
+    Ok(())
+}
+
+fn command(expected: &str) -> Result<()> {
+    let mut line = String::new();
+    if std::io::stdin().read_line(&mut line)? == 0 || line.trim() != expected {
+        return Err(format!("paired probe expected {expected:?} on stdin").into());
+    }
+    Ok(())
+}
 
 fn check_deadline(started: Instant) -> Result<()> {
     if started.elapsed().as_secs_f64() >= 15. {
@@ -28,13 +42,20 @@ fn run() -> Result<()> {
     if cfg!(debug_assertions) || cfg!(feature = "profiling") || !cfg!(feature = "parallel") {
         return Err("use --release with default features and without profiling".into());
     }
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let mut args: Vec<_> = std::env::args().skip(1).collect();
+    let paired = args.first().is_some_and(|arg| arg == "--paired");
+    if paired {
+        args.remove(0);
+    }
     if args
         .first()
         .is_some_and(|arg| arg == "--help" || arg == "-h")
     {
         println!(
             "cargo run --release --locked --example cpu_owner_probe -- [tiny|small|medium] [FIXTURE] [OWNERS] [BATCH_SIZES]\nOWNERS is a comma-separated list of up to three budgets in 0..=16; default 0,12,16 (zero is automatic). BATCH_SIZES is one to three comma-separated sizes in 1..=4; default 1. One shared 24-thread CPU context; first 24 allowed Windows CPUs. One warm-up and three measured owned-result calls each. Exact complete output equality required. Fifteen-second internal deadline; also enforce an external timeout."
+        );
+        println!(
+            "Optional --paired prefix enables a JSON-lines protocol for one owner/batch configuration: ready -> stdin warmup -> warmup result -> three stdin run commands/sample results -> complete report. No inference runs while waiting for commands. SIMD_OCR_PROBE_ROOT can select the common repository data root when comparing source snapshots. Enforce an external deadline including waits."
         );
         return Ok(());
     }
@@ -62,12 +83,17 @@ fn run() -> Result<()> {
     {
         return Err("expected one to three batch sizes in 1..=4".into());
     }
+    if paired && (owners.len() != 1 || batch_sizes.len() != 1) {
+        return Err("paired mode requires exactly one owner and batch configuration".into());
+    }
     let started = Instant::now();
     let model = args.first().map_or("medium", String::as_str);
     let fixture = args.get(1).map_or("imgs_00018069", String::as_str);
     let affinity = benchmark::platform::affinity(CAPACITY, None)?;
     benchmark::platform::configure(&affinity)?;
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = std::env::var_os("SIMD_OCR_PROBE_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")));
     let manifest_path = root.join("tests/baseline/manifest.json");
     let manifest: Manifest = read_json(&manifest_path)?;
     manifest.validate()?;
@@ -143,6 +169,15 @@ fn run() -> Result<()> {
         let compile_request_ms = setup_start.elapsed().as_secs_f64() * 1000.;
         let initial_budgets = format!("{:?}", request.cpu_budgets());
         check_deadline(started)?;
+        if paired {
+            event(&serde_json::json!({
+                "event": "ready", "model": model, "fixture": fixture,
+                "affinity": affinity, "pixel_sha256": baseline::hash(&frame.pixels),
+                "manifest_sha256": baseline::hash(&std::fs::read(&manifest_path)?),
+            }))?;
+            command("warmup")?;
+            check_deadline(started)?;
+        }
         let warmup_start = Instant::now();
         let warmup = request.run(image, false)?.try_to_owned()?;
         let warmup_ms = warmup_start.elapsed().as_secs_f64() * 1000.;
@@ -156,6 +191,13 @@ fn run() -> Result<()> {
         } else {
             control = Some(warmup);
         }
+        if paired {
+            event(&serde_json::json!({
+                "event": "warmup", "milliseconds": warmup_ms,
+                "output_sha256": baseline::hash(&serde_json::to_vec(control.as_ref().unwrap())?),
+                "recognized_lines": control.as_ref().unwrap().lines.len(),
+            }))?;
+        }
         let line_count = control.as_ref().unwrap().lines.len();
         let classifier_worker_budget = if line_workers == 0 {
             CAPACITY.min(16)
@@ -164,7 +206,10 @@ fn run() -> Result<()> {
         };
         let mut wall_ms = Vec::new();
         let mut cpu_ms = Vec::new();
-        for _ in 0..3 {
+        for sample_index in 0..3 {
+            if paired {
+                command("run")?;
+            }
             check_deadline(started)?;
             let cpu_start = benchmark::platform::process_cpu_time()?;
             let start = Instant::now();
@@ -182,6 +227,13 @@ fn run() -> Result<()> {
             std::hint::black_box(&output);
             wall_ms.push(elapsed_ms);
             cpu_ms.push(elapsed_cpu_ms);
+            if paired {
+                event(&serde_json::json!({
+                    "event": "sample", "sample_index": sample_index,
+                    "milliseconds": elapsed_ms, "cpu_ms": elapsed_cpu_ms,
+                    "output_sha256": baseline::hash(&serde_json::to_vec(&output)?),
+                }))?;
+            }
         }
         let (peak_private_bytes, peak_resident_bytes) = benchmark::platform::peak_memory()?;
         cases.push(serde_json::json!({
@@ -206,29 +258,33 @@ fn run() -> Result<()> {
         }));
     }
     check_deadline(started)?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "instrumented": false,
-            "model": model,
-            "fixture": fixture,
-            "cpu_context_capacity": CAPACITY,
-            "affinity": affinity,
-            "pixel_sha256": baseline::hash(&frame.pixels),
-            "manifest_sha256": baseline::hash(&std::fs::read(manifest_path)?),
-            "order": owners,
-            "batch_size_order": batch_sizes,
-            "warmups_per_configuration": 1,
-            "measured_runs_per_configuration": 3,
-            "capture_ctc_spans": false,
-            "complete_owned_outputs_exactly_equal": true,
-            "control_output_sha256": baseline::hash(&serde_json::to_vec(control.as_ref().unwrap())?),
-            "recognized_lines": control.as_ref().unwrap().lines.len(),
-            "cases": cases,
-            "execution_seconds": started.elapsed().as_secs_f64(),
-            "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim."
-        }))?
-    );
+    let report = serde_json::json!({
+        "event": "complete",
+        "paired": paired,
+        "instrumented": false,
+        "model": model,
+        "fixture": fixture,
+        "cpu_context_capacity": CAPACITY,
+        "affinity": affinity,
+        "pixel_sha256": baseline::hash(&frame.pixels),
+        "manifest_sha256": baseline::hash(&std::fs::read(manifest_path)?),
+        "order": owners,
+        "batch_size_order": batch_sizes,
+        "warmups_per_configuration": 1,
+        "measured_runs_per_configuration": 3,
+        "capture_ctc_spans": false,
+        "complete_owned_outputs_exactly_equal": true,
+        "control_output_sha256": baseline::hash(&serde_json::to_vec(control.as_ref().unwrap())?),
+        "recognized_lines": control.as_ref().unwrap().lines.len(),
+        "cases": cases,
+        "execution_seconds": started.elapsed().as_secs_f64(),
+        "limitation": "One process and one configuration order; immutable models and a 24-thread CPU pool shared, fresh mutable request per configuration. The automatic setting uses 16 classifiers while explicit twelve owners uses twelve; classifier figures are derived from current source policy for one nonconcurrent request. Process memory peaks are cumulative high-water counters, not isolated request memory. Internal deadline checks cannot interrupt an in-flight OCR call. No steady-state or full qualification claim."
+    });
+    if paired {
+        event(&report)?;
+    } else {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    }
     Ok(())
 }
 

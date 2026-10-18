@@ -1,5 +1,9 @@
 # Current Windows CPU24 OCR latency analysis
 
+For fresh measurements of revision `b30436a`, including recognition owner
+completion times and physical operator attribution, see the
+[2026-10-18 pipeline analysis](windows-2026-10-18-pipeline-analysis.md).
+
 These timings precede the subsequently retained [AVX2 short-depthwise optimization](windows-avx2-depthwise-optimization.md). That record contains separate matched before/after measurements; the stage timings below are not post-optimization results.
 
 There is room to improve recognition speed, but the useful target depends on the workload. On the current implementation, detector inference occupies **74.9%** of the sparse Tiny profile. Dense Small and Medium spend **67.0% and 85.9%** of elapsed time in recognition. Dense Tiny is more evenly divided: **26.7% detection inference, 29.4% classification and 40.1% recognition**. Classification's neural backbone accounts for 92–95% of its summed worker time; rotation and the two-class head are small.
