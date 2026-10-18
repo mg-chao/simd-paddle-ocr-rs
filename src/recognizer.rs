@@ -75,6 +75,17 @@ fn allocation(error: std::collections::TryReserveError) -> ImageError {
     )
 }
 
+/// Public CTC score semantics. Probability mode executes the model's complete
+/// Softmax head, retaining dense activations within the execution memory limit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RecognitionScoreMode {
+    /// Uncalibrated projection maxima, preserving the compact default path.
+    #[default]
+    Logit,
+    /// Softmax probabilities in [0, 1], suitable for confidence thresholds.
+    Probability,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct RecognizerOptions {
     /// Tensor width in fixed mode; adaptive mode selects its own width.
@@ -85,6 +96,7 @@ pub struct RecognizerOptions {
     /// Minimum adaptive tensor width before rounding up to 32. Zero preserves
     /// natural-width selection. Fixed-width mode ignores this floor.
     pub min_width: usize,
+    pub score_mode: RecognitionScoreMode,
     pub max_image_pixels: usize,
     /// Active UTF-8 and alignment records; excludes shared dictionary and activations.
     pub max_result_bytes: usize,
@@ -95,6 +107,7 @@ impl Default for RecognizerOptions {
             target_width: 320,
             adaptive_width: true,
             min_width: 0,
+            score_mode: RecognitionScoreMode::default(),
             max_image_pixels: 40_000_000,
             max_result_bytes: i32::MAX as usize,
         }
@@ -191,8 +204,8 @@ impl Serialize for CtcSpans<'_> {
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct RecognitionView<'a> {
     pub text: &'a str,
-    /// Mean score at each token's first frame. Public compact scores are
-    /// uncalibrated projection maxima; diagnostic dense scores are probabilities.
+    /// Mean score at each token's first frame, using the selected score mode.
+    /// Diagnostic dense scores are always probabilities.
     pub score: f32,
     /// Emitted dictionary tokens, independent of Unicode character count.
     pub emitted_count: usize,
@@ -801,13 +814,22 @@ impl Recognizer {
         } else {
             options.target_width
         };
-        let session = Session::new_prefix(
-            compiled.clone(),
-            &[1, 3, 48, width],
-            limits,
-            head.feature_node,
-        )?;
-        Self::check_feature_shape(session.output_shape(), head.inner)?;
+        let session = match options.score_mode {
+            RecognitionScoreMode::Logit => Session::new_prefix(
+                compiled.clone(),
+                &[1, 3, 48, width],
+                limits,
+                head.feature_node,
+            )?,
+            RecognitionScoreMode::Probability => {
+                Session::new_serial(compiled.clone(), &[1, 3, 48, width], limits)?
+            }
+        };
+        let output_width = match options.score_mode {
+            RecognitionScoreMode::Logit => head.inner,
+            RecognitionScoreMode::Probability => head.classes,
+        };
+        Self::check_feature_shape(session.output_shape(), output_width)?;
         Ok(Self {
             compiled,
             dictionary,
@@ -826,6 +848,12 @@ impl Recognizer {
             projection: crate::runtime::simd::ArgMaxWorkspace::default(),
             last_projection: None,
         })
+    }
+    fn output_width(&self) -> usize {
+        match self.options.score_mode {
+            RecognitionScoreMode::Logit => self.head.inner,
+            RecognitionScoreMode::Probability => self.head.classes,
+        }
     }
     fn check_feature_shape(shape: Shape, inner: usize) -> ImageResult<usize> {
         Self::check_batch_feature_shape(shape, inner, 1)
@@ -993,8 +1021,11 @@ impl Recognizer {
         }
         reshape?;
         let binding_timer = Timer::<PROFILE>::start();
-        let steps =
-            Self::check_batch_feature_shape(self.session.output_shape(), self.head.inner, count)?;
+        let steps = Self::check_batch_feature_shape(
+            self.session.output_shape(),
+            self.output_width(),
+            count,
+        )?;
         let rows = count
             .checked_mul(steps)
             .ok_or_else(|| ImageError::new("recognition batch row count overflow"))?;
@@ -1034,25 +1065,35 @@ impl Recognizer {
                 .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
         }
         let projection_timer = Timer::<PROFILE>::start();
-        let (family, isa) = self.head.project_parallel(
-            &self.compiled,
-            feature.data(),
-            &mut self.indices[..rows],
-            &mut self.scores[..rows],
-            &cpu,
-            threads,
-            steps,
-            &mut self.projection,
-        )?;
-        self.last_projection = Some(ProjectionStatistics {
-            backend: self.compiled.backend(),
-            isa,
-            family,
-            rows,
-            unit_rows: steps,
-            threads,
-            retained_scratch_bytes: self.projection.retained_bytes(),
-        });
+        self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
+            probability_argmax(
+                feature.data(),
+                self.head.classes,
+                &mut self.indices[..rows],
+                &mut self.scores[..rows],
+            )?;
+            None
+        } else {
+            let (family, isa) = self.head.project_parallel(
+                &self.compiled,
+                feature.data(),
+                &mut self.indices[..rows],
+                &mut self.scores[..rows],
+                &cpu,
+                threads,
+                steps,
+                &mut self.projection,
+            )?;
+            Some(ProjectionStatistics {
+                backend: self.compiled.backend(),
+                isa,
+                family,
+                rows,
+                unit_rows: steps,
+                threads,
+                retained_scratch_bytes: self.projection.retained_bytes(),
+            })
+        };
         if PROFILE {
             profile.projection_ns = profile
                 .projection_ns
@@ -1124,7 +1165,7 @@ impl Recognizer {
         }
         reshape?;
         let binding_timer = Timer::<PROFILE>::start();
-        let steps = Self::check_feature_shape(self.session.output_shape(), self.head.inner)?;
+        let steps = Self::check_feature_shape(self.session.output_shape(), self.output_width())?;
         resize_vec(&mut self.indices, steps)?;
         resize_vec(&mut self.scores, steps)?;
         if PROFILE {
@@ -1150,25 +1191,35 @@ impl Recognizer {
                 .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
         }
         let projection_timer = Timer::<PROFILE>::start();
-        let (family, isa) = self.head.project_parallel(
-            &self.compiled,
-            feature.data(),
-            &mut self.indices[..steps],
-            &mut self.scores[..steps],
-            &cpu,
-            threads,
-            steps,
-            &mut self.projection,
-        )?;
-        self.last_projection = Some(ProjectionStatistics {
-            backend: self.compiled.backend(),
-            isa,
-            family,
-            rows: steps,
-            unit_rows: steps,
-            threads,
-            retained_scratch_bytes: self.projection.retained_bytes(),
-        });
+        self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
+            probability_argmax(
+                feature.data(),
+                self.head.classes,
+                &mut self.indices[..steps],
+                &mut self.scores[..steps],
+            )?;
+            None
+        } else {
+            let (family, isa) = self.head.project_parallel(
+                &self.compiled,
+                feature.data(),
+                &mut self.indices[..steps],
+                &mut self.scores[..steps],
+                &cpu,
+                threads,
+                steps,
+                &mut self.projection,
+            )?;
+            Some(ProjectionStatistics {
+                backend: self.compiled.backend(),
+                isa,
+                family,
+                rows: steps,
+                unit_rows: steps,
+                threads,
+                retained_scratch_bytes: self.projection.retained_bytes(),
+            })
+        };
         if PROFILE {
             profile.projection_ns = profile
                 .projection_ns
@@ -1281,7 +1332,9 @@ impl Recognizer {
                 .map_err(RuntimeError::from)
             },
             |node| {
-                if node.output_id == head.feature {
+                if options.score_mode == RecognitionScoreMode::Logit
+                    && node.output_id == head.feature
+                {
                     let feature_steps = Self::check_feature_shape(node.shape, head.inner)
                         .map_err(RuntimeError::from)?;
                     if feature_steps != steps {
@@ -1329,7 +1382,14 @@ impl Recognizer {
             },
         )?;
         observer.borrow_mut()(RecognitionTrace::DecodedDense(dense.view()))?;
-        if !projected.get() {
+        if options.score_mode == RecognitionScoreMode::Probability {
+            probability_argmax(
+                probabilities.data(),
+                dictionary.class_count(),
+                &mut indices[..steps],
+                &mut scores[..steps],
+            )?;
+        } else if !projected.get() {
             return Err(ImageError::new("recognizer feature was not observed"));
         }
         decoded.decode(
@@ -1345,10 +1405,126 @@ impl Recognizer {
     }
 }
 
+fn probability_argmax(
+    probabilities: &[f32],
+    classes: usize,
+    indices: &mut [usize],
+    scores: &mut [f32],
+) -> ImageResult<()> {
+    if classes == 0
+        || probabilities.len() / classes != indices.len()
+        || !probabilities.len().is_multiple_of(classes)
+        || indices.len() != scores.len()
+    {
+        return Err(ImageError::new("invalid recognition probability shape"));
+    }
+    for ((row, index), score) in probabilities.chunks_exact(classes).zip(indices).zip(scores) {
+        *index = 0;
+        *score = -1.;
+        for (class, &value) in row.iter().enumerate() {
+            if !value.is_finite() || !(0. ..=1.).contains(&value) {
+                return Err(ImageError::new("invalid recognition probability"));
+            }
+            if value > *score {
+                *index = class;
+                *score = value;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{cpu::CpuContext, image::PixelFormat};
+
+    #[test]
+    fn probability_scores_match_softmax_in_reused_single_batch_and_trace_requests() {
+        let mut pipeline = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
+        let template = pipeline.recognizer_mut();
+        let pixels = vec![255; 64 * 48 * 3];
+        let image = ImageView::new(&pixels, 64, 48, 0, PixelFormat::Bgr24).unwrap();
+        assert_eq!(template.recognize(image, true).unwrap().score, 3.);
+        let expected_score = 3_f32.exp() / (3_f32.exp() + 2.);
+        for capacity in [1, 2] {
+            let mut recognizer = Recognizer::new(
+                template.compiled().clone(),
+                template.dictionary().clone(),
+                RecognizerOptions {
+                    score_mode: RecognitionScoreMode::Probability,
+                    ..Default::default()
+                },
+                ExecutionLimits::default(),
+            )
+            .unwrap();
+            recognizer
+                .set_execution_context(Arc::new(CpuContext::new(capacity).unwrap()), capacity)
+                .unwrap();
+            let expected = recognizer
+                .recognize(image, true)
+                .unwrap()
+                .try_to_owned()
+                .unwrap();
+            assert_eq!(expected.text, "A");
+            assert!((expected.score - expected_score).abs() < 1e-6);
+            assert!(recognizer.projection_statistics().is_none());
+            for _ in 0..2 {
+                for result in recognizer
+                    .recognize_batch(&[image, image], true)
+                    .unwrap()
+                    .iter()
+                {
+                    assert_eq!(result.try_to_owned().unwrap(), expected);
+                }
+                assert_eq!(
+                    recognizer
+                        .recognize(image, true)
+                        .unwrap()
+                        .try_to_owned()
+                        .unwrap(),
+                    expected
+                );
+            }
+            let mut traced_score = None;
+            let traced = recognizer
+                .recognize_with_trace(image, true, |event| {
+                    if let RecognitionTrace::DecodedDense(view) = event {
+                        traced_score = Some(view.score);
+                    }
+                    Ok(())
+                })
+                .unwrap()
+                .try_to_owned()
+                .unwrap();
+            assert_eq!(traced, expected);
+            assert_eq!(traced_score, Some(expected.score));
+            assert_eq!(
+                recognizer
+                    .fork()
+                    .unwrap()
+                    .recognize(image, true)
+                    .unwrap()
+                    .try_to_owned()
+                    .unwrap(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn probability_scores_reject_invalid_outputs() {
+        let mut indices = [0];
+        let mut scores = [0.];
+        for values in [[0., f32::NAN], [0., f32::INFINITY], [0., 1.1], [-0.1, 1.]] {
+            assert!(probability_argmax(&values, 2, &mut indices, &mut scores).is_err());
+        }
+        assert!(probability_argmax(&[0.5], 2, &mut indices, &mut scores).is_err());
+        assert!(probability_argmax(&[], 0, &mut indices, &mut scores).is_err());
+        probability_argmax(&[0.5, 0.5], 2, &mut indices, &mut scores).unwrap();
+        assert_eq!(indices, [0]);
+        assert_eq!(scores, [0.5]);
+    }
 
     #[test]
     fn same_width_batch_is_one_graph_and_preserves_independent_unicode_ctc() {

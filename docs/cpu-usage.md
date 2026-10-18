@@ -359,3 +359,14 @@ inspect kinds and sources rather than comparing error strings. Errors remain
 cloneable but no longer implement equality. The shared CPU context caches
 only successful initialization, allowing a later call to retry a transient
 pool-creation failure.
+
+### Confidence probabilities
+
+`RecognizerOptions::score_mode` defaults to `RecognitionScoreMode::Logit`,
+which preserves the compact projection path and its uncalibrated maxima. Set
+`RecognitionScoreMode::Probability` when applying confidence thresholds. This
+executes the model's complete Softmax head and averages emitted-token
+probabilities in `[0, 1]`; dense activations count toward the execution memory
+limit. Single, batched, traced, forked and factory-created requests preserve
+this setting. `projection_statistics()` reports compact projection selection
+only, so it returns `None` in probability mode.

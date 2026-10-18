@@ -312,6 +312,7 @@ mod tests {
             .cpu_context(CpuContext::serial())
             .recognizer_options(RecognizerOptions {
                 min_width: 48,
+                score_mode: crate::recognizer::RecognitionScoreMode::Probability,
                 ..Default::default()
             })
             .build()
@@ -329,6 +330,10 @@ mod tests {
                 .is_err()
         );
         for mut copy in [request.fork().unwrap(), request.into_factory()().unwrap()] {
+            assert_eq!(
+                copy.recognizer_mut().resolved_options().score_mode,
+                crate::recognizer::RecognitionScoreMode::Probability
+            );
             let options = copy.extractor_mut().detector().resolved_options();
             assert_eq!(options.resize_policy, crate::detector::DetResizePolicy::Min);
             assert_eq!(options.limit_side_length, 736);
