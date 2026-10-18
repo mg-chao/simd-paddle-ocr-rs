@@ -2,6 +2,10 @@
 use crate::image::{ImageError, ImageResult, ImageView, resize_vec};
 use std::sync::OnceLock;
 
+mod detector;
+pub use detector::DET_MAX_SIDE;
+pub(crate) use detector::DetSourceGeometry;
+
 #[derive(Default, Debug)]
 pub struct ResizeWorkspace {
     x_offsets: Vec<usize>,
@@ -60,6 +64,7 @@ pub struct DetSize {
 pub enum DetResizePolicy {
     #[default]
     Max,
+    /// Enlarge the short side up to the requested limit, subject to DET_MAX_SIDE.
     Min,
 }
 
@@ -73,42 +78,7 @@ pub fn compute_det_size_with_policy(
     limit: usize,
     policy: DetResizePolicy,
 ) -> ImageResult<DetSize> {
-    if width == 0
-        || height == 0
-        || width > i32::MAX as usize
-        || height > i32::MAX as usize
-        || !(32..=4096).contains(&limit)
-    {
-        return Err(ImageError::new("invalid detector image size or limit"));
-    }
-    let (width, height) = if width + height < 64 {
-        (width.max(32), height.max(32))
-    } else {
-        (width, height)
-    };
-    let side = match policy {
-        DetResizePolicy::Max => width.max(height),
-        DetResizePolicy::Min => width.min(height),
-    };
-    let ratio = match policy {
-        DetResizePolicy::Max if side > limit => limit as f64 / side as f64,
-        DetResizePolicy::Min if side < limit => limit as f64 / side as f64,
-        _ => 1.,
-    };
-    if width as f64 * ratio > i32::MAX as f64 - 32. || height as f64 * ratio > i32::MAX as f64 - 32.
-    {
-        return Err(ImageError::new("detector resized dimensions overflow"));
-    }
-    let scaled_width = (width as f64 * ratio) as usize;
-    let scaled_height = (height as f64 * ratio) as usize;
-    let w = (((scaled_width as f64 / 32. + 0.5).floor() as usize) * 32).max(32);
-    let h = (((scaled_height as f64 / 32. + 0.5).floor() as usize) * 32).max(32);
-    Ok(DetSize {
-        width: w,
-        height: h,
-        width_ratio: (w as f64 / width as f64) as f32,
-        height_ratio: (h as f64 / height as f64) as f32,
-    })
+    DetSourceGeometry::new(width, height)?.resize(limit, policy)
 }
 fn det_lut() -> &'static [[f32; 256]; 3] {
     static LUT: OnceLock<[[f32; 256]; 3]> = OnceLock::new();
@@ -501,6 +471,35 @@ mod tests {
     use super::*;
     use crate::{cpu::CpuContext, image::PixelFormat};
     #[test]
+    fn detector_resize_bounds_all_policies_before_inference() {
+        for (width, height) in [
+            (192, 32),
+            (32, 192),
+            (4096, 736),
+            (4097, 736),
+            (5000, 1000),
+            (1, i32::MAX as usize),
+            (i32::MAX as usize, 1),
+        ] {
+            for limit in [32, 736, 960, 4096] {
+                for policy in [DetResizePolicy::Max, DetResizePolicy::Min] {
+                    let size = compute_det_size_with_policy(width, height, limit, policy).unwrap();
+                    assert!(
+                        (32..=4096).contains(&size.width),
+                        "{width}x{height}/{policy:?}"
+                    );
+                    assert!(
+                        (32..=4096).contains(&size.height),
+                        "{width}x{height}/{policy:?}"
+                    );
+                    assert_eq!(size.width % 32, 0);
+                    assert_eq!(size.height % 32, 0);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn detector_resize_policies_preserve_defaults_and_bound_dimensions() {
         assert_eq!(
             compute_det_size(640, 480, 960).unwrap(),
@@ -513,8 +512,9 @@ mod tests {
         let size = compute_det_size_with_policy(1920, 1080, 960, DetResizePolicy::Max).unwrap();
         assert_eq!((size.width, size.height), (960, 544));
         assert!(compute_det_size_with_policy(0, 320, 736, DetResizePolicy::Min).is_err());
+        assert!(compute_det_size_with_policy(640, 320, 0, DetResizePolicy::Min).is_err());
         assert!(
-            compute_det_size_with_policy(i32::MAX as usize, 1, 736, DetResizePolicy::Min).is_err()
+            compute_det_size_with_policy(640, 320, DET_MAX_SIDE + 1, DetResizePolicy::Max).is_err()
         );
     }
     #[test]

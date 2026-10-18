@@ -2,6 +2,7 @@
 use crate::{
     detector::{DetectionBox, DetectorOptions},
     image::{ImageError, ImageResult, push, resize_vec},
+    preprocess::{DET_MAX_SIDE, DetSourceGeometry},
 };
 use std::cmp::Ordering;
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -60,14 +61,12 @@ impl Workspace {
             + self.boxes.capacity() * std::mem::size_of::<DetectionBox>()
     }
 }
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn run(
     prediction: &[f32],
     width: usize,
     height: usize,
     options: &DetectorOptions,
-    source_width: usize,
-    source_height: usize,
+    source: DetSourceGeometry,
     s: &mut Workspace,
 ) -> ImageResult<()> {
     run_with_kernel(
@@ -75,8 +74,7 @@ pub(crate) fn run(
         width,
         height,
         options,
-        source_width,
-        source_height,
+        source,
         s,
         crate::pixel_kernels::PixelKernel::selected(),
     )
@@ -87,15 +85,19 @@ fn run_with_kernel(
     width: usize,
     height: usize,
     options: &DetectorOptions,
-    source_width: usize,
-    source_height: usize,
+    source: DetSourceGeometry,
     s: &mut Workspace,
     kernel: crate::pixel_kernels::PixelKernel,
 ) -> ImageResult<()> {
     let pixels = width
         .checked_mul(height)
         .ok_or_else(|| ImageError::new("DB map size overflow"))?;
-    if width == 0 || height == 0 || pixels != prediction.len() || width > 4096 || height > 4096 {
+    if width == 0
+        || height == 0
+        || pixels != prediction.len()
+        || width > DET_MAX_SIDE
+        || height > DET_MAX_SIDE
+    {
         return Err(ImageError::new("invalid DB probability map size"));
     }
     resize_vec(&mut s.bitmap, pixels)?;
@@ -150,15 +152,7 @@ fn run_with_kernel(
         fill_foreground(start, width, height, pixels, s)?;
         if s.boundary.len() >= 3 {
             candidates += 1;
-            if let Some(b) = build(
-                prediction,
-                width,
-                height,
-                source_width,
-                source_height,
-                options,
-                s,
-            )? {
+            if let Some(b) = build(prediction, width, height, source, options, s)? {
                 push(&mut s.boxes, b)?;
             }
         }
@@ -186,15 +180,7 @@ fn run_with_kernel(
             fill_background(start, width, height, pixels, true, s)?;
             if s.boundary.len() >= 3 {
                 candidates += 1;
-                if let Some(b) = build(
-                    prediction,
-                    width,
-                    height,
-                    source_width,
-                    source_height,
-                    options,
-                    s,
-                )? {
+                if let Some(b) = build(prediction, width, height, source, options, s)? {
                     push(&mut s.boxes, b)?;
                 }
             }
@@ -602,13 +588,11 @@ fn order_clockwise(p: &mut [Point; 4]) {
         p[i] = input[order[(start + i) & 3]];
     }
 }
-#[allow(clippy::too_many_arguments)]
 fn build(
     prediction: &[f32],
     w: usize,
     h: usize,
-    sw: usize,
-    sh: usize,
+    source: DetSourceGeometry,
     o: &DetectorOptions,
     s: &mut Workspace,
 ) -> ImageResult<Option<DetectionBox>> {
@@ -633,12 +617,7 @@ fn build(
     let mut mapped = rectangle_points(r);
     order_clockwise(&mut mapped);
     for p in &mut mapped {
-        p.x = (p.x / w as f32 * sw as f32)
-            .round_ties_even()
-            .clamp(0., sw as f32);
-        p.y = (p.y / h as f32 * sh as f32)
-            .round_ties_even()
-            .clamp(0., sh as f32);
+        [p.x, p.y] = source.map_point([p.x, p.y], w, h);
     }
     let Some((_, corners)) = rectangle(&mut mapped, &mut s.hull)? else {
         return Ok(None);
@@ -989,9 +968,10 @@ mod tests {
             box_threshold: Some(0.4),
             ..Default::default()
         };
-        assert!(run(&[f32::NAN], 1, 1, &o, 1, 1, &mut s).is_err());
-        assert!(run(&[0.; 4], 1, 1, &o, 1, 1, &mut s).is_err());
-        run(&[0.1; 4], 2, 2, &o, 2, 2, &mut s).unwrap();
+        let source = DetSourceGeometry::new(2, 2).unwrap();
+        assert!(run(&[f32::NAN], 1, 1, &o, source, &mut s).is_err());
+        assert!(run(&[0.; 4], 1, 1, &o, source, &mut s).is_err());
+        run(&[0.1; 4], 2, 2, &o, source, &mut s).unwrap();
         assert!(s.boxes.is_empty());
     }
     #[test]
@@ -1024,13 +1004,13 @@ mod tests {
                 ..Default::default()
             };
             let mut original = Workspace::default();
+            let source = DetSourceGeometry::new(130, 78).unwrap();
             run_with_kernel(
                 &prediction,
                 width,
                 height,
                 &options,
-                130,
-                78,
+                source,
                 &mut original,
                 crate::pixel_kernels::PixelKernel::Scalar,
             )
@@ -1045,8 +1025,7 @@ mod tests {
                     width,
                     height,
                     &options,
-                    130,
-                    78,
+                    source,
                     &mut actual,
                     kernel,
                 )
@@ -1062,8 +1041,7 @@ mod tests {
                     width,
                     height,
                     &options,
-                    130,
-                    78,
+                    source,
                     &mut actual,
                     kernel,
                 )
@@ -1077,8 +1055,7 @@ mod tests {
                         width,
                         height,
                         &options,
-                        130,
-                        78,
+                        source,
                         &mut actual,
                         kernel
                     )
@@ -1089,14 +1066,13 @@ mod tests {
                     width,
                     height,
                     &options,
-                    130,
-                    78,
+                    source,
                     &mut actual,
                     kernel,
                 )
                 .unwrap();
                 assert_eq!(serde_json::to_value(&actual.boxes).unwrap(), expected);
-                run_with_kernel(&[0.; 6], 2, 3, &options, 2, 3, &mut actual, kernel).unwrap();
+                run_with_kernel(&[0.; 6], 2, 3, &options, source, &mut actual, kernel).unwrap();
                 assert!(actual.boxes.is_empty());
                 assert!(!actual.interior_ready);
             }
