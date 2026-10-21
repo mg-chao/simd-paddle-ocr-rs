@@ -1447,7 +1447,12 @@ mod tests {
         let image = ImageView::new(&pixels, 64, 48, 0, PixelFormat::Bgr24).unwrap();
         assert_eq!(template.recognize(image, true).unwrap().score, 3.);
         let expected_score = 3_f32.exp() / (3_f32.exp() + 2.);
-        for capacity in [1, 2] {
+        let capacities: &[usize] = if cfg!(feature = "parallel") {
+            &[1, 2]
+        } else {
+            &[1]
+        };
+        for &capacity in capacities {
             let mut recognizer = Recognizer::new(
                 template.compiled().clone(),
                 template.dictionary().clone(),

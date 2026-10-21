@@ -173,7 +173,7 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
 
         // A selected intermediate remains available even when binding more
         // instructions than its producer; do not absorb it into an epilogue.
-        let selected = compiled.instructions[2].output;
+        let selected = compiled.program.instructions[2].output;
         let mut selected_session = Session::new_selected(
             compiled.clone(),
             &INPUT_SHAPE,
@@ -184,7 +184,7 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
         .unwrap();
         assert_eq!(selected_session.statistics().fused_nodes, 1);
         compare(&expected[2], selected_session.run(&values).unwrap().data());
-        let graph_before = format!("{:?}", compiled.model.graph());
+        let graph_before = format!("{:?}", compiled.program.model.graph());
         let mut traced = 0;
         full.run_with_trace(&values, |event| {
             compare(&expected[event.index], event.values);
@@ -193,7 +193,10 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
         })
         .unwrap();
         assert_eq!(traced, expected.len());
-        assert_eq!(graph_before, format!("{:?}", compiled.model.graph()));
+        assert_eq!(
+            graph_before,
+            format!("{:?}", compiled.program.model.graph())
+        );
     }
 }
 

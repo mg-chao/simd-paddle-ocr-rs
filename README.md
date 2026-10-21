@@ -59,6 +59,15 @@ default features for serial execution, or enable `profiling` for stage and
 recognition-owner diagnostics. Refer to the [usage guide](docs/cpu-usage.md)
 for reusable requests and the bounded `OcrEngine` service API.
 
+## GPU runtime
+
+The optional `gpu` feature adds a headless wgpu runtime for fixed-shape FP32
+graphs containing `Conv`, `Add`, `Mul`, and `Relu`. It supports native Vulkan,
+D3D12, and Metal backends, with explicit GPU contexts and reusable sessions.
+The OCR builder continues to use the CPU runtime; complete OCR model coverage
+is a later milestone. See [GPU usage](docs/gpu-usage.md) for the API, operator
+semantics, memory limits, and physical-device validation commands.
+
 ## Local checks
 
 Source unit tests use synthetic inputs and do not need model downloads or .NET.

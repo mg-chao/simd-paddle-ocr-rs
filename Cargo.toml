@@ -12,6 +12,7 @@ include = [
     "examples/ocr.rs",
     "docs/cpu-usage.md",
     "docs/macos-cpu-validation.md",
+    "docs/gpu-usage.md",
     "licenses/**",
     "Cargo.toml",
     "Cargo.lock",
@@ -25,10 +26,14 @@ include = [
 default = ["parallel"]
 parallel = ["dep:rayon"]
 profiling = ["dep:libc"]
+gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 rayon = { version = "1.11", optional = true }
+wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "dx12", "metal", "wgsl"], optional = true }
+pollster = { version = "0.4", optional = true }
+bytemuck = { version = "1", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = { version = "0.2", optional = true }

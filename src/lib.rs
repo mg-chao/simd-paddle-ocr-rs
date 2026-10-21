@@ -3,6 +3,8 @@
     feature(stdarch_aarch64_feature_detection)
 )]
 #![feature(portable_simd)]
+// wgpu's nested native resources require deeper Send/Sync trait evaluation.
+#![cfg_attr(feature = "gpu", recursion_limit = "256")]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod builder;
