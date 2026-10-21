@@ -5,6 +5,7 @@ use crate::{
     tensor::TensorData,
 };
 
+#[derive(Clone)]
 pub(crate) struct ProjectionHead {
     pub(crate) feature: TensorId,
     pub(crate) feature_node: usize,

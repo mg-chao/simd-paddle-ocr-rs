@@ -145,7 +145,18 @@ fn hardware() -> Arc<GpuContext> {
     static CONTEXT: OnceLock<Arc<GpuContext>> = OnceLock::new();
     CONTEXT
         .get_or_init(|| {
-            let context = GpuContext::new().expect("explicit hardware tests require a working GPU");
+            let backend = match std::env::var("SIMD_OCR_GPU_BACKEND").as_deref() {
+                Ok("auto") => GpuBackendPreference::Auto,
+                Ok("dx12") => GpuBackendPreference::Dx12,
+                Ok("metal") => GpuBackendPreference::Metal,
+                Ok("vulkan") | Err(_) => GpuBackendPreference::Vulkan,
+                Ok(other) => panic!("unsupported SIMD_OCR_GPU_BACKEND={other}"),
+            };
+            let context = GpuContext::new_with_options(GpuContextOptions {
+                backend,
+                ..Default::default()
+            })
+            .expect("explicit hardware tests require a working GPU");
             let adapter = context.adapter_info();
             eprintln!(
                 "GPU correctness adapter: {} ({:?}, {:?})",
@@ -505,16 +516,13 @@ fn supported_operators_are_validated_without_gpu_or_cpu_packing() {
     for op in ["Sigmoid", "Sqrt", "Erf"] {
         let model = model(vec![node(op, &["x"], "y", &[])], &[2, 3], &[2, 3]);
         let program = Program::compile(model.clone()).unwrap();
-        let error = validate_supported(&program)
-            .err()
-            .expect("unsupported GPU operator must fail before device access");
-        assert!(error.to_string().contains(op), "{error}");
+        validate_supported(&program).unwrap();
         assert_eq!(model.cached_packed_weight_bytes(), 0);
     }
     for op in ["Sub", "Div"] {
         let model = binary_model(op, &[2, 3], &[3], false);
         let program = Program::compile(model.clone()).unwrap();
-        assert!(validate_supported(&program).is_err());
+        validate_supported(&program).unwrap();
         assert_eq!(model.cached_packed_weight_bytes(), 0);
     }
 }
@@ -671,7 +679,12 @@ fn gpu_hardware_memory_accounting_and_budget_boundaries() {
     assert!(memory.host_output_bytes >= 105 * 4);
     assert_eq!(
         memory.total_bytes(),
-        memory.device_activation_bytes + memory.readback_bytes + memory.host_output_bytes
+        memory.device_activation_bytes
+            + memory.readback_bytes
+            + memory.host_output_bytes
+            + memory.host_input_bytes
+            + memory.head_workspace_bytes
+            + memory.diagnostic_bytes
     );
     assert_eq!(session.activation_bytes(), memory.total_bytes());
     assert!(
@@ -745,4 +758,421 @@ fn gpu_dispatch_grid_covers_tails_and_rejects_device_dimension_overflow() {
     );
     assert!(dispatch_grid(4 * WORKGROUP_SIZE as usize + 1, &limits).is_err());
     assert!(dispatch_grid(usize::MAX, &limits).is_err());
+}
+
+fn int_tensor(name: &str, shape: &[usize], values: &[i64]) -> Vec<u8> {
+    bytes(
+        5,
+        &[
+            shape.iter().flat_map(|&n| number(1, n as u64)).collect(),
+            number(2, 7),
+            bytes(8, name.as_bytes()),
+            bytes(
+                9,
+                &values
+                    .iter()
+                    .flat_map(|n| n.to_le_bytes())
+                    .collect::<Vec<_>>(),
+            ),
+        ]
+        .concat(),
+    )
+}
+fn float_list(name: &str, values: &[f32]) -> Vec<u8> {
+    bytes(
+        5,
+        &[
+            bytes(1, name.as_bytes()),
+            number(20, 6),
+            values
+                .iter()
+                .flat_map(|v| [varint(7 << 3 | 5), v.to_le_bytes().to_vec()].concat())
+                .collect(),
+        ]
+        .concat(),
+    )
+}
+fn string_attribute(name: &str, value: &str) -> Vec<u8> {
+    bytes(
+        5,
+        &[
+            bytes(1, name.as_bytes()),
+            number(20, 3),
+            bytes(4, value.as_bytes()),
+        ]
+        .concat(),
+    )
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_extended_arithmetic_and_batched_matmul_match_scalar() {
+    let arithmetic = model(
+        vec![
+            tensor("two", &[], &[2.]),
+            tensor("one", &[], &[1.]),
+            node("Pow", &["x", "two"], "squared", &[]),
+            node("Add", &["squared", "one"], "positive", &[]),
+            node("Sqrt", &["positive"], "root", &[]),
+            node("Div", &["root", "two"], "divided", &[]),
+            node("Sub", &["divided", "one"], "shifted", &[]),
+            node("Erf", &["shifted"], "erf", &[]),
+            node("Sigmoid", &["erf"], "sigmoid", &[]),
+            node("HardSigmoid", &["sigmoid"], "y", &[]),
+        ],
+        &[2, 3, 5],
+        &[2, 3, 5],
+    );
+    compare(arithmetic, &[2, 3, 5], "extended arithmetic");
+    let matrix = model(
+        vec![
+            node(
+                "Transpose",
+                &["x"],
+                "rhs",
+                &[integers("perm", &[0, 1, 3, 2])],
+            ),
+            node("MatMul", &["x", "rhs"], "product", &[]),
+            node("Softmax", &["product"], "y", &[integer("axis", 3)]),
+        ],
+        &[2, 3, 4, 5],
+        &[2, 3, 4, 4],
+    );
+    compare(
+        matrix,
+        &[2, 3, 4, 5],
+        "activation batched matmul and softmax",
+    );
+    let shared = model(
+        vec![
+            tensor("weights", &[5, 7], &values(35, 8)),
+            node("MatMul", &["x", "weights"], "y", &[]),
+        ],
+        &[2, 3, 5],
+        &[2, 3, 7],
+    );
+    compare(shared, &[2, 3, 5], "shared RHS matmul");
+    let broadcast = model(
+        vec![
+            tensor("rhs", &[1, 5, 4, 2], &values(40, 4)),
+            node("MatMul", &["x", "rhs"], "y", &[]),
+        ],
+        &[2, 1, 3, 4],
+        &[2, 5, 3, 2],
+    );
+    compare(
+        broadcast,
+        &[2, 1, 3, 4],
+        "unequal broadcast batches on both operands",
+    );
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_extended_spatial_and_reduction_match_scalar() {
+    let spatial = model(
+        vec![
+            tensor("scale", &[2], &[1.25, 0.75]),
+            tensor("bias", &[2], &[0.1, -0.2]),
+            tensor("mean", &[2], &[0.2, 0.3]),
+            tensor("variance", &[2], &[0.5, 1.5]),
+            tensor("weights", &[2, 3, 2, 2], &values(24, 9)),
+            node(
+                "BatchNormalization",
+                &["x", "scale", "bias", "mean", "variance"],
+                "normalized",
+                &[],
+            ),
+            node(
+                "AveragePool",
+                &["normalized"],
+                "average",
+                &[
+                    integers("kernel_shape", &[3, 2]),
+                    integers("strides", &[3, 2]),
+                ],
+            ),
+            node(
+                "MaxPool",
+                &["average"],
+                "pooled",
+                &[
+                    integers("kernel_shape", &[2, 2]),
+                    integers("strides", &[1, 1]),
+                    integers("pads", &[0, 0, 1, 1]),
+                ],
+            ),
+            node(
+                "Resize",
+                &["pooled"],
+                "resized",
+                &[
+                    float_list("scales", &[1., 1., 2., 2.]),
+                    string_attribute("coordinate_transformation_mode", "asymmetric"),
+                    string_attribute("nearest_mode", "floor"),
+                ],
+            ),
+            node(
+                "ConvTranspose",
+                &["resized", "weights"],
+                "transposed",
+                &[
+                    integers("kernel_shape", &[2, 2]),
+                    integers("strides", &[2, 2]),
+                ],
+            ),
+            node(
+                "ReduceMean",
+                &["transposed"],
+                "reduced",
+                &[integers("axes", &[3]), integer("keepdims", 1)],
+            ),
+            node("GlobalAveragePool", &["reduced"], "y", &[]),
+        ],
+        &[1, 2, 6, 8],
+        &[1, 3, 1, 1],
+    );
+    compare(spatial, &[1, 2, 6, 8], "spatial and reduction chain");
+    let generic = model(
+        vec![node(
+            "ReduceMean",
+            &["x"],
+            "y",
+            &[integers("axes", &[0, 2]), integer("keepdims", 0)],
+        )],
+        &[2, 3, 5],
+        &[3],
+    );
+    compare(generic, &[2, 3, 5], "noncontiguous reduction axes");
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_extended_shapes_slice_and_concat_match_scalar() {
+    let model = model(
+        vec![
+            int_tensor("shape", &[3], &[1, 3, 8]),
+            int_tensor("starts", &[1], &[0]),
+            int_tensor("ends", &[1], &[2]),
+            int_tensor("axes", &[1], &[1]),
+            node("Squeeze", &["x"], "squeezed", &[integers("axes", &[0])]),
+            node(
+                "Unsqueeze",
+                &["squeezed"],
+                "unsqueezed",
+                &[integers("axes", &[0])],
+            ),
+            node(
+                "Transpose",
+                &["unsqueezed"],
+                "permuted",
+                &[integers("perm", &[0, 2, 3, 1])],
+            ),
+            node("Reshape", &["permuted", "shape"], "reshaped", &[]),
+            node(
+                "Slice",
+                &["reshaped", "starts", "ends", "axes"],
+                "sliced",
+                &[],
+            ),
+            node("Concat", &["sliced", "sliced"], "y", &[integer("axis", 1)]),
+        ],
+        &[1, 2, 3, 4],
+        &[1, 4, 8],
+    );
+    let compiled = Arc::new(GpuCompiledModel::compile(model.clone(), hardware()).unwrap());
+    let mut session = GpuSession::new(compiled, &[1, 2, 3, 4], ExecutionLimits::default()).unwrap();
+    for seed in [1, 2] {
+        let mut input = values(24, seed);
+        input[0] = -0.0;
+        input[1] = 0.0;
+        let (_, expected) = reference(model.clone(), &[1, 2, 3, 4], &input);
+        let actual = session.run(&input).unwrap();
+        assert_eq!(
+            actual
+                .data()
+                .iter()
+                .map(|v| v.to_bits())
+                .collect::<Vec<_>>(),
+            expected.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            "movement kernels must preserve every value bit"
+        );
+    }
+}
+
+fn dynamic_relu_model() -> Arc<Model> {
+    let dynamic_info = |name: &str| {
+        let dimensions = [bytes(1, &[]), bytes(1, &[])].concat();
+        [
+            bytes(1, name.as_bytes()),
+            bytes(
+                2,
+                &bytes(1, &[number(1, 1), bytes(2, &dimensions)].concat()),
+            ),
+        ]
+        .concat()
+    };
+    let graph = [
+        node("Relu", &["x"], "y", &[]),
+        bytes(11, &dynamic_info("x")),
+        bytes(12, &dynamic_info("y")),
+    ]
+    .concat();
+    Arc::new(
+        Model::load_bytes(&[number(1, 8), bytes(8, &number(2, 13)), bytes(7, &graph)].concat())
+            .unwrap(),
+    )
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_reshape_cache_compaction_rollback_and_trace_reentry() {
+    let context = hardware();
+    let model = dynamic_relu_model();
+    let compiled = Arc::new(GpuCompiledModel::compile(model, context.clone()).unwrap());
+    let mut session =
+        GpuSession::new(compiled.clone(), &[1, 64], ExecutionLimits::default()).unwrap();
+    let minimum = session.activation_bytes();
+    eprintln!("reshape memory: narrow={:?}", session.memory_statistics());
+    session.reshape(&[1, 512]).unwrap();
+    eprintln!("reshape memory: wide={:?}", session.memory_statistics());
+    let expected = vec![0.25; 512];
+    assert_eq!(session.run(&expected).unwrap().data(), &expected);
+    session.reshape(&[1, 64]).unwrap();
+    eprintln!(
+        "reshape memory: reused narrow={:?}",
+        session.memory_statistics()
+    );
+    assert!(session.activation_bytes() > minimum);
+    session
+        .reshape_with_limits(
+            &[1, 64],
+            ExecutionLimits {
+                max_activation_bytes: minimum,
+            },
+        )
+        .unwrap();
+    assert_eq!(session.activation_bytes(), minimum);
+    eprintln!(
+        "reshape memory: compacted narrow={:?}",
+        session.memory_statistics()
+    );
+    let previous_shape = session.input_shape();
+    let retained = context.memory_statistics().used_bytes;
+    assert!(
+        session
+            .reshape_with_limits(
+                &[1, 64],
+                ExecutionLimits {
+                    max_activation_bytes: minimum - 1
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(session.input_shape(), previous_shape);
+    assert_eq!(session.execution_limits().max_activation_bytes, minimum);
+    assert_eq!(context.memory_statistics().used_bytes, retained);
+    assert!(session.reshape(&[1, 0]).is_err());
+    assert_eq!(session.run(&[-0.5; 64]).unwrap().data(), &[0.; 64]);
+    session
+        .reshape_with_limits(&[1, 64], ExecutionLimits::default())
+        .unwrap();
+    for width in 1..=10 {
+        session.reshape(&[1, width]).unwrap();
+    }
+    assert_eq!(session.cache.len(), PLAN_CACHE_CAPACITY);
+    let mut sibling = GpuSession::new(compiled, &[1, 10], ExecutionLimits::default()).unwrap();
+    let mut observed = 0;
+    session
+        .run_with_trace(&[0.5; 10], |_| {
+            observed += 1;
+            assert_eq!(sibling.run(&[0.75; 10])?.data(), &[0.75; 10]);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(observed, 1);
+    assert!(
+        session
+            .run_with_trace(&[0.5; 10], |_| Err(RuntimeError::new("observer stopped")))
+            .is_err()
+    );
+    assert_eq!(session.run(&[0.5; 10]).unwrap().data(), &[0.5; 10]);
+}
+
+#[test]
+fn support_report_aggregates_node_variant_failures_with_lineage() {
+    let fixture = model(
+        vec![
+            node(
+                "MaxPool",
+                &["x"],
+                "pooled",
+                &[integers("kernel_shape", &[3, 3])],
+            ),
+            node(
+                "AveragePool",
+                &["pooled"],
+                "y",
+                &[integers("kernel_shape", &[2, 2])],
+            ),
+        ],
+        &[1, 1, 8, 8],
+        &[1, 1, 3, 3],
+    );
+    let report = GpuCompiledModel::support_report(&fixture);
+    assert!(!report.is_supported());
+    assert_eq!(report.issues.len(), 2);
+    assert_eq!(report.issues[0].operator, "MaxPool");
+    assert_eq!(report.issues[1].operator, "AveragePool");
+    assert!(!report.issues[0].source_indices.is_empty());
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_gate_failure_wakes_all_waiters() {
+    // This context is deliberately poisoned; never use the cached test context.
+    let context = GpuContext::new_with_options(GpuContextOptions {
+        backend: hardware().options().backend,
+        ..Default::default()
+    })
+    .unwrap();
+    let holder = context.acquire_gate().unwrap();
+    let (send, receive) = mpsc::channel();
+    let mut workers = Vec::new();
+    for _ in 0..2 {
+        let context = context.clone();
+        let send = send.clone();
+        workers.push(std::thread::spawn(move || {
+            let failed = context.acquire_gate().is_err();
+            send.send(failed).unwrap();
+        }));
+    }
+    drop(send);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while context.waiting.load(Ordering::Acquire) != 2 && std::time::Instant::now() < deadline {
+        std::thread::yield_now();
+    }
+    let both_waiting = context.waiting.load(Ordering::Acquire) == 2;
+    // Match device callbacks: recording the error itself does not notify the gate.
+    *context.failure.lock().unwrap() = Some("injected callback device failure".into());
+    drop(holder);
+    let first = receive.recv_timeout(std::time::Duration::from_secs(2));
+    let second = receive.recv_timeout(std::time::Duration::from_secs(2));
+    // Ensure a regression fails with a bounded result instead of stranding a test thread.
+    context.available.notify_all();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+    assert!(
+        both_waiting,
+        "both contenders must reach the condition-variable wait"
+    );
+    assert!(
+        matches!(first, Ok(true)),
+        "first waiter did not observe context failure: {first:?}"
+    );
+    assert!(
+        matches!(second, Ok(true)),
+        "second waiter remained asleep after fatal failure: {second:?}"
+    );
 }

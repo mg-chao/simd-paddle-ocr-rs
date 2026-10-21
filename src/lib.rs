@@ -28,8 +28,11 @@ mod profile;
 mod projection;
 #[cfg(feature = "profiling")]
 pub use profile::{RecognitionOwnerProfile, StageProfile};
+#[cfg(all(test, feature = "gpu"))]
+mod gpu_integration_tests;
 pub mod recognizer;
 pub mod runtime;
 pub mod tensor;
 pub use builder::{ModelPreset, OcrBuilder, OcrModelSet};
 pub use characters::{CharacterBox, OwnedCharacterBox};
+pub use runtime::{CompiledStage, ExecutionBackend, ExecutionTarget};

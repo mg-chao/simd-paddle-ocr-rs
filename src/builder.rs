@@ -8,7 +8,7 @@ use crate::{
     model::Model,
     ocr::{Ocr, OcrOptions},
     recognizer::{Dictionary, Recognizer, RecognizerOptions},
-    runtime::{CompileOptions, CompiledModel, ExecutionLimits},
+    runtime::{CompileOptions, CompiledModel, CompiledStage, ExecutionLimits, ExecutionTarget},
 };
 use std::{io::BufRead, path::Path, sync::Arc};
 
@@ -133,6 +133,7 @@ impl OcrModelSet {
 pub struct OcrBuilder {
     models: OcrModelSet,
     compile: CompileOptions,
+    target: ExecutionTarget,
     cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
     detector: DetectorOptions,
@@ -149,6 +150,7 @@ impl OcrBuilder {
         Self {
             models,
             compile: CompileOptions::default(),
+            target: ExecutionTarget::default(),
             cpu: None,
             cpu_options: CpuOptions::default(),
             detector: DetectorOptions::default(),
@@ -163,6 +165,12 @@ impl OcrBuilder {
     }
     pub fn compile_options(mut self, options: CompileOptions) -> Self {
         self.compile = options;
+        self
+    }
+    /// Select inference placement explicitly. CPU options continue to configure
+    /// image processing when inference uses a GPU.
+    pub fn execution_target(mut self, target: ExecutionTarget) -> Self {
+        self.target = target;
         self
     }
     pub fn cpu_context(mut self, cpu: Arc<CpuContext>) -> Self {
@@ -210,16 +218,22 @@ impl OcrBuilder {
             Some(cpu) => cpu,
             None => CpuContext::shared_default()?,
         };
-        let detection = Arc::new(CompiledModel::compile(self.models.detection, self.compile)?);
-        let recognition = Arc::new(CompiledModel::compile(
-            self.models.recognition,
-            self.compile,
-        )?);
+        let compile = |model| -> ImageResult<CompiledStage> {
+            match &self.target {
+                ExecutionTarget::Cpu => {
+                    Ok(Arc::new(CompiledModel::compile(model, self.compile)?).into())
+                }
+                #[cfg(feature = "gpu")]
+                ExecutionTarget::Gpu(context) => Ok(Arc::new(
+                    crate::runtime::gpu::GpuCompiledModel::compile(model, context.clone())?,
+                )
+                .into()),
+            }
+        };
+        let detection = compile(self.models.detection)?;
+        let recognition = compile(self.models.recognition)?;
         let classification = if self.classification {
-            self.models
-                .classification
-                .map(|model| CompiledModel::compile(model, self.compile).map(Arc::new))
-                .transpose()?
+            self.models.classification.map(compile).transpose()?
         } else {
             None
         };

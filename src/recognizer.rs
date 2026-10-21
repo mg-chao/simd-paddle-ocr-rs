@@ -4,7 +4,9 @@ use crate::{
     image::{ImageError, ImageResult, ImageView, resize_vec},
     preprocess::{self, ResizeWorkspace},
     projection::ProjectionHead,
-    runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
+    runtime::{
+        CompiledModel, CompiledStage, ExecutionLimits, NodeTrace, RuntimeError, StageSession,
+    },
     tensor::{Shape, TensorData},
 };
 use serde::Serialize;
@@ -747,13 +749,13 @@ impl DecodeWorkspace {
 }
 
 pub struct Recognizer {
-    compiled: Arc<CompiledModel>,
+    compiled: CompiledStage,
     dictionary: Arc<Dictionary>,
     options: RecognizerOptions,
     limits: ExecutionLimits,
     head: ProjectionHead,
-    session: Session,
-    diagnostic: Option<Session>,
+    session: StageSession,
+    diagnostic: Option<StageSession>,
     resize: ResizeWorkspace,
     indices: Vec<usize>,
     scores: Vec<f32>,
@@ -790,11 +792,12 @@ impl Recognizer {
         Ok(())
     }
     pub fn new(
-        compiled: Arc<CompiledModel>,
+        compiled: impl Into<CompiledStage>,
         dictionary: Arc<Dictionary>,
         options: RecognizerOptions,
         limits: ExecutionLimits,
     ) -> ImageResult<Self> {
+        let compiled: CompiledStage = compiled.into();
         if options.target_width == 0
             || options.target_width > i32::MAX as usize
             || options.min_width > (i32::MAX as usize / 32) * 32
@@ -814,17 +817,14 @@ impl Recognizer {
         } else {
             options.target_width
         };
-        let session = match options.score_mode {
-            RecognitionScoreMode::Logit => Session::new_prefix(
-                compiled.clone(),
-                &[1, 3, 48, width],
-                limits,
-                head.feature_node,
-            )?,
-            RecognitionScoreMode::Probability => {
-                Session::new_serial(compiled.clone(), &[1, 3, 48, width], limits)?
-            }
-        };
+        let session = StageSession::new_recognition(
+            compiled.clone(),
+            &[1, 3, 48, width],
+            limits,
+            head.feature_node,
+            head.classes,
+            options.score_mode == RecognitionScoreMode::Probability,
+        )?;
         let output_width = match options.score_mode {
             RecognitionScoreMode::Logit => head.inner,
             RecognitionScoreMode::Probability => head.classes,
@@ -848,6 +848,21 @@ impl Recognizer {
             projection: crate::runtime::simd::ArgMaxWorkspace::default(),
             last_projection: None,
         })
+    }
+    fn reshape_production(&mut self, shape: &[usize]) -> ImageResult<()> {
+        if self.compiled.is_gpu() {
+            let siblings = self
+                .diagnostic
+                .as_ref()
+                .map_or(0, StageSession::retained_activation_bytes);
+            self.session.reshape_with_limits(
+                shape,
+                crate::runtime::stage::remaining_limits(self.limits, siblings)?,
+            )?;
+        } else {
+            self.session.reshape(shape)?;
+        }
+        Ok(())
     }
     fn output_width(&self) -> usize {
         match self.options.score_mode {
@@ -886,9 +901,14 @@ impl Recognizer {
     pub fn resolved_options(&self) -> RecognizerOptions {
         self.options
     }
-    pub fn compiled(&self) -> &Arc<CompiledModel> {
+    pub fn compiled(&self) -> &CompiledStage {
         &self.compiled
     }
+    /// Statistics for the last bound production inference session.
+    pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        self.session.statistics()
+    }
+
     pub fn execution_limits(&self) -> ExecutionLimits {
         self.limits
     }
@@ -907,7 +927,7 @@ impl Recognizer {
     pub fn diagnostic_retained_activation_bytes(&self) -> usize {
         self.diagnostic
             .as_ref()
-            .map_or(0, Session::retained_activation_bytes)
+            .map_or(0, StageSession::retained_activation_bytes)
     }
     pub fn retained_workspace_bytes(&self) -> usize {
         self.resize.retained_bytes()
@@ -935,12 +955,19 @@ impl Recognizer {
     }
     /// Retained execution and compact-head scratch. This is a subset of
     /// retained workspace bytes and excludes fixed local stack tiles.
+    pub(crate) fn retained_device_bytes(&self) -> usize {
+        self.session.retained_device_bytes()
+            + self
+                .diagnostic
+                .as_ref()
+                .map_or(0, StageSession::retained_device_bytes)
+    }
     pub fn retained_kernel_scratch_bytes(&self) -> usize {
         self.session.retained_scratch_bytes()
             + self
                 .diagnostic
                 .as_ref()
-                .map_or(0, Session::retained_scratch_bytes)
+                .map_or(0, StageSession::retained_scratch_bytes)
             + self.projection.retained_bytes()
     }
     /// Execute the backbone and compact scalar projection. The borrowed result
@@ -951,7 +978,13 @@ impl Recognizer {
         capture: bool,
     ) -> ImageResult<RecognitionView<'_>> {
         let cpu = self.session.cpu_context().clone();
-        cpu.install(|| self.recognize_impl::<false>(image, capture, &mut StageProfile::default()))
+        if self.compiled.is_gpu() {
+            self.recognize_impl::<false>(image, capture, &mut StageProfile::default())
+        } else {
+            cpu.install(|| {
+                self.recognize_impl::<false>(image, capture, &mut StageProfile::default())
+            })
+        }
     }
     /// Run crops with the same selected tensor width as one `[N,3,48,W]` graph.
     /// Content widths, scores and CTC spans remain independent per image. The
@@ -962,14 +995,23 @@ impl Recognizer {
         capture: bool,
     ) -> ImageResult<RecognitionBatchView<'_>> {
         let cpu = self.session.cpu_context().clone();
-        cpu.install(|| {
+        if self.compiled.is_gpu() {
             self.recognize_batch_impl::<false, _>(
                 images.len(),
                 |index| Ok(images[index]),
                 capture,
                 &mut StageProfile::default(),
             )
-        })
+        } else {
+            cpu.install(|| {
+                self.recognize_batch_impl::<false, _>(
+                    images.len(),
+                    |index| Ok(images[index]),
+                    capture,
+                    &mut StageProfile::default(),
+                )
+            })
+        }
     }
     pub(crate) fn recognize_batch_impl<'a, const PROFILE: bool, F>(
         &mut self,
@@ -982,9 +1024,11 @@ impl Recognizer {
         F: Fn(usize) -> ImageResult<ImageView<'a>>,
     {
         #[cfg(test)]
-        self.session
-            .cpu_context()
-            .assert_production_thread("REC batch");
+        if !self.compiled.is_gpu() {
+            self.session
+                .cpu_context()
+                .assert_production_thread("REC batch");
+        }
         if count == 0 {
             return Ok(RecognitionBatchView { decoded: &[] });
         }
@@ -1015,7 +1059,7 @@ impl Recognizer {
             profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
         }
         let reshape_timer = Timer::<PROFILE>::start();
-        let reshape = self.session.reshape(&[count, 3, 48, width]);
+        let reshape = self.reshape_production(&[count, 3, 48, width]);
         if PROFILE {
             profile.reshape_ns = profile.reshape_ns.saturating_add(reshape_timer.elapsed());
         }
@@ -1048,78 +1092,128 @@ impl Recognizer {
         let threads = self.session.intra_op_threads();
         let backbone_timer = Timer::<PROFILE>::start();
         let mut preprocessing_ns = 0;
-        let feature = self.session.run_with_layout_input(|input, nhwc| {
-            let timer = Timer::<PROFILE>::start();
-            for (index, sample) in input.chunks_exact_mut(sample_elements).enumerate() {
-                let source = image(index).map_err(RuntimeError::from)?;
-                preprocess::rec_with_layout(source, width, sample, resize, nhwc)
-                    .map_err(RuntimeError::from)?;
+        if self.compiled.is_gpu() {
+            #[cfg(feature = "gpu")]
+            {
+                let compact =
+                    self.session
+                        .run_compact_with_input_profiled::<PROFILE, _>(|input| {
+                            let timer = Timer::<PROFILE>::start();
+                            for (index, sample) in
+                                input.chunks_exact_mut(sample_elements).enumerate()
+                            {
+                                let source = image(index).map_err(RuntimeError::from)?;
+                                cpu.install(|| {
+                                    preprocess::rec_with_layout(
+                                        source, width, sample, resize, false,
+                                    )
+                                })
+                                .map_err(RuntimeError::from)?;
+                            }
+                            preprocessing_ns = timer.elapsed();
+                            Ok(())
+                        })?;
+                if compact.len() != rows {
+                    return Err(ImageError::new(
+                        "GPU recognition compact output shape mismatch",
+                    ));
+                }
+                for ((index, score), row) in self.indices[..rows]
+                    .iter_mut()
+                    .zip(&mut self.scores[..rows])
+                    .zip(compact)
+                {
+                    *index = row.index as usize;
+                    *score = row.score;
+                }
+                self.last_projection = None;
+                self.session.accumulate_gpu_profile::<PROFILE>(profile);
+                if PROFILE {
+                    profile.rec_preprocess_ns =
+                        profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
+                    profile.rec_backbone_ns = profile
+                        .rec_backbone_ns
+                        .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+                }
             }
-            preprocessing_ns = timer.elapsed();
-            Ok(())
-        })?;
-        if PROFILE {
-            profile.rec_preprocess_ns = profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
-            profile.rec_backbone_ns = profile
-                .rec_backbone_ns
-                .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
-        }
-        let projection_timer = Timer::<PROFILE>::start();
-        self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
-            probability_argmax(
-                feature.data(),
-                self.head.classes,
-                &mut self.indices[..rows],
-                &mut self.scores[..rows],
-            )?;
-            None
         } else {
-            let (family, isa) = self.head.project_parallel(
-                &self.compiled,
-                feature.data(),
-                &mut self.indices[..rows],
-                &mut self.scores[..rows],
-                &cpu,
-                threads,
-                steps,
-                &mut self.projection,
-            )?;
-            Some(ProjectionStatistics {
-                backend: self.compiled.backend(),
-                isa,
-                family,
-                rows,
-                unit_rows: steps,
-                threads,
-                retained_scratch_bytes: self.projection.retained_bytes(),
-            })
-        };
-        if PROFILE {
-            profile.projection_ns = profile
-                .projection_ns
-                .saturating_add(projection_timer.elapsed());
+            let feature = self.session.run_with_layout_input(|input, nhwc| {
+                let timer = Timer::<PROFILE>::start();
+                for (index, sample) in input.chunks_exact_mut(sample_elements).enumerate() {
+                    let source = image(index).map_err(RuntimeError::from)?;
+                    preprocess::rec_with_layout(source, width, sample, resize, nhwc)
+                        .map_err(RuntimeError::from)?;
+                }
+                preprocessing_ns = timer.elapsed();
+                Ok(())
+            })?;
+            if PROFILE {
+                profile.rec_preprocess_ns =
+                    profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
+                profile.rec_backbone_ns = profile
+                    .rec_backbone_ns
+                    .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+            }
+            let projection_timer = Timer::<PROFILE>::start();
+            self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
+                probability_argmax(
+                    feature.data(),
+                    self.head.classes,
+                    &mut self.indices[..rows],
+                    &mut self.scores[..rows],
+                )?;
+                None
+            } else {
+                let (family, isa) = self.head.project_parallel(
+                    self.compiled.as_cpu().expect("CPU projection"),
+                    feature.data(),
+                    &mut self.indices[..rows],
+                    &mut self.scores[..rows],
+                    &cpu,
+                    threads,
+                    steps,
+                    &mut self.projection,
+                )?;
+                Some(ProjectionStatistics {
+                    backend: self.compiled.as_cpu().expect("CPU projection").backend(),
+                    isa,
+                    family,
+                    rows,
+                    unit_rows: steps,
+                    threads,
+                    retained_scratch_bytes: self.projection.retained_bytes(),
+                })
+            };
+            if PROFILE {
+                profile.projection_ns = profile
+                    .projection_ns
+                    .saturating_add(projection_timer.elapsed());
+            }
         }
         let ctc_timer = Timer::<PROFILE>::start();
-        let mut remaining = self.options.max_result_bytes;
-        for (index, (decoded, &size)) in self.batch_decoded[..count]
-            .iter_mut()
-            .zip(&self.batch_sizes)
-            .enumerate()
-        {
-            let offset = index * steps;
-            decoded.decode(&self.dictionary, steps, size, capture, remaining, |step| {
-                Ok((self.indices[offset + step], self.scores[offset + step]))
-            })?;
-            let bytes = decoded
-                .runs
-                .len()
-                .checked_mul(size_of::<CtcRun>())
-                .and_then(|bytes| bytes.checked_add(decoded.text.len()))
-                .ok_or_else(|| ImageError::new("recognition batch result size overflow"))?;
-            remaining = remaining
-                .checked_sub(bytes)
-                .ok_or_else(|| ImageError::new("recognition batch exceeds max_result_bytes"))?;
-        }
+        cpu.install(|| -> ImageResult<()> {
+            let mut remaining = self.options.max_result_bytes;
+            for (index, (decoded, &size)) in self.batch_decoded[..count]
+                .iter_mut()
+                .zip(&self.batch_sizes)
+                .enumerate()
+            {
+                let offset = index * steps;
+                decoded.decode(&self.dictionary, steps, size, capture, remaining, |step| {
+                    Ok((self.indices[offset + step], self.scores[offset + step]))
+                })?;
+                let bytes = decoded
+                    .runs
+                    .len()
+                    .checked_mul(size_of::<CtcRun>())
+                    .and_then(|bytes| bytes.checked_add(decoded.text.len()))
+                    .ok_or_else(|| ImageError::new("recognition batch result size overflow"))?;
+                remaining = remaining
+                    .checked_sub(bytes)
+                    .ok_or_else(|| ImageError::new("recognition batch exceeds max_result_bytes"))?;
+            }
+            Ok(())
+        })?;
         if PROFILE {
             profile.ctc_ns = profile.ctc_ns.saturating_add(ctc_timer.elapsed());
             profile.recognized_lines = profile.recognized_lines.saturating_add(count);
@@ -1138,7 +1232,11 @@ impl Recognizer {
         let timer = Timer::<true>::start();
         let mut profile = StageProfile::default();
         let cpu = self.session.cpu_context().clone();
-        let result = cpu.install(|| self.recognize_impl::<true>(image, capture, &mut profile))?;
+        let result = if self.compiled.is_gpu() {
+            self.recognize_impl::<true>(image, capture, &mut profile)
+        } else {
+            cpu.install(|| self.recognize_impl::<true>(image, capture, &mut profile))
+        }?;
         profile.total_ns = timer.elapsed();
         Ok((result, profile))
     }
@@ -1149,7 +1247,9 @@ impl Recognizer {
         profile: &mut StageProfile,
     ) -> ImageResult<RecognitionView<'_>> {
         #[cfg(test)]
-        self.session.cpu_context().assert_production_thread("REC");
+        if !self.compiled.is_gpu() {
+            self.session.cpu_context().assert_production_thread("REC");
+        }
         let binding_timer = Timer::<PROFILE>::start();
         if image.pixel_count()? > self.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
@@ -1159,7 +1259,7 @@ impl Recognizer {
             profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
         }
         let reshape_timer = Timer::<PROFILE>::start();
-        let reshape = self.session.reshape(&[1, 3, 48, size.tensor_width]);
+        let reshape = self.reshape_production(&[1, 3, 48, size.tensor_width]);
         if PROFILE {
             profile.reshape_ns = profile.reshape_ns.saturating_add(reshape_timer.elapsed());
         }
@@ -1176,64 +1276,113 @@ impl Recognizer {
         let threads = self.session.intra_op_threads();
         let backbone_timer = Timer::<PROFILE>::start();
         let mut preprocessing_ns = 0;
-        let feature = self.session.run_with_layout_input(|input, nhwc| {
-            let timer = Timer::<PROFILE>::start();
-            let result = preprocess::rec_with_layout(image, size.tensor_width, input, resize, nhwc)
-                .map(|_| ())
-                .map_err(RuntimeError::from);
-            preprocessing_ns = timer.elapsed();
-            result
-        })?;
-        if PROFILE {
-            profile.rec_preprocess_ns = profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
-            profile.rec_backbone_ns = profile
-                .rec_backbone_ns
-                .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
-        }
-        let projection_timer = Timer::<PROFILE>::start();
-        self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
-            probability_argmax(
-                feature.data(),
-                self.head.classes,
-                &mut self.indices[..steps],
-                &mut self.scores[..steps],
-            )?;
-            None
+        if self.compiled.is_gpu() {
+            #[cfg(feature = "gpu")]
+            {
+                let compact =
+                    self.session
+                        .run_compact_with_input_profiled::<PROFILE, _>(|input| {
+                            let timer = Timer::<PROFILE>::start();
+                            cpu.install(|| {
+                                preprocess::rec_with_layout(
+                                    image,
+                                    size.tensor_width,
+                                    input,
+                                    resize,
+                                    false,
+                                )
+                            })
+                            .map_err(RuntimeError::from)?;
+                            preprocessing_ns = timer.elapsed();
+                            Ok(())
+                        })?;
+                if compact.len() != steps {
+                    return Err(ImageError::new(
+                        "GPU recognition compact output shape mismatch",
+                    ));
+                }
+                for ((index, score), row) in self.indices[..steps]
+                    .iter_mut()
+                    .zip(&mut self.scores[..steps])
+                    .zip(compact)
+                {
+                    *index = row.index as usize;
+                    *score = row.score;
+                }
+                self.last_projection = None;
+                self.session.accumulate_gpu_profile::<PROFILE>(profile);
+                if PROFILE {
+                    profile.rec_preprocess_ns =
+                        profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
+                    profile.rec_backbone_ns = profile
+                        .rec_backbone_ns
+                        .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+                }
+            }
         } else {
-            let (family, isa) = self.head.project_parallel(
-                &self.compiled,
-                feature.data(),
-                &mut self.indices[..steps],
-                &mut self.scores[..steps],
-                &cpu,
-                threads,
-                steps,
-                &mut self.projection,
-            )?;
-            Some(ProjectionStatistics {
-                backend: self.compiled.backend(),
-                isa,
-                family,
-                rows: steps,
-                unit_rows: steps,
-                threads,
-                retained_scratch_bytes: self.projection.retained_bytes(),
-            })
-        };
-        if PROFILE {
-            profile.projection_ns = profile
-                .projection_ns
-                .saturating_add(projection_timer.elapsed());
+            let feature = self.session.run_with_layout_input(|input, nhwc| {
+                let timer = Timer::<PROFILE>::start();
+                let result =
+                    preprocess::rec_with_layout(image, size.tensor_width, input, resize, nhwc)
+                        .map(|_| ())
+                        .map_err(RuntimeError::from);
+                preprocessing_ns = timer.elapsed();
+                result
+            })?;
+            if PROFILE {
+                profile.rec_preprocess_ns =
+                    profile.rec_preprocess_ns.saturating_add(preprocessing_ns);
+                profile.rec_backbone_ns = profile
+                    .rec_backbone_ns
+                    .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+            }
+            let projection_timer = Timer::<PROFILE>::start();
+            self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
+                probability_argmax(
+                    feature.data(),
+                    self.head.classes,
+                    &mut self.indices[..steps],
+                    &mut self.scores[..steps],
+                )?;
+                None
+            } else {
+                let (family, isa) = self.head.project_parallel(
+                    self.compiled.as_cpu().expect("CPU projection"),
+                    feature.data(),
+                    &mut self.indices[..steps],
+                    &mut self.scores[..steps],
+                    &cpu,
+                    threads,
+                    steps,
+                    &mut self.projection,
+                )?;
+                Some(ProjectionStatistics {
+                    backend: self.compiled.as_cpu().expect("CPU projection").backend(),
+                    isa,
+                    family,
+                    rows: steps,
+                    unit_rows: steps,
+                    threads,
+                    retained_scratch_bytes: self.projection.retained_bytes(),
+                })
+            };
+            if PROFILE {
+                profile.projection_ns = profile
+                    .projection_ns
+                    .saturating_add(projection_timer.elapsed());
+            }
         }
         let ctc_timer = Timer::<PROFILE>::start();
-        self.decoded.decode(
-            &self.dictionary,
-            steps,
-            size,
-            capture,
-            self.options.max_result_bytes,
-            |i| Ok((self.indices[i], self.scores[i])),
-        )?;
+        cpu.install(|| {
+            self.decoded.decode(
+                &self.dictionary,
+                steps,
+                size,
+                capture,
+                self.options.max_result_bytes,
+                |i| Ok((self.indices[i], self.scores[i])),
+            )
+        })?;
         if PROFILE {
             profile.ctc_ns = profile.ctc_ns.saturating_add(ctc_timer.elapsed());
             profile.recognized_lines += 1;
@@ -1256,6 +1405,7 @@ impl Recognizer {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
         let size = self.select_width(image.width(), image.height())?;
+        let cpu = self.session.cpu_context().clone();
         let resize = &mut self.resize;
         Self::trace_run(
             &self.compiled,
@@ -1264,6 +1414,7 @@ impl Recognizer {
             self.limits,
             &self.head,
             &mut self.diagnostic,
+            &mut self.session,
             &mut self.indices,
             &mut self.scores,
             &mut self.decoded,
@@ -1271,18 +1422,22 @@ impl Recognizer {
             &[1, 3, 48, size.tensor_width],
             size,
             capture,
-            |input| preprocess::rec(image, size.tensor_width, input, resize).map(|_| ()),
+            |input| {
+                cpu.install(|| preprocess::rec(image, size.tensor_width, input, resize))
+                    .map(|_| ())
+            },
             observer,
         )
     }
     #[allow(clippy::too_many_arguments)]
     fn trace_run<'s, I, F>(
-        compiled: &Arc<CompiledModel>,
+        compiled: &CompiledStage,
         dictionary: &Dictionary,
         options: RecognizerOptions,
         limits: ExecutionLimits,
         head: &ProjectionHead,
-        diagnostic: &mut Option<Session>,
+        diagnostic: &mut Option<StageSession>,
+        production: &mut StageSession,
         indices: &mut Vec<usize>,
         scores: &mut Vec<f32>,
         decoded: &'s mut DecodeWorkspace,
@@ -1297,13 +1452,30 @@ impl Recognizer {
         I: FnOnce(&mut [f32]) -> ImageResult<()>,
         F: for<'a> FnMut(RecognitionTrace<'a>) -> ImageResult<()>,
     {
-        if let Some(session) = diagnostic {
-            session.reshape(input_shape)?;
+        let cpu = production.cpu_context().clone();
+        let diagnostic_limits = if compiled.is_gpu() {
+            let siblings = diagnostic
+                .as_ref()
+                .map_or(0, StageSession::retained_activation_bytes);
+            production.reshape_with_limits(
+                input_shape,
+                crate::runtime::stage::remaining_limits(limits, siblings)?,
+            )?;
+            crate::runtime::stage::remaining_limits(limits, production.retained_activation_bytes())?
         } else {
-            *diagnostic = Some(Session::new_diagnostic(
+            limits
+        };
+        if let Some(session) = diagnostic {
+            if compiled.is_gpu() {
+                session.reshape_with_limits(input_shape, diagnostic_limits)?;
+            } else {
+                session.reshape(input_shape)?;
+            }
+        } else {
+            *diagnostic = Some(StageSession::new_diagnostic(
                 compiled.clone(),
                 input_shape,
-                limits,
+                diagnostic_limits,
             )?);
         }
         let session = diagnostic.as_mut().expect("initialized diagnostic session");
@@ -1332,7 +1504,8 @@ impl Recognizer {
                 .map_err(RuntimeError::from)
             },
             |node| {
-                if options.score_mode == RecognitionScoreMode::Logit
+                if !compiled.is_gpu()
+                    && options.score_mode == RecognitionScoreMode::Logit
                     && node.output_id == head.feature
                 {
                     let feature_steps = Self::check_feature_shape(node.shape, head.inner)
@@ -1343,7 +1516,7 @@ impl Recognizer {
                         ));
                     }
                     head.project(
-                        compiled,
+                        compiled.as_cpu().expect("CPU projection"),
                         node.values,
                         &mut indices[..steps],
                         &mut scores[..steps],
@@ -1358,48 +1531,82 @@ impl Recognizer {
             shape: output_shape,
             values: probabilities.data(),
         })?;
-        dense.decode(
-            dictionary,
-            steps,
-            size,
-            capture,
-            options.max_result_bytes,
-            |i| {
-                let row = &probabilities.data()
-                    [i * dictionary.class_count()..(i + 1) * dictionary.class_count()];
-                let mut best = 0;
-                let mut value = f32::NEG_INFINITY;
-                for (class, &score) in row.iter().enumerate() {
-                    if !score.is_finite() {
-                        return Err(ImageError::new("nonfinite recognition probabilities"));
+        cpu.install(|| {
+            dense.decode(
+                dictionary,
+                steps,
+                size,
+                capture,
+                options.max_result_bytes,
+                |i| {
+                    let row = &probabilities.data()
+                        [i * dictionary.class_count()..(i + 1) * dictionary.class_count()];
+                    let mut best = 0;
+                    let mut value = f32::NEG_INFINITY;
+                    for (class, &score) in row.iter().enumerate() {
+                        if !score.is_finite() {
+                            return Err(ImageError::new("nonfinite recognition probabilities"));
+                        }
+                        if score > value {
+                            best = class;
+                            value = score;
+                        }
                     }
-                    if score > value {
-                        best = class;
-                        value = score;
-                    }
-                }
-                Ok((best, value))
-            },
-        )?;
+                    Ok((best, value))
+                },
+            )
+        })?;
         observer.borrow_mut()(RecognitionTrace::DecodedDense(dense.view()))?;
-        if options.score_mode == RecognitionScoreMode::Probability {
-            probability_argmax(
-                probabilities.data(),
-                dictionary.class_count(),
-                &mut indices[..steps],
-                &mut scores[..steps],
-            )?;
-        } else if !projected.get() {
-            return Err(ImageError::new("recognizer feature was not observed"));
+        if compiled.is_gpu() {
+            #[cfg(feature = "gpu")]
+            {
+                production.reshape_with_limits(
+                    input_shape,
+                    crate::runtime::stage::remaining_limits(
+                        limits,
+                        session.retained_activation_bytes(),
+                    )?,
+                )?;
+                let compact = production.run_compact_with_input(|input| {
+                    input.copy_from_slice(session.gpu_input_data()?);
+                    Ok(())
+                })?;
+                if compact.len() != steps {
+                    return Err(ImageError::new(
+                        "GPU recognition compact output shape mismatch",
+                    ));
+                }
+                for ((index, score), row) in indices[..steps]
+                    .iter_mut()
+                    .zip(&mut scores[..steps])
+                    .zip(compact)
+                {
+                    *index = row.index as usize;
+                    *score = row.score;
+                }
+            }
+        } else {
+            if options.score_mode == RecognitionScoreMode::Probability {
+                probability_argmax(
+                    probabilities.data(),
+                    dictionary.class_count(),
+                    &mut indices[..steps],
+                    &mut scores[..steps],
+                )?;
+            } else if !projected.get() {
+                return Err(ImageError::new("recognizer feature was not observed"));
+            }
         }
-        decoded.decode(
-            dictionary,
-            steps,
-            size,
-            capture,
-            options.max_result_bytes,
-            |i| Ok((indices[i], scores[i])),
-        )?;
+        cpu.install(|| {
+            decoded.decode(
+                dictionary,
+                steps,
+                size,
+                capture,
+                options.max_result_bytes,
+                |i| Ok((indices[i], scores[i])),
+            )
+        })?;
         observer.borrow_mut()(RecognitionTrace::Public(decoded.view()))?;
         Ok(decoded.view())
     }

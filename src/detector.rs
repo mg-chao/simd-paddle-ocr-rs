@@ -6,7 +6,7 @@ use crate::{
     image::{ImageError, ImageResult, ImageView, resize_vec},
     model::Operator,
     preprocess::{self, ResizeWorkspace},
-    runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
+    runtime::{CompiledStage, ExecutionLimits, NodeTrace, RuntimeError, StageSession},
     tensor::Shape,
 };
 use serde::Serialize;
@@ -115,9 +115,9 @@ pub enum DetectionTrace<'a> {
     Boxes(DetectionView<'a>),
 }
 pub struct Detector {
-    compiled: Arc<CompiledModel>,
+    compiled: CompiledStage,
     options: DetectorOptions,
-    session: Session,
+    session: StageSession,
     resize: ResizeWorkspace,
     db: db::Workspace,
     padded: Vec<u8>,
@@ -145,10 +145,11 @@ impl Detector {
             .map_err(Into::into)
     }
     pub fn new(
-        compiled: Arc<CompiledModel>,
+        compiled: impl Into<CompiledStage>,
         mut options: DetectorOptions,
         limits: ExecutionLimits,
     ) -> ImageResult<Self> {
+        let compiled: CompiledStage = compiled.into();
         options.validate()?;
         if options.box_threshold.is_none() {
             let channels = compiled
@@ -166,7 +167,7 @@ impl Detector {
                 0.45
             });
         }
-        let session = Session::new_serial(compiled.clone(), &[1, 3, 32, 32], limits)?;
+        let session = StageSession::new_serial(compiled.clone(), &[1, 3, 32, 32], limits)?;
         if session.output_shape().dimensions() != [1, 1, 32, 32] {
             return Err(ImageError::new(
                 "detector requires a [1,1,H,W] probability output matching input spatial dimensions",
@@ -196,9 +197,14 @@ impl Detector {
         self.options = options;
         Ok(())
     }
-    pub fn compiled(&self) -> &Arc<CompiledModel> {
+    pub fn compiled(&self) -> &CompiledStage {
         &self.compiled
     }
+    /// Statistics for the last bound production inference session.
+    pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        self.session.statistics()
+    }
+
     pub fn execution_limits(&self) -> ExecutionLimits {
         self.session.execution_limits()
     }
@@ -215,6 +221,9 @@ impl Detector {
             + (self.session.retained_planning_bytes() + self.session.retained_scratch_bytes())
     }
     /// Retained kernel buffers, already included in retained workspace bytes.
+    pub(crate) fn retained_device_bytes(&self) -> usize {
+        self.session.retained_device_bytes()
+    }
     pub fn retained_kernel_scratch_bytes(&self) -> usize {
         self.session.retained_scratch_bytes()
     }
@@ -265,7 +274,11 @@ impl Detector {
         profile: &mut StageProfile,
     ) -> ImageResult<DetectionView<'_>> {
         let cpu = self.session.cpu_context().clone();
-        cpu.install(|| self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile))
+        if self.compiled.is_gpu() {
+            self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile)
+        } else {
+            cpu.install(|| self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile))
+        }
     }
     pub fn detect_with_trace<F>(
         &mut self,
@@ -287,7 +300,7 @@ impl Detector {
         F: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
     {
         #[cfg(test)]
-        if !TRACE {
+        if !TRACE && !self.compiled.is_gpu() {
             self.session.cpu_context().assert_production_thread("DET");
         }
         let binding_timer = Timer::<PROFILE>::start();
@@ -347,17 +360,19 @@ impl Detector {
         let threads = self.session.intra_op_threads();
         let mut fill = |input: &mut [f32], nhwc: bool| {
             let timer = Timer::<PROFILE>::start();
-            preprocess::det_with_context_layout(
-                source,
-                size.width,
-                size.height,
-                input,
-                &mut self.resize,
-                &cpu,
-                threads,
-                nhwc,
-            )
-            .map_err(RuntimeError::from)?;
+            cpu.install(|| {
+                preprocess::det_with_context_layout(
+                    source,
+                    size.width,
+                    size.height,
+                    input,
+                    &mut self.resize,
+                    &cpu,
+                    threads,
+                    nhwc,
+                )
+                .map_err(RuntimeError::from)
+            })?;
             preprocessing_ns = timer.elapsed();
             if TRACE {
                 observer.borrow_mut()(DetectionTrace::Input {
@@ -377,7 +392,8 @@ impl Detector {
                 },
             )?
         } else {
-            self.session.run_with_layout_input(fill)?
+            self.session
+                .run_with_layout_input_profiled::<PROFILE, _>(fill)?
         };
         if PROFILE {
             profile.det_preprocess_ns = profile.det_preprocess_ns.saturating_add(preprocessing_ns);
@@ -392,15 +408,20 @@ impl Detector {
             })?;
         }
         let postprocess_timer = Timer::<PROFILE>::start();
-        db::run(
-            prediction.data(),
-            size.width,
-            size.height,
-            &self.options,
-            original_width,
-            original_height,
-            &mut self.db,
-        )?;
+        cpu.install(|| {
+            db::run(
+                prediction.data(),
+                size.width,
+                size.height,
+                &self.options,
+                original_width,
+                original_height,
+                &mut self.db,
+            )
+        })?;
+        if !TRACE {
+            self.session.accumulate_gpu_profile::<PROFILE>(profile);
+        }
         if PROFILE {
             profile.det_postprocess_ns = profile
                 .det_postprocess_ns

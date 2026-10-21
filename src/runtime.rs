@@ -8,6 +8,9 @@
 
 #[cfg(feature = "gpu")]
 pub mod gpu;
+pub(crate) mod stage;
+pub(crate) use stage::StageSession;
+pub use stage::{CompiledStage, ExecutionBackend, ExecutionTarget};
 mod kernels;
 mod nchw;
 mod nhwc;

@@ -1,4 +1,4 @@
-//! Decode a JPEG/PNG in application code, then run the Rust-only CPU pipeline.
+//! Decode a JPEG/PNG in application code, then run the Rust OCR pipeline.
 use serde::Serialize;
 use simd_paddle_ocr_rs::{
     ModelPreset, OcrModelSet, OwnedCharacterBox,
@@ -13,6 +13,8 @@ const USAGE: &str = "Usage: ocr [OPTIONS] IMAGE\n\
     --preset NAME       tiny, small, or medium (default: tiny)\n\
     --no-cls            Do not load or run cls.onnx\n\
     --threads N         Shared CPU worker capacity (default: automatic)\n\
+    --device NAME       cpu or gpu (default: cpu; GPU requires the gpu feature)\n\
+    --gpu-backend NAME  auto, vulkan, dx12, or metal (default: auto)\n\
     --json              Print owned OCR output as JSON instead of joined text\n\
     --alignment         Capture CTC spans and token boxes; implies --json\n\
     -h, --help          Show this help\n\n\
@@ -25,6 +27,8 @@ struct Args {
     preset: ModelPreset,
     classification: bool,
     threads: Option<usize>,
+    gpu: bool,
+    gpu_backend: String,
     json: bool,
     alignment: bool,
 }
@@ -43,6 +47,8 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
     let mut preset = ModelPreset::ChineseV6Tiny;
     let mut classification = true;
     let mut threads = None;
+    let mut gpu = false;
+    let mut gpu_backend = String::from("auto");
     let mut json = false;
     let mut alignment = false;
     let mut image = None;
@@ -63,6 +69,21 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
                 };
             }
             Some("--no-cls") => classification = false,
+            Some("--device") => {
+                gpu = match value(&mut args, "--device")?.to_str() {
+                    Some("cpu") => false,
+                    Some("gpu") => true,
+                    _ => return Err("--device must be cpu or gpu".into()),
+                };
+            }
+            Some("--gpu-backend") => {
+                gpu_backend = value(&mut args, "--gpu-backend")?
+                    .into_string()
+                    .map_err(|_| "--gpu-backend must be auto, vulkan, dx12, or metal")?;
+                if !matches!(gpu_backend.as_str(), "auto" | "vulkan" | "dx12" | "metal") {
+                    return Err("--gpu-backend must be auto, vulkan, dx12, or metal".into());
+                }
+            }
             Some("--threads") => {
                 let count: usize = value(&mut args, "--threads")?
                     .to_str()
@@ -88,12 +109,21 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
             _ => set_image(&mut image, arg)?,
         }
     }
+    if !gpu && gpu_backend != "auto" {
+        return Err("--gpu-backend requires --device gpu".into());
+    }
+    #[cfg(not(feature = "gpu"))]
+    if gpu {
+        return Err("GPU execution requires rebuilding with --features gpu".into());
+    }
     Ok(Some(Args {
         image: image.ok_or("an image path is required; use --help for usage")?,
         models,
         preset,
         classification,
         threads,
+        gpu,
+        gpu_backend,
         json,
         alignment,
     }))
@@ -133,6 +163,27 @@ fn run() -> Result<(), Box<dyn Error>> {
     if let Some(threads) = args.threads {
         builder = builder.cpu_context(Arc::new(CpuContext::new(threads)?));
     }
+    #[cfg(feature = "gpu")]
+    if args.gpu {
+        use simd_paddle_ocr_rs::runtime::{
+            ExecutionTarget,
+            gpu::{GpuBackendPreference, GpuContext, GpuContextOptions},
+        };
+        let backend = match args.gpu_backend.as_str() {
+            "vulkan" => GpuBackendPreference::Vulkan,
+            "dx12" => GpuBackendPreference::Dx12,
+            "metal" => GpuBackendPreference::Metal,
+            _ => GpuBackendPreference::Auto,
+        };
+        let context = GpuContext::new_with_options(GpuContextOptions {
+            backend,
+            ..Default::default()
+        })?;
+        eprintln!("GPU: {:?}", context.adapter_info());
+        builder = builder.execution_target(ExecutionTarget::Gpu(context));
+    }
+    #[cfg(not(feature = "gpu"))]
+    let _ = (args.gpu, &args.gpu_backend);
     let mut request = builder.build()?;
     let result = request.run(image, args.alignment)?.try_to_owned()?;
     let mut output = std::io::BufWriter::new(std::io::stdout().lock());
