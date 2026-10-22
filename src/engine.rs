@@ -22,12 +22,16 @@ pub struct EngineStats {
     pub live_requests: usize,
     pub idle_requests: usize,
     pub idle_bytes: usize,
+    pub idle_host_bytes: usize,
+    /// Request-owned device buffers; shared compiled resources are excluded.
+    pub idle_device_bytes: usize,
 }
 
 struct State<T> {
     live: usize,
     bytes: usize,
-    idle: Vec<(T, usize)>,
+    device_bytes: usize,
+    idle: Vec<(T, usize, usize)>,
 }
 struct Pool<T> {
     limits: EngineLimits,
@@ -35,6 +39,7 @@ struct Pool<T> {
     available: Condvar,
     factory: Box<dyn Fn() -> ImageResult<T> + Send + Sync>,
     measure: fn(&T) -> usize,
+    device_measure: fn(&T) -> usize,
 }
 impl<T> Pool<T> {
     fn new(
@@ -50,12 +55,18 @@ impl<T> Pool<T> {
             state: Mutex::new(State {
                 live: 0,
                 bytes: 0,
+                device_bytes: 0,
                 idle: Vec::new(),
             }),
             available: Condvar::new(),
             factory: Box::new(factory),
             measure,
+            device_measure: |_| 0,
         })
+    }
+    fn with_device_measure(mut self, measure: fn(&T) -> usize) -> Self {
+        self.device_measure = measure;
+        self
     }
     fn lock(&self) -> MutexGuard<'_, State<T>> {
         // User code never runs under this lock; unwind only discards a lease.
@@ -69,13 +80,16 @@ impl<T> Pool<T> {
             live_requests: state.live,
             idle_requests: state.idle.len(),
             idle_bytes: state.bytes,
+            idle_host_bytes: state.bytes.saturating_sub(state.device_bytes),
+            idle_device_bytes: state.device_bytes,
         }
     }
     fn acquire(&self, wait: bool) -> ImageResult<Option<Lease<'_, T>>> {
         let mut state = self.lock();
         loop {
-            if let Some((value, bytes)) = state.idle.pop() {
+            if let Some((value, bytes, device_bytes)) = state.idle.pop() {
                 state.bytes -= bytes;
+                state.device_bytes -= device_bytes;
                 return Ok(Some(Lease {
                     pool: self,
                     value: Some(value),
@@ -139,6 +153,7 @@ impl<T> Drop for Lease<'_, T> {
             return;
         };
         let bytes = (self.pool.measure)(&value);
+        let device_bytes = (self.pool.device_measure)(&value);
         let mut state = self.pool.lock();
         if !std::thread::panicking()
             && bytes <= self.pool.limits.max_idle_bytes.saturating_sub(state.bytes)
@@ -146,7 +161,8 @@ impl<T> Drop for Lease<'_, T> {
             && state.idle.try_reserve(1).is_ok()
         {
             state.bytes += bytes;
-            state.idle.push((value, bytes));
+            state.device_bytes += device_bytes;
+            state.idle.push((value, bytes, device_bytes));
             drop(state);
         } else {
             state.live -= 1;
@@ -192,7 +208,8 @@ impl OcrEngine {
                     .saturating_add(request.diagnostic_retained_activation_bytes())
                     .saturating_add(request.retained_workspace_bytes())
             },
-        )?;
+        )?
+        .with_device_measure(Ocr::retained_device_bytes);
         Ok(Self { cpu, pool })
     }
     pub fn cpu_context(&self) -> &Arc<CpuContext> {
@@ -325,6 +342,30 @@ impl Drop for OcrLease<'_> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    #[test]
+    fn idle_accounting_separates_host_and_device_and_removes_both_on_acquire() {
+        let pool = Pool::new(
+            EngineLimits {
+                max_requests: 1,
+                max_idle_bytes: 100,
+            },
+            || Ok((40usize, 24usize)),
+            |&(host, device)| host + device,
+        )
+        .unwrap()
+        .with_device_measure(|&(_, device)| device);
+        let lease = pool.acquire(false).unwrap().unwrap();
+        drop(lease);
+        assert_eq!(pool.stats().idle_bytes, 64);
+        assert_eq!(pool.stats().idle_host_bytes, 40);
+        assert_eq!(pool.stats().idle_device_bytes, 24);
+        let mut lease = pool.acquire(false).unwrap().unwrap();
+        assert_eq!(pool.stats().idle_bytes, 0);
+        assert_eq!(pool.stats().idle_device_bytes, 0);
+        *lease = (80, 24);
+        drop(lease);
+        assert_eq!(pool.stats(), EngineStats::default());
+    }
     #[test]
     fn leased_requests_cannot_change_the_engine_context_or_pollute_cached_requests() {
         let cpu = CpuContext::serial();

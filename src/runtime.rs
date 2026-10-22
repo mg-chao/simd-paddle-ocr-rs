@@ -1,9 +1,16 @@
-//! Scalar and dispatched SIMD CPU execution of the shipped CLS, DET and REC networks.
+//! Scalar and dispatched SIMD CPU execution, with optional low-level GPU execution.
 //!
-//! Models and compiled instructions are immutable and shareable. Each session
-//! binds concrete shapes and owns reusable activation buffers. This deliberately
-//! does not claim general ONNX execution support.
+//! Models, graph lowering and shape binding are shared across execution backends.
+//! Compiled instructions are immutable and shareable. Each session binds concrete
+//! shapes and owns reusable activation buffers. The optional `gpu` module uses
+//! wgpu independently of the CPU OCR stages. This deliberately does not claim
+//! general ONNX execution support.
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
+pub(crate) mod stage;
+pub(crate) use stage::StageSession;
+pub use stage::{CompiledStage, ExecutionBackend, ExecutionTarget};
 mod kernels;
 mod nchw;
 mod nhwc;
@@ -172,7 +179,9 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 #[derive(Clone, Copy, Debug)]
 pub struct ExecutionLimits {
     /// Bound on total active/retained F32 activation capacity for one Session,
-    /// including its diagnostic/prefix children; weights, plans and scratch are separate.
+    /// including its diagnostic/prefix children. For a GPU session, this bounds
+    /// device activations, device readback staging and host output capacity combined.
+    /// Weights, plans and scratch are separate for both execution backends.
     /// Transactional rebinding can temporarily hold old and new allocations.
     pub max_activation_bytes: usize,
 }
@@ -319,8 +328,8 @@ impl GraphUses {
     }
 }
 
-/// Immutable instructions over one owned model; constants are never copied.
-pub struct CompiledModel {
+/// Backend-independent validation, dataflow and shape instructions.
+struct Program {
     model: Arc<Model>,
     instructions: Vec<Instruction>,
     shape_program: ShapeProgram,
@@ -328,22 +337,13 @@ pub struct CompiledModel {
     graph_uses: GraphUses,
     input: TensorId,
     output: TensorId,
-    options: CompileOptions,
-    backend: Backend,
-    packed: HashMap<TensorId, Arc<PackedMatrix>>,
-    conv_packed: HashMap<usize, Arc<PackedMatrix>>,
-    transpose_packed: HashMap<usize, Arc<[PackedMatrix; 4]>>,
 }
-impl CompiledModel {
-    pub fn new(model: Arc<Model>) -> RuntimeResult<Self> {
-        Self::compile(model, CompileOptions::default())
-    }
-    pub fn compile(model: Arc<Model>, options: CompileOptions) -> RuntimeResult<Self> {
-        let backend = simd::select_backend(options.kernels).map_err(RuntimeError::new)?;
+impl Program {
+    fn compile(model: Arc<Model>) -> RuntimeResult<Self> {
         let graph = model.graph();
         if graph.inputs.len() != 1 || graph.outputs.len() != 1 {
             return Err(RuntimeError::new(
-                "CPU runtime requires one graph input and output",
+                "runtime requires one graph input and output",
             ));
         }
         let input = graph.inputs[0];
@@ -354,7 +354,7 @@ impl CompiledModel {
         }
         if graph.tensors[input.0].constant.is_some() || graph.tensors[output.0].constant.is_some() {
             return Err(RuntimeError::new(
-                "constant graph inputs/outputs are unsupported by CPU runtime",
+                "constant graph inputs/outputs are unsupported by runtime",
             ));
         }
         for tensor in &graph.tensors {
@@ -399,7 +399,7 @@ impl CompiledModel {
         last_use[output.0] = graph.nodes.len() as isize;
         let shape_program = ShapeProgram::compile(&model)?;
         let graph_uses = GraphUses::new(&instructions, graph.tensors.len());
-        let mut compiled = Self {
+        Ok(Self {
             model,
             instructions,
             shape_program,
@@ -407,6 +407,27 @@ impl CompiledModel {
             graph_uses,
             input,
             output,
+        })
+    }
+}
+
+/// Immutable CPU instructions over one owned model; constants are never copied.
+pub struct CompiledModel {
+    program: Program,
+    options: CompileOptions,
+    backend: Backend,
+    packed: HashMap<TensorId, Arc<PackedMatrix>>,
+    conv_packed: HashMap<usize, Arc<PackedMatrix>>,
+    transpose_packed: HashMap<usize, Arc<[PackedMatrix; 4]>>,
+}
+impl CompiledModel {
+    pub fn new(model: Arc<Model>) -> RuntimeResult<Self> {
+        Self::compile(model, CompileOptions::default())
+    }
+    pub fn compile(model: Arc<Model>, options: CompileOptions) -> RuntimeResult<Self> {
+        let backend = simd::select_backend(options.kernels).map_err(RuntimeError::new)?;
+        let mut compiled = Self {
+            program: Program::compile(model)?,
             options,
             backend,
             packed: HashMap::new(),
@@ -446,7 +467,7 @@ impl CompiledModel {
     /// Resolve the format prepared for the physical instruction. Convolution
     /// panels have a different source order from row-major MatMul panels.
     pub(crate) fn instruction_packed(&self, index: usize) -> Option<&PackedMatrix> {
-        let instruction = &self.instructions[index];
+        let instruction = &self.program.instructions[index];
         match instruction.kind {
             Op::Conv(_) => self.conv_packed.get(&index).map(Arc::as_ref),
             Op::MatMul => instruction
@@ -460,11 +481,12 @@ impl CompiledModel {
         if self.backend == Backend::Scalar {
             return Ok(());
         }
-        for (index, instruction) in self.instructions.iter().enumerate() {
+        for (index, instruction) in self.program.instructions.iter().enumerate() {
             let Some(&id) = instruction.inputs.get(1) else {
                 continue;
             };
-            let Some(TensorData::F32(weight)) = &self.model.graph().tensors[id.0].constant else {
+            let Some(TensorData::F32(weight)) = &self.program.model.graph().tensors[id.0].constant
+            else {
                 continue;
             };
             let weight_shape = weight.shape();
@@ -473,7 +495,7 @@ impl CompiledModel {
                 Op::MatMul if dims.len() == 2 => {
                     if let std::collections::hash_map::Entry::Vacant(entry) = self.packed.entry(id)
                     {
-                        entry.insert(self.model.packed_weights.matrix(
+                        entry.insert(self.program.model.packed_weights.matrix(
                             id,
                             packing::MatrixPacking::RowMajor,
                             || {
@@ -491,7 +513,7 @@ impl CompiledModel {
                         && (self.options.layout == LayoutPolicy::Auto
                             || nchw::pack_eligible(attr, dims)) =>
                 {
-                    let pack = self.model.packed_weights.matrix::<RuntimeError>(
+                    let pack = self.program.model.packed_weights.matrix::<RuntimeError>(
                         id,
                         packing::MatrixPacking::ConvOutputMajor,
                         || {
@@ -525,6 +547,7 @@ impl CompiledModel {
                         PackedMatrix::new(&matrix, inner, columns).map_err(RuntimeError::new)
                     };
                     let pack = self
+                        .program
                         .model
                         .packed_weights
                         .transpose::<RuntimeError>(id, || {
@@ -538,10 +561,10 @@ impl CompiledModel {
         Ok(())
     }
     pub fn model(&self) -> &Model {
-        &self.model
+        &self.program.model
     }
     pub fn node_count(&self) -> usize {
-        self.instructions.len()
+        self.program.instructions.len()
     }
     /// Bind metadata without reserving activation storage or executing kernels.
     #[cfg(test)]
@@ -925,11 +948,11 @@ struct BindScratch {
     ends: Vec<isize>,
 }
 impl BindScratch {
-    fn new(compiled: &CompiledModel) -> Self {
-        let count = compiled.model.graph().tensors.len();
+    fn new(program: &Program) -> Self {
+        let count = program.model.graph().tensors.len();
         Self {
             resolved: vec![None; count],
-            shape_cache: compiled.shape_program.cache(),
+            shape_cache: program.shape_program.cache(),
             starts: vec![-2; count],
             last_use: vec![-1; count],
             lifetimes: Vec::with_capacity(count),
@@ -985,8 +1008,8 @@ impl Session {
                 "intra-op threads must be within CPU context capacity",
             ));
         }
-        let node_count = compiled.instructions.len();
-        let output = compiled.output;
+        let node_count = compiled.program.instructions.len();
+        let output = compiled.program.output;
         let mut session = Self::new_selected(
             compiled,
             input_shape,
@@ -1054,12 +1077,12 @@ impl Session {
         if self.optimized.is_none() {
             stats.physical_steps = self.node_count;
             stats.selected_kernels = kernel_selections(
-                self.compiled.instructions[..self.node_count]
+                self.compiled.program.instructions[..self.node_count]
                     .iter()
                     .enumerate()
                     .map(|(i, _)| {
                         (
-                            self.compiled.model.graph().nodes[i].op_type(),
+                            self.compiled.program.model.graph().nodes[i].op_type(),
                             "canonical",
                             optimized::native_consumes_packed(
                                 &self.plan.steps[i].kind,
@@ -1081,7 +1104,7 @@ impl Session {
                             false,
                         );
                         (
-                            self.compiled.model.graph().nodes[index].op_type(),
+                            self.compiled.program.model.graph().nodes[index].op_type(),
                             family,
                             isa,
                             false,
@@ -1090,7 +1113,7 @@ impl Session {
                 ));
         }
         stats.packed_weight_bytes = self.compiled.packed_weight_bytes();
-        stats.shared_cached_weight_bytes = self.compiled.model.cached_packed_weight_bytes();
+        stats.shared_cached_weight_bytes = self.compiled.program.model.cached_packed_weight_bytes();
         stats.activation_bytes = self.activation_bytes();
         stats.retained_activation_bytes = self.retained_activation_bytes();
         stats.plan_cache_hits = self.cache_hits;
@@ -1108,6 +1131,7 @@ impl Session {
         inclusive_last_node: usize,
     ) -> RuntimeResult<Self> {
         let output = compiled
+            .program
             .instructions
             .get(inclusive_last_node)
             .ok_or_else(|| RuntimeError::new("prefix node index is outside the compiled graph"))?
@@ -1141,8 +1165,8 @@ impl Session {
         input_shape: &[usize],
         limits: ExecutionLimits,
     ) -> RuntimeResult<Self> {
-        let count = compiled.instructions.len();
-        let output = compiled.output;
+        let count = compiled.program.instructions.len();
+        let output = compiled.program.output;
         Self::new_selected_mode(compiled, input_shape, limits, count, output, true)
     }
     fn new_selected_mode(
@@ -1153,15 +1177,15 @@ impl Session {
         selected_output: TensorId,
         diagnostic: bool,
     ) -> RuntimeResult<Self> {
-        let tensors = compiled.model.graph().tensors.len();
+        let tensors = compiled.program.model.graph().tensors.len();
         let physical = !diagnostic
             && (compiled.options.layout == LayoutPolicy::Auto || compiled.options.fusion);
         let cache_metadata = diagnostic || physical || compiled.backend != Backend::Scalar;
         let mut plan = ShapePlan::empty(tensors, node_count);
         let staging = ShapePlan::empty(tensors, node_count);
-        let mut scratch = BindScratch::new(&compiled);
+        let mut scratch = BindScratch::new(&compiled.program);
         bind_into(
-            &compiled,
+            &compiled.program,
             input_shape,
             if physical {
                 ExecutionLimits {
@@ -1250,10 +1274,13 @@ impl Session {
                 let mut next = if self.cache.len() >= 8 {
                     self.cache.pop_back().unwrap()
                 } else {
-                    ShapePlan::empty(self.compiled.model.graph().tensors.len(), self.node_count)
+                    ShapePlan::empty(
+                        self.compiled.program.model.graph().tensors.len(),
+                        self.node_count,
+                    )
                 };
                 bind_into(
-                    &self.compiled,
+                    &self.compiled.program,
                     input_shape,
                     if self.optimized.is_some() {
                         ExecutionLimits {
@@ -1291,7 +1318,7 @@ impl Session {
             return Ok(());
         }
         bind_into(
-            &self.compiled,
+            &self.compiled.program,
             input_shape,
             limits,
             self.node_count,
@@ -1572,7 +1599,7 @@ impl Session {
     where
         F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
     {
-        let slot = self.plan.slots[self.compiled.input.0];
+        let slot = self.plan.slots[self.compiled.program.input.0];
         let input = &mut self.buffers[slot][..self.plan.input_shape.element_count()];
         fill(input)?;
         if let Some(index) = input.iter().position(|value| !value.is_finite()) {
@@ -1586,7 +1613,7 @@ impl Session {
         TensorView::from_slice(self.plan.shapes[id.0], self.data(id)).map_err(Into::into)
     }
     fn data(&self, id: TensorId) -> &[f32] {
-        match &self.compiled.model.graph().tensors[id.0].constant {
+        match &self.compiled.program.model.graph().tensors[id.0].constant {
             Some(TensorData::F32(values)) => values.data(),
             _ => &self.buffers[self.plan.slots[id.0]][..self.plan.shapes[id.0].element_count()],
         }
@@ -1610,7 +1637,7 @@ impl Session {
             self.cpu.install(|| {
                 kernels::execute_optimized(
                     &step.kind,
-                    &self.compiled.instructions[index].inputs,
+                    &self.compiled.program.instructions[index].inputs,
                     |id| self.data(id),
                     &mut output[..count],
                     self.compiled.backend,
@@ -1627,7 +1654,7 @@ impl Session {
                     .as_nanos()
                     .try_into()
                     .unwrap_or(u64::MAX);
-                let node = &self.compiled.model.graph().nodes[index];
+                let node = &self.compiled.program.model.graph().nodes[index];
                 let shape = self.plan.shapes[step.output.0];
                 observer(NodeTrace {
                     index,
@@ -1811,16 +1838,16 @@ fn bind(
     limits: ExecutionLimits,
 ) -> RuntimeResult<ShapePlan> {
     let mut plan = ShapePlan::empty(
-        compiled.model.graph().tensors.len(),
-        compiled.instructions.len(),
+        compiled.program.model.graph().tensors.len(),
+        compiled.program.instructions.len(),
     );
-    let mut scratch = BindScratch::new(compiled);
+    let mut scratch = BindScratch::new(&compiled.program);
     bind_into(
-        compiled,
+        &compiled.program,
         dimensions,
         limits,
-        compiled.instructions.len(),
-        compiled.output,
+        compiled.program.instructions.len(),
+        compiled.program.output,
         &mut plan,
         &mut scratch,
     )?;
@@ -1828,7 +1855,7 @@ fn bind(
 }
 #[allow(clippy::too_many_arguments)]
 fn bind_into(
-    compiled: &CompiledModel,
+    program: &Program,
     dimensions: &[usize],
     limits: ExecutionLimits,
     node_count: usize,
@@ -1841,8 +1868,8 @@ fn bind_into(
     }
     let input_shape = Shape::new(dimensions)?;
     positive_shape(input_shape)?;
-    let graph = compiled.model.graph();
-    if let ShapeSpec::Ranked(template) = &graph.tensors[compiled.input.0].shape {
+    let graph = program.model.graph();
+    if let ShapeSpec::Ranked(template) = &graph.tensors[program.input.0].shape {
         if template.len() != dimensions.len() {
             return Err(RuntimeError::new("input rank does not match model"));
         }
@@ -1860,9 +1887,9 @@ fn bind_into(
             resolved[id] = Some(data.shape());
         }
     }
-    resolved[compiled.input.0] = Some(input_shape);
+    resolved[program.input.0] = Some(input_shape);
     plan.steps.clear();
-    for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
+    for (index, instruction) in program.instructions[..node_count].iter().enumerate() {
         let node = &graph.nodes[index];
         let a = resolved[instruction.inputs[0].0]
             .ok_or_else(|| node_error(index, node, "unresolved input shape"))?;
@@ -1930,7 +1957,7 @@ fn bind_into(
                     let values = if let Some(values) = target {
                         values.as_slice()
                     } else {
-                        evaluated = compiled.shape_program.evaluate(
+                        evaluated = program.shape_program.evaluate(
                             index,
                             resolved,
                             &mut scratch.shape_cache,
@@ -1966,7 +1993,7 @@ fn bind_into(
             kind: result.1,
         });
     }
-    if node_count == compiled.instructions.len()
+    if node_count == program.instructions.len()
         && let Some(index) = resolved.iter().position(Option::is_none)
     {
         return Err(RuntimeError::new(format!(
@@ -1979,7 +2006,7 @@ fn bind_into(
         }
     }
     plan.input_shape = input_shape;
-    plan_slots_into(compiled, node_count, selected_output, plan, scratch, limits)
+    plan_slots_into(program, node_count, selected_output, plan, scratch, limits)
 }
 fn positive_shape(shape: Shape) -> RuntimeResult<()> {
     if shape
@@ -1995,27 +2022,27 @@ fn positive_shape(shape: Shape) -> RuntimeResult<()> {
     Ok(())
 }
 fn plan_slots_into(
-    compiled: &CompiledModel,
+    program: &Program,
     node_count: usize,
     selected_output: TensorId,
     plan: &mut ShapePlan,
     scratch: &mut BindScratch,
     limits: ExecutionLimits,
 ) -> RuntimeResult<()> {
-    let graph = compiled.model.graph();
+    let graph = program.model.graph();
     scratch.starts.fill(-2);
-    scratch.starts[compiled.input.0] = -1;
-    scratch.last_use.copy_from_slice(&compiled.last_use);
-    if node_count != compiled.instructions.len() {
+    scratch.starts[program.input.0] = -1;
+    scratch.last_use.copy_from_slice(&program.last_use);
+    if node_count != program.instructions.len() {
         scratch.last_use.fill(-1);
-        for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
+        for (index, instruction) in program.instructions[..node_count].iter().enumerate() {
             for id in &instruction.inputs {
                 scratch.last_use[id.0] = index as isize;
             }
         }
     }
     scratch.last_use[selected_output.0] = node_count as isize;
-    for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
+    for (index, instruction) in program.instructions[..node_count].iter().enumerate() {
         scratch.starts[instruction.output.0] = index as isize;
     }
     scratch.lifetimes.clear();
@@ -2148,7 +2175,7 @@ mod tests {
         ]
         .concat()
     }
-    fn wide_head() -> Arc<CompiledModel> {
+    fn wide_head_model() -> Arc<Model> {
         let weights = bytes(
             5,
             &[
@@ -2170,21 +2197,40 @@ mod tests {
         ]
         .concat();
         let source = [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat();
-        Arc::new(
-            CompiledModel::compile(
-                Arc::new(Model::load_bytes(&source).unwrap()),
-                CompileOptions::reference(),
-            )
-            .unwrap(),
-        )
+        Arc::new(Model::load_bytes(&source).unwrap())
+    }
+    fn wide_head() -> Arc<CompiledModel> {
+        Arc::new(CompiledModel::compile(wide_head_model(), CompileOptions::reference()).unwrap())
     }
     fn physical_wide_head() -> Arc<CompiledModel> {
-        Arc::new(CompiledModel::new(wide_head().model.clone()).unwrap())
+        Arc::new(CompiledModel::new(wide_head().program.model.clone()).unwrap())
+    }
+
+    #[test]
+    fn shared_program_binds_dynamic_shapes_without_cpu_weight_packing() {
+        let model = wide_head_model();
+        let program = Program::compile(model.clone()).unwrap();
+        let count = program.instructions.len();
+        let mut plan = ShapePlan::empty(model.graph().tensors.len(), count);
+        let mut scratch = BindScratch::new(&program);
+        bind_into(
+            &program,
+            &[3, 2],
+            ExecutionLimits::default(),
+            count,
+            program.output,
+            &mut plan,
+            &mut scratch,
+        )
+        .unwrap();
+        assert_eq!(plan.input_shape.dimensions(), [3, 2]);
+        assert_eq!(plan.shapes[program.output.0].dimensions(), [3, 1024]);
+        assert_eq!(model.cached_packed_weight_bytes(), 0);
     }
 
     #[test]
     fn parsed_models_share_packed_weights_across_concurrent_compilation_policies() {
-        let model = wide_head().model.clone();
+        let model = wide_head().program.model.clone();
         assert_eq!(model.cached_packed_weight_bytes(), 0);
         let handles: Vec<_> = (0..4)
             .map(|index| {
@@ -2499,7 +2545,7 @@ mod tests {
         let reference = wide_head();
         let simd = Arc::new(
             CompiledModel::compile(
-                reference.model.clone(),
+                reference.program.model.clone(),
                 CompileOptions {
                     kernels: KernelPolicy::Portable4,
                     layout: LayoutPolicy::Nchw,
@@ -2547,7 +2593,7 @@ mod tests {
         assert_eq!(request.naive_activation_bytes(), 16);
         assert_eq!(request.output_shape().dimensions(), &[1, 2]);
         assert_eq!(request.plan.steps.len(), 1);
-        let suffix = request.compiled.instructions[1].output;
+        let suffix = request.compiled.program.instructions[1].output;
         assert_eq!(request.plan.slots[suffix.0], usize::MAX);
         request.reshape(&[16, 2]).unwrap();
         let storage = request

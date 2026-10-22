@@ -1,7 +1,7 @@
 # simd-paddle-ocr-rs
 
-Rust CPU implementation of SimdPaddleOCR, with portable SIMD and runtime CPU
-dispatch. Detection, perspective cropping, optional orientation classification,
+Rust implementation of SimdPaddleOCR, with portable SIMD, runtime CPU dispatch,
+and optional native GPU inference. Detection, perspective cropping, optional orientation classification,
 CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 
 The project uses `nightly-2026-09-08`, selected by `rust-toolchain.toml`.
@@ -58,6 +58,21 @@ The default `parallel` feature enables a shared Rayon worker pool. Disable
 default features for serial execution, or enable `profiling` for stage and
 recognition-owner diagnostics. Refer to the [usage guide](docs/cpu-usage.md)
 for reusable requests and the bounded `OcrEngine` service API.
+
+## GPU runtime
+
+The optional `gpu` feature runs detection, orientation classification, and
+recognition on a headless wgpu device through Vulkan, D3D12, or Metal. Select
+GPU execution explicitly; the default remains CPU. Image processing and CTC
+text assembly run on the host. GPU intermediates stay on the device, and
+recognition reads back compact class/score results.
+
+```powershell
+cargo run --release --locked --features gpu --example ocr -- --device gpu --gpu-backend vulkan --models-dir ../SimdPaddleOCR/models --preset tiny input.jpg
+```
+
+See [GPU usage](docs/gpu-usage.md) for reusable sessions, memory limits,
+CPU/GPU API migration, numerical contracts, and local validation.
 
 ## Local checks
 

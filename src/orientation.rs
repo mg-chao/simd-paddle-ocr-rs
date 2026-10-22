@@ -6,7 +6,7 @@ use crate::{
     preprocess::{self, ResizeWorkspace},
     profile::{StageProfile, Timer},
     projection::ProjectionHead,
-    runtime::{CompiledModel, ExecutionLimits, NodeTrace, RuntimeError, Session},
+    runtime::{CompiledStage, ExecutionLimits, NodeTrace, RuntimeError, StageSession},
     tensor::TensorData,
 };
 use serde::Serialize;
@@ -113,32 +113,39 @@ fn public_head(
 }
 
 pub struct Classifier {
-    compiled: Arc<CompiledModel>,
-    session: Session,
-    diagnostic: Option<Session>,
+    compiled: CompiledStage,
+    session: StageSession,
+    diagnostic: Option<StageSession>,
     head: ProjectionHead,
     resize: ResizeWorkspace,
     options: ClassifierOptions,
+    limits: ExecutionLimits,
 }
 impl Classifier {
-    pub fn compiled(&self) -> &Arc<CompiledModel> {
+    pub fn compiled(&self) -> &CompiledStage {
         &self.compiled
     }
-    pub fn new(compiled: Arc<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
+    /// Statistics for the last bound production inference session.
+    pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        self.session.statistics()
+    }
+
+    pub fn new(compiled: impl Into<CompiledStage>, limits: ExecutionLimits) -> ImageResult<Self> {
         Self::new_with_options(compiled, ClassifierOptions::default(), limits)
     }
     pub fn new_with_options(
-        compiled: Arc<CompiledModel>,
+        compiled: impl Into<CompiledStage>,
         options: ClassifierOptions,
         limits: ExecutionLimits,
     ) -> ImageResult<Self> {
+        let compiled: CompiledStage = compiled.into();
         if options.max_image_pixels == 0 {
             return Err(ImageError::new(
                 "classifier max_image_pixels must be positive",
             ));
         }
         let head = ProjectionHead::compile(compiled.model().graph(), 2, 2, "classifier")?;
-        let session = Session::new_prefix(
+        let session = StageSession::new_classification(
             compiled.clone(),
             &[1, 3, 80, 160],
             limits,
@@ -154,14 +161,11 @@ impl Classifier {
             head,
             resize: ResizeWorkspace::default(),
             options,
+            limits,
         })
     }
     pub fn fork(&self) -> ImageResult<Self> {
-        let mut fork = Self::new_with_options(
-            self.compiled.clone(),
-            self.options,
-            self.session.execution_limits(),
-        )?;
+        let mut fork = Self::new_with_options(self.compiled.clone(), self.options, self.limits)?;
         fork.set_execution_context(
             self.session.cpu_context().clone(),
             self.session.intra_op_threads(),
@@ -194,7 +198,11 @@ impl Classifier {
         profile: &mut StageProfile,
     ) -> ImageResult<ClassificationResult> {
         let cpu = self.session.cpu_context().clone();
-        cpu.install(|| self.classify_impl::<PROFILE>(image, profile))
+        if self.compiled.is_gpu() {
+            self.classify_impl::<PROFILE>(image, profile)
+        } else {
+            cpu.install(|| self.classify_impl::<PROFILE>(image, profile))
+        }
     }
     fn classify_impl<const PROFILE: bool>(
         &mut self,
@@ -203,11 +211,46 @@ impl Classifier {
     ) -> ImageResult<ClassificationResult> {
         self.check_image(image)?;
         #[cfg(test)]
-        self.session.cpu_context().assert_production_thread("CLS");
+        if !self.compiled.is_gpu() {
+            self.session.cpu_context().assert_production_thread("CLS");
+        }
         let mut width = 0;
+        #[cfg(feature = "gpu")]
+        let cpu = self.session.cpu_context().clone();
         let resize = &mut self.resize;
         let backbone_timer = Timer::<PROFILE>::start();
         let mut preprocessing_ns = 0;
+        #[cfg(feature = "gpu")]
+        if self.compiled.is_gpu() {
+            let compact = self
+                .session
+                .run_compact_with_input_profiled::<PROFILE, _>(|input| {
+                    let timer = Timer::<PROFILE>::start();
+                    width = cpu
+                        .install(|| preprocess::cls_with_layout(image, input, resize, false))
+                        .map_err(RuntimeError::from)?;
+                    preprocessing_ns = timer.elapsed();
+                    Ok(())
+                })?;
+            let row = compact
+                .first()
+                .filter(|_| compact.len() == 1)
+                .ok_or_else(|| ImageError::new("GPU classifier compact output shape mismatch"))?;
+            let result = ClassificationResult {
+                label: row.index,
+                score: row.score,
+                resized_width: width,
+            };
+            self.session.accumulate_gpu_profile::<PROFILE>(profile);
+            if PROFILE {
+                profile.cls_preprocess_ns =
+                    profile.cls_preprocess_ns.saturating_add(preprocessing_ns);
+                profile.cls_backbone_ns = profile
+                    .cls_backbone_ns
+                    .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
+            }
+            return Ok(result);
+        }
         let feature = self.session.run_with_layout_input(|input, nhwc| {
             let timer = Timer::<PROFILE>::start();
             width = preprocess::cls_with_layout(image, input, resize, nhwc)
@@ -240,10 +283,18 @@ impl Classifier {
     {
         self.check_image(image)?;
         if self.diagnostic.is_none() {
-            let mut diagnostic = Session::new_diagnostic(
+            let diagnostic_limits = if self.compiled.is_gpu() {
+                crate::runtime::stage::remaining_limits(
+                    self.limits,
+                    self.session.retained_activation_bytes(),
+                )?
+            } else {
+                self.limits
+            };
+            let mut diagnostic = StageSession::new_diagnostic(
                 self.compiled.clone(),
                 &[1, 3, 80, 160],
-                self.session.execution_limits(),
+                diagnostic_limits,
             )?;
             diagnostic.set_execution_context(
                 self.session.cpu_context().clone(),
@@ -251,15 +302,19 @@ impl Classifier {
             )?;
             self.diagnostic = Some(diagnostic);
         }
+        let gpu = self.compiled.is_gpu();
         let observer = RefCell::new(observer);
         let width = Cell::new(0);
         let public = Cell::new(None);
+        let cpu = self.session.cpu_context().clone();
         let resize = &mut self.resize;
         let head = &self.head;
         let graph = self.compiled.model().graph();
         let probabilities = self.diagnostic.as_mut().unwrap().run_with_input_and_trace(
             |input| {
-                let actual = preprocess::cls(image, input, resize).map_err(RuntimeError::from)?;
+                let actual = cpu
+                    .install(|| preprocess::cls(image, input, resize))
+                    .map_err(RuntimeError::from)?;
                 width.set(actual);
                 observer.borrow_mut()(ClassifierTrace::Input {
                     values: input,
@@ -269,7 +324,7 @@ impl Classifier {
                 Ok(())
             },
             |node| {
-                if node.output_id == head.feature {
+                if !gpu && node.output_id == head.feature {
                     public.set(Some(
                         head.evaluate(graph, node.values, width.get())
                             .map_err(RuntimeError::from)?,
@@ -279,9 +334,37 @@ impl Classifier {
             },
         )?;
         observer.borrow_mut()(ClassifierTrace::Probabilities(probabilities.data()))?;
-        let result = public
-            .get()
-            .ok_or_else(|| ImageError::new("classifier feature was not observed"))?;
+        let result = if gpu {
+            #[cfg(feature = "gpu")]
+            {
+                let compact = self.session.run_compact_with_input(|input| {
+                    input.copy_from_slice(
+                        self.diagnostic
+                            .as_ref()
+                            .expect("initialized diagnostic")
+                            .gpu_input_data()?,
+                    );
+                    Ok(())
+                })?;
+                let row = compact
+                    .first()
+                    .filter(|_| compact.len() == 1)
+                    .ok_or_else(|| {
+                        ImageError::new("GPU classifier compact output shape mismatch")
+                    })?;
+                ClassificationResult {
+                    label: row.index,
+                    score: row.score,
+                    resized_width: width.get(),
+                }
+            }
+            #[cfg(not(feature = "gpu"))]
+            unreachable!("GPU stage requires the gpu feature")
+        } else {
+            public
+                .get()
+                .ok_or_else(|| ImageError::new("classifier feature was not observed"))?
+        };
         observer.borrow_mut()(ClassifierTrace::Public(result))?;
         Ok(result)
     }
@@ -304,7 +387,7 @@ impl Classifier {
             + self
                 .diagnostic
                 .as_ref()
-                .map_or(0, Session::retained_activation_bytes)
+                .map_or(0, StageSession::retained_activation_bytes)
     }
     pub(crate) fn retained_workspace_bytes(&self) -> usize {
         self.resize.retained_bytes()
@@ -314,12 +397,19 @@ impl Classifier {
             })
     }
     /// Retained kernel buffers, excluding fixed local stack tiles.
+    pub(crate) fn retained_device_bytes(&self) -> usize {
+        self.session.retained_device_bytes()
+            + self
+                .diagnostic
+                .as_ref()
+                .map_or(0, StageSession::retained_device_bytes)
+    }
     pub fn retained_kernel_scratch_bytes(&self) -> usize {
         self.session.retained_scratch_bytes()
             + self
                 .diagnostic
                 .as_ref()
-                .map_or(0, Session::retained_scratch_bytes)
+                .map_or(0, StageSession::retained_scratch_bytes)
     }
 }
 

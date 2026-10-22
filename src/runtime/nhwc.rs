@@ -377,7 +377,7 @@ pub(super) fn execute<'a>(
     match kind {
         BoundKind::Conv(p) => {
             let weights = data(1);
-            let bias = if compiled.instructions[index].inputs.len() > 2 {
+            let bias = if compiled.program.instructions[index].inputs.len() > 2 {
                 data(2)
             } else {
                 &[]
@@ -481,7 +481,7 @@ pub(super) fn execute<'a>(
         }
         BoundKind::ConvTranspose(p) => {
             let weights = data(1);
-            let bias = if compiled.instructions[index].inputs.len() > 2 {
+            let bias = if compiled.program.instructions[index].inputs.len() > 2 {
                 data(2)
             } else {
                 &[]
@@ -660,7 +660,7 @@ pub(super) fn execute<'a>(
             assert_eq!(p.axis, 1);
             let dimensions = shape.dimensions();
             concat::execute(
-                compiled.instructions[index].inputs.len(),
+                compiled.program.instructions[index].inputs.len(),
                 data,
                 dimensions[0] * dimensions[2] * dimensions[3],
                 out,
@@ -669,7 +669,7 @@ pub(super) fn execute<'a>(
             );
         }
         _ => {
-            let logical = &compiled.instructions[index].inputs;
+            let logical = &compiled.program.instructions[index].inputs;
             kernels::execute_optimized(
                 kind,
                 logical,

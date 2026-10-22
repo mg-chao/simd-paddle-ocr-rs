@@ -192,10 +192,10 @@ fn layout_neutral(shape: Shape) -> bool {
 }
 
 fn conv_nhwc_capable(compiled: &CompiledModel, index: usize, p: &kernels::Conv) -> bool {
-    let instruction = &compiled.instructions[index];
+    let instruction = &compiled.program.instructions[index];
     let constant_rank = |slot: usize, rank: usize| {
         instruction.inputs.get(slot).is_some_and(|id| {
-            matches!(&compiled.model.graph().tensors[id.0].constant,
+            matches!(&compiled.program.model.graph().tensors[id.0].constant,
                 Some(TensorData::F32(tensor)) if tensor.shape().rank() == rank)
         })
     };
@@ -264,13 +264,13 @@ fn convert(
     output
 }
 fn constant(compiled: &CompiledModel, id: TensorId) -> &[f32] {
-    match &compiled.model.graph().tensors[id.0].constant {
+    match &compiled.program.model.graph().tensors[id.0].constant {
         Some(TensorData::F32(t)) => t.data(),
         _ => unreachable!("validated F32 constant"),
     }
 }
 fn scalar(compiled: &CompiledModel, id: TensorId) -> Option<f32> {
-    match &compiled.model.graph().tensors[id.0].constant {
+    match &compiled.program.model.graph().tensors[id.0].constant {
         Some(TensorData::F32(t)) if t.data().len() == 1 => Some(t.data()[0]),
         _ => None,
     }
@@ -291,7 +291,7 @@ fn closed(
     count: usize,
     selected: TensorId,
 ) -> bool {
-    for instruction in &compiled.instructions[first..end] {
+    for instruction in &compiled.program.instructions[first..end] {
         if instruction.output == selected {
             return false;
         }
@@ -299,6 +299,7 @@ fn closed(
         // consumer before this group. Only later uses inside this execution
         // prefix can require an intermediate to remain materialized.
         if compiled
+            .program
             .graph_uses
             .used_after(instruction.output, end, count)
         {
@@ -313,7 +314,7 @@ fn activation(
     input: TensorId,
     count: usize,
 ) -> Option<(Activation, usize)> {
-    let n = &compiled.instructions;
+    let n = &compiled.program.instructions;
     if start >= count {
         return None;
     }
@@ -359,7 +360,7 @@ fn layer_norm(
     if start + 8 >= count {
         return None;
     }
-    let n = &compiled.instructions[start..start + 9];
+    let n = &compiled.program.instructions[start..start + 9];
     let input = n[0].inputs[0];
     let shape = plan.shapes[input.0];
     let inner = *shape.dimensions().last()?;
@@ -394,7 +395,7 @@ fn layer_norm(
     let gamma = other_binary(&n[7], n[6].output)?;
     let beta = other_binary(&n[8], n[7].output)?;
     for id in [gamma, beta] {
-        match &compiled.model.graph().tensors[id.0].constant {
+        match &compiled.program.model.graph().tensors[id.0].constant {
             Some(TensorData::F32(t))
                 if t.data().len() == inner
                     && t.dimensions().last() == Some(&inner)
@@ -431,8 +432,8 @@ impl Plan {
             Layout::Canonical
         };
         let input = add_value(&mut values, logical.input_shape, input_layout, None);
-        map[compiled.input.0] = Some(input);
-        for (i, tensor) in compiled.model.graph().tensors.iter().enumerate() {
+        map[compiled.program.input.0] = Some(input);
+        for (i, tensor) in compiled.program.model.graph().tensors.iter().enumerate() {
             if let Some(TensorData::F32(t)) = &tensor.constant {
                 map[i] = Some(add_value(
                     &mut values,
@@ -479,13 +480,13 @@ impl Plan {
                 } else {
                     (
                         i,
-                        compiled.instructions[i].inputs.clone().into_vec(),
+                        compiled.program.instructions[i].inputs.clone().into_vec(),
                         Vec::new(),
                         0,
                     )
                 };
             let is_semantic = base != i;
-            let instruction = &compiled.instructions[base];
+            let instruction = &compiled.program.instructions[base];
             let mut end = i;
             let mut kind = Operation::Native {
                 index: base,
@@ -514,7 +515,7 @@ impl Plan {
                     let mut epilogues = Vec::new();
                     let mut current = instruction.output;
                     while end + 1 < adjacent_limit {
-                        let next = &compiled.instructions[end + 1];
+                        let next = &compiled.program.instructions[end + 1];
                         if matches!(next.kind, Op::Add)
                             && logical.shapes[next.output.0] == logical.shapes[instruction.output.0]
                             && let Some(other) = other_binary(next, current)
@@ -526,7 +527,9 @@ impl Plan {
                             let output = logical.shapes[current.0];
                             if (shape == output
                                 && (!nhwc
-                                    || compiled.model.graph().tensors[other.0].constant.is_none()))
+                                    || compiled.program.model.graph().tensors[other.0]
+                                        .constant
+                                        .is_none()))
                                 || shape.element_count() == 1
                                 || (output.rank() == 4
                                     && shape.rank() == 4
@@ -548,7 +551,7 @@ impl Plan {
                         {
                             epilogues.push(Epilogue::Activation(act));
                             end = last;
-                            current = compiled.instructions[last].output;
+                            current = compiled.program.instructions[last].output;
                             continue;
                         }
                         break;
@@ -563,7 +566,7 @@ impl Plan {
                 }
             }
             fused += if is_semantic { semantic_fused } else { end - i };
-            let output_id = compiled.instructions[end].output;
+            let output_id = compiled.program.instructions[end].output;
             let output_shape = logical.shapes[output_id.0];
             let first =
                 map[ids[0].0].ok_or_else(|| RuntimeError::new("physical input is undefined"))?;
@@ -580,7 +583,9 @@ impl Plan {
                             && output_shape.rank() == 4
                             && ids.iter().all(|id| {
                                 logical.shapes[id.0].rank() == 4
-                                    && compiled.model.graph().tensors[id.0].constant.is_none()
+                                    && compiled.program.model.graph().tensors[id.0]
+                                        .constant
+                                        .is_none()
                             })
                     }
                     BoundKind::Binary(..)
@@ -1427,7 +1432,7 @@ impl State {
                         kind,
                         epilogues,
                     } => {
-                        let operator = compiled.model.graph().nodes[*index].op_type();
+                        let operator = compiled.program.model.graph().nodes[*index].op_type();
                         let nhwc = step
                             .inputs
                             .first()
@@ -1437,7 +1442,7 @@ impl State {
                         } else if matches!(kind, BoundKind::ConvTranspose(_)) {
                             compiled.transpose_packed.contains_key(index)
                         } else {
-                            compiled.instructions[*index]
+                            compiled.program.instructions[*index]
                                 .inputs
                                 .get(1)
                                 .is_some_and(|id| compiled.packed.contains_key(id))
@@ -1499,7 +1504,7 @@ impl State {
                 };
                 match &s.op {
                     Operation::Native { index, kind, .. } => (
-                        compiled.model.graph().nodes[*index].op_type(),
+                        compiled.program.model.graph().nodes[*index].op_type(),
                         layout,
                         (self.plan.values[s.inputs[0]].layout == Layout::Nhwc
                             && (compiled.conv_packed.contains_key(index)
@@ -1823,7 +1828,7 @@ fn execute_native<'a>(
     {
         return;
     }
-    let logical = &compiled.instructions[index].inputs;
+    let logical = &compiled.program.instructions[index].inputs;
     kernels::execute_optimized(
         kind,
         logical,
@@ -1859,7 +1864,7 @@ fn execute_native_store<'a>(
     let weights = data(inputs[1]);
     // Appended physical operands belong to epilogues. Bias is present only
     // when the original logical convolution has a third operand.
-    let bias = if compiled.instructions[index].inputs.len() > 2 {
+    let bias = if compiled.program.instructions[index].inputs.len() > 2 {
         data(inputs[2])
     } else {
         &[]
