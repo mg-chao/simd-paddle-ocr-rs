@@ -2,7 +2,7 @@
 use crate::{
     ModelPreset, OcrModelSet,
     cpu::CpuContext,
-    detector::DetectorOptions,
+    detector::{DetectionTrace, Detector, DetectorOptions},
     engine::{EngineLimits, OcrEngine},
     image::{ImageView, PixelFormat},
     model::Model,
@@ -131,6 +131,90 @@ fn assert_ocr_close(actual: &OwnedOcr, expected: &OwnedOcr, label: &str) {
             (None, None) => {}
             _ => panic!("{label}: capture mismatch"),
         }
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
+    let (source, _) = crate::ocr::tests::synthetic_sources();
+    let model = Arc::new(Model::load_bytes(&source).unwrap());
+    let options = DetectorOptions {
+        resize_policy: crate::preprocess::DetResizePolicy::Min,
+        limit_side_length: 736,
+        ..Default::default()
+    };
+    let mut reference = Detector::new(
+        Arc::new(CompiledModel::new(model.clone()).unwrap()),
+        options,
+        ExecutionLimits::default(),
+    )
+    .unwrap();
+    let mut detector = Detector::new(
+        Arc::new(GpuCompiledModel::compile(model, hardware()).unwrap()),
+        options,
+        ExecutionLimits::default(),
+    )
+    .unwrap();
+    for (width, height) in [(192, 32), (46, 17), (17, 46)] {
+        let (padded_width, padded_height) = if width + height < 64 {
+            (width.max(32), height.max(32))
+        } else {
+            (width, height)
+        };
+        let mut pixels = vec![0; width * height * 3];
+        let mut padded = vec![0; padded_width * padded_height * 3];
+        for y in 3..height - 3 {
+            pixels[(y * width + 3) * 3..(y * width + width - 3) * 3].fill(255);
+        }
+        for y in 0..height {
+            padded[y * padded_width * 3..y * padded_width * 3 + width * 3]
+                .copy_from_slice(&pixels[y * width * 3..(y + 1) * width * 3]);
+        }
+        let image = ImageView::new(&pixels, width, height, 0, PixelFormat::Bgr24).unwrap();
+        let control =
+            ImageView::new(&padded, padded_width, padded_height, 0, PixelFormat::Bgr24).unwrap();
+        let mut expected = reference.detect(control).unwrap().try_to_owned().unwrap();
+        assert_eq!(expected.boxes.len(), 1);
+        for point in &mut expected.boxes[0].points {
+            point[0] = point[0].clamp(0., width as f32);
+            point[1] = point[1].clamp(0., height as f32);
+        }
+        let actual = detector.detect(image).unwrap().try_to_owned().unwrap();
+        assert_eq!(actual.boxes.len(), 1, "{width}x{height}");
+        assert_eq!(actual.boxes[0].points, expected.boxes[0].points);
+        assert!((actual.boxes[0].score - expected.boxes[0].score).abs() <= 1e-5);
+        assert_eq!(actual.width_ratio, expected.width_ratio);
+        assert_eq!(actual.height_ratio, expected.height_ratio);
+        assert!(actual.resized_width <= preprocess::DET_MAX_SIDE);
+        assert!(actual.resized_height <= preprocess::DET_MAX_SIDE);
+        if width == 192 {
+            assert_eq!(actual.resized_width, preprocess::DET_MAX_SIDE);
+        }
+
+        let mut probabilities = Vec::new();
+        let traced = detector
+            .detect_with_trace(image, |event| {
+                if let DetectionTrace::Probabilities { values, .. } = event {
+                    probabilities.extend_from_slice(values);
+                }
+                Ok(())
+            })
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
+        assert_eq!(traced.boxes, actual.boxes);
+        let replayed = detector
+            .postprocess(
+                &probabilities,
+                traced.resized_width,
+                traced.resized_height,
+                image,
+                traced.width_ratio,
+                traced.height_ratio,
+            )
+            .unwrap();
+        assert_eq!(replayed.boxes, actual.boxes);
     }
 }
 

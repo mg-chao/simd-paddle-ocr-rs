@@ -123,6 +123,15 @@ a nonzero process exit code. Use `--help` for all flags.
 
 ## Borrowed pixels and results
 
+Detector resizing aligns both tensor dimensions to 32 pixels and bounds each
+side by `preprocess::DET_MAX_SIDE` (4096) before allocating or running the model.
+Minimum-side scaling enlarges the short side toward its requested limit; the
+4096-pixel long-side bound takes precedence for narrow images. Maximum-side
+scaling keeps its configured limit within the same bound. Very small images
+receive right/bottom padding before resizing. Detection boxes and recognition
+crops remain in original-image coordinates; padding is clipped rather than
+treated as an image scale. Frozen detector-map replay applies the same mapping.
+
 ```rust,no_run
 use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet};
 use simd_paddle_ocr_rs::image::{ImageView, PixelFormat};
