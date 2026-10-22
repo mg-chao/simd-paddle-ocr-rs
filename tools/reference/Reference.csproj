@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Sdcb.SimdPaddleOCR.GpuBench</AssemblyName>
+    <ReferenceRoot Condition="'$(ReferenceRoot)' == ''">../../../SimdPaddleOCR</ReferenceRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(ReferenceRoot)/src/Sdcb.SimdPaddleOCR/Sdcb.SimdPaddleOCR.csproj" />
+  </ItemGroup>
+</Project>

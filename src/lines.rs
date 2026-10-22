@@ -266,12 +266,22 @@ impl OrientedLineExtractor {
     pub fn detector(&self) -> &Detector {
         &self.detector
     }
-    pub(crate) fn classifier_model(&self) -> Option<&Arc<CompiledModel>> {
+    pub fn classifier(&self) -> Option<&Classifier> {
+        self.classifier.as_ref()
+    }
+    pub(crate) fn classifier_model(&self) -> Option<&CompiledModel> {
         self.classifier.as_ref().map(Classifier::compiled)
+    }
+    pub(crate) fn uses_gpu(&self) -> bool {
+        self.detector.compiled().is_gpu()
+            || self
+                .classifier
+                .as_ref()
+                .is_some_and(|c| c.compiled().is_gpu())
     }
     pub fn new(
         detector: Detector,
-        classifier: Option<Arc<CompiledModel>>,
+        classifier: Option<CompiledModel>,
         options: LineOptions,
     ) -> ImageResult<Self> {
         if !options.classifier_threshold.is_finite()
@@ -332,10 +342,10 @@ impl OrientedLineExtractor {
     ) -> ImageResult<()> {
         let budgets = options.resolve(
             cpu.capacity(),
-            matches!(
-                self.detector.compiled().options().layout,
-                crate::runtime::LayoutPolicy::Auto
-            ),
+            self.detector
+                .compiled()
+                .as_cpu()
+                .is_some_and(|c| c.options().layout == crate::runtime::LayoutPolicy::Auto),
         )?;
         self.detector
             .set_execution_context(cpu.clone(), budgets.detector_threads())?;
@@ -365,6 +375,14 @@ impl OrientedLineExtractor {
         profile: &mut crate::profile::StageProfile,
     ) -> ImageResult<OrientedLines<'_>> {
         let cpu = self.cpu.clone();
+        if self.uses_gpu() {
+            return self.extract_impl::<false, PROFILE, _, _>(
+                image,
+                &mut |_| Ok(()),
+                &mut |_| Ok(()),
+                profile,
+            );
+        }
         cpu.install(|| {
             self.extract_impl::<false, PROFILE, _, _>(
                 image,
@@ -403,7 +421,7 @@ impl OrientedLineExtractor {
         L: for<'a> FnMut(LineTrace<'a>) -> ImageResult<()>,
     {
         #[cfg(test)]
-        if !TRACE {
+        if !TRACE && !self.uses_gpu() {
             self.cpu.assert_production_thread("crop extraction");
         }
         let detection = if TRACE {
@@ -481,7 +499,12 @@ impl OrientedLineExtractor {
         if PROFILE {
             profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
         }
-        if !TRACE && self.cpu.capacity() > 1 && !self.metadata.is_empty() {
+        let gpu_classifier = self
+            .classifier
+            .as_ref()
+            .is_some_and(|c| c.compiled().is_gpu());
+        let crops_ready = !TRACE && self.cpu.capacity() > 1 && !self.metadata.is_empty();
+        if crops_ready {
             extract_parallel::<PROFILE>(
                 &self.cpu,
                 self.budgets,
@@ -489,26 +512,34 @@ impl OrientedLineExtractor {
                 &self.transforms,
                 &mut self.metadata,
                 &mut self.slab,
-                &self.classifier,
+                if gpu_classifier {
+                    &None
+                } else {
+                    &self.classifier
+                },
                 &mut self.classifier_workers,
                 self.options.classifier_threshold,
                 profile,
             )?;
-            return Ok(OrientedLines {
-                resized_width: detection.resized_width,
-                resized_height: detection.resized_height,
-                width_ratio: detection.width_ratio,
-                height_ratio: detection.height_ratio,
-                lines: &self.metadata,
-                pixels: &self.slab,
-            });
+            if !gpu_classifier {
+                return Ok(OrientedLines {
+                    resized_width: detection.resized_width,
+                    resized_height: detection.resized_height,
+                    width_ratio: detection.width_ratio,
+                    height_ratio: detection.height_ratio,
+                    lines: &self.metadata,
+                    pixels: &self.slab,
+                });
+            }
         }
         for (index, (metadata, transform)) in
             self.metadata.iter_mut().zip(&self.transforms).enumerate()
         {
             let crop_timer = crate::profile::Timer::<PROFILE>::start();
             let pixels = &mut self.slab[metadata.offset..metadata.offset + metadata.bytes];
-            transform.extract_into(image, pixels)?;
+            if !crops_ready {
+                self.cpu.install(|| transform.extract_into(image, pixels))?;
+            }
             let crop = ImageView::new(
                 pixels,
                 metadata.width,
@@ -553,7 +584,8 @@ impl OrientedLineExtractor {
                 metadata.classification = Some(result);
                 if should_rotate(result, self.options.classifier_threshold) {
                     let rotation_timer = crate::profile::Timer::<PROFILE>::start();
-                    crop::rotate180(pixels, metadata.width, metadata.height)?;
+                    self.cpu
+                        .install(|| crop::rotate180(pixels, metadata.width, metadata.height))?;
                     if PROFILE {
                         profile.cls_rotation_ns = profile
                             .cls_rotation_ns
@@ -616,6 +648,19 @@ impl OrientedLineExtractor {
                 .classifier_workers
                 .iter()
                 .map(Classifier::retained_activation_bytes)
+                .sum::<usize>()
+    }
+    /// Owned device buffers, excluding shared model resources.
+    pub(crate) fn retained_device_bytes(&self) -> usize {
+        self.detector.retained_device_bytes()
+            + self
+                .classifier
+                .as_ref()
+                .map_or(0, Classifier::retained_device_bytes)
+            + self
+                .classifier_workers
+                .iter()
+                .map(Classifier::retained_device_bytes)
                 .sum::<usize>()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
@@ -868,7 +913,7 @@ mod tests {
         let detector = template.extractor_mut().detector().fork().unwrap();
         let mut standalone = OrientedLineExtractor::new(
             detector,
-            Some(crate::ocr::tests::synthetic_classifier()),
+            Some(crate::ocr::tests::synthetic_classifier().into()),
             LineOptions::default(),
         )
         .unwrap();

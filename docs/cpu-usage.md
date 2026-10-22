@@ -335,14 +335,14 @@ reference, disable both import rewrites and execution optimizations:
 
 ```rust,no_run
 use simd_paddle_ocr_rs::model::{LoadOptions, Model, OptimizationPolicy};
-use simd_paddle_ocr_rs::runtime::{CompileOptions, CompiledModel};
+use simd_paddle_ocr_rs::runtime::{CompileOptions, CpuCompiledModel};
 use std::sync::Arc;
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 let model = Model::load_path_with_options("det.onnx", &LoadOptions {
     optimization: OptimizationPolicy::PreserveArithmetic,
     ..Default::default()
 })?;
-let compiled = CompiledModel::compile(Arc::new(model), CompileOptions::reference())?;
+let compiled = CpuCompiledModel::compile(Arc::new(model), CompileOptions::reference())?;
 # Ok(())
 # }
 ```

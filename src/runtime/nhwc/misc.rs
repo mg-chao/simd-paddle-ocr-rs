@@ -120,14 +120,14 @@ pub(super) fn execute_range(
         Backend::Portable4 | Backend::NeonFma => kernel::<4>(kind, input, shape, output, first),
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validated AVX for this backend.
+            // SAFETY: CpuCompiledModel validated AVX for this backend.
             unsafe {
                 avx(kind, input, shape, output, first);
             }
         }
         Backend::AvxFma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validated AVX and FMA.
+            // SAFETY: CpuCompiledModel validated AVX and FMA.
             unsafe {
                 avx_fma(kind, input, shape, output, first);
             }

@@ -8,7 +8,7 @@ use crate::{
     model::Model,
     ocr::{Ocr, OcrOptions},
     recognizer::{Dictionary, Recognizer, RecognizerOptions},
-    runtime::{CompileOptions, CompiledModel, ExecutionLimits},
+    runtime::{CompileOptions, CompiledModel, ExecutionConfig, ExecutionLimits, ExecutionTarget},
 };
 use std::{io::BufRead, path::Path, sync::Arc};
 
@@ -133,6 +133,12 @@ impl OcrModelSet {
 pub struct OcrBuilder {
     models: OcrModelSet,
     compile: CompileOptions,
+    target: ExecutionTarget,
+    stage_targets: [Option<ExecutionTarget>; 3],
+    #[cfg(feature = "gpu")]
+    gpu: Option<Arc<crate::runtime::gpu::GpuContext>>,
+    #[cfg(feature = "gpu")]
+    gpu_options: crate::runtime::gpu::GpuContextOptions,
     cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
     detector: DetectorOptions,
@@ -149,6 +155,12 @@ impl OcrBuilder {
         Self {
             models,
             compile: CompileOptions::default(),
+            target: ExecutionTarget::default(),
+            stage_targets: [None; 3],
+            #[cfg(feature = "gpu")]
+            gpu: None,
+            #[cfg(feature = "gpu")]
+            gpu_options: Default::default(),
             cpu: None,
             cpu_options: CpuOptions::default(),
             detector: DetectorOptions::default(),
@@ -163,6 +175,34 @@ impl OcrBuilder {
     }
     pub fn compile_options(mut self, options: CompileOptions) -> Self {
         self.compile = options;
+        self
+    }
+    /// Select inference placement explicitly. CPU options continue to configure
+    /// image processing when inference uses a GPU.
+    pub fn execution_target(mut self, target: ExecutionTarget) -> Self {
+        self.target = target;
+        self
+    }
+    pub fn detector_target(mut self, target: ExecutionTarget) -> Self {
+        self.stage_targets[0] = Some(target);
+        self
+    }
+    pub fn recognizer_target(mut self, target: ExecutionTarget) -> Self {
+        self.stage_targets[1] = Some(target);
+        self
+    }
+    pub fn classifier_target(mut self, target: ExecutionTarget) -> Self {
+        self.stage_targets[2] = Some(target);
+        self
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_context(mut self, context: Arc<crate::runtime::gpu::GpuContext>) -> Self {
+        self.gpu = Some(context);
+        self
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_options(mut self, options: crate::runtime::gpu::GpuContextOptions) -> Self {
+        self.gpu_options = options;
         self
     }
     pub fn cpu_context(mut self, cpu: Arc<CpuContext>) -> Self {
@@ -210,15 +250,32 @@ impl OcrBuilder {
             Some(cpu) => cpu,
             None => CpuContext::shared_default()?,
         };
-        let detection = Arc::new(CompiledModel::compile(self.models.detection, self.compile)?);
-        let recognition = Arc::new(CompiledModel::compile(
-            self.models.recognition,
-            self.compile,
-        )?);
+        #[cfg(feature = "gpu")]
+        let context = self.gpu.or_else(|| {
+            (0..3)
+                .any(|i| self.stage_targets[i].unwrap_or(self.target) != ExecutionTarget::Cpu)
+                .then(|| crate::runtime::gpu::GpuContext::new_with_options(self.gpu_options).ok())
+                .flatten()
+        });
+        let compile = |model, stage: usize| -> ImageResult<CompiledModel> {
+            Ok(CompiledModel::compile(
+                model,
+                self.compile,
+                ExecutionConfig {
+                    target: self.stage_targets[stage].unwrap_or(self.target),
+                    #[cfg(feature = "gpu")]
+                    gpu: context.clone(),
+                    #[cfg(feature = "gpu")]
+                    gpu_options: self.gpu_options,
+                },
+            )?)
+        };
+        let detection = compile(self.models.detection, 0)?;
+        let recognition = compile(self.models.recognition, 1)?;
         let classification = if self.classification {
             self.models
                 .classification
-                .map(|model| CompiledModel::compile(model, self.compile).map(Arc::new))
+                .map(|model| compile(model, 2))
                 .transpose()?
         } else {
             None

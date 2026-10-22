@@ -91,35 +91,35 @@ pub(super) fn execute(
         Backend::Portable4 => kernel::<4, 4, false>(p, input, bias, packed, output, first, store),
         Backend::NeonFma => {
             #[cfg(target_arch = "aarch64")]
-            // SAFETY: CompiledModel validates the selected NEON/FMA policy.
+            // SAFETY: CpuCompiledModel validates the selected NEON/FMA policy.
             unsafe {
                 neon(p, input, bias, packed, output, first, store);
             }
         }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validated the selected AVX backend.
+            // SAFETY: CpuCompiledModel validated the selected AVX backend.
             unsafe {
                 avx(p, input, bias, packed, output, first, store);
             }
         }
         Backend::AvxFma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validated AVX and FMA.
+            // SAFETY: CpuCompiledModel validated AVX and FMA.
             unsafe {
                 avx_fma(p, input, bias, packed, output, first, store);
             }
         }
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validated AVX2 and FMA.
+            // SAFETY: CpuCompiledModel validated AVX2 and FMA.
             unsafe {
                 avx2(p, input, bias, packed, output, first, store);
             }
         }
         Backend::Avx512 => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validated AVX-512F, AVX2 and FMA.
+            // SAFETY: CpuCompiledModel validated AVX-512F, AVX2 and FMA.
             unsafe {
                 avx512(p, input, bias, packed, output, first, store);
             }

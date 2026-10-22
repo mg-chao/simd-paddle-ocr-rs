@@ -136,9 +136,9 @@ fn compare(a: &[f32], b: &[f32]) {
         assert!((a - b).abs() <= 1e-4 + 1e-4 * a.abs(), "{i}: {a} != {b}");
     }
 }
-fn session(model: Arc<Model>, options: CompileOptions, shape: &[usize]) -> Session {
-    Session::new_serial(
-        Arc::new(CompiledModel::compile(model, options).unwrap()),
+fn session(model: Arc<Model>, options: CompileOptions, shape: &[usize]) -> CpuSession {
+    CpuSession::new_serial(
+        Arc::new(CpuCompiledModel::compile(model, options).unwrap()),
         shape,
         ExecutionLimits::default(),
     )
@@ -193,7 +193,7 @@ fn fusion_layout_prefix_and_trace_keep_normalized_identities() {
             for (last, event) in events.iter().enumerate() {
                 let compiled = optimized.compiled.clone();
                 let mut prefix =
-                    Session::new_prefix(compiled, &shape, ExecutionLimits::default(), last)
+                    CpuSession::new_prefix(compiled, &shape, ExecutionLimits::default(), last)
                         .unwrap();
                 let result = prefix.run(&input).unwrap();
                 compare(&event.3, result.data());
@@ -344,8 +344,8 @@ fn convolution_store_programs_preserve_order_tails_and_worker_bands() {
                 &shape,
             );
             let expected = unfused.run(&input).unwrap().data().to_vec();
-            let mut fused = Session::new(
-                Arc::new(CompiledModel::compile(model.clone(), options).unwrap()),
+            let mut fused = CpuSession::new(
+                Arc::new(CpuCompiledModel::compile(model.clone(), options).unwrap()),
                 cpu.clone(),
                 &shape,
                 ExecutionOptions {
@@ -567,8 +567,8 @@ fn channel_pool_and_resize_row_shards_match_one_thread() {
         let expected = request.run(&input).unwrap().data().to_vec();
         if cfg!(feature = "parallel") {
             let cpu = Arc::new(CpuContext::new(4).unwrap());
-            let mut parallel = Session::new(
-                Arc::new(CompiledModel::new(model).unwrap()),
+            let mut parallel = CpuSession::new(
+                Arc::new(CpuCompiledModel::new(model).unwrap()),
                 cpu,
                 &shape,
                 ExecutionOptions {
@@ -755,7 +755,7 @@ fn transpose_panels_are_shared_across_nodes_sessions_and_reshape() {
         &[-1, 17, -1, -1],
     );
     let compiled = Arc::new(
-        CompiledModel::compile(
+        CpuCompiledModel::compile(
             model.clone(),
             CompileOptions {
                 kernels: KernelPolicy::Portable4,
@@ -771,9 +771,11 @@ fn transpose_panels_are_shared_across_nodes_sessions_and_reshape() {
     assert_eq!(compiled.packed_weight_bytes(), 4 * 5 * 32 * 4);
     let panels = compiled.transpose_packed[&0].clone();
     let mut first =
-        Session::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default()).unwrap();
+        CpuSession::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default())
+            .unwrap();
     let mut second =
-        Session::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default()).unwrap();
+        CpuSession::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default())
+            .unwrap();
     for width in [5, 7, 5] {
         let shape = [2, 5, 3, width];
         let input = (0..shape.iter().product())
@@ -917,7 +919,7 @@ fn initialized_arena_keeps_dirty_high_water_through_alternating_shapes() {
 fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() {
     let model = conv_model(true);
     let compiled = Arc::new(
-        CompiledModel::compile(
+        CpuCompiledModel::compile(
             model,
             CompileOptions {
                 kernels: KernelPolicy::Portable4,
@@ -927,10 +929,11 @@ fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() 
         .unwrap(),
     );
     let wide = [1, 3, 8, 64];
-    let probe = Session::new_serial(compiled.clone(), &wide, ExecutionLimits::default()).unwrap();
+    let probe =
+        CpuSession::new_serial(compiled.clone(), &wide, ExecutionLimits::default()).unwrap();
     let limit = probe.retained_activation_bytes();
     drop(probe);
-    let mut optimized = Session::new_serial(
+    let mut optimized = CpuSession::new_serial(
         compiled,
         &wide,
         ExecutionLimits {
@@ -1312,8 +1315,8 @@ fn activation_limit_is_checked_against_allocated_physical_storage() {
     let bytes = unlimited.activation_bytes();
     let reference = session(model.clone(), CompileOptions::reference(), &shape);
     assert!(bytes < reference.activation_bytes());
-    let compiled = Arc::new(CompiledModel::compile(model, CompileOptions::default()).unwrap());
-    let mut limited = Session::new_serial(
+    let compiled = Arc::new(CpuCompiledModel::compile(model, CompileOptions::default()).unwrap());
+    let mut limited = CpuSession::new_serial(
         compiled,
         &shape,
         ExecutionLimits {

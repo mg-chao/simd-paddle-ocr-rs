@@ -168,7 +168,7 @@ fn data_slice_rejects_attribute_form_parameters() {
 
 #[test]
 fn shape_slice_attributes_survive_normalization_and_dynamic_rebinding() {
-    use crate::runtime::{CompiledModel, ExecutionLimits, Session};
+    use crate::runtime::{CpuCompiledModel, ExecutionLimits, Session};
     use std::sync::Arc;
 
     let mut shape = node("Shape", &[]);
@@ -189,7 +189,7 @@ fn shape_slice_attributes_survive_normalization_and_dynamic_rebinding() {
     let model = Arc::new(normalize_nodes(vec![shape, slice, reshape]).unwrap());
     assert_eq!(model.graph().nodes.len(), 1);
     assert_eq!(model.shape_recipes().len(), 1);
-    let compiled = Arc::new(CompiledModel::new(model).unwrap());
+    let compiled = Arc::new(CpuCompiledModel::new(model).unwrap());
     let mut session = Session::new_serial(compiled, &[2, 3], ExecutionLimits::default()).unwrap();
     for width in [3, 5, 3] {
         session.reshape(&[2, width]).unwrap();

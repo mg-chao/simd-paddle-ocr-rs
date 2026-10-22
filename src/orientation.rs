@@ -113,7 +113,7 @@ fn public_head(
 }
 
 pub struct Classifier {
-    compiled: Arc<CompiledModel>,
+    compiled: CompiledModel,
     session: Session,
     diagnostic: Option<Session>,
     head: ProjectionHead,
@@ -121,17 +121,21 @@ pub struct Classifier {
     options: ClassifierOptions,
 }
 impl Classifier {
-    pub fn compiled(&self) -> &Arc<CompiledModel> {
+    pub fn compiled(&self) -> &CompiledModel {
         &self.compiled
     }
-    pub fn new(compiled: Arc<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
+    pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        self.session.statistics()
+    }
+    pub fn new(compiled: impl Into<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
         Self::new_with_options(compiled, ClassifierOptions::default(), limits)
     }
     pub fn new_with_options(
-        compiled: Arc<CompiledModel>,
+        compiled: impl Into<CompiledModel>,
         options: ClassifierOptions,
         limits: ExecutionLimits,
     ) -> ImageResult<Self> {
+        let compiled = compiled.into();
         if options.max_image_pixels == 0 {
             return Err(ImageError::new(
                 "classifier max_image_pixels must be positive",
@@ -194,6 +198,9 @@ impl Classifier {
         profile: &mut StageProfile,
     ) -> ImageResult<ClassificationResult> {
         let cpu = self.session.cpu_context().clone();
+        if self.compiled.is_gpu() {
+            return self.classify_impl::<PROFILE>(image, profile);
+        }
         cpu.install(|| self.classify_impl::<PROFILE>(image, profile))
     }
     fn classify_impl<const PROFILE: bool>(
@@ -203,18 +210,22 @@ impl Classifier {
     ) -> ImageResult<ClassificationResult> {
         self.check_image(image)?;
         #[cfg(test)]
-        self.session.cpu_context().assert_production_thread("CLS");
+        if !self.compiled.is_gpu() {
+            self.session.cpu_context().assert_production_thread("CLS");
+        }
         let mut width = 0;
         let resize = &mut self.resize;
         let backbone_timer = Timer::<PROFILE>::start();
         let mut preprocessing_ns = 0;
-        let feature = self.session.run_with_layout_input(|input, nhwc| {
-            let timer = Timer::<PROFILE>::start();
-            width = preprocess::cls_with_layout(image, input, resize, nhwc)
-                .map_err(RuntimeError::from)?;
-            preprocessing_ns = timer.elapsed();
-            Ok(())
-        })?;
+        let feature =
+            self.session
+                .run_with_layout_input_profiled::<PROFILE, _>(|input, nhwc| {
+                    let timer = Timer::<PROFILE>::start();
+                    width = preprocess::cls_with_layout(image, input, resize, nhwc)
+                        .map_err(RuntimeError::from)?;
+                    preprocessing_ns = timer.elapsed();
+                    Ok(())
+                })?;
         if PROFILE {
             profile.cls_preprocess_ns = profile.cls_preprocess_ns.saturating_add(preprocessing_ns);
             profile.cls_backbone_ns = profile
@@ -225,6 +236,7 @@ impl Classifier {
         let result = self
             .head
             .evaluate(self.compiled.model().graph(), feature.data(), width);
+        self.session.accumulate_gpu_profile::<PROFILE>(profile);
         if PROFILE {
             profile.cls_head_ns = profile.cls_head_ns.saturating_add(head_timer.elapsed());
         }
@@ -298,6 +310,13 @@ impl Classifier {
             ));
         }
         Ok(())
+    }
+    pub fn retained_device_bytes(&self) -> usize {
+        self.session.retained_device_bytes()
+            + self
+                .diagnostic
+                .as_ref()
+                .map_or(0, Session::retained_device_bytes)
     }
     pub(crate) fn retained_activation_bytes(&self) -> usize {
         self.session.retained_activation_bytes()

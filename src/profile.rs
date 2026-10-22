@@ -38,6 +38,17 @@ pub struct StageProfile {
     /// CLS uses a fixed shape created with its request; that initial binding is
     /// part of request compilation, not per-image reshape work.
     pub reshape_ns: u64,
+    /// Calling-thread wall time waiting for GPU context admission. These GPU
+    /// counters cover production runs only, are nested in stage inference wall
+    /// times, and do not measure device kernel execution time.
+    pub gpu_admission_wait_ns: u64,
+    /// Host upload, command encoding, queue submission and mapping registration.
+    pub gpu_submission_ns: u64,
+    /// Host wait for submitted work and its readback mapping callback.
+    pub gpu_completion_wait_ns: u64,
+    /// Mapped-buffer access, host decoding/validation and unmapping.
+    pub gpu_readback_ns: u64,
+    pub gpu_compute_ns: Option<u64>,
     pub det_preprocess_ns: u64,
     pub det_inference_ns: u64,
     pub det_postprocess_ns: u64,
@@ -51,15 +62,18 @@ pub struct StageProfile {
     /// counters, not additional wall phases.
     pub cls_orientation_ns: u64,
     pub cls_preprocess_ns: u64,
-    /// Production feature-prefix execution, excluding its input preprocessing.
+    /// Production feature-prefix execution, excluding input preprocessing.
+    /// GPU execution includes upload and synchronous feature readback.
     pub cls_backbone_ns: u64,
-    /// Compact two-class projection and public probability/label calculation.
+    /// CPU compact two-class projection and public probability/label calculation.
     pub cls_head_ns: u64,
     /// Only applied 180-degree pixel rotations; geometric crop rotation belongs
     /// to crop_ns instead.
     pub cls_rotation_ns: u64,
     pub rec_preprocess_ns: u64,
+    /// GPU execution includes upload and synchronous feature readback.
     pub rec_backbone_ns: u64,
+    /// Compact CPU projection and row argmax work on either execution target.
     pub projection_ns: u64,
     pub ctc_ns: u64,
     pub result_storage_ns: u64,
@@ -81,6 +95,10 @@ impl StageProfile {
             total_ns,
             binding_ns,
             reshape_ns,
+            gpu_admission_wait_ns,
+            gpu_submission_ns,
+            gpu_completion_wait_ns,
+            gpu_readback_ns,
             det_preprocess_ns,
             det_inference_ns,
             det_postprocess_ns,
@@ -100,6 +118,9 @@ impl StageProfile {
             result_storage_ns,
             recognized_lines
         );
+        if let Some(ns) = other.gpu_compute_ns {
+            self.gpu_compute_ns = Some(self.gpu_compute_ns.unwrap_or(0).saturating_add(ns));
+        }
         #[cfg(feature = "profiling")]
         if other.recognition_owner_count != 0 {
             self.recognition_owner_count = other.recognition_owner_count;

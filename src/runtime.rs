@@ -1,9 +1,17 @@
-//! Scalar and dispatched SIMD CPU execution of the shipped CLS, DET and REC networks.
+//! Shared logical graphs with independent SIMD CPU and native GPU execution.
 //!
-//! Models and compiled instructions are immutable and shareable. Each session
-//! binds concrete shapes and owns reusable activation buffers. This deliberately
-//! does not claim general ONNX execution support.
+//! Models, graph lowering and shape binding are shared across execution backends.
+//! Compiled instructions are immutable and shareable. Each session binds concrete
+//! shapes and owns reusable activation buffers. The optional `gpu` module uses
+//! wgpu for tensor and OCR inference. This deliberately does not claim
+//! general ONNX execution support.
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
+pub(crate) mod stage;
+pub use stage::Session;
+pub use stage::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget};
+mod graph_patterns;
 mod kernels;
 mod nchw;
 mod nhwc;
@@ -52,7 +60,7 @@ impl CompileOptions {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ExecutionOptions {
-    /// Total retained F32 activation capacity for this Session, including lazy
+    /// Total retained F32 activation capacity for this CpuSession, including lazy
     /// diagnostic execution. Shared weights, plans and scratch are separate.
     pub max_activation_bytes: usize,
     /// Requested budget, validated against the context capacity before capping at 16.
@@ -69,6 +77,13 @@ impl Default for ExecutionOptions {
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct ExecutionStatistics {
+    pub execution_backend: Option<ExecutionBackend>,
+    pub fallback_reason: Option<String>,
+    pub effective_precision: String,
+    pub adapter: Option<String>,
+    pub production_submissions: u64,
+    pub production_readbacks: u64,
+    pub diagnostic_readbacks: u64,
     pub selected_kernels: Vec<KernelSelection>,
     /// Shape-selected physical families, separate from logical operator counts.
     pub specialized_kernels: Vec<KernelSpecialization>,
@@ -171,8 +186,10 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ExecutionLimits {
-    /// Bound on total active/retained F32 activation capacity for one Session,
-    /// including its diagnostic/prefix children; weights, plans and scratch are separate.
+    /// Bound on total active/retained F32 activation capacity for one CpuSession,
+    /// including its diagnostic/prefix children. For a GPU session, this bounds
+    /// device activations, device readback staging and host output capacity combined.
+    /// Weights, plans and scratch are separate for both execution backends.
     /// Transactional rebinding can temporarily hold old and new allocations.
     pub max_activation_bytes: usize,
 }
@@ -319,8 +336,8 @@ impl GraphUses {
     }
 }
 
-/// Immutable instructions over one owned model; constants are never copied.
-pub struct CompiledModel {
+/// Backend-independent validation, dataflow and shape instructions.
+pub struct LogicalGraph {
     model: Arc<Model>,
     instructions: Vec<Instruction>,
     shape_program: ShapeProgram,
@@ -328,22 +345,20 @@ pub struct CompiledModel {
     graph_uses: GraphUses,
     input: TensorId,
     output: TensorId,
-    options: CompileOptions,
-    backend: Backend,
-    packed: HashMap<TensorId, Arc<PackedMatrix>>,
-    conv_packed: HashMap<usize, Arc<PackedMatrix>>,
-    transpose_packed: HashMap<usize, Arc<[PackedMatrix; 4]>>,
 }
-impl CompiledModel {
-    pub fn new(model: Arc<Model>) -> RuntimeResult<Self> {
-        Self::compile(model, CompileOptions::default())
+type Program = LogicalGraph;
+impl LogicalGraph {
+    pub fn model(&self) -> &Model {
+        &self.model
     }
-    pub fn compile(model: Arc<Model>, options: CompileOptions) -> RuntimeResult<Self> {
-        let backend = simd::select_backend(options.kernels).map_err(RuntimeError::new)?;
+    pub fn node_count(&self) -> usize {
+        self.instructions.len()
+    }
+    pub fn compile(model: Arc<Model>) -> RuntimeResult<Self> {
         let graph = model.graph();
         if graph.inputs.len() != 1 || graph.outputs.len() != 1 {
             return Err(RuntimeError::new(
-                "CPU runtime requires one graph input and output",
+                "runtime requires one graph input and output",
             ));
         }
         let input = graph.inputs[0];
@@ -354,7 +369,7 @@ impl CompiledModel {
         }
         if graph.tensors[input.0].constant.is_some() || graph.tensors[output.0].constant.is_some() {
             return Err(RuntimeError::new(
-                "constant graph inputs/outputs are unsupported by CPU runtime",
+                "constant graph inputs/outputs are unsupported by runtime",
             ));
         }
         for tensor in &graph.tensors {
@@ -399,7 +414,7 @@ impl CompiledModel {
         last_use[output.0] = graph.nodes.len() as isize;
         let shape_program = ShapeProgram::compile(&model)?;
         let graph_uses = GraphUses::new(&instructions, graph.tensors.len());
-        let mut compiled = Self {
+        Ok(Self {
             model,
             instructions,
             shape_program,
@@ -407,6 +422,30 @@ impl CompiledModel {
             graph_uses,
             input,
             output,
+        })
+    }
+}
+
+/// Immutable CPU instructions over one owned model; constants are never copied.
+pub struct CpuCompiledModel {
+    program: Arc<LogicalGraph>,
+    options: CompileOptions,
+    backend: Backend,
+    packed: HashMap<TensorId, Arc<PackedMatrix>>,
+    conv_packed: HashMap<usize, Arc<PackedMatrix>>,
+    transpose_packed: HashMap<usize, Arc<[PackedMatrix; 4]>>,
+}
+impl CpuCompiledModel {
+    pub fn new(model: Arc<Model>) -> RuntimeResult<Self> {
+        Self::compile(model, CompileOptions::default())
+    }
+    pub fn compile(model: Arc<Model>, options: CompileOptions) -> RuntimeResult<Self> {
+        Self::from_graph(Arc::new(LogicalGraph::compile(model)?), options)
+    }
+    pub fn from_graph(program: Arc<LogicalGraph>, options: CompileOptions) -> RuntimeResult<Self> {
+        let backend = simd::select_backend(options.kernels).map_err(RuntimeError::new)?;
+        let mut compiled = Self {
+            program,
             options,
             backend,
             packed: HashMap::new(),
@@ -446,7 +485,7 @@ impl CompiledModel {
     /// Resolve the format prepared for the physical instruction. Convolution
     /// panels have a different source order from row-major MatMul panels.
     pub(crate) fn instruction_packed(&self, index: usize) -> Option<&PackedMatrix> {
-        let instruction = &self.instructions[index];
+        let instruction = &self.program.instructions[index];
         match instruction.kind {
             Op::Conv(_) => self.conv_packed.get(&index).map(Arc::as_ref),
             Op::MatMul => instruction
@@ -460,11 +499,12 @@ impl CompiledModel {
         if self.backend == Backend::Scalar {
             return Ok(());
         }
-        for (index, instruction) in self.instructions.iter().enumerate() {
+        for (index, instruction) in self.program.instructions.iter().enumerate() {
             let Some(&id) = instruction.inputs.get(1) else {
                 continue;
             };
-            let Some(TensorData::F32(weight)) = &self.model.graph().tensors[id.0].constant else {
+            let Some(TensorData::F32(weight)) = &self.program.model.graph().tensors[id.0].constant
+            else {
                 continue;
             };
             let weight_shape = weight.shape();
@@ -473,7 +513,7 @@ impl CompiledModel {
                 Op::MatMul if dims.len() == 2 => {
                     if let std::collections::hash_map::Entry::Vacant(entry) = self.packed.entry(id)
                     {
-                        entry.insert(self.model.packed_weights.matrix(
+                        entry.insert(self.program.model.packed_weights.matrix(
                             id,
                             packing::MatrixPacking::RowMajor,
                             || {
@@ -491,7 +531,7 @@ impl CompiledModel {
                         && (self.options.layout == LayoutPolicy::Auto
                             || nchw::pack_eligible(attr, dims)) =>
                 {
-                    let pack = self.model.packed_weights.matrix::<RuntimeError>(
+                    let pack = self.program.model.packed_weights.matrix::<RuntimeError>(
                         id,
                         packing::MatrixPacking::ConvOutputMajor,
                         || {
@@ -525,6 +565,7 @@ impl CompiledModel {
                         PackedMatrix::new(&matrix, inner, columns).map_err(RuntimeError::new)
                     };
                     let pack = self
+                        .program
                         .model
                         .packed_weights
                         .transpose::<RuntimeError>(id, || {
@@ -538,10 +579,10 @@ impl CompiledModel {
         Ok(())
     }
     pub fn model(&self) -> &Model {
-        &self.model
+        &self.program.model
     }
     pub fn node_count(&self) -> usize {
-        self.instructions.len()
+        self.program.instructions.len()
     }
     /// Bind metadata without reserving activation storage or executing kernels.
     #[cfg(test)]
@@ -925,11 +966,11 @@ struct BindScratch {
     ends: Vec<isize>,
 }
 impl BindScratch {
-    fn new(compiled: &CompiledModel) -> Self {
-        let count = compiled.model.graph().tensors.len();
+    fn new(program: &Program) -> Self {
+        let count = program.model.graph().tensors.len();
         Self {
             resolved: vec![None; count],
-            shape_cache: compiled.shape_program.cache(),
+            shape_cache: program.shape_program.cache(),
             starts: vec![-2; count],
             last_use: vec![-1; count],
             lifetimes: Vec::with_capacity(count),
@@ -940,8 +981,8 @@ impl BindScratch {
 
 /// One mutable request. Borrowed output remains valid until the next mutable
 /// operation; Rust prevents running or reshaping while that borrow is held.
-pub struct Session {
-    compiled: Arc<CompiledModel>,
+pub struct CpuSession {
+    compiled: Arc<CpuCompiledModel>,
     limits: ExecutionLimits,
     plan: ShapePlan,
     staging: ShapePlan,
@@ -953,16 +994,16 @@ pub struct Session {
     cpu: Arc<CpuContext>,
     threads: usize,
     optimized: Option<optimized::State>,
-    diagnostic: Option<Box<Session>>,
-    prefix: Option<Box<Session>>,
+    diagnostic: Option<Box<CpuSession>>,
+    prefix: Option<Box<CpuSession>>,
     cache: VecDeque<ShapePlan>,
     cache_metadata: bool,
     cache_hits: u64,
     cache_misses: u64,
 }
-impl fmt::Debug for Session {
+impl fmt::Debug for CpuSession {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Session")
+        f.debug_struct("CpuSession")
             .field("input_shape", &self.input_shape())
             .field("output_shape", &self.output_shape())
             .field("activation_bytes", &self.activation_bytes())
@@ -973,9 +1014,9 @@ impl fmt::Debug for Session {
             .finish_non_exhaustive()
     }
 }
-impl Session {
+impl CpuSession {
     pub fn new(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         cpu: Arc<CpuContext>,
         input_shape: &[usize],
         options: ExecutionOptions,
@@ -985,8 +1026,8 @@ impl Session {
                 "intra-op threads must be within CPU context capacity",
             ));
         }
-        let node_count = compiled.instructions.len();
-        let output = compiled.output;
+        let node_count = compiled.program.instructions.len();
+        let output = compiled.program.output;
         let mut session = Self::new_selected(
             compiled,
             input_shape,
@@ -1001,7 +1042,7 @@ impl Session {
         Ok(session)
     }
     pub fn new_serial(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
     ) -> RuntimeResult<Self> {
@@ -1050,16 +1091,18 @@ impl Session {
                 state.statistics(&self.compiled, self.threads)
             });
         stats.normalized_nodes = self.node_count;
+        stats.execution_backend = Some(ExecutionBackend::Cpu(self.compiled.backend));
+        stats.effective_precision = "F32".into();
         stats.original_weight_bytes = self.compiled.model().normalized_weight_bytes();
         if self.optimized.is_none() {
             stats.physical_steps = self.node_count;
             stats.selected_kernels = kernel_selections(
-                self.compiled.instructions[..self.node_count]
+                self.compiled.program.instructions[..self.node_count]
                     .iter()
                     .enumerate()
                     .map(|(i, _)| {
                         (
-                            self.compiled.model.graph().nodes[i].op_type(),
+                            self.compiled.program.model.graph().nodes[i].op_type(),
                             "canonical",
                             optimized::native_consumes_packed(
                                 &self.plan.steps[i].kind,
@@ -1081,7 +1124,7 @@ impl Session {
                             false,
                         );
                         (
-                            self.compiled.model.graph().nodes[index].op_type(),
+                            self.compiled.program.model.graph().nodes[index].op_type(),
                             family,
                             isa,
                             false,
@@ -1090,7 +1133,7 @@ impl Session {
                 ));
         }
         stats.packed_weight_bytes = self.compiled.packed_weight_bytes();
-        stats.shared_cached_weight_bytes = self.compiled.model.cached_packed_weight_bytes();
+        stats.shared_cached_weight_bytes = self.compiled.program.model.cached_packed_weight_bytes();
         stats.activation_bytes = self.activation_bytes();
         stats.retained_activation_bytes = self.retained_activation_bytes();
         stats.plan_cache_hits = self.cache_hits;
@@ -1102,12 +1145,13 @@ impl Session {
     /// Construct an inclusive prefix with no storage for the unexecuted suffix.
     /// Rebinding preserves this endpoint and the borrowed output is its feature.
     pub(crate) fn new_prefix(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
         inclusive_last_node: usize,
     ) -> RuntimeResult<Self> {
         let output = compiled
+            .program
             .instructions
             .get(inclusive_last_node)
             .ok_or_else(|| RuntimeError::new("prefix node index is outside the compiled graph"))?
@@ -1121,7 +1165,7 @@ impl Session {
         )
     }
     fn new_selected(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
         node_count: usize,
@@ -1137,31 +1181,31 @@ impl Session {
         )
     }
     pub(crate) fn new_diagnostic(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
     ) -> RuntimeResult<Self> {
-        let count = compiled.instructions.len();
-        let output = compiled.output;
+        let count = compiled.program.instructions.len();
+        let output = compiled.program.output;
         Self::new_selected_mode(compiled, input_shape, limits, count, output, true)
     }
     fn new_selected_mode(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
         node_count: usize,
         selected_output: TensorId,
         diagnostic: bool,
     ) -> RuntimeResult<Self> {
-        let tensors = compiled.model.graph().tensors.len();
+        let tensors = compiled.program.model.graph().tensors.len();
         let physical = !diagnostic
             && (compiled.options.layout == LayoutPolicy::Auto || compiled.options.fusion);
         let cache_metadata = diagnostic || physical || compiled.backend != Backend::Scalar;
         let mut plan = ShapePlan::empty(tensors, node_count);
         let staging = ShapePlan::empty(tensors, node_count);
-        let mut scratch = BindScratch::new(&compiled);
+        let mut scratch = BindScratch::new(&compiled.program);
         bind_into(
-            &compiled,
+            &compiled.program,
             input_shape,
             if physical {
                 ExecutionLimits {
@@ -1250,10 +1294,13 @@ impl Session {
                 let mut next = if self.cache.len() >= 8 {
                     self.cache.pop_back().unwrap()
                 } else {
-                    ShapePlan::empty(self.compiled.model.graph().tensors.len(), self.node_count)
+                    ShapePlan::empty(
+                        self.compiled.program.model.graph().tensors.len(),
+                        self.node_count,
+                    )
                 };
                 bind_into(
-                    &self.compiled,
+                    &self.compiled.program,
                     input_shape,
                     if self.optimized.is_some() {
                         ExecutionLimits {
@@ -1291,7 +1338,7 @@ impl Session {
             return Ok(());
         }
         bind_into(
-            &self.compiled,
+            &self.compiled.program,
             input_shape,
             limits,
             self.node_count,
@@ -1351,7 +1398,7 @@ impl Session {
         }
         result
     }
-    /// Total F32 capacity retained by this Session and its cached diagnostic or
+    /// Total F32 capacity retained by this CpuSession and its cached diagnostic or
     /// prefix execution. Smaller bindings can retain larger slots, within the
     /// configured aggregate activation limit.
     pub fn retained_activation_bytes(&self) -> usize {
@@ -1572,7 +1619,7 @@ impl Session {
     where
         F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
     {
-        let slot = self.plan.slots[self.compiled.input.0];
+        let slot = self.plan.slots[self.compiled.program.input.0];
         let input = &mut self.buffers[slot][..self.plan.input_shape.element_count()];
         fill(input)?;
         if let Some(index) = input.iter().position(|value| !value.is_finite()) {
@@ -1585,8 +1632,14 @@ impl Session {
     fn output_for(&self, id: TensorId) -> RuntimeResult<TensorView<'_, f32>> {
         TensorView::from_slice(self.plan.shapes[id.0], self.data(id)).map_err(Into::into)
     }
+    fn output_view(&self) -> RuntimeResult<TensorView<'_, f32>> {
+        match &self.optimized {
+            Some(state) => state.output(),
+            None => self.output_for(self.selected_output),
+        }
+    }
     fn data(&self, id: TensorId) -> &[f32] {
-        match &self.compiled.model.graph().tensors[id.0].constant {
+        match &self.compiled.program.model.graph().tensors[id.0].constant {
             Some(TensorData::F32(values)) => values.data(),
             _ => &self.buffers[self.plan.slots[id.0]][..self.plan.shapes[id.0].element_count()],
         }
@@ -1610,7 +1663,7 @@ impl Session {
             self.cpu.install(|| {
                 kernels::execute_optimized(
                     &step.kind,
-                    &self.compiled.instructions[index].inputs,
+                    &self.compiled.program.instructions[index].inputs,
                     |id| self.data(id),
                     &mut output[..count],
                     self.compiled.backend,
@@ -1627,7 +1680,7 @@ impl Session {
                     .as_nanos()
                     .try_into()
                     .unwrap_or(u64::MAX);
-                let node = &self.compiled.model.graph().nodes[index];
+                let node = &self.compiled.program.model.graph().nodes[index];
                 let shape = self.plan.shapes[step.output.0];
                 observer(NodeTrace {
                     index,
@@ -1806,21 +1859,21 @@ fn rebind_buffers(
 
 #[cfg(test)]
 fn bind(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     dimensions: &[usize],
     limits: ExecutionLimits,
 ) -> RuntimeResult<ShapePlan> {
     let mut plan = ShapePlan::empty(
-        compiled.model.graph().tensors.len(),
-        compiled.instructions.len(),
+        compiled.program.model.graph().tensors.len(),
+        compiled.program.instructions.len(),
     );
-    let mut scratch = BindScratch::new(compiled);
+    let mut scratch = BindScratch::new(&compiled.program);
     bind_into(
-        compiled,
+        &compiled.program,
         dimensions,
         limits,
-        compiled.instructions.len(),
-        compiled.output,
+        compiled.program.instructions.len(),
+        compiled.program.output,
         &mut plan,
         &mut scratch,
     )?;
@@ -1828,7 +1881,7 @@ fn bind(
 }
 #[allow(clippy::too_many_arguments)]
 fn bind_into(
-    compiled: &CompiledModel,
+    program: &Program,
     dimensions: &[usize],
     limits: ExecutionLimits,
     node_count: usize,
@@ -1841,8 +1894,8 @@ fn bind_into(
     }
     let input_shape = Shape::new(dimensions)?;
     positive_shape(input_shape)?;
-    let graph = compiled.model.graph();
-    if let ShapeSpec::Ranked(template) = &graph.tensors[compiled.input.0].shape {
+    let graph = program.model.graph();
+    if let ShapeSpec::Ranked(template) = &graph.tensors[program.input.0].shape {
         if template.len() != dimensions.len() {
             return Err(RuntimeError::new("input rank does not match model"));
         }
@@ -1860,9 +1913,9 @@ fn bind_into(
             resolved[id] = Some(data.shape());
         }
     }
-    resolved[compiled.input.0] = Some(input_shape);
+    resolved[program.input.0] = Some(input_shape);
     plan.steps.clear();
-    for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
+    for (index, instruction) in program.instructions[..node_count].iter().enumerate() {
         let node = &graph.nodes[index];
         let a = resolved[instruction.inputs[0].0]
             .ok_or_else(|| node_error(index, node, "unresolved input shape"))?;
@@ -1930,7 +1983,7 @@ fn bind_into(
                     let values = if let Some(values) = target {
                         values.as_slice()
                     } else {
-                        evaluated = compiled.shape_program.evaluate(
+                        evaluated = program.shape_program.evaluate(
                             index,
                             resolved,
                             &mut scratch.shape_cache,
@@ -1966,7 +2019,7 @@ fn bind_into(
             kind: result.1,
         });
     }
-    if node_count == compiled.instructions.len()
+    if node_count == program.instructions.len()
         && let Some(index) = resolved.iter().position(Option::is_none)
     {
         return Err(RuntimeError::new(format!(
@@ -1979,7 +2032,7 @@ fn bind_into(
         }
     }
     plan.input_shape = input_shape;
-    plan_slots_into(compiled, node_count, selected_output, plan, scratch, limits)
+    plan_slots_into(program, node_count, selected_output, plan, scratch, limits)
 }
 fn positive_shape(shape: Shape) -> RuntimeResult<()> {
     if shape
@@ -1995,27 +2048,27 @@ fn positive_shape(shape: Shape) -> RuntimeResult<()> {
     Ok(())
 }
 fn plan_slots_into(
-    compiled: &CompiledModel,
+    program: &Program,
     node_count: usize,
     selected_output: TensorId,
     plan: &mut ShapePlan,
     scratch: &mut BindScratch,
     limits: ExecutionLimits,
 ) -> RuntimeResult<()> {
-    let graph = compiled.model.graph();
+    let graph = program.model.graph();
     scratch.starts.fill(-2);
-    scratch.starts[compiled.input.0] = -1;
-    scratch.last_use.copy_from_slice(&compiled.last_use);
-    if node_count != compiled.instructions.len() {
+    scratch.starts[program.input.0] = -1;
+    scratch.last_use.copy_from_slice(&program.last_use);
+    if node_count != program.instructions.len() {
         scratch.last_use.fill(-1);
-        for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
+        for (index, instruction) in program.instructions[..node_count].iter().enumerate() {
             for id in &instruction.inputs {
                 scratch.last_use[id.0] = index as isize;
             }
         }
     }
     scratch.last_use[selected_output.0] = node_count as isize;
-    for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
+    for (index, instruction) in program.instructions[..node_count].iter().enumerate() {
         scratch.starts[instruction.output.0] = index as isize;
     }
     scratch.lifetimes.clear();
@@ -2148,7 +2201,7 @@ mod tests {
         ]
         .concat()
     }
-    fn wide_head() -> Arc<CompiledModel> {
+    fn wide_head_model() -> Arc<Model> {
         let weights = bytes(
             5,
             &[
@@ -2170,27 +2223,70 @@ mod tests {
         ]
         .concat();
         let source = [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat();
-        Arc::new(
-            CompiledModel::compile(
-                Arc::new(Model::load_bytes(&source).unwrap()),
-                CompileOptions::reference(),
-            )
-            .unwrap(),
-        )
+        Arc::new(Model::load_bytes(&source).unwrap())
     }
-    fn physical_wide_head() -> Arc<CompiledModel> {
-        Arc::new(CompiledModel::new(wide_head().model.clone()).unwrap())
+    fn wide_head() -> Arc<CpuCompiledModel> {
+        Arc::new(CpuCompiledModel::compile(wide_head_model(), CompileOptions::reference()).unwrap())
+    }
+    fn physical_wide_head() -> Arc<CpuCompiledModel> {
+        Arc::new(CpuCompiledModel::new(wide_head().program.model.clone()).unwrap())
+    }
+
+    #[test]
+    #[cfg(not(feature = "gpu"))]
+    fn placement_without_gpu_feature_is_explicit() {
+        let compile = |target| {
+            CompiledModel::compile(
+                wide_head_model(),
+                CompileOptions::default(),
+                ExecutionConfig { target },
+            )
+        };
+        let strict = compile(ExecutionTarget::Gpu).err().unwrap();
+        assert_eq!(strict.kind(), crate::error::ErrorKind::Unsupported);
+        let auto = compile(ExecutionTarget::Auto).unwrap();
+        assert!(matches!(auto.execution_backend(), ExecutionBackend::Cpu(_)));
+        assert!(
+            auto.fallback_reason()
+                .unwrap()
+                .contains("gpu Cargo feature")
+        );
+        let mut session = Session::new_serial(auto, &[1, 2], ExecutionLimits::default()).unwrap();
+        assert_eq!(session.run(&[1., 2.]).unwrap().data().len(), 1024);
+        assert!(session.statistics().fallback_reason.is_some());
+    }
+
+    #[test]
+    fn shared_program_binds_dynamic_shapes_without_cpu_weight_packing() {
+        let model = wide_head_model();
+        let program = Program::compile(model.clone()).unwrap();
+        let count = program.instructions.len();
+        let mut plan = ShapePlan::empty(model.graph().tensors.len(), count);
+        let mut scratch = BindScratch::new(&program);
+        bind_into(
+            &program,
+            &[3, 2],
+            ExecutionLimits::default(),
+            count,
+            program.output,
+            &mut plan,
+            &mut scratch,
+        )
+        .unwrap();
+        assert_eq!(plan.input_shape.dimensions(), [3, 2]);
+        assert_eq!(plan.shapes[program.output.0].dimensions(), [3, 1024]);
+        assert_eq!(model.cached_packed_weight_bytes(), 0);
     }
 
     #[test]
     fn parsed_models_share_packed_weights_across_concurrent_compilation_policies() {
-        let model = wide_head().model.clone();
+        let model = wide_head().program.model.clone();
         assert_eq!(model.cached_packed_weight_bytes(), 0);
         let handles: Vec<_> = (0..4)
             .map(|index| {
                 let model = model.clone();
                 std::thread::spawn(move || {
-                    CompiledModel::compile(
+                    CpuCompiledModel::compile(
                         model,
                         CompileOptions {
                             kernels: KernelPolicy::Portable4,
@@ -2221,7 +2317,7 @@ mod tests {
         assert_eq!(cached, first.packed_weight_bytes());
         for view in compiled {
             let mut request =
-                Session::new_serial(view, &[1, 2], ExecutionLimits::default()).unwrap();
+                CpuSession::new_serial(view, &[1, 2], ExecutionLimits::default()).unwrap();
             assert!(
                 request
                     .run(&[1., 2.])
@@ -2248,7 +2344,7 @@ mod tests {
             );
         }
         assert_eq!(model.cached_packed_weight_bytes(), cached);
-        let scalar = CompiledModel::compile(model, CompileOptions::reference()).unwrap();
+        let scalar = CpuCompiledModel::compile(model, CompileOptions::reference()).unwrap();
         assert_eq!(scalar.packed_weight_bytes(), 0);
     }
 
@@ -2256,11 +2352,12 @@ mod tests {
     fn aggregate_activation_limit_rejects_lazy_trace_before_callbacks() {
         let compiled = physical_wide_head();
         let production =
-            Session::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
         let diagnostic =
-            Session::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default())
+                .unwrap();
         let total = production.retained_activation_bytes() + diagnostic.retained_activation_bytes();
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled.clone(),
             &[1, 2],
             ExecutionLimits {
@@ -2292,7 +2389,7 @@ mod tests {
             vec![1. / 1024.; 1024]
         );
         assert!(request.retained_activation_bytes() <= request.limits.max_activation_bytes);
-        let mut fitting = Session::new_serial(
+        let mut fitting = CpuSession::new_serial(
             compiled,
             &[1, 2],
             ExecutionLimits {
@@ -2315,11 +2412,12 @@ mod tests {
     fn aggregate_activation_limit_rebinds_existing_diagnostic_transactionally() {
         let compiled = physical_wide_head();
         let production =
-            Session::new_serial(compiled.clone(), &[2, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled.clone(), &[2, 2], ExecutionLimits::default()).unwrap();
         let diagnostic =
-            Session::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default())
+                .unwrap();
         let limit = production.retained_activation_bytes() + diagnostic.retained_activation_bytes();
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled,
             &[1, 2],
             ExecutionLimits {
@@ -2374,15 +2472,17 @@ mod tests {
     fn aggregate_activation_limit_counts_test_prefix_and_diagnostic_siblings() {
         let compiled = physical_wide_head();
         let production =
-            Session::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
         let prefix =
-            Session::new_prefix(compiled.clone(), &[1, 2], ExecutionLimits::default(), 0).unwrap();
+            CpuSession::new_prefix(compiled.clone(), &[1, 2], ExecutionLimits::default(), 0)
+                .unwrap();
         let primary = production.retained_activation_bytes();
         let prefix_bytes = prefix.retained_activation_bytes();
         let diagnostic =
-            Session::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default())
+                .unwrap();
         let total = primary + prefix_bytes + diagnostic.retained_activation_bytes();
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled.clone(),
             &[1, 2],
             ExecutionLimits {
@@ -2401,7 +2501,7 @@ mod tests {
         );
         assert!(!filled);
         assert!(request.prefix.is_none());
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled,
             &[1, 2],
             ExecutionLimits {
@@ -2442,7 +2542,7 @@ mod tests {
         let (capacity, requests, invalid) = (1, &[1][..], [0, 2]);
         let cpu = Arc::new(CpuContext::new(capacity).unwrap());
         for &requested in requests {
-            let session = Session::new(
+            let session = CpuSession::new(
                 compiled.clone(),
                 cpu.clone(),
                 &[1, 2],
@@ -2457,7 +2557,7 @@ mod tests {
         }
         for requested in invalid {
             assert!(
-                Session::new(
+                CpuSession::new(
                     compiled.clone(),
                     cpu.clone(),
                     &[1, 2],
@@ -2470,7 +2570,7 @@ mod tests {
             );
         }
         let mut session =
-            Session::new_serial(compiled, &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled, &[1, 2], ExecutionLimits::default()).unwrap();
         let original = session.cpu_context().clone();
         for requested in invalid {
             assert!(
@@ -2498,8 +2598,8 @@ mod tests {
     fn diagnostic_and_nchw_simd_plans_cache_eight_shapes_without_extra_arenas() {
         let reference = wide_head();
         let simd = Arc::new(
-            CompiledModel::compile(
-                reference.model.clone(),
+            CpuCompiledModel::compile(
+                reference.program.model.clone(),
                 CompileOptions {
                     kernels: KernelPolicy::Portable4,
                     layout: LayoutPolicy::Nchw,
@@ -2511,8 +2611,8 @@ mod tests {
         let limits = ExecutionLimits {
             max_activation_bytes: 128 << 10,
         };
-        let diagnostic = Session::new_diagnostic(reference, &[1, 2], limits).unwrap();
-        let production = Session::new_serial(simd, &[1, 2], limits).unwrap();
+        let diagnostic = CpuSession::new_diagnostic(reference, &[1, 2], limits).unwrap();
+        let production = CpuSession::new_serial(simd, &[1, 2], limits).unwrap();
         for mut request in [diagnostic, production] {
             for batch in 2..=9 {
                 request.reshape(&[batch, 2]).unwrap();
@@ -2540,14 +2640,14 @@ mod tests {
         let limits = ExecutionLimits {
             max_activation_bytes: 256,
         };
-        assert!(Session::new_serial(compiled.clone(), &[1, 2], limits).is_err());
-        assert!(Session::new_prefix(compiled.clone(), &[1, 2], limits, 3).is_err());
-        let mut request = Session::new_prefix(compiled, &[1, 2], limits, 0).unwrap();
+        assert!(CpuSession::new_serial(compiled.clone(), &[1, 2], limits).is_err());
+        assert!(CpuSession::new_prefix(compiled.clone(), &[1, 2], limits, 3).is_err());
+        let mut request = CpuSession::new_prefix(compiled, &[1, 2], limits, 0).unwrap();
         assert_eq!(request.activation_bytes(), 16);
         assert_eq!(request.naive_activation_bytes(), 16);
         assert_eq!(request.output_shape().dimensions(), &[1, 2]);
         assert_eq!(request.plan.steps.len(), 1);
-        let suffix = request.compiled.instructions[1].output;
+        let suffix = request.compiled.program.instructions[1].output;
         assert_eq!(request.plan.slots[suffix.0], usize::MAX);
         request.reshape(&[16, 2]).unwrap();
         let storage = request
@@ -2638,7 +2738,7 @@ mod tests {
             .concat(),
         )
     }
-    fn prefix_session() -> Session {
+    fn prefix_session() -> CpuSession {
         let constant = bytes(
             5,
             &[
@@ -2660,8 +2760,8 @@ mod tests {
         .concat();
         let source = [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat();
         let model = Arc::new(Model::load_bytes(&source).unwrap());
-        Session::new_serial(
-            Arc::new(CompiledModel::new(model).unwrap()),
+        CpuSession::new_serial(
+            Arc::new(CpuCompiledModel::new(model).unwrap()),
             &[2],
             ExecutionLimits::default(),
         )

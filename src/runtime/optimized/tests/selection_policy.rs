@@ -22,7 +22,7 @@ fn policies() -> Vec<KernelPolicy> {
     }
     policies
 }
-pub(super) fn input_layout_at(request: &Session, index: usize) -> Layout {
+pub(super) fn input_layout_at(request: &CpuSession, index: usize) -> Layout {
     let state = request.optimized.as_ref().unwrap();
     let step = state
         .plan
@@ -444,9 +444,9 @@ fn check_neon_narrow_session(cin: usize, cout: usize, kernel: usize, stride: usi
         &[batch as i64, cout as i64, oh as i64, ow as i64],
     );
     let request = |fusion| {
-        Session::new(
+        CpuSession::new(
             Arc::new(
-                CompiledModel::compile(
+                CpuCompiledModel::compile(
                     parsed.clone(),
                     CompileOptions {
                         kernels: KernelPolicy::NeonFma,
@@ -565,7 +565,7 @@ fn eight_channel_pad_end_matches_an_independent_ordered_oracle_for_all_budgets_a
             Arc::new(CpuContext::new(if cfg!(feature = "parallel") { 8 } else { 1 }).unwrap());
         for kernels in policies() {
             let compiled = Arc::new(
-                CompiledModel::compile(
+                CpuCompiledModel::compile(
                     parsed.clone(),
                     CompileOptions {
                         kernels,
@@ -575,7 +575,7 @@ fn eight_channel_pad_end_matches_an_independent_ordered_oracle_for_all_budgets_a
                 .unwrap(),
             );
             for budget in [1, 2, 4, 8] {
-                let mut request = Session::new(
+                let mut request = CpuSession::new(
                     compiled.clone(),
                     cpu.clone(),
                     &[batch, cin, height, width],

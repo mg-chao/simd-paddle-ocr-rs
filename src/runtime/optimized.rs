@@ -21,13 +21,6 @@ struct Value {
     offset: usize,
     alias: Option<(usize, usize)>,
 }
-#[derive(Clone, Copy)]
-enum Activation {
-    Relu,
-    HardSwish,
-    Gelu,
-    Sigmoid,
-}
 #[derive(Clone)]
 enum Epilogue {
     Add(usize),
@@ -191,11 +184,11 @@ fn layout_neutral(shape: Shape) -> bool {
             || (shape.dimensions()[2] == 1 && shape.dimensions()[3] == 1))
 }
 
-fn conv_nhwc_capable(compiled: &CompiledModel, index: usize, p: &kernels::Conv) -> bool {
-    let instruction = &compiled.instructions[index];
+fn conv_nhwc_capable(compiled: &CpuCompiledModel, index: usize, p: &kernels::Conv) -> bool {
+    let instruction = &compiled.program.instructions[index];
     let constant_rank = |slot: usize, rank: usize| {
         instruction.inputs.get(slot).is_some_and(|id| {
-            matches!(&compiled.model.graph().tensors[id.0].constant,
+            matches!(&compiled.program.model.graph().tensors[id.0].constant,
                 Some(TensorData::F32(tensor)) if tensor.shape().rank() == rank)
         })
     };
@@ -263,152 +256,42 @@ fn convert(
     conversions.insert((id, target), output);
     output
 }
-fn constant(compiled: &CompiledModel, id: TensorId) -> &[f32] {
-    match &compiled.model.graph().tensors[id.0].constant {
+fn constant(compiled: &CpuCompiledModel, id: TensorId) -> &[f32] {
+    match &compiled.program.model.graph().tensors[id.0].constant {
         Some(TensorData::F32(t)) => t.data(),
         _ => unreachable!("validated F32 constant"),
     }
 }
-fn scalar(compiled: &CompiledModel, id: TensorId) -> Option<f32> {
-    match &compiled.model.graph().tensors[id.0].constant {
-        Some(TensorData::F32(t)) if t.data().len() == 1 => Some(t.data()[0]),
-        _ => None,
-    }
-}
-fn other_binary(instruction: &Instruction, value: TensorId) -> Option<TensorId> {
-    if instruction.inputs.first() == Some(&value) {
-        instruction.inputs.get(1).copied()
-    } else if instruction.inputs.get(1) == Some(&value) {
-        instruction.inputs.first().copied()
-    } else {
-        None
-    }
-}
+use super::graph_patterns::Activation;
+use super::graph_patterns::other_binary;
 fn closed(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     first: usize,
     end: usize,
     count: usize,
     selected: TensorId,
 ) -> bool {
-    for instruction in &compiled.instructions[first..end] {
-        if instruction.output == selected {
-            return false;
-        }
-        // Compilation validates source order: a produced tensor cannot have a
-        // consumer before this group. Only later uses inside this execution
-        // prefix can require an intermediate to remain materialized.
-        if compiled
-            .graph_uses
-            .used_after(instruction.output, end, count)
-        {
-            return false;
-        }
-    }
-    true
+    super::graph_patterns::closed(&compiled.program, first, end, count, selected)
 }
 fn activation(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     start: usize,
     input: TensorId,
     count: usize,
 ) -> Option<(Activation, usize)> {
-    let n = &compiled.instructions;
-    if start >= count {
-        return None;
-    }
-    if matches!(n[start].kind, Op::Relu) && n[start].inputs[0] == input {
-        return Some((Activation::Relu, start));
-    }
-    if matches!(n[start].kind, Op::Sigmoid) && n[start].inputs[0] == input {
-        return Some((Activation::Sigmoid, start));
-    }
-    if start + 1 < count
-        && matches!(n[start].kind, Op::HardSigmoid { alpha, beta } if alpha == 0.16666667 && beta == 0.5)
-        && n[start].inputs[0] == input
-        && matches!(n[start + 1].kind, Op::Mul)
-        && other_binary(&n[start + 1], n[start].output) == Some(input)
-    {
-        return Some((Activation::HardSwish, start + 1));
-    }
-    if start + 4 < count
-        && matches!(n[start].kind, Op::Div)
-        && n[start].inputs[0] == input
-        && scalar(compiled, n[start].inputs[1]) == Some(std::f32::consts::SQRT_2)
-        && matches!(n[start + 1].kind, Op::Erf)
-        && n[start + 1].inputs[0] == n[start].output
-        && matches!(n[start + 2].kind, Op::Add)
-        && other_binary(&n[start + 2], n[start + 1].output).and_then(|id| scalar(compiled, id))
-            == Some(1.)
-        && matches!(n[start + 3].kind, Op::Mul)
-        && other_binary(&n[start + 3], n[start + 2].output) == Some(input)
-        && matches!(n[start + 4].kind, Op::Mul)
-        && other_binary(&n[start + 4], n[start + 3].output).and_then(|id| scalar(compiled, id))
-            == Some(0.5)
-    {
-        return Some((Activation::Gelu, start + 4));
-    }
-    None
+    super::graph_patterns::activation(&compiled.program, start, input, count)
 }
 fn layer_norm(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     plan: &ShapePlan,
     start: usize,
     count: usize,
 ) -> Option<(usize, f32, TensorId, TensorId)> {
-    if start + 8 >= count {
-        return None;
-    }
-    let n = &compiled.instructions[start..start + 9];
-    let input = n[0].inputs[0];
-    let shape = plan.shapes[input.0];
-    let inner = *shape.dimensions().last()?;
-    let trailing = |kind: &BoundKind| matches!(kind, BoundKind::Reduce(r) if r.contiguous == Some(inner) && r.reduction == inner && r.input == shape);
-    let kept_axis = |output: TensorId| {
-        let out = plan.shapes[output.0];
-        out.rank() == shape.rank()
-            && out.dimensions().last() == Some(&1)
-            && out.dimensions()[..out.rank() - 1] == shape.dimensions()[..shape.rank() - 1]
-    };
-    if !kept_axis(n[0].output) || !kept_axis(n[3].output) {
-        return None;
-    }
-    if !trailing(&plan.steps[start].kind)
-        || !matches!(n[1].kind, Op::Sub)
-        || n[1].inputs.as_ref() != [input, n[0].output]
-        || !matches!(n[2].kind, Op::Square)
-        || n[2].inputs[0] != n[1].output
-        || !trailing(&plan.steps[start + 3].kind)
-        || n[3].inputs[0] != n[2].output
-        || !matches!(n[4].kind, Op::Add)
-        || !matches!(n[5].kind, Op::Sqrt)
-        || n[5].inputs[0] != n[4].output
-        || !matches!(n[6].kind, Op::Div)
-        || n[6].inputs.as_ref() != [n[1].output, n[5].output]
-        || !matches!(n[7].kind, Op::Mul)
-        || !matches!(n[8].kind, Op::Add)
-    {
-        return None;
-    }
-    let epsilon = scalar(compiled, other_binary(&n[4], n[3].output)?)?;
-    let gamma = other_binary(&n[7], n[6].output)?;
-    let beta = other_binary(&n[8], n[7].output)?;
-    for id in [gamma, beta] {
-        match &compiled.model.graph().tensors[id.0].constant {
-            Some(TensorData::F32(t))
-                if t.data().len() == inner
-                    && t.dimensions().last() == Some(&inner)
-                    && t.dimensions()[..t.dimensions().len() - 1]
-                        .iter()
-                        .all(|&d| d == 1) => {}
-            _ => return None,
-        }
-    }
-    Some((inner, epsilon, gamma, beta))
+    super::graph_patterns::layer_norm(&compiled.program, plan, start, count)
 }
 impl Plan {
     fn bind(
-        compiled: &CompiledModel,
+        compiled: &CpuCompiledModel,
         logical: &ShapePlan,
         count: usize,
         selected: TensorId,
@@ -431,8 +314,8 @@ impl Plan {
             Layout::Canonical
         };
         let input = add_value(&mut values, logical.input_shape, input_layout, None);
-        map[compiled.input.0] = Some(input);
-        for (i, tensor) in compiled.model.graph().tensors.iter().enumerate() {
+        map[compiled.program.input.0] = Some(input);
+        for (i, tensor) in compiled.program.model.graph().tensors.iter().enumerate() {
             if let Some(TensorData::F32(t)) = &tensor.constant {
                 map[i] = Some(add_value(
                     &mut values,
@@ -479,13 +362,13 @@ impl Plan {
                 } else {
                     (
                         i,
-                        compiled.instructions[i].inputs.clone().into_vec(),
+                        compiled.program.instructions[i].inputs.clone().into_vec(),
                         Vec::new(),
                         0,
                     )
                 };
             let is_semantic = base != i;
-            let instruction = &compiled.instructions[base];
+            let instruction = &compiled.program.instructions[base];
             let mut end = i;
             let mut kind = Operation::Native {
                 index: base,
@@ -514,7 +397,7 @@ impl Plan {
                     let mut epilogues = Vec::new();
                     let mut current = instruction.output;
                     while end + 1 < adjacent_limit {
-                        let next = &compiled.instructions[end + 1];
+                        let next = &compiled.program.instructions[end + 1];
                         if matches!(next.kind, Op::Add)
                             && logical.shapes[next.output.0] == logical.shapes[instruction.output.0]
                             && let Some(other) = other_binary(next, current)
@@ -526,7 +409,9 @@ impl Plan {
                             let output = logical.shapes[current.0];
                             if (shape == output
                                 && (!nhwc
-                                    || compiled.model.graph().tensors[other.0].constant.is_none()))
+                                    || compiled.program.model.graph().tensors[other.0]
+                                        .constant
+                                        .is_none()))
                                 || shape.element_count() == 1
                                 || (output.rank() == 4
                                     && shape.rank() == 4
@@ -548,7 +433,7 @@ impl Plan {
                         {
                             epilogues.push(Epilogue::Activation(act));
                             end = last;
-                            current = compiled.instructions[last].output;
+                            current = compiled.program.instructions[last].output;
                             continue;
                         }
                         break;
@@ -563,7 +448,7 @@ impl Plan {
                 }
             }
             fused += if is_semantic { semantic_fused } else { end - i };
-            let output_id = compiled.instructions[end].output;
+            let output_id = compiled.program.instructions[end].output;
             let output_shape = logical.shapes[output_id.0];
             let first =
                 map[ids[0].0].ok_or_else(|| RuntimeError::new("physical input is undefined"))?;
@@ -580,7 +465,9 @@ impl Plan {
                             && output_shape.rank() == 4
                             && ids.iter().all(|id| {
                                 logical.shapes[id.0].rank() == 4
-                                    && compiled.model.graph().tensors[id.0].constant.is_none()
+                                    && compiled.program.model.graph().tensors[id.0]
+                                        .constant
+                                        .is_none()
                             })
                     }
                     BoundKind::Binary(..)
@@ -882,7 +769,7 @@ fn ranges_overlap(a: usize, alen: usize, b: usize, blen: usize) -> bool {
 }
 impl State {
     pub(super) fn new(
-        compiled: &CompiledModel,
+        compiled: &CpuCompiledModel,
         logical: &ShapePlan,
         count: usize,
         selected: TensorId,
@@ -915,7 +802,7 @@ impl State {
     }
     pub(super) fn reshape(
         &mut self,
-        compiled: &CompiledModel,
+        compiled: &CpuCompiledModel,
         logical: &ShapePlan,
         count: usize,
         selected: TensorId,
@@ -1001,7 +888,7 @@ impl State {
     }
     pub(super) fn execute(
         &mut self,
-        compiled: &CompiledModel,
+        compiled: &CpuCompiledModel,
         cpu: &CpuContext,
         threads: usize,
     ) -> RuntimeResult<()> {
@@ -1416,7 +1303,7 @@ impl State {
     }
     pub(super) fn statistics(
         &self,
-        compiled: &CompiledModel,
+        compiled: &CpuCompiledModel,
         threads: usize,
     ) -> ExecutionStatistics {
         ExecutionStatistics {
@@ -1427,7 +1314,7 @@ impl State {
                         kind,
                         epilogues,
                     } => {
-                        let operator = compiled.model.graph().nodes[*index].op_type();
+                        let operator = compiled.program.model.graph().nodes[*index].op_type();
                         let nhwc = step
                             .inputs
                             .first()
@@ -1437,7 +1324,7 @@ impl State {
                         } else if matches!(kind, BoundKind::ConvTranspose(_)) {
                             compiled.transpose_packed.contains_key(index)
                         } else {
-                            compiled.instructions[*index]
+                            compiled.program.instructions[*index]
                                 .inputs
                                 .get(1)
                                 .is_some_and(|id| compiled.packed.contains_key(id))
@@ -1499,7 +1386,7 @@ impl State {
                 };
                 match &s.op {
                     Operation::Native { index, kind, .. } => (
-                        compiled.model.graph().nodes[*index].op_type(),
+                        compiled.program.model.graph().nodes[*index].op_type(),
                         layout,
                         (self.plan.values[s.inputs[0]].layout == Layout::Nhwc
                             && (compiled.conv_packed.contains_key(index)
@@ -1793,7 +1680,7 @@ fn layout_convert(
 
 #[allow(clippy::too_many_arguments)]
 fn execute_native<'a>(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     index: usize,
     kind: &BoundKind,
     inputs: &[usize],
@@ -1823,7 +1710,7 @@ fn execute_native<'a>(
     {
         return;
     }
-    let logical = &compiled.instructions[index].inputs;
+    let logical = &compiled.program.instructions[index].inputs;
     kernels::execute_optimized(
         kind,
         logical,
@@ -1845,7 +1732,7 @@ fn execute_native<'a>(
 
 #[allow(clippy::too_many_arguments)]
 fn execute_native_store<'a>(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     index: usize,
     kind: &BoundKind,
     inputs: &[usize],
@@ -1859,7 +1746,7 @@ fn execute_native_store<'a>(
     let weights = data(inputs[1]);
     // Appended physical operands belong to epilogues. Bias is present only
     // when the original logical convolution has a third operand.
-    let bias = if compiled.instructions[index].inputs.len() > 2 {
+    let bias = if compiled.program.instructions[index].inputs.len() > 2 {
         data(inputs[2])
     } else {
         &[]
@@ -1894,7 +1781,7 @@ fn execute_native_store<'a>(
 
 #[allow(clippy::too_many_arguments)]
 fn execute_nhwc<'a>(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     index: usize,
     kind: &BoundKind,
     inputs: &[usize],

@@ -10,6 +10,9 @@ pub enum ErrorKind {
     Allocation,
     Io,
     Execution,
+    DeviceLost,
+    GpuValidation,
+    GpuMapping,
 }
 
 // Keep stage-specific types while preserving the concrete underlying error.

@@ -75,7 +75,7 @@ fn packed3_recursive_band_plan_matches_independent_reference() {
     }
     // These are the adjacent integral cin values around the pinned8M work
     // threshold for128x8x8x3x3. No production work/eligibility helper supplies
-    // this expected decision. Public Session rejects budgets above context
+    // this expected decision. Public CpuSession rejects budgets above context
     // capacity; this pure planner additionally clamps its supplied capacity.
     for inputs in [108usize, 109] {
         let mut p = parameters(inputs, 128, 8, 8, [3, 3], [1, 1], [1, 1], 1);
