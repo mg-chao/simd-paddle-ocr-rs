@@ -84,6 +84,9 @@ pub struct ExecutionStatistics {
     pub production_submissions: u64,
     pub production_readbacks: u64,
     pub diagnostic_readbacks: u64,
+    pub uploaded_bytes: u64,
+    pub output_readback_bytes: u64,
+    pub diagnostic_readback_bytes: u64,
     pub selected_kernels: Vec<KernelSelection>,
     /// Shape-selected physical families, separate from logical operator counts.
     pub specialized_kernels: Vec<KernelSpecialization>,

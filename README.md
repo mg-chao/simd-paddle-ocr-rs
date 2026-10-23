@@ -1,7 +1,7 @@
 # simd-paddle-ocr-rs
 
 Rust implementation of SimdPaddleOCR, with portable SIMD, runtime CPU dispatch,
-and optional native wgpu inference. Detection, perspective cropping, optional orientation classification,
+and optional native wgpu OCR. Detection, perspective cropping, optional orientation classification,
 CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 
 The project uses `nightly-2026-09-08`, selected by `rust-toolchain.toml`.

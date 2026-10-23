@@ -5,6 +5,7 @@ using System.Text.Json;
 using Sdcb.SimdPaddleOCR.OnnxSharp;
 using Sdcb.SimdPaddleOCR.Backends.Vulkan;
 
+if (args.Length > 0 && args[0] == "--ocr-bench") { OcrBench.Run(args); return; }
 if (args.Length != 8) throw new ArgumentException("MODEL INPUT.f32 OUTPUT_PREFIX N C H W cpu|gpu");
 byte[] source=File.ReadAllBytes(args[0]);
 using var model=Model.Load(source);

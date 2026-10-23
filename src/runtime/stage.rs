@@ -173,6 +173,18 @@ impl CompiledModel {
     pub fn fallback_reason(&self) -> Option<&str> {
         self.reason.as_deref()
     }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn resident_fallback(&self, error: RuntimeError) -> RuntimeResult<Self> {
+        if !fallback_allowed(&error) {
+            return Err(error);
+        }
+        let Some(fallback) = &self.fallback else {
+            return Err(error);
+        };
+        let mut model: Self = fallback.get()?.into();
+        model.reason = Some(error.to_string());
+        Ok(model)
+    }
 }
 fn fallback_allowed(error: &RuntimeError) -> bool {
     matches!(error.kind(), ErrorKind::Unsupported | ErrorKind::DeviceLost)

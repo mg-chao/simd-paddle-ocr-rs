@@ -719,6 +719,66 @@ struct DecodeWorkspace {
     capture: bool,
 }
 impl DecodeWorkspace {
+    #[cfg(feature = "gpu")]
+    fn assemble_gpu(
+        &mut self,
+        dictionary: &Dictionary,
+        source: crate::runtime::gpu::heads::Decoded,
+        size: RecognitionSize,
+        capture: bool,
+        budget: usize,
+    ) -> ImageResult<()> {
+        let needed = source
+            .text_bytes
+            .checked_add(if capture {
+                source
+                    .tokens
+                    .len()
+                    .checked_mul(size_of::<CtcRun>())
+                    .ok_or_else(|| ImageError::new("CTC spans overflow"))?
+            } else {
+                0
+            })
+            .filter(|&n| n <= budget)
+            .ok_or_else(|| ImageError::new("recognition exceeds max_result_bytes"))?;
+        let _ = needed;
+        self.text.clear();
+        self.runs.clear();
+        self.text
+            .try_reserve(source.text_bytes)
+            .map_err(allocation)?;
+        if capture {
+            self.runs
+                .try_reserve(source.tokens.len())
+                .map_err(allocation)?;
+        }
+        self.emitted = source.tokens.len();
+        self.score = source.score;
+        for token in source.tokens {
+            let start = self.text.len();
+            self.text.push_str(
+                dictionary
+                    .token(token.class)
+                    .ok_or_else(|| ImageError::new("invalid GPU token"))?,
+            );
+            if capture {
+                self.runs.push(CtcRun {
+                    text_start: start,
+                    text_end: self.text.len(),
+                    score: token.score,
+                    start_column: token.start,
+                    end_column: token.end,
+                });
+            }
+        }
+        if self.text.len() != source.text_bytes {
+            return Err(ImageError::new("GPU dictionary length mismatch"));
+        }
+        self.size = Some(size);
+        self.time_steps = source.steps;
+        self.capture = capture;
+        Ok(())
+    }
     fn decode<F>(
         &mut self,
         dictionary: &Dictionary,
@@ -828,8 +888,12 @@ impl DecodeWorkspace {
 }
 
 pub struct Recognizer {
+    #[cfg(feature = "gpu")]
+    gpu: Option<crate::runtime::gpu::heads::Recognition>,
+    #[cfg(feature = "gpu")]
+    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
     compiled: CompiledModel,
-    projection_cpu: Arc<CpuProjection>,
+    projection_cpu: Arc<std::sync::OnceLock<ImageResult<CpuProjection>>>,
     dictionary: Arc<Dictionary>,
     options: RecognizerOptions,
     limits: ExecutionLimits,
@@ -847,6 +911,92 @@ pub struct Recognizer {
     last_projection: Option<ProjectionStatistics>,
 }
 impl Recognizer {
+    #[cfg(feature = "gpu")]
+    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
+        self.gpu_mode = mode;
+        if mode == crate::runtime::gpu::GpuPipelineMode::InferenceOnly {
+            self.gpu = None;
+        }
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
+        self.gpu.as_ref().map(|gpu| &gpu.statistics)
+    }
+    #[cfg(feature = "gpu")]
+    fn recognize_gpu<const PROFILE: bool>(
+        &mut self,
+        images: &[ImageView<'_>],
+        capture: bool,
+        profile: &mut StageProfile,
+    ) -> ImageResult<()> {
+        self.batch_sizes.clear();
+        for image in images {
+            if image.pixel_count()? > self.options.max_image_pixels {
+                return Err(ImageError::new("source image exceeds max_image_pixels"));
+            }
+            let size = self.select_width(image.width(), image.height())?;
+            if self
+                .batch_sizes
+                .first()
+                .is_some_and(|first| first.tensor_width != size.tensor_width)
+            {
+                return Err(ImageError::new(
+                    "recognition batch requires the same selected tensor width",
+                ));
+            }
+            self.batch_sizes.push(size);
+        }
+        if self.gpu.is_none() {
+            self.gpu = Some(crate::runtime::gpu::heads::Recognition::new(
+                self.compiled.as_gpu().unwrap().clone(),
+                &self.dictionary,
+                self.batch_sizes[0].tensor_width,
+                self.limits,
+            )?);
+        }
+        let decoded = self.gpu.as_mut().unwrap().run(
+            images,
+            &self.batch_sizes,
+            self.options.score_mode == RecognitionScoreMode::Probability,
+            capture,
+            self.options.max_result_bytes,
+            PROFILE,
+        )?;
+        if PROFILE {
+            let statistics = &self.gpu.as_ref().unwrap().statistics;
+            profile.gpu_submission_ns += statistics.submission_ns;
+            profile.gpu_completion_wait_ns += statistics.completion_wait_ns;
+            profile.gpu_readback_ns += statistics.readback_ns;
+            profile.projection_ns += statistics.projection_encoding_ns;
+            profile.recognized_lines += images.len();
+        }
+        self.batch_decoded
+            .resize_with(images.len(), DecodeWorkspace::default);
+        let mut remaining = self.options.max_result_bytes;
+        for ((destination, source), &size) in self
+            .batch_decoded
+            .iter_mut()
+            .zip(decoded)
+            .zip(&self.batch_sizes)
+        {
+            destination.assemble_gpu(&self.dictionary, source, size, capture, remaining)?;
+            remaining -= destination.text.len() + destination.runs.len() * size_of::<CtcRun>();
+        }
+        self.last_projection = None;
+        Ok(())
+    }
+    #[cfg(feature = "gpu")]
+    fn resident_fallback(&mut self, error: ImageError) -> ImageResult<()> {
+        let compiled = self.compiled.resident_fallback(RuntimeError::from(error))?;
+        let mut replacement =
+            Self::new(compiled, self.dictionary.clone(), self.options, self.limits)?;
+        replacement.set_execution_context(
+            self.session.cpu_context().clone(),
+            self.session.intra_op_threads(),
+        )?;
+        *self = replacement;
+        Ok(())
+    }
     pub fn fork(&self) -> ImageResult<Self> {
         let mut fork = Self::new(
             self.compiled.clone(),
@@ -858,6 +1008,11 @@ impl Recognizer {
             self.session.cpu_context().clone(),
             self.session.intra_op_threads(),
         )?;
+        #[cfg(feature = "gpu")]
+        {
+            fork.gpu_mode = self.gpu_mode;
+        }
+        fork.projection_cpu = self.projection_cpu.clone();
         Ok(fork)
     }
     pub fn set_execution_context(
@@ -913,8 +1068,17 @@ impl Recognizer {
             RecognitionScoreMode::Probability => head.classes,
         };
         Self::check_feature_shape(session.output_shape(), output_width)?;
-        let projection_cpu = Arc::new(CpuProjection::new(&compiled, &head)?);
+        let projection_cpu = Arc::new(std::sync::OnceLock::new());
+        if !compiled.is_gpu() {
+            projection_cpu
+                .set(Ok(CpuProjection::new(&compiled, &head)?))
+                .ok();
+        }
         Ok(Self {
+            #[cfg(feature = "gpu")]
+            gpu: None,
+            #[cfg(feature = "gpu")]
+            gpu_mode: Default::default(),
             projection_cpu,
             compiled,
             dictionary,
@@ -975,6 +1139,10 @@ impl Recognizer {
         &self.compiled
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            return gpu.execution_statistics();
+        }
         self.session.statistics()
     }
     pub fn execution_limits(&self) -> ExecutionLimits {
@@ -987,17 +1155,36 @@ impl Recognizer {
         self.last_projection
     }
     pub fn activation_bytes(&self) -> usize {
-        self.session.activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.activation_bytes()
     }
     pub fn retained_device_bytes(&self) -> usize {
-        self.session.retained_device_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu.as_ref().map_or(0, |g| g.retained_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.session.retained_device_bytes()
             + self
                 .diagnostic
                 .as_ref()
                 .map_or(0, Session::retained_device_bytes)
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        self.session.retained_activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.retained_activation_bytes()
     }
     pub fn diagnostic_retained_activation_bytes(&self) -> usize {
         self.diagnostic
@@ -1005,7 +1192,15 @@ impl Recognizer {
             .map_or(0, Session::retained_activation_bytes)
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        self.resize.retained_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_planning_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.resize.retained_bytes()
             + (self.session.retained_planning_bytes() + self.session.retained_scratch_bytes())
             + self.diagnostic.as_ref().map_or(0, |session| {
                 session.retained_planning_bytes() + session.retained_scratch_bytes()
@@ -1093,6 +1288,22 @@ impl Recognizer {
             .assert_production_thread("REC batch");
         if count == 0 {
             return Ok(RecognitionBatchView { decoded: &[] });
+        }
+        #[cfg(feature = "gpu")]
+        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+            let images = (0..count).map(image).collect::<ImageResult<Vec<_>>>()?;
+            if let Err(error) = self.recognize_gpu::<PROFILE>(&images, capture, profile) {
+                self.resident_fallback(error)?;
+                let cpu = self.session.cpu_context().clone();
+                let source: &(dyn Fn(usize) -> ImageResult<ImageView<'a>> + Sync) =
+                    &|i| Ok(images[i]);
+                return cpu.install(|| {
+                    self.recognize_batch_impl::<PROFILE, _>(count, source, capture, profile)
+                });
+            }
+            return Ok(RecognitionBatchView {
+                decoded: &self.batch_decoded[..count],
+            });
         }
         let binding_timer = Timer::<PROFILE>::start();
         self.batch_sizes.clear();
@@ -1183,7 +1394,10 @@ impl Recognizer {
             None
         } else {
             let (family, isa) = self.head.project_parallel(
-                self.projection_cpu.as_ref(),
+                self.projection_cpu
+                    .get_or_init(|| CpuProjection::new(&self.compiled, &self.head))
+                    .as_ref()
+                    .map_err(Clone::clone)?,
                 feature.data(),
                 &mut self.indices[..rows],
                 &mut self.scores[..rows],
@@ -1193,7 +1407,13 @@ impl Recognizer {
                 &mut self.projection,
             )?;
             Some(ProjectionStatistics {
-                backend: self.projection_cpu.backend(),
+                backend: self
+                    .projection_cpu
+                    .get()
+                    .unwrap()
+                    .as_ref()
+                    .map_err(Clone::clone)?
+                    .backend(),
                 isa,
                 family,
                 rows,
@@ -1261,6 +1481,15 @@ impl Recognizer {
         capture: bool,
         profile: &mut StageProfile,
     ) -> ImageResult<RecognitionView<'_>> {
+        #[cfg(feature = "gpu")]
+        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+            if let Err(error) = self.recognize_gpu::<PROFILE>(&[image], capture, profile) {
+                self.resident_fallback(error)?;
+                let cpu = self.session.cpu_context().clone();
+                return cpu.install(|| self.recognize_impl::<PROFILE>(image, capture, profile));
+            }
+            return Ok(self.batch_decoded[0].view());
+        }
         #[cfg(test)]
         if !self.compiled.is_gpu() {
             self.session.cpu_context().assert_production_thread("REC");
@@ -1319,7 +1548,10 @@ impl Recognizer {
             None
         } else {
             let (family, isa) = self.head.project_parallel(
-                self.projection_cpu.as_ref(),
+                self.projection_cpu
+                    .get_or_init(|| CpuProjection::new(&self.compiled, &self.head))
+                    .as_ref()
+                    .map_err(Clone::clone)?,
                 feature.data(),
                 &mut self.indices[..steps],
                 &mut self.scores[..steps],
@@ -1329,7 +1561,13 @@ impl Recognizer {
                 &mut self.projection,
             )?;
             Some(ProjectionStatistics {
-                backend: self.projection_cpu.backend(),
+                backend: self
+                    .projection_cpu
+                    .get()
+                    .unwrap()
+                    .as_ref()
+                    .map_err(Clone::clone)?
+                    .backend(),
                 isa,
                 family,
                 rows: steps,
@@ -1378,7 +1616,10 @@ impl Recognizer {
         let resize = &mut self.resize;
         Self::trace_run(
             &self.compiled,
-            &self.projection_cpu,
+            self.projection_cpu
+                .get_or_init(|| CpuProjection::new(&self.compiled, &self.head))
+                .as_ref()
+                .map_err(Clone::clone)?,
             &self.dictionary,
             self.options,
             self.limits,

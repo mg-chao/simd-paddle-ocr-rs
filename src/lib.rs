@@ -36,4 +36,6 @@ pub mod runtime;
 pub mod tensor;
 pub use builder::{ModelPreset, OcrBuilder, OcrModelSet};
 pub use characters::{CharacterBox, OwnedCharacterBox};
+#[cfg(feature = "gpu")]
+pub use runtime::gpu::{GpuPipelineMode, GpuPipelineStatistics, GpuPlacement};
 pub use runtime::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget, Session};

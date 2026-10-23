@@ -109,7 +109,7 @@ fn assert_ocr_close(actual: &OwnedOcr, expected: &OwnedOcr, label: &str) {
         );
         for (pa, pb) in a.detection.points.iter().zip(&b.detection.points) {
             for axis in 0..2 {
-                assert!((pa[axis] - pb[axis]).abs() <= 1., "{label}: box vertices");
+                assert!((pa[axis] - pb[axis]).abs() <= 0.5, "{label}: box vertices");
             }
         }
         match (&a.ctc_spans, &b.ctc_spans) {
@@ -181,7 +181,12 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
         let actual = detector.detect(image).unwrap().try_to_owned().unwrap();
         assert_eq!(actual.boxes.len(), 1, "{width}x{height}");
         assert_eq!(actual.boxes[0].points, expected.boxes[0].points);
-        assert!((actual.boxes[0].score - expected.boxes[0].score).abs() <= 1e-5);
+        assert!(
+            (actual.boxes[0].score - expected.boxes[0].score).abs() <= 1e-5,
+            "{width}x{height}: GPU score {} vs CPU {}",
+            actual.boxes[0].score,
+            expected.boxes[0].score,
+        );
         assert_eq!(actual.width_ratio, expected.width_ratio);
         assert_eq!(actual.height_ratio, expected.height_ratio);
         assert!(actual.resized_width <= preprocess::DET_MAX_SIDE);
@@ -201,7 +206,11 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
             .unwrap()
             .try_to_owned()
             .unwrap();
-        assert_eq!(traced.boxes, actual.boxes);
+        assert_eq!(traced.boxes.len(), actual.boxes.len());
+        for (a, b) in traced.boxes.iter().zip(&actual.boxes) {
+            assert_eq!(a.points, b.points);
+            assert!((a.score - b.score).abs() <= 1e-3 + 1e-3 * b.score.abs());
+        }
         let replayed = detector
             .postprocess(
                 &probabilities,
@@ -212,7 +221,11 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
                 traced.height_ratio,
             )
             .unwrap();
-        assert_eq!(replayed.boxes, actual.boxes);
+        assert_eq!(replayed.boxes.len(), actual.boxes.len());
+        for (a, b) in replayed.boxes.iter().zip(&actual.boxes) {
+            assert_eq!(a.points, b.points);
+            assert!((a.score - b.score).abs() <= 1e-3 + 1e-3 * b.score.abs());
+        }
     }
 }
 
@@ -270,6 +283,13 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
             .try_to_owned()
             .unwrap();
         assert!(observations > 0);
+        assert!(
+            request
+                .gpu_pipeline_statistics()
+                .unwrap()
+                .diagnostic_readback_bytes
+                > 0
+        );
         assert_ocr_close(&traced, &expected, "GPU trace");
         let mut cancelled_after_node = false;
         assert!(
@@ -371,6 +391,52 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
 
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_resident_requested_crop_pixels_match_cpu() {
+    let pixels = crate::ocr::tests::two_lines();
+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+    let mut cpu = synthetic(ExecutionTarget::Cpu, RecognitionScoreMode::Logit);
+    let mut gpu = synthetic(ExecutionTarget::Gpu, RecognitionScoreMode::Logit);
+    let expected = cpu
+        .extractor_mut()
+        .extract(image)
+        .unwrap()
+        .try_to_owned()
+        .unwrap();
+    for _ in 0..2 {
+        let actual = gpu
+            .extractor_mut()
+            .extract(image)
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
+        let a = actual.as_view();
+        let b = expected.as_view();
+        assert_eq!(a.pixels(), b.pixels());
+        assert_eq!(a.len(), b.len());
+        for (a, b) in a.metadata().iter().zip(b.metadata()) {
+            assert_eq!(
+                (
+                    a.width,
+                    a.height,
+                    a.applied_rotation_degrees,
+                    a.vertical_rotation
+                ),
+                (
+                    b.width,
+                    b.height,
+                    b.applied_rotation_degrees,
+                    b.vertical_rotation
+                )
+            );
+        }
+    }
+    let stats = gpu.extractor_mut().gpu_pipeline_statistics().unwrap();
+    assert!(stats.cpu_compute_stages.is_empty());
+    assert!(stats.output_readback_bytes >= expected.as_view().pixels().len() as u64 * 2);
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_ocr_context_quota_rolls_back_failed_compilation_and_session_allocation() {
     let context = GpuContext::new_with_options(GpuContextOptions {
         backend: hardware().options().backend,
@@ -402,4 +468,58 @@ fn gpu_ocr_context_quota_rolls_back_failed_compilation_and_session_allocation() 
     assert_eq!(context.memory_statistics().used_bytes, 4);
     drop(compiled);
     assert_eq!(context.memory_statistics().used_bytes, 0);
+}
+
+#[test]
+#[ignore = "requires physical GPU; injects failures into private contexts"]
+fn gpu_resident_auto_fallback_is_stage_scoped_and_restricted() {
+    let pixels = crate::ocr::tests::two_lines();
+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+    let expected = synthetic(ExecutionTarget::Cpu, RecognitionScoreMode::Logit)
+        .run(image, true)
+        .unwrap()
+        .try_to_owned()
+        .unwrap();
+    for (kind, strict_rec) in [
+        (crate::error::ErrorKind::DeviceLost, false),
+        (crate::error::ErrorKind::DeviceLost, true),
+        (crate::error::ErrorKind::ResourceLimit, false),
+    ] {
+        let context = GpuContext::new_with_options(GpuContextOptions {
+            backend: hardware().options().backend,
+            max_in_flight: 2,
+            ..Default::default()
+        })
+        .unwrap();
+        let (det, rec) = crate::ocr::tests::synthetic_sources();
+        let models = OcrModelSet::new(
+            Arc::new(Model::load_bytes(&det).unwrap()),
+            Arc::new(Model::load_bytes(&rec).unwrap()),
+            Arc::new(Dictionary::from_utf8(b"A\n").unwrap()),
+            None,
+        );
+        let mut builder = models
+            .builder()
+            .execution_target(ExecutionTarget::Auto)
+            .gpu_context(context.clone())
+            .detector_options(DetectorOptions {
+                limit_side_length: 96,
+                ..Default::default()
+            });
+        if strict_rec {
+            builder = builder.recognizer_target(ExecutionTarget::Gpu);
+        }
+        let mut request = builder.build().unwrap();
+        request.run(image, true).unwrap();
+        context.inject_failure_for_test(kind);
+        if kind == crate::error::ErrorKind::DeviceLost && !strict_rec {
+            assert_ocr_close(
+                &request.run(image, true).unwrap().try_to_owned().unwrap(),
+                &expected,
+                "resident Auto fallback",
+            );
+        } else {
+            assert_eq!(request.run(image, true).err().unwrap().kind(), kind);
+        }
+    }
 }

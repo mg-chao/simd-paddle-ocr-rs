@@ -1,3 +1,14 @@
+// Folded Q/K/V affine movement chain; zero transforms keeps the canonical path.
+fn ap(i:u32)->u32 {return p(i+select(0u,1u,i>=60u)+select(0u,4u,i>=63u));}
+fn address(index:u32,operand:u32)->u32 {
+    if !$VIEWS {return index;}
+    var value=index;var start=p(9u+operand*2u);let count=p(10u+operand*2u);
+    for(var transform=0u;transform<count;transform++){
+        var remaining=value;var mapped=ap(start+1u);var axis=ap(start);
+        loop{if axis==0u{break;}axis--;let c=remaining%ap(start+2u+axis);remaining/=ap(start+2u+axis);mapped+=c*ap(start+7u+axis);}
+        value=mapped;start+=12u;
+    }return value;
+}
 // C# online-softmax algorithm, retiled across four queries and sixteen keys.
 // Each lane owns one score and two output channels. Scalar accumulators avoid
 // private dynamic arrays spilling to device memory on native WGSL compilers.
@@ -16,13 +27,13 @@ fn main(@builtin(workgroup_id) group:vec3<u32>,@builtin(local_invocation_index) 
     let query=lane/16u;let channel=lane%16u;let row=first+query;
     let rows=p(3u);let count=p(4u);let d=p(5u);let dv=p(6u);
     for(var i=lane;i<128u;i+=64u){let r=first+i/32u;let c=i%32u;queries[i]=0.0;
-        if r<rows && c<d{queries[i]=load_a((batch*rows+r)*d+c)*bitcast<f32>(p(7u));}}
+        if r<rows && c<d{queries[i]=load_a(address((batch*rows+r)*d+c,0u))*bitcast<f32>(p(7u));}}
     if lane<4u{maxima[lane]=-3.402823466e38;denominators[lane]=0.0;}
     var acc0=0.0;var acc1=0.0;
     for(var base=0u;base<count;base+=16u){
         for(var i=lane;i<512u;i+=64u){let k=base+i/32u;let c=i%32u;keys[i]=0.0;values[i]=0.0;
-            if k<count && c<d{keys[i]=load_b((batch*d+c)*count+k);}
-            if k<count && c<dv{values[i]=load_c((batch*count+k)*dv+c);}}
+            if k<count && c<d{keys[i]=load_b(address((batch*d+c)*count+k,1u));}
+            if k<count && c<dv{values[i]=load_c(address((batch*count+k)*dv+c,2u));}}
         workgroupBarrier();
         var score=0.0;
         for(var i=0u;i<32u;i++){score+=queries[query*32u+i]*keys[channel*32u+i];}

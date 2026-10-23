@@ -11,10 +11,18 @@ include = [
     "src/**",
     "examples/ocr.rs",
     "examples/gpu_compare.rs",
+    "examples/gpu_ocr_bench.rs",
+    "examples/support/ocr_compare.rs",
+    "examples/gpu_projection_bench.rs",
+    "examples/gpu_shader_check.rs",
     "docs/cpu-usage.md",
     "docs/macos-cpu-validation.md",
     "docs/gpu-usage.md",
     "docs/gpu-validation.md",
+    "docs/full-gpu-validation.md",
+    "docs/full-gpu-coverage.json",
+    "docs/full-gpu-results.json",
+    "docs/gpu-performance-phase.md",
     "licenses/**",
     "Cargo.toml",
     "Cargo.lock",
@@ -49,5 +57,17 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 name = "gpu_compare"
 required-features = ["gpu"]
 
+[[example]]
+name = "gpu_shader_check"
+required-features = ["gpu"]
+
+[[example]]
+name = "gpu_ocr_bench"
+required-features = ["gpu"]
+
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 libc = "0.2"
+
+[[example]]
+name = "gpu_projection_bench"
+required-features = ["gpu"]

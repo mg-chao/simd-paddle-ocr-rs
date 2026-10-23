@@ -1,0 +1,414 @@
+//! Request-owned, bounded resident OCR composition.
+use super::{
+    heads::{Classification, Recognition},
+    resident::*,
+    vision::{self, Crops},
+    *,
+};
+use crate::{
+    image::ImageView,
+    lines::OrientedLineExtractor,
+    ocr::{OcrOptions, OwnedOcr, OwnedOcrLine},
+    recognizer::{OwnedCtcSpan, RecognitionScoreMode, Recognizer},
+};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Stage {
+    Detector,
+    Classifier,
+    Recognizer,
+    Shared,
+}
+pub(crate) struct Failure {
+    pub stage: Stage,
+    pub error: RuntimeError,
+}
+impl Failure {
+    fn at(stage: Stage) -> impl FnOnce(RuntimeError) -> Self {
+        move |error| Self { stage, error }
+    }
+}
+pub(crate) struct Pipeline {
+    pub failed_stage: Stage,
+    detector: vision::Detector,
+    classifier: Option<Classification>,
+    recognition: Vec<Recognition>,
+    pub statistics: GpuPipelineStatistics,
+}
+impl Pipeline {
+    pub fn new(
+        extractor: &OrientedLineExtractor,
+        recognizer: &Recognizer,
+    ) -> Result<Self, Failure> {
+        Self::create(extractor, recognizer).map_err(|(stage, error)| Failure { stage, error })
+    }
+    fn create(
+        extractor: &OrientedLineExtractor,
+        recognizer: &Recognizer,
+    ) -> Result<Self, (Stage, RuntimeError)> {
+        let mut stage = Stage::Detector;
+        let result = (|| -> RuntimeResult<Self> {
+            let det = extractor.detector();
+            let compiled = det
+                .compiled()
+                .as_gpu()
+                .ok_or_else(|| RuntimeError::new("resident detector requires GPU"))?
+                .clone();
+            let context = compiled.context.clone();
+            stage = Stage::Recognizer;
+            let rec = recognizer
+                .compiled()
+                .as_gpu()
+                .ok_or_else(|| RuntimeError::new("resident recognizer requires GPU"))?
+                .clone();
+            if !Arc::ptr_eq(&context, &rec.context) {
+                return Err(RuntimeError::new(
+                    "OCR models belong to different GPU contexts",
+                ));
+            }
+            stage = Stage::Classifier;
+            let classifier = extractor
+                .classifier_model()
+                .map(|model| {
+                    let cls = model
+                        .as_gpu()
+                        .ok_or_else(|| RuntimeError::new("resident classifier requires GPU"))?
+                        .clone();
+                    if !Arc::ptr_eq(&context, &cls.context) {
+                        return Err(RuntimeError::new(
+                            "OCR models belong to different GPU contexts",
+                        ));
+                    }
+                    Classification::new(cls, extractor.options().classifier_execution_limits)
+                })
+                .transpose()?;
+            stage = Stage::Detector;
+            let detector = vision::Detector::new(compiled, det.execution_limits())?;
+            stage = Stage::Recognizer;
+            Ok(Self {
+                failed_stage: Stage::Shared,
+                detector,
+                classifier,
+                recognition: vec![Recognition::new(
+                    rec,
+                    recognizer.dictionary(),
+                    32,
+                    recognizer.execution_limits(),
+                )?],
+                statistics: Default::default(),
+            })
+        })();
+        result.map_err(|error| (stage, error))
+    }
+    pub fn retained_bytes(&self) -> usize {
+        self.detector.scratch.retained_bytes()
+            + self.detector.session.retained_device_bytes()
+            + self
+                .classifier
+                .as_ref()
+                .map_or(0, Classification::retained_bytes)
+            + self
+                .recognition
+                .iter()
+                .map(Recognition::retained_bytes)
+                .sum::<usize>()
+    }
+    pub fn activation_bytes(&self) -> usize {
+        self.detector.scratch.retained_bytes()
+            + self.detector.session.retained_activation_bytes()
+            + self
+                .classifier
+                .as_ref()
+                .map_or(0, |c| c.session.retained_activation_bytes())
+            + self
+                .recognition
+                .iter()
+                .map(|r| r.session.retained_activation_bytes())
+                .sum::<usize>()
+    }
+    pub fn workspace_bytes(&self) -> usize {
+        self.detector.session.retained_planning_bytes()
+            + self
+                .classifier
+                .as_ref()
+                .map_or(0, |c| c.session.retained_planning_bytes())
+            + self
+                .recognition
+                .iter()
+                .map(|r| r.session.retained_planning_bytes())
+                .sum::<usize>()
+    }
+    pub fn execution_statistics(
+        &self,
+    ) -> std::collections::BTreeMap<&'static str, Vec<crate::runtime::ExecutionStatistics>> {
+        let mut output = std::collections::BTreeMap::new();
+        output.insert("detector", vec![self.detector.session.statistics()]);
+        output.insert(
+            "recognizer",
+            self.recognition
+                .iter()
+                .map(Recognition::execution_statistics)
+                .collect(),
+        );
+        if let Some(cls) = &self.classifier {
+            output.insert("classifier", vec![cls.session.statistics()]);
+        }
+        output
+    }
+    pub fn run(
+        &mut self,
+        image: ImageView<'_>,
+        extractor: &OrientedLineExtractor,
+        recognizer: &Recognizer,
+        options: OcrOptions,
+        batch_size: usize,
+        capture: bool,
+        profiling: bool,
+    ) -> Result<OwnedOcr, Failure> {
+        let result = self.run_inner(
+            image, extractor, recognizer, options, batch_size, capture, profiling,
+        );
+        result.map_err(Failure::at(self.failed_stage))
+    }
+    fn run_inner(
+        &mut self,
+        image: ImageView<'_>,
+        extractor: &OrientedLineExtractor,
+        recognizer: &Recognizer,
+        options: OcrOptions,
+        batch_size: usize,
+        capture: bool,
+        profiling: bool,
+    ) -> RuntimeResult<OwnedOcr> {
+        self.statistics = Default::default();
+        self.failed_stage = Stage::Detector;
+        let detection =
+            self.detector
+                .run(image, extractor.detector().resolved_options(), profiling)?;
+        vision::merge_statistics(&mut self.statistics, detection.statistics.clone());
+        let count = detection.boxes.len();
+        let line_options = extractor.options();
+        let rec_options = recognizer.resolved_options();
+        let mut result = OwnedOcr {
+            text: String::new(),
+            lines: Vec::new(),
+            detected_count: count,
+            detector_resized_width: detection.size.width,
+            detector_resized_height: detection.size.height,
+            width_ratio: detection.size.width_ratio,
+            height_ratio: detection.size.height_ratio,
+        };
+        let mut used = count
+            .checked_mul(crate::ocr::line_record_bytes())
+            .and_then(|n| n.checked_add(count.saturating_sub(1)))
+            .filter(|&n| n <= options.max_total_result_bytes)
+            .ok_or_else(|| resource("OCR exceeds max_total_result_bytes"))?;
+        if count == 0 {
+            return Ok(result);
+        }
+        let crops = Crops::prepare(&detection, line_options)?;
+        vision::merge_statistics(&mut self.statistics, crops.statistics.clone());
+        let mut sizes = Vec::with_capacity(count);
+        for &[width, height] in &crops.sizes {
+            if width * height > rec_options.max_image_pixels {
+                return Err(resource("crop exceeds recognizer max_image_pixels"));
+            }
+            if self.classifier.is_some()
+                && width * height > line_options.max_classifier_image_pixels
+            {
+                return Err(resource("crop exceeds classifier max_image_pixels"));
+            }
+            sizes.push(
+                recognizer
+                    .select_width(width, height)
+                    .map_err(RuntimeError::from)?,
+            );
+        }
+        let mut order: Vec<usize> = (0..count).collect();
+        order.sort_by_key(|&i| (sizes[i].tensor_width, i));
+        let mut units: Vec<Vec<usize>> = Vec::new();
+        for index in order {
+            if let Some(last) = units.last_mut() {
+                if last.len() < batch_size
+                    && sizes[last[0]].tensor_width == sizes[index].tensor_width
+                {
+                    last.push(index);
+                    continue;
+                }
+            }
+            units.push(vec![index]);
+        }
+        let bound = self.detector.context.options.max_in_flight.min(units.len());
+        while self.recognition.len() < bound {
+            self.recognition.push(self.recognition[0].fork()?);
+        }
+        let mut lines: Vec<Option<OwnedOcrLine>> = (0..count).map(|_| None).collect();
+        let context = self.detector.context.clone();
+        let admission = profiling.then(std::time::Instant::now);
+        let gate = context.acquire_gate()?;
+        if let Some(timer) = admission {
+            self.statistics.admission_wait_ns += timer.elapsed().as_nanos() as u64;
+        }
+        let mut pending = std::collections::VecDeque::new();
+        // Queue writes and submissions remain interleaved: reshaping a session
+        // may reuse its parameter buffer, so every wave must be submitted before
+        // the next is recorded. At most two waves retain scratch/readback data.
+        for wave in units.chunks(bound).map(Some).chain(std::iter::once(None)) {
+            if let Some(wave) = wave {
+                let mut batch = Batch::new(self.detector.context.clone())?;
+                batch.profiling = profiling;
+                batch.scratch = Some(self.detector.scratch.clone());
+                let mut outputs = Vec::new();
+                let mut total = 0usize;
+                for (slot, indices) in wave.iter().enumerate() {
+                    let mut images = Vec::with_capacity(indices.len());
+                    let mut classes = Vec::new();
+                    for &index in indices {
+                        self.failed_stage = Stage::Detector;
+                        let image = crops.record(&mut batch, &detection.image, index)?;
+                        if let Some(classifier) = &mut self.classifier {
+                            self.failed_stage = Stage::Classifier;
+                            let (winner, width) = classifier.record(&mut batch, &image)?;
+                            images.push(vision::orient(
+                                &mut batch,
+                                &image,
+                                &winner,
+                                line_options.classifier_threshold,
+                            )?);
+                            classes.push((winner, width));
+                        } else {
+                            images.push(image);
+                        }
+                    }
+                    let shapes = indices.iter().map(|&i| sizes[i]).collect::<Vec<_>>();
+                    self.failed_stage = Stage::Recognizer;
+                    let (tokens, steps) = self.recognition[slot].record(
+                        &mut batch,
+                        &images,
+                        &shapes,
+                        rec_options.score_mode == RecognitionScoreMode::Probability,
+                        capture,
+                        rec_options
+                            .max_result_bytes
+                            .min(options.max_total_result_bytes - used),
+                    )?;
+                    let bytes = (steps + 1) * indices.len() * 24;
+                    let offset = total;
+                    total = total
+                        .checked_add(bytes + classes.len() * 16)
+                        .ok_or_else(|| resource("OCR compact result overflow"))?;
+                    outputs.push((tokens, steps, classes, offset, bytes));
+                }
+                let compact = batch.storage("OCR compact output", total)?;
+                for (tokens, _, classes, offset, bytes) in &outputs {
+                    batch.copy(tokens, 0, &compact, *offset as u64, *bytes as u64);
+                    for (j, (winner, _)) in classes.iter().enumerate() {
+                        batch.copy(winner, 0, &compact, (*offset + *bytes + j * 16) as u64, 16);
+                    }
+                }
+                self.failed_stage = Stage::Shared;
+                pending.push_back((wave, outputs, batch.submit(&compact, total, false, &gate)?));
+                if pending.len() < 2 {
+                    continue;
+                }
+            }
+            let Some((wave, outputs, submitted)) = pending.pop_front() else {
+                continue;
+            };
+            self.failed_stage = Stage::Shared;
+            let (data, statistics) = submitted.finish()?;
+            vision::merge_statistics(&mut self.statistics, statistics);
+            for (indices, (_, steps, classes, offset, bytes)) in wave.iter().zip(outputs) {
+                let decoded = Recognition::parse(
+                    &data[offset..offset + bytes],
+                    indices.len(),
+                    steps,
+                    recognizer.dictionary().class_count(),
+                )?;
+                let batch_bytes = decoded
+                    .iter()
+                    .try_fold(0usize, |sum, line| {
+                        sum.checked_add(line.text_bytes)?.checked_add(if capture {
+                            line.tokens.len() * std::mem::size_of::<crate::recognizer::CtcRun>()
+                        } else {
+                            0
+                        })
+                    })
+                    .filter(|&n| n <= rec_options.max_result_bytes);
+                if batch_bytes.is_none() {
+                    return Err(resource("recognition batch exceeds max_result_bytes"));
+                }
+                for (j, (&index, decoded)) in indices.iter().zip(decoded).enumerate() {
+                    let spans_bytes = if capture {
+                        decoded.tokens.len() * std::mem::size_of::<crate::recognizer::CtcRun>()
+                    } else {
+                        0
+                    };
+                    used = used
+                        .checked_add(decoded.text_bytes)
+                        .and_then(|n| n.checked_add(spans_bytes))
+                        .filter(|&n| n <= options.max_total_result_bytes)
+                        .ok_or_else(|| resource("OCR exceeds max_total_result_bytes"))?;
+                    let mut text = String::with_capacity(decoded.text_bytes);
+                    let mut spans = capture.then(Vec::new);
+                    let emitted_count = decoded.tokens.len();
+                    for token in decoded.tokens {
+                        let label = recognizer
+                            .dictionary()
+                            .token(token.class)
+                            .ok_or_else(|| RuntimeError::new("GPU token out of range"))?;
+                        text.push_str(label);
+                        if let Some(spans) = &mut spans {
+                            spans.push(OwnedCtcSpan {
+                                text: label.into(),
+                                score: token.score,
+                                start_column: token.start,
+                                end_column: token.end,
+                            });
+                        }
+                    }
+                    if text.len() != decoded.text_bytes {
+                        return Err(RuntimeError::new("GPU token byte count mismatch"));
+                    }
+                    let (label, score) = if classes.is_empty() {
+                        (0, 0.0)
+                    } else {
+                        let start = offset + bytes + j * 16;
+                        let class = Classification::parse(&data[start..start + 16], classes[j].1)?;
+                        (class.label, class.score)
+                    };
+                    lines[index] = Some(OwnedOcrLine {
+                        detection: detection.boxes[index],
+                        text,
+                        recognition_score: decoded.score,
+                        classification_score: score,
+                        classification_label: label,
+                        applied_rotation_degrees: if label == 1
+                            && score > line_options.classifier_threshold
+                        {
+                            180
+                        } else {
+                            0
+                        },
+                        emitted_count,
+                        recognition_content_width: sizes[index].resized_width,
+                        recognition_tensor_width: sizes[index].tensor_width,
+                        recognition_time_steps: steps,
+                        ctc_spans: spans,
+                    });
+                }
+            }
+        }
+        result.lines = lines
+            .into_iter()
+            .map(|line| line.expect("all admitted recognition units completed"))
+            .collect();
+        for (i, line) in result.lines.iter().enumerate() {
+            if i > 0 {
+                result.text.push('\n');
+            }
+            result.text.push_str(&line.text);
+        }
+        Ok(result)
+    }
+}

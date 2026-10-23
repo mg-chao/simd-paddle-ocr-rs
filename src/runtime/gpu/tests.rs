@@ -1584,6 +1584,185 @@ fn gpu_hardware_attention_se_resize_placement_and_rank_five() {
 }
 
 #[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_resident_fusions_and_experimental_selection() {
+    let shape = [2, 3, 19, 24];
+    let graph = model(
+        vec![
+            tensor("k", &[2, 3, 19, 24], &values(2 * 3 * 19 * 24, 4)),
+            tensor("v", &[2, 3, 24, 19], &values(2 * 3 * 24 * 19, 5)),
+            node(
+                "Transpose",
+                &["k"],
+                "kt",
+                &[integers("perm", &[0, 1, 3, 2])],
+            ),
+            node(
+                "Transpose",
+                &["v"],
+                "vt",
+                &[integers("perm", &[0, 1, 3, 2])],
+            ),
+            node("MatMul", &["x", "kt"], "scores", &[]),
+            node("Softmax", &["scores"], "prob", &[integer("axis", 3)]),
+            node("MatMul", &["prob", "vt"], "y", &[]),
+        ],
+        &shape,
+        &shape,
+    );
+    compare_paths(graph.clone(), &shape, "folded QKV address transforms");
+    let session = GpuSession::new(
+        Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap()),
+        &shape,
+        ExecutionLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(session.dispatches.len(), 1);
+    let shape = [2, 17, 32, 33];
+    let graph = model(
+        vec![
+            tensor("w1", &[5, 17, 1, 1], &values(85, 2)),
+            tensor("b1", &[5], &values(5, 3)),
+            tensor("w2", &[17, 5, 1, 1], &values(85, 4)),
+            tensor("b2", &[17], &values(17, 5)),
+            tensor("w3", &[19, 17, 1, 1], &values(323, 6)),
+            node("GlobalAveragePool", &["x"], "pool", &[]),
+            node(
+                "Conv",
+                &["pool", "w1", "b1"],
+                "fc1",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+            node("Relu", &["fc1"], "relu", &[]),
+            node(
+                "Conv",
+                &["relu", "w2", "b2"],
+                "fc2",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+            node("HardSigmoid", &["fc2"], "gate", &[]),
+            node("Mul", &["x", "gate"], "scaled", &[]),
+            node(
+                "Conv",
+                &["scaled", "w3"],
+                "y",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+        ],
+        &shape,
+        &[2, 19, 32, 33],
+    );
+    compare_paths(graph.clone(), &shape, "SE chain and prescaling");
+    let session = GpuSession::new(
+        Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap()),
+        &shape,
+        ExecutionLimits::default(),
+    )
+    .unwrap();
+    assert!(
+        session
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|k| k.family == "se_projection_chain")
+    );
+    assert_eq!(session.dispatches.len(), 3);
+    let context = GpuContext::new_with_options(GpuContextOptions {
+        backend: hardware().options().backend,
+        experimental_cooperative_matrix: true,
+        ..Default::default()
+    })
+    .unwrap();
+    let shape = [256, 17];
+    let graph = model(
+        vec![
+            tensor("w", &[17, 129], &values(2193, 3)),
+            node("MatMul", &["x", "w"], "y", &[]),
+        ],
+        &shape,
+        &[256, 129],
+    );
+    let input = values(256 * 17, 1);
+    let (_, expected) = reference(graph.clone(), &shape, &input);
+    let mut session = GpuSession::new(
+        Arc::new(GpuCompiledModel::compile(graph, context.clone()).unwrap()),
+        &shape,
+        ExecutionLimits::default(),
+    )
+    .unwrap();
+    assert_close(
+        "experimental or portable fallback",
+        session.run(&input).unwrap().data(),
+        &expected,
+    );
+    assert_eq!(
+        session
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|k| k.family == "experimental_cooperative_matmul8"),
+        context
+            .device
+            .features()
+            .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
+    );
+    eprintln!(
+        "Cooperative physical support: {}",
+        context
+            .device
+            .features()
+            .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
+    );
+}
+
+#[test]
+#[ignore = "requires FP16 capable physical GPU"]
+fn gpu_hardware_nhwc_pointwise_region_preserves_boundaries() {
+    let context = GpuContext::new_with_options(GpuContextOptions {
+        backend: hardware().options().backend,
+        precision: GpuPrecision::MixedF16,
+        ..Default::default()
+    })
+    .unwrap();
+    let shape = [1, 65, 32, 33];
+    let graph = model(
+        vec![
+            tensor("w1", &[67, 65, 1, 1], &values(4355, 3)),
+            tensor("w2", &[69, 67, 1, 1], &values(4623, 4)),
+            node(
+                "Conv",
+                &["x", "w1"],
+                "first",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+            node("Relu", &["first"], "activation", &[]),
+            node(
+                "Conv",
+                &["activation", "w2"],
+                "y",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+        ],
+        &shape,
+        &[1, 69, 32, 33],
+    );
+    let input = values(shape.iter().product(), 1);
+    let (_, expected) = reference(graph.clone(), &shape, &input);
+    let compiled = Arc::new(GpuCompiledModel::compile(graph, context).unwrap());
+    let mut session =
+        GpuSession::new(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
+    let actual = session.run(&input).unwrap();
+    for (&a, &b) in actual.data().iter().zip(&expected) {
+        assert!((a - b).abs() <= 0.05 + 0.01 * b.abs(), "{a} vs {b}");
+    }
+    assert_eq!(session.statistics().layout_conversions, 1);
+    let mut prefix =
+        GpuSession::new_prefix(compiled, &shape, ExecutionLimits::default(), 1).unwrap();
+    prefix.run(&input).unwrap();
+    assert_eq!(prefix.output_shape().dimensions(), &[1, 67, 32, 33]);
+}
+
+#[test]
 #[ignore = "requires FP16 and subgroup capable physical GPU"]
 fn gpu_hardware_mixed_storage_and_optional_subgroups() {
     for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
@@ -1818,4 +1997,272 @@ fn gpu_bounded_performance() {
             );
         }
     }
+}
+
+#[test]
+#[ignore = "bounded pointwise experiment: three shapes, one correctness warmup and three timestamp samples per candidate"]
+fn gpu_pointwise_layout_candidates() {
+    use operators::ShaderKind;
+    use resident::Batch;
+    let context = hardware();
+    assert!(
+        context
+            .timestamp_features
+            .contains(wgpu::Features::TIMESTAMP_QUERY)
+    );
+    let started = std::time::Instant::now();
+    for (shape, channels) in [
+        ([1, 128, 32, 33], 128),
+        ([1, 1536, 3, 240], 768),
+        ([2, 192, 6, 136], 1024),
+    ] {
+        let case = ConvCase {
+            name: "pointwise candidate",
+            input: shape,
+            channels,
+            kernel: [1; 2],
+            stride: [1; 2],
+            dilation: [1; 2],
+            pads: [0; 4],
+            group: 1,
+            bias: true,
+        };
+        let model = case.model();
+        let input = values(shape.iter().product(), 1);
+        let (_, expected) = reference(model.clone(), &shape, &input);
+        let compiled = Arc::new(GpuCompiledModel::compile(model, context.clone()).unwrap());
+        let session =
+            GpuSession::new(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
+        assert_eq!(session.recipes.len(), 1);
+        let recipe = &session.recipes[0];
+        let baseline = match recipe.kind {
+            operators::RecipeKind::Compute(ShaderKind::PointwiseNchw16) => ShaderKind::Conv16,
+            operators::RecipeKind::Compute(ShaderKind::PointwiseNchw32) => ShaderKind::Conv32,
+            operators::RecipeKind::Compute(kind @ (ShaderKind::Conv16 | ShaderKind::Conv32)) => {
+                kind
+            }
+            _ => panic!("expected tiled baseline"),
+        };
+        let pointwise = if baseline == ShaderKind::Conv32 {
+            ShaderKind::PointwiseNchw32
+        } else {
+            ShaderKind::PointwiseNchw16
+        };
+        let a = context
+            .create_buffer_init(
+                "candidate input",
+                bytemuck::cast_slice(&input),
+                wgpu::BufferUsages::STORAGE,
+            )
+            .unwrap();
+        let weights = compiled.weights.constants[recipe.inputs[1].0]
+            .as_ref()
+            .unwrap();
+        let bias = compiled.weights.constants[recipe.inputs[2].0]
+            .as_ref()
+            .unwrap();
+        let dummy = &compiled.weights.dummy;
+        let source = |kind: ShaderKind| {
+            let mut source = format!("{}\n{}", include_str!("common.wgsl"), kind.source())
+                .replace("$ENABLE", "");
+            for name in ["$A", "$B", "$C", "$D", "$E", "$O"] {
+                source = source.replace(name, "f32");
+            }
+            source
+        };
+        for kind in [baseline, pointwise, ShaderKind::PointwiseNhwc] {
+            let mut samples = Vec::new();
+            for iteration in 0..4 {
+                assert!(
+                    started.elapsed().as_secs() < 60,
+                    "bounded experiment budget exhausted"
+                );
+                let mut batch = Batch::new(context.clone()).unwrap();
+                batch.profiling = true;
+                let output = batch
+                    .storage("candidate output", expected.len() * 4)
+                    .unwrap();
+                let mut words = recipe.words;
+                let packed;
+                let input = if kind == ShaderKind::PointwiseNhwc {
+                    let padded = shape[1].div_ceil(16) * 16;
+                    let plane = shape[2] * shape[3];
+                    let count = shape[0] * plane * padded;
+                    packed = batch.storage("candidate NHWC", count * 4).unwrap();
+                    let (x, y) = dispatch_grid(count, &context.limits).unwrap();
+                    let mut convert = [0u32; 128];
+                    convert[..6].copy_from_slice(&[
+                        count as u32,
+                        x * 64,
+                        24,
+                        shape[1] as u32,
+                        plane as u32,
+                        padded as u32,
+                    ]);
+                    batch
+                        .dispatch(
+                            "candidate_nhwc_conversion",
+                            &source(ShaderKind::General),
+                            &[
+                                (&a, true),
+                                (dummy, true),
+                                (dummy, true),
+                                (dummy, true),
+                                (dummy, true),
+                                (&packed, false),
+                            ],
+                            &convert,
+                            [x, y, 1],
+                        )
+                        .unwrap();
+                    words[32] = plane.div_ceil(16) as u32;
+                    words[33] = channels.div_ceil(16) as u32;
+                    words[35] = shape[0] as u32;
+                    words[36] = padded as u32;
+                    &packed
+                } else {
+                    &a
+                };
+                let (x, y) = dispatch_grid(
+                    words[32] as usize * words[33] as usize * shape[0] * 64,
+                    &context.limits,
+                )
+                .unwrap();
+                words[34] = x;
+                batch
+                    .dispatch(
+                        kind.name(),
+                        &source(kind),
+                        &[
+                            (input, true),
+                            (weights, true),
+                            (bias, true),
+                            (dummy, true),
+                            (dummy, true),
+                            (&output, false),
+                        ],
+                        &words,
+                        [x, y, 1],
+                    )
+                    .unwrap();
+                let (bytes, stats) = batch.read(&output, expected.len() * 4, false).unwrap();
+                if iteration == 0 {
+                    let actual: Vec<f32> = bytes
+                        .chunks_exact(4)
+                        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+                        .collect();
+                    assert_close(kind.name(), &actual, &expected);
+                } else {
+                    samples.push(stats.profile.unwrap().compute_ns().unwrap() as f64 / 1000.);
+                }
+            }
+            eprintln!(
+                "POINTWISE {}",
+                serde_json::json!({"input":shape,"channels":channels,"kernel":kind.name(),"samples_us":samples,"includes_layout_conversion":kind==ShaderKind::PointwiseNhwc})
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "bounded resident performance experiment; requires models and generated corpus"]
+fn benchmark_resident_candidates() {
+    use crate::{
+        ExecutionTarget, GpuPipelineMode, ModelPreset, OcrModelSet,
+        image::{ImageView, PixelFormat},
+    };
+    let corpus = std::env::var("SIMD_OCR_FULL_GPU_CORPUS")
+        .expect("set SIMD_OCR_FULL_GPU_CORPUS to generated fixture directory");
+    let models =
+        OcrModelSet::from_directory("../SimdPaddleOCR/models", ModelPreset::ChineseV6Tiny, true)
+            .unwrap();
+    let started = std::time::Instant::now();
+    for case in ["sparse", "typical", "dense"] {
+        let path = std::path::Path::new(&corpus).join(format!("{case}.png"));
+        let pixels = image::ImageReader::open(path)
+            .unwrap()
+            .decode()
+            .unwrap()
+            .to_rgb8();
+        let image = ImageView::new(
+            pixels.as_raw(),
+            pixels.width() as usize,
+            pixels.height() as usize,
+            0,
+            PixelFormat::Rgb24,
+        )
+        .unwrap();
+        let mut reference = None;
+        for (cache, tiled) in [(true, true), (false, true), (false, false)] {
+            let context = GpuContext::new_with_options(GpuContextOptions {
+                backend: hardware().options().backend,
+                cache_resident_scratch: cache,
+                tiled_labels: tiled,
+                ..Default::default()
+            })
+            .unwrap();
+            let mut request = models
+                .clone()
+                .builder()
+                .execution_target(ExecutionTarget::Gpu)
+                .gpu_context(context)
+                .gpu_pipeline_mode(GpuPipelineMode::Full)
+                .recognition_batch_size(2)
+                .build()
+                .unwrap();
+            let cold = request.run(image, true).unwrap().try_to_owned().unwrap();
+            if let Some(expected) = &reference {
+                assert_eq!(&cold.text, expected);
+            } else {
+                reference = Some(cold.text);
+            }
+            let mut samples = Vec::new();
+            for _ in 0..3 {
+                let clock = std::time::Instant::now();
+                let result = request.run(image, false).unwrap();
+                samples.push(clock.elapsed().as_secs_f64() * 1000.);
+                assert_eq!(&result.text, reference.as_ref().unwrap());
+            }
+            eprintln!("RESIDENT {case} cache={cache} tiled={tiled} ms={samples:?}");
+            assert!(started.elapsed().as_secs() < 60);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_full_precision_variant_shares_context_and_isolates_weights() {
+    let context = GpuContext::new_with_options(GpuContextOptions {
+        backend: hardware().options().backend,
+        precision: GpuPrecision::MixedF16,
+        ..Default::default()
+    })
+    .unwrap();
+    let (source, _) = crate::ocr::tests::synthetic_sources();
+    let model = Arc::new(Model::load_bytes(&source).unwrap());
+    let mixed = Arc::new(GpuCompiledModel::compile(model, context.clone()).unwrap());
+    let full = mixed.with_full_precision().unwrap();
+    assert!(Arc::ptr_eq(&context, full.context()));
+    assert!(Arc::ptr_eq(&full, &mixed.with_full_precision().unwrap()));
+    assert_eq!(mixed.precision, GpuPrecision::MixedF16);
+    assert_eq!(full.precision, GpuPrecision::F32);
+    assert!(!Arc::ptr_eq(&mixed.weights, &full.weights));
+    let mut session = GpuSession::new(full, &[1, 3, 32, 32], ExecutionLimits::default()).unwrap();
+    assert!(
+        session
+            .tensor_descriptors()
+            .iter()
+            .all(|d| d.precision == GpuPrecision::F32)
+    );
+    let input = vec![0.1234567; 3 * 32 * 32];
+    let expected = 1.0 / (1.0 + (-0.1234567f32).exp());
+    assert!(
+        session
+            .run(&input)
+            .unwrap()
+            .data()
+            .iter()
+            .all(|&v| (v - expected).abs() < 1e-6)
+    );
+    assert_eq!(session.statistics().effective_precision, "F32");
 }

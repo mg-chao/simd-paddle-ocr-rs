@@ -1,8 +1,8 @@
-# Native GPU inference
+# Native GPU OCR
 
 Enable `gpu` to build the wgpu **30.0.1** backend. Vulkan, DX12 and Metal are
 enabled; WGSL kernels use portable compute operations. The default execution
-target remains CPU, and GPU defaults to FP32. No ONNX Runtime, C# runtime, or
+target remains CPU. GPU-selected OCR defaults to the full resident pipeline and FP32. No ONNX Runtime, C# runtime, or
 model download is involved in production inference.
 
 ```powershell
@@ -13,12 +13,14 @@ cargo run --release --locked --features gpu --example ocr -- --execution gpu --g
 `--execution cpu|auto|gpu` applies to all stages. `--det-execution`,
 `--rec-execution`, and `--cls-execution` override it independently. `--statistics`
 prints actual stage backends, precision, adapter, kernels, retained memory,
-submission/readback counts, and any fallback reason to stderr.
+submission/readback counts, and any fallback reason to stderr. `--gpu-pipeline
+full|inference-only` selects resident OCR or the earlier hybrid path. Explicit
+per-stage CPU overrides remain hybrid and are reported as such.
 
 ## Library API
 
 ```rust,no_run
-use simd_paddle_ocr_rs::{ExecutionTarget, ModelPreset, OcrModelSet};
+use simd_paddle_ocr_rs::{ExecutionTarget, GpuPipelineMode, ModelPreset, OcrModelSet};
 use simd_paddle_ocr_rs::runtime::gpu::{GpuBackendPreference, GpuContext, GpuContextOptions, GpuPrecision};
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 let gpu = GpuContext::new_with_options(GpuContextOptions {
@@ -30,7 +32,7 @@ let gpu = GpuContext::new_with_options(GpuContextOptions {
 let models = OcrModelSet::from_directory("models", ModelPreset::ChineseV6Medium, true)?;
 let mut request = models.builder()
     .execution_target(ExecutionTarget::Gpu)
-    .classifier_target(ExecutionTarget::Cpu)
+    .gpu_pipeline_mode(GpuPipelineMode::Full)
     .gpu_context(gpu)
     .build()?;
 let independent_request = request.fork()?;
@@ -85,8 +87,14 @@ avoid accumulating a half-rounding error at every arithmetic boundary; they
 share the same FP16 weights. Statistics report this effective storage policy.
 It requires the adapter's `SHADER_F16` feature. `subgroups: true` opts
 into reductions using the advertised subgroup feature, without assuming a lane
-width. FP32 portable kernels require neither feature. There are no cooperative
-matrix extensions or native API escape paths.
+width. FP32 portable kernels require neither feature.
+`experimental_cooperative_matrix: true` (CLI
+`--gpu-experimental-cooperative-matrix`) opts in to the unqualified 8×8 FP32
+matrix tier. It checks advertised scalar types, dimensions, subgroup ranges,
+and the experimental feature before requesting it. Unsupported configurations
+retain portable GPU kernels. It does not enable C#'s FP16 cooperative paths.
+No startup benchmarking or vendor-name selection occurs. See the pinned
+[wgpu feature contract](https://docs.rs/wgpu/30.0.1/wgpu/struct.Features.html#associatedconstant.EXPERIMENTAL_COOPERATIVE_MATRIX).
 
 Strict `Gpu` returns errors. `Auto` may use CPU for unsupported capabilities or
 shapes, and can retry a failed invocation once after device loss. Full CPU packs
@@ -114,9 +122,52 @@ tensors. It deliberately adds submissions/readbacks; diagnostic counts and
 timings are separate from production. `CompileOptions { fusion: false, .. }`
 also permits ordinary unfused graph execution.
 
-Preprocessing, DB postprocessing and compact REC/CLS projection/decoding stay
-on CPU. Full low-level GPU graph outputs are supported too. GPU image processing,
-specialized projection heads and cross-shape submission batching are excluded.
+Full OCR uploads source pixels once, including valid arbitrary row strides and
+RGB/BGR/alpha formats. Integer byte-domain resize, padding and normalization,
+DB threshold/dilation, 8-connected foreground and 4-connected enclosed holes,
+component ordering, hulls, rectangles, scores, unclip and source mapping execute
+on GPU. Perspective sampling uses two-FP32 arithmetic and preserves bicubic byte
+rounding, vertical counterclockwise rotation, and classifier-controlled rotation.
+No native FP64 capability is required.
+
+Compact heads retain bias order and lowest-index ties. Probability scores use
+a stable denominator over the complete vocabulary. CTC performs repeat/blank
+handling, token/span compaction, UTF-8 byte-budget checks and line-score
+reduction on GPU. The host maps token IDs to dictionary strings and assembles
+borrowed public results. Low-level tensor APIs and tracing still return dense
+outputs when requested; oriented-crop APIs return their requested pixel bytes.
+
+The encoder composes preprocessing, graph execution, heads and decoding before
+submission. Recognition lines of the same width form bounded batches; different
+widths occupy independent request-owned slots, bounded by `max_in_flight`.
+Available units are submitted without an external batch-filling wait. Results
+are restored to original line order. A recognition request holds one admission
+guard and at most two submitted waves, allowing encoding to overlap device
+work. Pending waves retain their buffer reservations and readbacks until
+completion, including on early errors. Shape and candidate counts cross compact
+control-readback boundaries. Intermediate image, feature and vocabulary
+buffers do not cross to the host during normal full-GPU OCR.
+
+Immutable weights and head/pipeline caches are shared. Forks have independent
+activations and scratch. `cache_resident_scratch: true` opts in to the bounded
+scratch cache; inconclusive local timings keep it disabled by default. Reuse requires no live views or pending batch
+owners, is capped at 64 buffers and 64 MiB (or one quarter of the context quota),
+and participates in request-pool eviction accounting. Capacity errors remain
+visible; candidate limits retain the reference selection policy.
+
+`Ocr::gpu_pipeline_statistics()` returns the latest resident OCR run's transfer,
+placement, kernel and timing statistics; diagnostic bytes cover the request's
+traced sessions. Standalone stages aggregate completed runs. Image processing,
+geometry, projection and decoding have independent placement fields. Output,
+control and diagnostic readbacks are counted separately. Peak device bytes are
+the context's application allocation high-water mark; opaque driver allocations
+are excluded. Statistics do not make full GPU synonymous with faster execution.Upload counters measure image/tensor payloads; shared immutable model uploads
+and small uniform parameter packets are excluded. They are not a PCIe traffic
+counter. Readback counters include the requested buffer bytes.
+Full-pipeline detector and recognizer inference retain FP32 weights andactivations even in a mixed context. Half-precision threshold crossings changedcontour topology, moved validation boxes by 1–2 source pixels, and shifted CTCspan boundaries despite FP32 attention residuals. Classifier inference retainsmixed storage. Each FP32 variant shares the samedevice, is cached independently by precision, and is included in weight/quotaaccounting. Stage statistics report its effective precision. Low-level tensorand `InferenceOnly` execution retain the requested mixed policy; their numericalerror gates alone do not guarantee identical discrete OCR decisions.
+Traced calls retain unfused low-level execution at the requested model precision,
+including diagnostic CPU image/result processing. Their results can therefore
+differ from guarded mixed Full execution; normal residency claims exclude traces.
 
 ## Implementation map
 
@@ -125,8 +176,8 @@ source lineage. `runtime::stage` dispatches immutable models and exclusive
 sessions. The CPU implementation owns its SIMD packs and physical layouts;
 `runtime::gpu` owns device weights, shape schedules, liveness allocations and
 readbacks. GPU compilation never constructs a `CpuCompiledModel`. OCR prepares
-only its required CPU projection resources; an `Auto` model's complete CPU plan
-is initialized once, on first fallback.
+GPU projection resources; CPU projection packs are lazy for GPU models. An
+`Auto` model's complete CPU plan is initialized once, on first allowed fallback.
 
 The C# reference checkout used during development was
 `33ff8a81672452041d110e8ba52dcd2639e54228`. Relevant source-to-rewrite mapping:
@@ -135,11 +186,14 @@ The C# reference checkout used during development was
 | --- | --- |
 | `GpuGraph.cs`, `GpuRunner.cs` | `gpu.rs`, `gpu/physical.rs`, `gpu/fusions.rs` |
 | `gemm_nc.comp`, convolution shaders | `tiled.wgsl`, `pointwise.wgsl`, `depthwise.wgsl`, `transposed.wgsl` |
-| `se_fused.comp`, `resize4add.comp` | `se.wgsl`, portable resize/add recipe |
+| `se_fused.comp`, `resize4add.comp` | `se_chain.wgsl` after a separate reduction, `se.wgsl`, prescaling, portable resize/add |
 | `layernorm.comp`, `attn.comp` | `reduce.wgsl`, `attention.wgsl` |
 
 Attention retains the online-softmax algorithm, with a portable four-query,
-sixteen-key tile and FP32 scalar accumulators. Selection is explicit and based
+sixteen-key tile and FP32 scalar accumulators. Private Q/K/V reshape, transpose
+and slice chains are addressed directly from their source; escaping values and
+selected prefixes retain materialization. Compatible pointwise chains retain
+NHWC storage through explicit boundaries. Selection is explicit and based
 on shapes and enabled capabilities. Startup does not benchmark or autotune.
 Unsupported fusion patterns use ordinary GPU kernels. Diagnostic plans disable
 fusion and physical rewrites, including concat placement.
@@ -192,5 +246,22 @@ The ignored `gpu_bounded_performance` test measures only pointwise, dense and
 attention cases, one warmup and three measured calls per path. It is separate
 from correctness tests and does not autotune production startup.
 
-See [local validation results](gpu-validation.md) for physical-device evidence.
+See [full-pipeline qualification](full-gpu-validation.md) and the
+[earlier inference baseline](gpu-validation.md) for physical-device evidence.
 Metal and other GPUs require validation on those physical devices.
+
+For source-pinned performance comparisons, build with profiling and use the
+bounded harness described in [the performance phase](gpu-performance-phase.md):
+
+```powershell
+cargo build --release --locked --all-features --example gpu_ocr_bench
+dotnet build tools/reference/Reference.csproj -c Release
+python tools/gpu_performance.py --backend vulkan --corpus reports/full-gpu/release-vulkan/corpus --report reports/gpu-performance/new-run --presets tiny --cases sparse --configs 1:1:2 --modes cpu inference-only full --csharp cpu gpu --measurements 3 --profile
+```
+
+Use a fresh report directory. `--configs` means requests:GPU-slots:recognition-batch;
+profiling calls are separate from warm measurements. The harness freezes binaries
+and input identities, validates complete public OCR outputs, and retains failed
+comparisons. C# GPU is a hybrid mixed-precision reference, with fallback checked
+explicitly. Vertical crop rotation differs between the two libraries; such
+configurations are reported as unqualified rather than used for speed claims.

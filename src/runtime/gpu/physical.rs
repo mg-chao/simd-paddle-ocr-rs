@@ -20,7 +20,12 @@ pub(super) fn lower(
             continue;
         }
         if let Some(recipe) = super::fusions::replacement(program, plan, start, selected, limits)? {
-            if recipe.nodes.iter().all(|&i| !removed[i]) {
+            // The chain is profitable only when its gate is folded into the
+            // following convolution, which currently requires FP32 storage.
+            if !(precision == GpuPrecision::MixedF16
+                && matches!(recipe.kind, RecipeKind::Compute(ShaderKind::SeChain)))
+                && recipe.nodes.iter().all(|&i| !removed[i])
+            {
                 for &i in &recipe.nodes {
                     removed[i] = true;
                 }
@@ -230,9 +235,141 @@ pub(super) fn lower(
         }
         layouts.push(r);
     }
-    let physical = layouts;
+    // Continue NHWC through adjacent compatible pointwise regions. The next
+    // conversion's request-owned allocation becomes the producer destination.
+    // Escaping logical outputs and selected prefix boundaries stay canonical.
+    let mut omit = vec![false; layouts.len()];
+    for convert in 0..layouts.len() {
+        if !matches!(
+            layouts[convert].kind,
+            RecipeKind::Compute(ShaderKind::General)
+        ) || layouts[convert].words[2] != 24
+        {
+            continue;
+        }
+        let value = layouts[convert].inputs[0];
+        if value == selected || program.graph_uses.unique_consumer(value, count).is_none() {
+            continue;
+        }
+        let Some(producer) = layouts[..convert].iter().position(|r| {
+            r.output == value && matches!(r.kind, RecipeKind::Compute(ShaderKind::PointwiseNhwc))
+        }) else {
+            continue;
+        };
+        if layouts
+            .iter()
+            .enumerate()
+            .any(|(i, r)| i != convert && r.inputs.contains(&value))
+        {
+            continue;
+        }
+        layouts[producer].output = layouts[convert].output;
+        layouts[producer].words[37] = layouts[convert].words[5];
+        omit[convert] = true;
+    }
+    let mut physical = layouts
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, r)| (!omit[i]).then_some(r))
+        .collect::<Vec<_>>();
+    if precision == GpuPrecision::F32 {
+        let mut discard = vec![false; physical.len()];
+        for consumer in 0..physical.len() {
+            if !matches!(
+                physical[consumer].kind,
+                RecipeKind::Compute(ShaderKind::Conv16 | ShaderKind::Conv32)
+            ) || physical[consumer].inputs.len() >= 5
+            {
+                continue;
+            }
+            let value = physical[consumer].inputs[0];
+            if value == selected || program.graph_uses.unique_consumer(value, count).is_none() {
+                continue;
+            }
+            let Some(producer) = physical.iter().position(|r| {
+                r.output == value
+                    && r.nodes.len() == 1
+                    && matches!(program.instructions[r.node].kind, Op::Mul)
+            }) else {
+                continue;
+            };
+            let mut pair = physical[producer].inputs.clone();
+            let shape = plan.shapes[value.0];
+            if shape.rank() != 4 {
+                continue;
+            }
+            if plan.shapes[pair[0].0] != shape {
+                pair.swap(0, 1);
+            }
+            if plan.shapes[pair[0].0] != shape
+                || plan.shapes[pair[1].0].dimensions()
+                    != [shape.dimensions()[0], shape.dimensions()[1], 1, 1]
+            {
+                continue;
+            }
+            let absorbed = physical[producer].nodes[0];
+            let r = &mut physical[consumer];
+            r.nodes.push(absorbed);
+            // Binding 3/4 is independent of convolution bias and fused residual operands.
+            r.kind = RecipeKind::Compute(
+                if matches!(r.kind, RecipeKind::Compute(ShaderKind::Conv32)) {
+                    ShaderKind::ConvPrescaled32
+                } else {
+                    ShaderKind::ConvPrescaled16
+                },
+            );
+            r.inputs[0] = pair[0];
+            while r.inputs.len() < 3 {
+                r.inputs.push(pair[0]);
+            }
+            r.words[52] = (r.inputs.len() - 2) as u32;
+            r.words[53] = shape.dimensions()[1] as u32;
+            r.inputs.push(pair[1]);
+            discard[producer] = true;
+        }
+        physical = physical
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, r)| (!discard[i]).then_some(r))
+            .collect();
+    }
     let mut staged = Vec::new();
     for mut recipe in physical {
+        // Direct NCHW addressing removes spatial div/mod and bounds work from
+        // measured FP32 pointwise shapes without adding a layout conversion.
+        // Large channel reductions retain the original kernel: current device
+        // measurements do not establish a benefit there.
+        if precision == GpuPrecision::F32 {
+            if let BoundKind::Conv(g) = &plan.steps[recipe.nodes[0]].kind {
+                if g.kh == 1
+                    && g.kw == 1
+                    && g.sh == 1
+                    && g.sw == 1
+                    && g.pt == 0
+                    && g.pl == 0
+                    && g.oh == g.height
+                    && g.ow == g.width
+                    && g.cpg == g.cin
+                    && g.cin <= 256
+                {
+                    recipe.kind = match recipe.kind {
+                        RecipeKind::Compute(ShaderKind::Conv16) => {
+                            RecipeKind::Compute(ShaderKind::PointwiseNchw16)
+                        }
+                        RecipeKind::Compute(ShaderKind::Conv32) => {
+                            RecipeKind::Compute(ShaderKind::PointwiseNchw32)
+                        }
+                        RecipeKind::Compute(ShaderKind::ConvPrescaled16) => {
+                            RecipeKind::Compute(ShaderKind::PointwisePrescaled16)
+                        }
+                        RecipeKind::Compute(ShaderKind::ConvPrescaled32) => {
+                            RecipeKind::Compute(ShaderKind::PointwisePrescaled32)
+                        }
+                        other => other,
+                    };
+                }
+            }
+        }
         if matches!(
             recipe.kind,
             RecipeKind::Compute(ShaderKind::Reduce | ShaderKind::Softmax)

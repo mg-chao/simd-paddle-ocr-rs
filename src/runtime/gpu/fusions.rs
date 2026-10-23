@@ -10,13 +10,14 @@ pub(super) fn replacement(
     selected: TensorId,
     limits: &wgpu::Limits,
 ) -> RuntimeResult<Option<Recipe>> {
+    let address_word = |i: usize| i + usize::from(i >= 60) + 4 * usize::from(i >= 63);
     let n = &program.instructions;
     let count = plan.steps.len();
     let next = |id| program.graph_uses.unique_consumer(id, count);
     let mut members = vec![start];
     let mut inputs = n[start].inputs.to_vec();
     let mut words = [0; 128];
-    let kind;
+    let mut kind;
     let groups;
     let end;
     match &plan.steps[start].kind {
@@ -125,6 +126,83 @@ pub(super) fn replacement(
             let Some(act) = next(n[start].output) else {
                 return Ok(None);
             };
+            if matches!(n[act].kind, Op::Relu) && g.cin <= 256 && g.cout <= 64 && inputs.len() == 3
+            {
+                if let Some(fc2) = next(n[act].output) {
+                    if let BoundKind::Conv(g2) = &plan.steps[fc2].kind {
+                        if g2.kh == 1
+                            && g2.kw == 1
+                            && g2.height == 1
+                            && g2.width == 1
+                            && g2.oh == 1
+                            && g2.ow == 1
+                            && g2.cpg == g2.cin
+                            && g2.cin == g.cout
+                            && g2.batch == g.batch
+                            && n[fc2].inputs.len() == 3
+                        {
+                            if let Some(gate) = next(n[fc2].output) {
+                                if let Op::HardSigmoid { alpha, beta } = n[gate].kind {
+                                    // Prefer the existing excitation/apply fusion unless
+                                    // this chain enables removal of the subsequent gate Mul.
+                                    let prescale = next(n[gate].output)
+                                        .filter(|&i| matches!(n[i].kind, Op::Mul))
+                                        .and_then(|mul| next(n[mul].output))
+                                        .is_some_and(|consumer| {
+                                            if let BoundKind::Conv(c) = &plan.steps[consumer].kind {
+                                                c.kh == 1
+                                                    && c.kw == 1
+                                                    && c.cpg == c.cin
+                                                    && c.cin >= 8
+                                                    && c.cout >= 8
+                                                    && c.batch
+                                                        * c.cout.div_ceil(16)
+                                                        * (c.oh * c.ow).div_ceil(16)
+                                                        >= 128
+                                            } else {
+                                                false
+                                            }
+                                        });
+                                    if !prescale {
+                                        return Ok(None);
+                                    }
+                                    let members = vec![start, act, fc2, gate];
+                                    let output = n[gate].output;
+                                    if patterns::closed_group(
+                                        program, &members, output, selected, count,
+                                    ) {
+                                        let mut words = [0; 128];
+                                        words[0] = g.batch as u32;
+                                        words[3] = g.cin as u32;
+                                        words[4] = g.cout as u32;
+                                        words[5] = g2.cout as u32;
+                                        words[9] = alpha.to_bits();
+                                        words[10] = beta.to_bits();
+                                        let (x, y) = dispatch_grid(g.batch * 64, limits)?;
+                                        words[1] = x;
+                                        return Ok(Some(Recipe {
+                                            node: gate,
+                                            nodes: members,
+                                            kind: RecipeKind::Compute(ShaderKind::SeChain),
+                                            inputs: vec![
+                                                inputs[0],
+                                                inputs[1],
+                                                inputs[2],
+                                                n[fc2].inputs[1],
+                                                n[fc2].inputs[2],
+                                            ],
+                                            output,
+                                            words,
+                                            x,
+                                            y,
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             match n[act].kind {
                 Op::Sigmoid => words[8] = 0,
                 Op::HardSigmoid { alpha, beta } => {
@@ -166,6 +244,59 @@ pub(super) fn replacement(
         _ => return Ok(None),
     }
     let output = n[end].output;
+    // Address transforms are evaluated at the attention load. Copy/reshape is
+    // linear; Transpose also represents strided Slice. Retain every escaping
+    // value by accepting the complete Q/K/V group only when it is closed.
+    if kind == ShaderKind::Attention {
+        let mut candidate = members.clone();
+        let mut sources = inputs.clone();
+        let mut packet = words;
+        let mut cursor = 16usize;
+        for operand in 0..3 {
+            packet[9 + operand * 2] = cursor as u32;
+            let mut count = 0u32;
+            for _ in 0..8 {
+                let Some(producer) = n[..start]
+                    .iter()
+                    .position(|op| op.output == sources[operand])
+                else {
+                    break;
+                };
+                match &plan.steps[producer].kind {
+                    BoundKind::Copy => {
+                        candidate.push(producer);
+                        sources[operand] = n[producer].inputs[0];
+                    }
+                    BoundKind::Transpose(view)
+                        if view.rank <= 5 && count < 3 && cursor + 12 <= 123 =>
+                    {
+                        packet[address_word(cursor)] = view.rank as u32;
+                        packet[address_word(cursor + 1)] = view.base as u32;
+                        for axis in 0..view.rank {
+                            packet[address_word(cursor + 2 + axis)] = view.dimensions[axis] as u32;
+                            packet[address_word(cursor + 7 + axis)] = view.strides[axis] as u32;
+                        }
+                        cursor += 12;
+                        count += 1;
+                        candidate.push(producer);
+                        sources[operand] = n[producer].inputs[0];
+                    }
+                    _ => break,
+                }
+            }
+            packet[10 + operand * 2] = count;
+        }
+        candidate.sort_unstable();
+        candidate.dedup();
+        if candidate.len() > members.len()
+            && patterns::closed_group(program, &candidate, output, selected, plan.steps.len())
+        {
+            members = candidate;
+            inputs = sources;
+            words = packet;
+            kind = ShaderKind::AttentionViews;
+        }
+    }
     if !patterns::closed_group(program, &members, output, selected, count) {
         return Ok(None);
     };

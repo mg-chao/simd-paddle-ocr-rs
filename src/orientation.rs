@@ -113,6 +113,10 @@ fn public_head(
 }
 
 pub struct Classifier {
+    #[cfg(feature = "gpu")]
+    gpu: Option<crate::runtime::gpu::heads::Classification>,
+    #[cfg(feature = "gpu")]
+    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
     compiled: CompiledModel,
     session: Session,
     diagnostic: Option<Session>,
@@ -121,10 +125,41 @@ pub struct Classifier {
     options: ClassifierOptions,
 }
 impl Classifier {
+    #[cfg(feature = "gpu")]
+    pub(crate) fn is_full_gpu(&self) -> bool {
+        self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+    }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn resident(
+        &mut self,
+    ) -> crate::runtime::RuntimeResult<&mut crate::runtime::gpu::heads::Classification> {
+        if self.gpu.is_none() {
+            self.gpu = Some(crate::runtime::gpu::heads::Classification::new(
+                self.compiled.as_gpu().unwrap().clone(),
+                self.session.execution_limits(),
+            )?);
+        }
+        Ok(self.gpu.as_mut().unwrap())
+    }
+    #[cfg(feature = "gpu")]
+    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
+        self.gpu_mode = mode;
+        if mode == crate::runtime::gpu::GpuPipelineMode::InferenceOnly {
+            self.gpu = None;
+        }
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
+        self.gpu.as_ref().map(|g| &g.statistics)
+    }
     pub fn compiled(&self) -> &CompiledModel {
         &self.compiled
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            return gpu.session.statistics();
+        }
         self.session.statistics()
     }
     pub fn new(compiled: impl Into<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
@@ -153,6 +188,10 @@ impl Classifier {
         }
         Ok(Self {
             compiled,
+            #[cfg(feature = "gpu")]
+            gpu: None,
+            #[cfg(feature = "gpu")]
+            gpu_mode: Default::default(),
             session,
             diagnostic: None,
             head,
@@ -170,6 +209,10 @@ impl Classifier {
             self.session.cpu_context().clone(),
             self.session.intra_op_threads(),
         )?;
+        #[cfg(feature = "gpu")]
+        {
+            fork.gpu_mode = self.gpu_mode;
+        }
         Ok(fork)
     }
     /// Validate the requested budget against the context and execute CLS with one thread.
@@ -209,6 +252,42 @@ impl Classifier {
         profile: &mut StageProfile,
     ) -> ImageResult<ClassificationResult> {
         self.check_image(image)?;
+        #[cfg(feature = "gpu")]
+        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+            let candidate = (|| -> crate::runtime::RuntimeResult<_> {
+                if self.gpu.is_none() {
+                    self.gpu = Some(crate::runtime::gpu::heads::Classification::new(
+                        self.compiled.as_gpu().unwrap().clone(),
+                        self.session.execution_limits(),
+                    )?);
+                }
+                self.gpu.as_mut().unwrap().run(image, PROFILE)
+            })();
+            let result = match candidate {
+                Ok(result) => result,
+                Err(error) => {
+                    let compiled = self.compiled.resident_fallback(error)?;
+                    let mut replacement = Self::new_with_options(
+                        compiled,
+                        self.options,
+                        self.session.execution_limits(),
+                    )?;
+                    replacement.set_execution_context(
+                        self.session.cpu_context().clone(),
+                        self.session.intra_op_threads(),
+                    )?;
+                    *self = replacement;
+                    return self.classify_profiled::<PROFILE>(image, profile);
+                }
+            };
+            let gpu = self.gpu.as_ref().unwrap();
+            if PROFILE {
+                profile.gpu_submission_ns += gpu.statistics.submission_ns;
+                profile.gpu_completion_wait_ns += gpu.statistics.completion_wait_ns;
+                profile.gpu_readback_ns += gpu.statistics.readback_ns;
+            }
+            return Ok(result);
+        }
         #[cfg(test)]
         if !self.compiled.is_gpu() {
             self.session.cpu_context().assert_production_thread("CLS");
@@ -298,7 +377,14 @@ impl Classifier {
         Ok(result)
     }
     pub(crate) fn activation_bytes(&self) -> usize {
-        self.session.activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.activation_bytes()
     }
     pub fn options(&self) -> ClassifierOptions {
         self.options
@@ -312,21 +398,42 @@ impl Classifier {
         Ok(())
     }
     pub fn retained_device_bytes(&self) -> usize {
-        self.session.retained_device_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu.as_ref().map_or(0, |g| g.retained_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.session.retained_device_bytes()
             + self
                 .diagnostic
                 .as_ref()
                 .map_or(0, Session::retained_device_bytes)
     }
     pub(crate) fn retained_activation_bytes(&self) -> usize {
-        self.session.retained_activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.session.retained_activation_bytes()
             + self
                 .diagnostic
                 .as_ref()
                 .map_or(0, Session::retained_activation_bytes)
     }
     pub(crate) fn retained_workspace_bytes(&self) -> usize {
-        self.resize.retained_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_planning_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.resize.retained_bytes()
             + (self.session.retained_planning_bytes() + self.session.retained_scratch_bytes())
             + self.diagnostic.as_ref().map_or(0, |s| {
                 s.retained_planning_bytes() + s.retained_scratch_bytes()

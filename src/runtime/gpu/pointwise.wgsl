@@ -21,5 +21,6 @@ fn main(@builtin(workgroup_id) group:vec3<u32>,@builtin(local_invocation_index) 
         workgroupBarrier();
     }
     if col+lc<channels{for(var j=0u;j<4u;j++){let pixel=row+lr+j*4u;if pixel<plane{
-        let index=(batch*channels+col+lc)*plane+pixel;store_output(index,epilogue(sums[j],index));}}}
+        let index=(batch*channels+col+lc)*plane+pixel;let value=epilogue(sums[j],index);
+        if p(37u)!=0u {store_output((batch*plane+pixel)*p(37u)+col+lc,value);}else{store_output(index,value);}}}}
 }

@@ -350,6 +350,26 @@ fn resize<const DET: bool>(
         false,
     )
 }
+
+#[cfg(all(test, feature = "gpu"))]
+pub(crate) fn resize_for_gpu_test(
+    image: ImageView<'_>,
+    width: usize,
+    height: usize,
+    output_width: usize,
+    output: &mut [f32],
+    workspace: &mut ResizeWorkspace,
+) -> ImageResult<()> {
+    resize::<false>(
+        image,
+        image.width(),
+        width,
+        height,
+        output_width,
+        output,
+        workspace,
+    )
+}
 #[allow(clippy::too_many_arguments)]
 fn resize_with_layout<const DET: bool>(
     image: ImageView<'_>,

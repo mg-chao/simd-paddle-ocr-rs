@@ -103,6 +103,9 @@ impl Pipelines {
                     ""
                 },
             );
+            if kind == ShaderKind::CooperativeMatMul {
+                source = format!("enable wgpu_cooperative_matrix;\n{source}");
+            }
             for (token, precision) in ["$A", "$B", "$C", "$D", "$E", "$O"]
                 .into_iter()
                 .zip(storage)

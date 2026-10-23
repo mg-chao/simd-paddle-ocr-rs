@@ -116,6 +116,12 @@ pub enum DetectionTrace<'a> {
     Boxes(DetectionView<'a>),
 }
 pub struct Detector {
+    #[cfg(feature = "gpu")]
+    gpu: Option<crate::runtime::gpu::vision::Detector>,
+    #[cfg(feature = "gpu")]
+    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
+    #[cfg(feature = "gpu")]
+    gpu_statistics: crate::runtime::gpu::GpuPipelineStatistics,
     compiled: CompiledModel,
     options: DetectorOptions,
     session: Session,
@@ -124,6 +130,41 @@ pub struct Detector {
     padded: Vec<u8>,
 }
 impl Detector {
+    #[cfg(feature = "gpu")]
+    pub(crate) fn is_full_gpu(&self) -> bool {
+        self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+    }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn detect_resident(
+        &mut self,
+        image: ImageView<'_>,
+        profiling: bool,
+    ) -> crate::runtime::RuntimeResult<crate::runtime::gpu::vision::Detection> {
+        if self.gpu.is_none() {
+            self.gpu = Some(crate::runtime::gpu::vision::Detector::new(
+                self.compiled.as_gpu().unwrap().clone(),
+                self.session.execution_limits(),
+            )?);
+        }
+        let result = self
+            .gpu
+            .as_mut()
+            .unwrap()
+            .run(image, self.options, profiling)?;
+        self.gpu_statistics = result.statistics.clone();
+        Ok(result)
+    }
+    #[cfg(feature = "gpu")]
+    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
+        self.gpu_mode = mode;
+        if mode == crate::runtime::gpu::GpuPipelineMode::InferenceOnly {
+            self.gpu = None;
+        }
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
+        self.gpu.as_ref().map(|_| &self.gpu_statistics)
+    }
     pub fn fork(&self) -> ImageResult<Self> {
         let mut fork = Self::new(
             self.compiled.clone(),
@@ -134,6 +175,10 @@ impl Detector {
             self.session.cpu_context().clone(),
             self.session.intra_op_threads(),
         )?;
+        #[cfg(feature = "gpu")]
+        {
+            fork.gpu_mode = self.gpu_mode;
+        }
         Ok(fork)
     }
     pub fn set_execution_context(
@@ -175,6 +220,12 @@ impl Detector {
             ));
         }
         Ok(Self {
+            #[cfg(feature = "gpu")]
+            gpu: None,
+            #[cfg(feature = "gpu")]
+            gpu_mode: Default::default(),
+            #[cfg(feature = "gpu")]
+            gpu_statistics: Default::default(),
             compiled,
             options,
             session,
@@ -203,6 +254,10 @@ impl Detector {
     }
     /// Statistics for the last bound production inference session.
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            return gpu.session.statistics();
+        }
         self.session.statistics()
     }
 
@@ -210,20 +265,46 @@ impl Detector {
         self.session.execution_limits()
     }
     pub fn activation_bytes(&self) -> usize {
-        self.session.activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu.as_ref().map_or(0, |g| {
+            g.scratch.retained_bytes() + g.session.activation_bytes()
+        });
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.activation_bytes()
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        self.session.retained_activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu.as_ref().map_or(0, |g| {
+            g.scratch.retained_bytes() + g.session.retained_activation_bytes()
+        });
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.retained_activation_bytes()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        self.resize.retained_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_planning_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.resize.retained_bytes()
             + self.db.retained_bytes()
             + self.padded.capacity()
             + (self.session.retained_planning_bytes() + self.session.retained_scratch_bytes())
     }
     /// Retained kernel buffers, already included in retained workspace bytes.
     pub(crate) fn retained_device_bytes(&self) -> usize {
-        self.session.retained_device_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu.as_ref().map_or(0, |g| {
+            g.scratch.retained_bytes() + g.session.retained_device_bytes()
+        });
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.retained_device_bytes()
     }
     pub fn retained_kernel_scratch_bytes(&self) -> usize {
         self.session.retained_scratch_bytes()
@@ -250,6 +331,46 @@ impl Detector {
                 "invalid postprocess image or resize ratios",
             ));
         }
+        #[cfg(feature = "gpu")]
+        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+            use crate::runtime::gpu::{
+                GpuPrecision,
+                resident::{Batch, Tensor},
+            };
+            if map_width == 0
+                || map_height == 0
+                || map_width > preprocess::DET_MAX_SIDE
+                || map_height > preprocess::DET_MAX_SIDE
+                || map_width.checked_mul(map_height) != Some(probabilities.len())
+            {
+                return Err(ImageError::new("invalid DB probability map size"));
+            }
+            let context = self.compiled.as_gpu().unwrap().context().clone();
+            let prediction = Tensor::allocate(
+                context.clone(),
+                crate::tensor::Shape::new(&[1, 1, map_height, map_width])
+                    .map_err(RuntimeError::from)?,
+                GpuPrecision::F32,
+            )?;
+            context.upload_resident(&prediction.buffer, bytemuck::cast_slice(probabilities))?;
+            let mut batch = Batch::new(context)?;
+            batch.statistics.uploaded_bytes = prediction.bytes() as u64;
+            let (boxes, _, statistics) = crate::runtime::gpu::vision::postprocess(
+                batch,
+                &prediction,
+                self.options,
+                DetSourceGeometry::new(source.width(), source.height())?,
+            )?;
+            self.db.boxes = boxes;
+            self.gpu_statistics = statistics;
+            return Ok(DetectionView {
+                boxes: &self.db.boxes,
+                resized_width: map_width,
+                resized_height: map_height,
+                width_ratio,
+                height_ratio,
+            });
+        }
         db::run(
             probabilities,
             map_width,
@@ -275,6 +396,38 @@ impl Detector {
         profile: &mut StageProfile,
     ) -> ImageResult<DetectionView<'_>> {
         let cpu = self.session.cpu_context().clone();
+        #[cfg(feature = "gpu")]
+        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+            let result = (|| -> crate::runtime::RuntimeResult<_> {
+                if self.gpu.is_none() {
+                    self.gpu = Some(crate::runtime::gpu::vision::Detector::new(
+                        self.compiled.as_gpu().unwrap().clone(),
+                        self.session.execution_limits(),
+                    )?);
+                }
+                self.gpu.as_mut().unwrap().run(image, self.options, PROFILE)
+            })();
+            let result = match result {
+                Ok(result) => result,
+                Err(error) => {
+                    let compiled = self.compiled.resident_fallback(error)?;
+                    let mut replacement =
+                        Self::new(compiled, self.options, self.session.execution_limits())?;
+                    replacement.set_execution_context(cpu, self.session.intra_op_threads())?;
+                    *self = replacement;
+                    return self.detect_profiled::<PROFILE>(image, profile);
+                }
+            };
+            self.db.boxes = result.boxes;
+            self.gpu_statistics = result.statistics;
+            return Ok(DetectionView {
+                boxes: &self.db.boxes,
+                resized_width: result.size.width,
+                resized_height: result.size.height,
+                width_ratio: result.size.width_ratio,
+                height_ratio: result.size.height_ratio,
+            });
+        }
         if self.compiled.is_gpu() {
             self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile)
         } else {

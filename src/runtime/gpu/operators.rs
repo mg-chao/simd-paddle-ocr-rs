@@ -11,14 +11,23 @@ const EMPTY_PACKET: [u32; PACKET_WORDS] = [0; PACKET_WORDS];
 pub(super) enum ShaderKind {
     PointwiseNhwc,
     Attention,
+    AttentionViews,
+    SeChain,
     SqueezeExcite,
     Transposed,
     Convolution,
     General,
+    CooperativeMatMul,
     MatMul16,
     MatMul32,
+    ConvPrescaled16,
+    ConvPrescaled32,
     Conv16,
     Conv32,
+    PointwiseNchw16,
+    PointwiseNchw32,
+    PointwisePrescaled16,
+    PointwisePrescaled32,
     Depthwise3,
     Depthwise5,
     Reduce,
@@ -33,14 +42,22 @@ impl ShaderKind {
     pub const ALL: &'static [Self] = &[
         Self::PointwiseNhwc,
         Self::Attention,
+        Self::AttentionViews,
+        Self::SeChain,
         Self::SqueezeExcite,
         Self::Transposed,
         Self::Convolution,
         Self::General,
         Self::MatMul16,
         Self::MatMul32,
+        Self::ConvPrescaled16,
+        Self::ConvPrescaled32,
         Self::Conv16,
         Self::Conv32,
+        Self::PointwiseNchw16,
+        Self::PointwiseNchw32,
+        Self::PointwisePrescaled16,
+        Self::PointwisePrescaled32,
         Self::Depthwise3,
         Self::Depthwise5,
         Self::Reduce,
@@ -55,14 +72,23 @@ impl ShaderKind {
         match self {
             Self::PointwiseNhwc => "pointwise_nhwc16",
             Self::Attention => "attention_online",
+            Self::AttentionViews => "attention_qkv_views",
+            Self::SeChain => "se_projection_chain",
             Self::SqueezeExcite => "squeeze_excitation",
             Self::Transposed => "conv_transpose_tile8",
             Self::Convolution => "conv_generic",
             Self::General => "general",
+            Self::CooperativeMatMul => "experimental_cooperative_matmul8",
             Self::MatMul16 => "matmul_tile16",
             Self::MatMul32 => "matmul_tile32",
+            Self::ConvPrescaled16 => "conv_prescaled16",
+            Self::ConvPrescaled32 => "conv_prescaled32",
             Self::Conv16 => "conv_implicit16",
             Self::Conv32 => "conv_implicit32",
+            Self::PointwiseNchw16 => "pointwise_nchw16",
+            Self::PointwiseNchw32 => "pointwise_nchw32",
+            Self::PointwisePrescaled16 => "pointwise_prescaled16",
+            Self::PointwisePrescaled32 => "pointwise_prescaled32",
             Self::Depthwise3 => "depthwise3",
             Self::Depthwise5 => "depthwise5",
             Self::Reduce => "reduce_contiguous",
@@ -76,8 +102,17 @@ impl ShaderKind {
     }
     pub fn source(self) -> String {
         match self {
+            Self::CooperativeMatMul => include_str!("cooperative.wgsl").into(),
             Self::PointwiseNhwc => include_str!("pointwise.wgsl").into(),
-            Self::Attention => include_str!("attention.wgsl").into(),
+            Self::Attention | Self::AttentionViews => include_str!("attention.wgsl").replace(
+                "$VIEWS",
+                if self == Self::AttentionViews {
+                    "true"
+                } else {
+                    "false"
+                },
+            ),
+            Self::SeChain => include_str!("se_chain.wgsl").into(),
             Self::SqueezeExcite => include_str!("se.wgsl").into(),
             Self::Transposed => include_str!("transposed.wgsl").into(),
             Self::ReducePartial
@@ -102,42 +137,16 @@ impl ShaderKind {
                 ),
             Self::Convolution => include_str!("conv.wgsl").into(),
             Self::General => include_str!("operators.wgsl").into(),
-            Self::MatMul16 | Self::MatMul32 | Self::Conv16 | Self::Conv32 => {
-                let tile = if matches!(self, Self::MatMul32 | Self::Conv32) {
-                    32
-                } else {
-                    16
-                };
-                let mut init = String::new();
-                let mut accumulate = String::new();
-                let mut store = String::new();
-                for register in 0..tile * tile / 64 {
-                    let row = register * 64 / tile;
-                    init.push_str(&format!(
-                        "var sum{register}=0.0; if CONV && p(19u)!=0u && mr+local_row+{row}u<rows {{ sum{register}=load_c(mr+local_row+{row}u); }}\n"
-                    ));
-                    accumulate.push_str(&format!(
-                        "sum{register}=sum{register}+left[(local_row+{row}u)*16u+k]*right_value;\n"
-                    ));
-                    store.push_str(&format!(
-                        "{{ let row=mr+local_row+{row}u; let col=nc+local_column; if row<rows && col<columns {{ let index=(batch*rows+row)*columns+col; store_output(index,epilogue(sum{register},index)); }} }}\n"
-                    ));
-                }
-                include_str!("tiled.wgsl")
-                    .replace("$TILE", &tile.to_string())
-                    .replace("$SHARED", &(tile * 16).to_string())
-                    .replace("$INIT", &init)
-                    .replace("$ACCUMULATE", &accumulate)
-                    .replace("$STORE", &store)
-                    .replace(
-                        "$CONV",
-                        if matches!(self, Self::Conv16 | Self::Conv32) {
-                            "true"
-                        } else {
-                            "false"
-                        },
-                    )
-            }
+            Self::MatMul16
+            | Self::MatMul32
+            | Self::Conv16
+            | Self::Conv32
+            | Self::ConvPrescaled16
+            | Self::ConvPrescaled32 => self.tiled_source(),
+            Self::PointwiseNchw16
+            | Self::PointwiseNchw32
+            | Self::PointwisePrescaled16
+            | Self::PointwisePrescaled32 => self.tiled_source(),
             Self::Depthwise3 | Self::Depthwise5 => include_str!("depthwise.wgsl")
                 .replace("$KERNEL", if self == Self::Depthwise3 { "3" } else { "5" }),
             Self::Reduce | Self::Softmax | Self::LayerNorm => include_str!("reduce.wgsl").replace(
@@ -149,6 +158,87 @@ impl ShaderKind {
                 },
             ),
         }
+    }
+    fn tiled_source(self) -> String {
+        let tile = if matches!(
+            self,
+            Self::MatMul32
+                | Self::Conv32
+                | Self::ConvPrescaled32
+                | Self::PointwiseNchw32
+                | Self::PointwisePrescaled32
+        ) {
+            32
+        } else {
+            16
+        };
+        let mut init = String::new();
+        let mut accumulate = String::new();
+        let mut store = String::new();
+        for register in 0..tile * tile / 64 {
+            let row = register * 64 / tile;
+            init.push_str(&format!(
+                        "var sum{register}=0.0; if CONV && p(19u)!=0u && mr+local_row+{row}u<rows {{ sum{register}=load_c(mr+local_row+{row}u); }}\n"
+                    ));
+            accumulate.push_str(&format!(
+                "sum{register}=sum{register}+left[(local_row+{row}u)*16u+k]*right_value;\n"
+            ));
+            store.push_str(&format!(
+                        "{{ let row=mr+local_row+{row}u; let col=nc+local_column; if row<rows && col<columns {{ let index=(batch*rows+row)*columns+col; store_output(index,epilogue(sum{register},index)); }} }}\n"
+                    ));
+        }
+        include_str!("tiled.wgsl")
+            .replace(
+                "$PRESCALE",
+                if matches!(
+                    self,
+                    Self::ConvPrescaled16
+                        | Self::ConvPrescaled32
+                        | Self::PointwisePrescaled16
+                        | Self::PointwisePrescaled32
+                ) {
+                    "true"
+                } else {
+                    "false"
+                },
+            )
+            .replace("$TILE", &tile.to_string())
+            .replace("$SHARED", &(tile * 16).to_string())
+            .replace("$INIT", &init)
+            .replace("$ACCUMULATE", &accumulate)
+            .replace("$STORE", &store)
+            .replace(
+                "$POINTWISE",
+                if matches!(
+                    self,
+                    Self::PointwiseNchw16
+                        | Self::PointwiseNchw32
+                        | Self::PointwisePrescaled16
+                        | Self::PointwisePrescaled32
+                ) {
+                    "true"
+                } else {
+                    "false"
+                },
+            )
+            .replace(
+                "$CONV",
+                if matches!(
+                    self,
+                    Self::Conv16
+                        | Self::Conv32
+                        | Self::ConvPrescaled16
+                        | Self::ConvPrescaled32
+                        | Self::PointwiseNchw16
+                        | Self::PointwiseNchw32
+                        | Self::PointwisePrescaled16
+                        | Self::PointwisePrescaled32
+                ) {
+                    "true"
+                } else {
+                    "false"
+                },
+            )
     }
 }
 #[derive(Clone)]

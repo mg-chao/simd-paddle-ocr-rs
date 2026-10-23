@@ -17,6 +17,8 @@ const USAGE: &str = "Usage: ocr [OPTIONS] IMAGE\n\
     --det-execution TARGET / --rec-execution TARGET / --cls-execution TARGET\n\
     --gpu-backend NAME  auto, vulkan, dx12, or metal\n\
     --gpu-precision P   f32 (default), or mixed-f16\n\
+    --gpu-pipeline P    full (default), or inference-only\n\
+    --gpu-experimental-cooperative-matrix  Enable the experimental matrix tier\n\
     --statistics       Print actual stage backends, kernels, and memory to stderr\n\
     --json              Print owned OCR output as JSON instead of joined text\n\
     --alignment         Capture CTC spans and token boxes; implies --json\n\
@@ -36,6 +38,8 @@ struct Args {
     stages: [Option<ExecutionTarget>; 3],
     gpu_backend: String,
     gpu_precision: String,
+    gpu_pipeline: String,
+    experimental_cooperative_matrix: bool,
     statistics: bool,
 }
 
@@ -60,6 +64,8 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
     let mut stages = [None; 3];
     let mut gpu_backend = "auto".to_string();
     let mut gpu_precision = "f32".to_string();
+    let mut experimental_cooperative_matrix = false;
+    let mut gpu_pipeline = "full".to_string();
     let mut statistics = false;
     let value = |args: &mut std::iter::Skip<std::env::ArgsOs>, flag: &str| {
         args.next()
@@ -93,6 +99,12 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
                 gpu_precision = value(&mut args, "--gpu-precision")?
                     .into_string()
                     .map_err(|_| "invalid precision")?
+            }
+            Some("--gpu-experimental-cooperative-matrix") => experimental_cooperative_matrix = true,
+            Some("--gpu-pipeline") => {
+                gpu_pipeline = value(&mut args, "--gpu-pipeline")?
+                    .into_string()
+                    .map_err(|_| "invalid GPU pipeline")?;
             }
             Some("-h" | "--help") => return Ok(None),
             Some("--models-dir") => models = value(&mut args, "--models-dir")?.into(),
@@ -142,6 +154,8 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
         stages,
         gpu_backend,
         gpu_precision,
+        gpu_pipeline,
+        experimental_cooperative_matrix,
         statistics,
     }))
 }
@@ -190,7 +204,13 @@ fn run() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "gpu")]
     {
         use simd_paddle_ocr_rs::runtime::gpu::*;
+        builder = builder.gpu_pipeline_mode(match args.gpu_pipeline.as_str() {
+            "full" => GpuPipelineMode::Full,
+            "inference-only" => GpuPipelineMode::InferenceOnly,
+            _ => return Err("GPU pipeline must be full or inference-only".into()),
+        });
         builder = builder.gpu_options(GpuContextOptions {
+            experimental_cooperative_matrix: args.experimental_cooperative_matrix,
             backend: match args.gpu_backend.as_str() {
                 "auto" => GpuBackendPreference::Auto,
                 "vulkan" => GpuBackendPreference::Vulkan,
@@ -207,7 +227,11 @@ fn run() -> Result<(), Box<dyn Error>> {
         });
     }
     #[cfg(not(feature = "gpu"))]
-    if args.gpu_backend != "auto" || args.gpu_precision != "f32" {
+    if args.experimental_cooperative_matrix
+        || args.gpu_backend != "auto"
+        || args.gpu_precision != "f32"
+        || args.gpu_pipeline != "full"
+    {
         return Err("GPU options require --features gpu".into());
     }
     if let Some(threads) = args.threads {
@@ -220,6 +244,10 @@ fn run() -> Result<(), Box<dyn Error>> {
             "{}",
             serde_json::to_string_pretty(&request.execution_statistics())?
         );
+        #[cfg(feature = "gpu")]
+        if let Some(statistics) = request.gpu_pipeline_statistics() {
+            eprintln!("{}", serde_json::to_string_pretty(&statistics)?);
+        }
     }
     let mut output = std::io::BufWriter::new(std::io::stdout().lock());
     if args.json {

@@ -48,6 +48,10 @@ struct LineRecord {
     recognition_time_steps: usize,
     spans: Option<(usize, usize)>,
 }
+#[cfg(feature = "gpu")]
+pub(crate) fn line_record_bytes() -> usize {
+    size_of::<LineRecord>()
+}
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct OcrLineView<'a> {
     pub detection: DetectionBox,
@@ -250,6 +254,12 @@ fn allocation(error: std::collections::TryReserveError) -> ImageError {
 }
 
 pub struct Ocr {
+    #[cfg(feature = "gpu")]
+    gpu_pipeline: Option<crate::runtime::gpu::ocr::Pipeline>,
+    #[cfg(feature = "gpu")]
+    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
+    #[cfg(feature = "gpu")]
+    gpu_result: Option<OwnedOcr>,
     extractor: OrientedLineExtractor,
     recognizer: Recognizer,
     options: OcrOptions,
@@ -324,6 +334,12 @@ impl Ocr {
         recognizer.set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         Ok(Self {
             extractor,
+            #[cfg(feature = "gpu")]
+            gpu_pipeline: None,
+            #[cfg(feature = "gpu")]
+            gpu_mode: Default::default(),
+            #[cfg(feature = "gpu")]
+            gpu_result: None,
             recognizer,
             options,
             lines: Vec::new(),
@@ -355,6 +371,8 @@ impl Ocr {
             self.cpu_options,
         )?;
         fork.recognition_batch_size = self.recognition_batch_size;
+        #[cfg(feature = "gpu")]
+        fork.set_gpu_pipeline_mode(self.gpu_mode);
         Ok(fork)
     }
     /// Consume a request into an arena-free factory sharing its immutable
@@ -375,6 +393,8 @@ impl Ocr {
         let cpu_options = self.cpu_options;
         let options = self.options;
         let recognition_batch_size = self.recognition_batch_size;
+        #[cfg(feature = "gpu")]
+        let gpu_mode = self.gpu_mode;
         drop(self);
         move || {
             let detector = crate::detector::Detector::new(
@@ -393,6 +413,8 @@ impl Ocr {
             let mut request =
                 Self::new_with_execution(extractor, recognizer, options, cpu.clone(), cpu_options)?;
             request.recognition_batch_size = recognition_batch_size;
+            #[cfg(feature = "gpu")]
+            request.set_gpu_pipeline_mode(gpu_mode);
             Ok(request)
         }
     }
@@ -402,6 +424,125 @@ impl Ocr {
     /// Whether any neural stage uses the GPU. Host image work still uses the CPU context.
     pub fn uses_gpu(&self) -> bool {
         self.extractor.uses_gpu() || self.recognizer.compiled().is_gpu()
+    }
+    #[cfg(feature = "gpu")]
+    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
+        self.gpu_mode = mode;
+        self.gpu_pipeline = None;
+        self.gpu_result = None;
+        self.extractor.set_gpu_pipeline_mode(mode);
+        self.recognizer.set_gpu_pipeline_mode(mode);
+        for worker in &mut self.workers {
+            worker.recognizer.set_gpu_pipeline_mode(mode);
+        }
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_pipeline_statistics(&self) -> Option<crate::runtime::gpu::GpuPipelineStatistics> {
+        use crate::runtime::gpu::{GpuPipelineMode, GpuPipelineStatistics, GpuPlacement};
+        if let Some(pipeline) = &self.gpu_pipeline {
+            let mut stats = pipeline.statistics.clone();
+            stats.diagnostic_readback_bytes = self
+                .execution_statistics()
+                .values()
+                .flatten()
+                .map(|s| s.diagnostic_readback_bytes)
+                .sum();
+            return Some(stats);
+        }
+        if !self.uses_gpu() {
+            return None;
+        }
+        let full = self.gpu_mode == GpuPipelineMode::Full;
+        let det = full && self.extractor.detector().compiled().is_gpu();
+        let rec = full && self.recognizer.compiled().is_gpu();
+        let cls = full && self.extractor.classifier_model().is_none_or(|m| m.is_gpu());
+        let extraction = self.extractor.gpu_pipeline_statistics();
+        let mut stats = GpuPipelineStatistics {
+            mode: self.gpu_mode,
+            image_processing: if extraction.is_some() {
+                GpuPlacement::NotRun
+            } else {
+                GpuPlacement::Cpu
+            },
+            geometry: if det {
+                GpuPlacement::Gpu
+            } else {
+                GpuPlacement::Cpu
+            },
+            projection: if rec && cls {
+                GpuPlacement::Gpu
+            } else {
+                GpuPlacement::Cpu
+            },
+            decoding: if rec {
+                GpuPlacement::Gpu
+            } else {
+                GpuPlacement::Cpu
+            },
+            ..Default::default()
+        };
+        if extraction.is_none() {
+            stats
+                .cpu_compute_stages
+                .push("perspective crops and orientation".into());
+        }
+        if !det {
+            stats
+                .cpu_compute_stages
+                .extend(["detector preprocessing".into(), "DB geometry".into()]);
+        }
+        if !rec {
+            stats.cpu_compute_stages.extend([
+                "recognizer preprocessing".into(),
+                "recognition projection".into(),
+                "CTC decoding".into(),
+            ]);
+            stats.image_processing = GpuPlacement::Cpu;
+        }
+        if !cls {
+            stats.cpu_compute_stages.extend([
+                "classifier preprocessing".into(),
+                "classifier projection".into(),
+            ]);
+        }
+        for (name, model) in [
+            ("detector", Some(self.extractor.detector().compiled())),
+            ("recognizer", Some(self.recognizer.compiled())),
+            ("classifier", self.extractor.classifier_model()),
+        ] {
+            if model.is_some_and(|m| !m.is_gpu()) {
+                stats.cpu_compute_stages.push(format!("{name} inference"));
+            }
+        }
+        let detector = extraction.or_else(|| self.extractor.detector().gpu_pipeline_statistics());
+        let classifier = if extraction.is_some() {
+            None
+        } else {
+            self.extractor
+                .classifier()
+                .and_then(|c| c.gpu_pipeline_statistics())
+        };
+        let recognizer = self.recognizer.gpu_pipeline_statistics();
+        for source in [detector, recognizer, classifier].into_iter().flatten() {
+            crate::runtime::gpu::vision::merge_statistics(&mut stats, source.clone());
+        }
+        for (name, stages) in self.execution_statistics() {
+            for stage in stages {
+                let resident = match name {
+                    "detector" => detector.is_some(),
+                    "classifier" => classifier.is_some() || extraction.is_some(),
+                    "recognizer" => recognizer.is_some(),
+                    _ => false,
+                };
+                if !resident {
+                    stats.submissions += stage.production_submissions;
+                    stats.uploaded_bytes += stage.uploaded_bytes;
+                    stats.output_readback_bytes += stage.output_readback_bytes;
+                }
+                stats.diagnostic_readback_bytes += stage.diagnostic_readback_bytes;
+            }
+        }
+        Some(stats)
     }
     /// Statistics from each mutable stage, including CPU worker requests.
     pub fn execution_statistics(
@@ -424,6 +565,12 @@ impl Ocr {
         );
         if let Some(cls) = self.extractor.classifier() {
             result.insert("classifier", vec![cls.execution_statistics()]);
+        }
+        #[cfg(feature = "gpu")]
+        if let Some(pipeline) = &self.gpu_pipeline {
+            for (name, mut sessions) in pipeline.execution_statistics() {
+                result.entry(name).or_default().append(&mut sessions);
+            }
         }
         result
     }
@@ -497,16 +644,34 @@ impl Ocr {
         Ok(())
     }
     pub fn recognizer_mut(&mut self) -> &mut Recognizer {
+        #[cfg(feature = "gpu")]
+        {
+            self.gpu_pipeline = None;
+            self.gpu_result = None;
+        }
         // A caller can replace the recognizer through this reference. Worker
         // sessions must then be rebuilt from the new immutable model/options.
         self.workers.clear();
         &mut self.recognizer
     }
     pub fn extractor_mut(&mut self) -> &mut OrientedLineExtractor {
+        #[cfg(feature = "gpu")]
+        {
+            self.gpu_pipeline = None;
+            self.gpu_result = None;
+        }
         &mut self.extractor
     }
     pub fn activation_bytes(&self) -> usize {
-        self.extractor.detector().activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu_pipeline
+            .as_ref()
+            .map_or(0, |g| g.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.extractor.detector().activation_bytes()
             + self.extractor.classifier_activation_bytes()
             + self.recognizer.activation_bytes()
             + self
@@ -516,7 +681,15 @@ impl Ocr {
                 .sum::<usize>()
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        self.extractor.detector().retained_activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu_pipeline
+            .as_ref()
+            .map_or(0, |g| g.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.extractor.detector().retained_activation_bytes()
             + self.extractor.classifier_retained_activation_bytes()
             + self.recognizer.retained_activation_bytes()
             + self
@@ -535,7 +708,12 @@ impl Ocr {
     }
     /// Retained request-owned GPU buffers. Shared uploaded weights are excluded.
     pub fn retained_device_bytes(&self) -> usize {
-        self.extractor.retained_device_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu_pipeline.as_ref().map_or(0, |g| g.retained_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.extractor.retained_device_bytes()
             + self.recognizer.retained_device_bytes()
             + self
                 .workers
@@ -544,7 +722,29 @@ impl Ocr {
                 .sum::<usize>()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        let buffers = self.extractor.retained_workspace_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu_pipeline
+            .as_ref()
+            .map_or(0, |g| g.workspace_bytes())
+            + self.gpu_result.as_ref().map_or(0, |r| {
+                r.text.capacity()
+                    + r.lines.capacity() * size_of::<OwnedOcrLine>()
+                    + r.lines
+                        .iter()
+                        .map(|l| {
+                            l.text.capacity()
+                                + l.ctc_spans.as_ref().map_or(0, |s| {
+                                    s.capacity() * size_of::<OwnedCtcSpan>()
+                                        + s.iter().map(|s| s.text.capacity()).sum::<usize>()
+                                })
+                        })
+                        .sum::<usize>()
+            });
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        let buffers = resident
+            + self.extractor.retained_workspace_bytes()
             + self.recognizer.retained_workspace_bytes()
             + self.lines.capacity() * size_of::<LineRecord>()
             + self.text.capacity()
@@ -667,6 +867,87 @@ impl Ocr {
         }
         self.unwind_state.store(true, Ordering::Relaxed);
         let _unwind = RequestUnwindGuard(self.unwind_state.clone());
+        #[cfg(feature = "gpu")]
+        if !TRACE
+            && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+            && self.extractor.detector().compiled().is_gpu()
+            && self.recognizer.compiled().is_gpu()
+            && self.extractor.classifier_model().is_none_or(|c| c.is_gpu())
+        {
+            let candidate = (|| -> Result<_, crate::runtime::gpu::ocr::Failure> {
+                if self.gpu_pipeline.is_none() {
+                    self.gpu_pipeline = Some(crate::runtime::gpu::ocr::Pipeline::new(
+                        &self.extractor,
+                        &self.recognizer,
+                    )?);
+                }
+                self.gpu_pipeline.as_mut().unwrap().run(
+                    image,
+                    &self.extractor,
+                    &self.recognizer,
+                    self.options,
+                    self.recognition_batch_size,
+                    capture,
+                    PROFILE,
+                )
+            })();
+            self.gpu_result = Some(match candidate {
+                Ok(result) => result,
+                Err(failure) => {
+                    use crate::runtime::gpu::ocr::Stage;
+                    let fallback = |model: &crate::runtime::CompiledModel, stage| {
+                        if failure.stage == stage || failure.stage == Stage::Shared {
+                            model.resident_fallback(failure.error.clone())
+                        } else {
+                            Ok(model.clone())
+                        }
+                    };
+                    let det = self.extractor.detector();
+                    let detector = crate::detector::Detector::new(
+                        fallback(det.compiled(), Stage::Detector)?,
+                        det.resolved_options(),
+                        det.execution_limits(),
+                    )?;
+                    let classifier = self
+                        .extractor
+                        .classifier_model()
+                        .map(|model| fallback(model, Stage::Classifier))
+                        .transpose()?;
+                    let extractor =
+                        OrientedLineExtractor::new(detector, classifier, self.extractor.options())?;
+                    let recognizer = Recognizer::new(
+                        fallback(self.recognizer.compiled(), Stage::Recognizer)?,
+                        self.recognizer.dictionary().clone(),
+                        self.recognizer.resolved_options(),
+                        self.recognizer.execution_limits(),
+                    )?;
+                    let mut replacement = Self::new_with_execution(
+                        extractor,
+                        recognizer,
+                        self.options,
+                        self.cpu.clone(),
+                        self.cpu_options,
+                    )?;
+                    replacement.recognition_batch_size = self.recognition_batch_size;
+                    replacement.pinned_cpu = self.pinned_cpu.clone();
+                    *self = replacement;
+                    let cpu = self.cpu.clone();
+                    let ignore: for<'a> fn(OcrTrace<'a>) -> ImageResult<()> = |_| Ok(());
+                    return cpu.install(|| {
+                        self.run_impl::<false, PROFILE, _>(image, capture, ignore, profile)
+                    });
+                }
+            });
+            let pipeline = self.gpu_pipeline.as_ref().unwrap();
+            if PROFILE {
+                profile.recognized_lines += self.gpu_result.as_ref().unwrap().lines.len();
+                profile.gpu_submission_ns += pipeline.statistics.submission_ns;
+                profile.gpu_completion_wait_ns += pipeline.statistics.completion_wait_ns;
+                profile.gpu_readback_ns += pipeline.statistics.readback_ns;
+                profile.projection_ns += pipeline.statistics.projection_encoding_ns;
+            }
+            return Ok(self.gpu_result.as_ref().unwrap().as_view());
+        }
         self.budgets = self.cpu_options.resolve(
             self.cpu.capacity(),
             self.extractor

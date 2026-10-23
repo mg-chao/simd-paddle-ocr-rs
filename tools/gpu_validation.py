@@ -118,8 +118,24 @@ def inventory(source):
         for n, _, dimension in fields(shape):
             if n == 1:
                 dimensions.append(next((v if f == 1 else v.decode() for f, _, v in fields(dimension) if f in (1, 2)), None))
-        return {"name": text(value, 1), "shape": dimensions}
-    return {"sha256": hashlib.sha256(source).hexdigest(), "nodes": nodes,
+        return {"name": text(value, 1), "shape": dimensions, "dtype": next((v for n, _, v in fields(tensor_type) if n == 1), None)}
+    tensors = {text(v, 1): input_info(v) for n, _, v in fields(graph) if n in (11, 12, 13)}
+    for node in nodes:
+        for name in node["outputs"]:
+            tensors.setdefault(name, {"name": name, "shape": None, "dtype": None, "note": "ONNX omits value_info; resolved by Rust shape binding"})
+    initializers = []
+    for n, _, v in fields(graph):
+        if n != 5: continue
+        dimensions = []
+        for field, wire, item in fields(v):
+            if field == 1:
+                if wire == 0: dimensions.append(item)
+                else:
+                    cursor = 0
+                    while cursor < len(item):
+                        value, cursor = varint(item, cursor); dimensions.append(value)
+        initializers.append({"name": text(v, 8), "shape": dimensions, "dtype": next((x for f, _, x in fields(v) if f == 2), None)})
+    return {"sha256": hashlib.sha256(source).hexdigest(), "nodes": nodes, "tensors": tensors, "initializers": initializers,
             "operators": dict(collections.Counter(node["operator"] for node in nodes)),
             "inputs": [input_info(v) for n, _, v in fields(graph) if n == 11],
             "outputs": [text(v, 1) for n, _, v in fields(graph) if n == 12]}
