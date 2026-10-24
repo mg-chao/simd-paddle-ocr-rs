@@ -78,6 +78,9 @@ pub struct GpuContextOptions {
     /// Request the shader-f16 device capability; plans choose whether to use it.
     pub shader_f16: bool,
     pub subgroups: bool,
+    /// Use FP32 cooperative pointwise kernels on capable Metal adapters.
+    /// Unsupported shapes and adapters retain the portable kernels.
+    pub cooperative_pointwise: bool,
     /// Opt in to unqualified cooperative FP32 matrix kernels when advertised.
     pub experimental_cooperative_matrix: bool,
     pub backend: GpuBackendPreference,
@@ -95,6 +98,7 @@ impl Default for GpuContextOptions {
         Self {
             shader_f16: false,
             subgroups: false,
+            cooperative_pointwise: true,
             experimental_cooperative_matrix: false,
             backend: GpuBackendPreference::Auto,
             max_in_flight: 1,
@@ -249,11 +253,12 @@ impl GpuContext {
         } else {
             wgpu::Features::empty()
         };
-        let cooperative = options.experimental_cooperative_matrix
+        let cooperative = (options.experimental_cooperative_matrix
+            || (options.cooperative_pointwise && info.backend == wgpu::Backend::Metal))
             && adapter.features().contains(
                 wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX | wgpu::Features::SUBGROUP,
             )
-            && info.subgroup_min_size >= 8
+            && info.subgroup_min_size >= 4
             && info.subgroup_max_size <= 64
             && adapter.cooperative_matrix_properties().iter().any(|p| {
                 p.m_size == 8
@@ -289,8 +294,9 @@ impl GpuContext {
             required_features,
             required_limits: requested,
             experimental_features: if cooperative {
-                // Explicit caller opt-in; properties, ranges and storage types are
-                // checked before selection. wgpu still labels this API experimental.
+                // The Metal pointwise path checks properties, subgroup ranges,
+                // dimensions and FP32 storage before selection. Generic matrix
+                // kernels still require explicit opt-in; wgpu labels the API experimental.
                 unsafe { wgpu::ExperimentalFeatures::enabled() }
             } else {
                 wgpu::ExperimentalFeatures::disabled()
@@ -619,8 +625,19 @@ struct GpuWeights {
     _normalization: Mutex<Option<Arc<resident::Normalization>>>,
     _model: Arc<Model>,
     constants: Vec<Option<GpuBuffer>>,
+    // At most one immutable K-major pack per constant, shared by every request.
+    // Buffers retain the normal context reservation and device-quota accounting.
+    pointwise: Mutex<std::collections::HashMap<TensorId, GpuBuffer>>,
     dummy: GpuBuffer,
     bytes: usize,
+}
+impl GpuWeights {
+    fn packed_bytes(&self) -> usize {
+        self.pointwise
+            .lock()
+            .map(|weights| weights.values().map(GpuBuffer::bytes).sum())
+            .unwrap_or(0)
+    }
 }
 pub struct GpuCompiledModel {
     precision: GpuPrecision,
@@ -633,6 +650,60 @@ pub struct GpuCompiledModel {
     pipelines: Arc<pipelines::Pipelines>,
 }
 impl GpuCompiledModel {
+    fn packed_pointwise_weight(&self, id: TensorId) -> RuntimeResult<GpuBuffer> {
+        let mut cache = self
+            .weights
+            .pointwise
+            .lock()
+            .map_err(|_| RuntimeError::new("GPU pointwise weight cache poisoned"))?;
+        if let Some(buffer) = cache.get(&id) {
+            return Ok(buffer.clone());
+        }
+        let Some(TensorData::F32(values)) = &self.program.model.graph().tensors[id.0].constant
+        else {
+            return Err(RuntimeError::new(
+                "packed pointwise weights must be constant",
+            ));
+        };
+        let shape = values.shape();
+        let dimensions = shape.dimensions();
+        if self.precision != GpuPrecision::F32 || dimensions.len() != 4 || dimensions[2..] != [1, 1]
+        {
+            return Err(RuntimeError::new(
+                "invalid packed pointwise weight geometry",
+            ));
+        }
+        let rows = dimensions[0].div_ceil(4) * 4;
+        let elements = rows
+            .checked_mul(dimensions[1])
+            .ok_or_else(|| resource("packed pointwise weight size overflow"))?;
+        checked_storage_bytes(elements, &self.context.limits)?;
+        let mut packed = allocate_f32(elements)?;
+        // Preserve each dot product's reduction order; only immutable storage
+        // changes. Padding lets the shader load four output rows as one vector.
+        for row in 0..dimensions[0] {
+            for k in 0..dimensions[1] {
+                packed[k * rows + row] = values.data()[row * dimensions[1] + k];
+            }
+        }
+        let buffer = self.context.checked("GPU pointwise weight packing", || {
+            self.context.create_buffer_init(
+                "GPU packed pointwise weights",
+                bytemuck::cast_slice(&packed),
+                wgpu::BufferUsages::STORAGE,
+            )
+        })?;
+        cache.insert(id, buffer.clone());
+        Ok(buffer)
+    }
+    fn packed_weight_bytes(&self) -> usize {
+        self.weights.packed_bytes()
+            + self
+                .full_precision
+                .lock()
+                .map(|full| full.as_ref().map_or(0, |model| model.packed_weight_bytes()))
+                .unwrap_or(0)
+    }
     /// Discrete contour and CTC boundaries are sensitive to half-precision
     /// threshold crossings. Resident OCR retains FP32 for these stages on the
     /// same device, while low-level tensor execution keeps its precision.
@@ -772,6 +843,7 @@ impl GpuCompiledModel {
                     _normalization: Mutex::new(None),
                     _model: model.clone(),
                     constants,
+                    pointwise: Mutex::new(std::collections::HashMap::new()),
                     dummy,
                     bytes: weight_bytes,
                 });
@@ -794,6 +866,7 @@ impl GpuCompiledModel {
         let mut bytes = 0;
         if seen.insert(Arc::as_ptr(&self.weights) as usize) {
             bytes += self.weights.bytes;
+            bytes += self.weights.packed_bytes();
         }
         if let Ok(normalization) = self.weights._normalization.lock()
             && let Some(n) = &*normalization
@@ -816,11 +889,14 @@ impl GpuCompiledModel {
         bytes
     }
     pub fn weight_bytes(&self) -> usize {
+        self.original_weight_bytes() + self.packed_weight_bytes()
+    }
+    fn original_weight_bytes(&self) -> usize {
         self.weights.bytes
             + self
                 .full_precision
                 .lock()
-                .map(|v| v.as_ref().map_or(0, |m| m.weight_bytes()))
+                .map(|v| v.as_ref().map_or(0, |m| m.original_weight_bytes()))
                 .unwrap_or(0)
             + self
                 .weights
@@ -1194,17 +1270,28 @@ impl GpuSession {
                 .features()
                 .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
         {
+            if compiled.context.options.cooperative_pointwise
+                && compiled.context.info.backend == wgpu::Backend::Metal
+            {
+                physical::select_cooperative_pointwise(
+                    &mut recipes,
+                    &descriptors,
+                    &compiled.context.limits,
+                )?;
+            }
             for recipe in &mut recipes {
-                if matches!(
-                    recipe.kind,
-                    operators::RecipeKind::Compute(
-                        operators::ShaderKind::MatMul16 | operators::ShaderKind::MatMul32
+                if compiled.context.options.experimental_cooperative_matrix
+                    && matches!(
+                        recipe.kind,
+                        operators::RecipeKind::Compute(
+                            operators::ShaderKind::MatMul16 | operators::ShaderKind::MatMul32
+                        )
                     )
-                ) && recipe
-                    .inputs
-                    .iter()
-                    .chain(std::iter::once(&recipe.output))
-                    .all(|id| descriptors[id.0].precision == GpuPrecision::F32)
+                    && recipe
+                        .inputs
+                        .iter()
+                        .chain(std::iter::once(&recipe.output))
+                        .all(|id| descriptors[id.0].precision == GpuPrecision::F32)
                 {
                     recipe.kind =
                         operators::RecipeKind::Compute(operators::ShaderKind::CooperativeMatMul);
@@ -1452,9 +1539,14 @@ impl GpuSession {
                         .map(|&id| resolve(id))
                         .unwrap_or(&compiled.weights.dummy.buffer)
                 };
+                let packed = if shader == operators::ShaderKind::PointwisePacked32 {
+                    Some(compiled.packed_pointwise_weight(recipe.inputs[1])?)
+                } else {
+                    None
+                };
                 let entries = [
                     bind_entry(0, get(0)),
-                    bind_entry(1, get(1)),
+                    bind_entry(1, packed.as_ref().map_or_else(|| get(1), |b| &b.buffer)),
                     bind_entry(2, get(2)),
                     bind_entry(3, get(3)),
                     bind_entry(4, get(4)),
@@ -1810,7 +1902,8 @@ impl GpuSession {
                 .filter(|d| matches!(d.layout, GpuLayout::PaddedNhwc { .. }))
                 .count(),
             layout_conversions: self.recipes.iter().filter(|r| r.words[2] == 24).count(),
-            original_weight_bytes: self.compiled.weight_bytes() as u64,
+            original_weight_bytes: self.compiled.original_weight_bytes() as u64,
+            packed_weight_bytes: self.compiled.packed_weight_bytes(),
             normalized_nodes: self.node_count,
             selected_kernels: super::kernel_selections(self.recipes.iter().filter_map(|r| {
                 if let operators::RecipeKind::Compute(kind) = r.kind {
@@ -1821,7 +1914,7 @@ impl GpuSession {
                         } else {
                             "nchw/row_major"
                         },
-                        false,
+                        kind == operators::ShaderKind::PointwisePacked32,
                     ))
                 } else {
                     None

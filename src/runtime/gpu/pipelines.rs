@@ -95,7 +95,8 @@ impl Pipelines {
             } else {
                 kind.source()
             };
-            let mut source = format!("{}\n{}", include_str!("common.wgsl"), kernel).replace(
+            let common = kind.common_source();
+            let mut source = format!("{common}\n{kernel}").replace(
                 "$ENABLE",
                 if storage.contains(&GpuPrecision::MixedF16) {
                     "enable f16;"
@@ -103,7 +104,10 @@ impl Pipelines {
                     ""
                 },
             );
-            if kind == ShaderKind::CooperativeMatMul {
+            if matches!(
+                kind,
+                ShaderKind::CooperativeMatMul | ShaderKind::PointwiseCooperative32
+            ) {
                 source = format!("enable wgpu_cooperative_matrix;\n{source}");
             }
             for (token, precision) in ["$A", "$B", "$C", "$D", "$E", "$O"]

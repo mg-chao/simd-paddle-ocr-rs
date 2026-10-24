@@ -18,6 +18,7 @@ pub(super) enum ShaderKind {
     Convolution,
     General,
     CooperativeMatMul,
+    PointwiseCooperative32,
     MatMul16,
     MatMul32,
     ConvPrescaled16,
@@ -27,6 +28,7 @@ pub(super) enum ShaderKind {
     PointwiseNchw16,
     PointwiseNchw32,
     PointwiseBlocked32,
+    PointwisePacked32,
     PointwisePrescaled16,
     PointwisePrescaled32,
     Depthwise3,
@@ -80,6 +82,7 @@ impl ShaderKind {
             Self::Convolution => "conv_generic",
             Self::General => "general",
             Self::CooperativeMatMul => "experimental_cooperative_matmul8",
+            Self::PointwiseCooperative32 => "pointwise_cooperative32",
             Self::MatMul16 => "matmul_tile16",
             Self::MatMul32 => "matmul_tile32",
             Self::ConvPrescaled16 => "conv_prescaled16",
@@ -89,6 +92,7 @@ impl ShaderKind {
             Self::PointwiseNchw16 => "pointwise_nchw16",
             Self::PointwiseNchw32 => "pointwise_nchw32",
             Self::PointwiseBlocked32 => "pointwise_blocked32",
+            Self::PointwisePacked32 => "pointwise_packed32",
             Self::PointwisePrescaled16 => "pointwise_prescaled16",
             Self::PointwisePrescaled32 => "pointwise_prescaled32",
             Self::Depthwise3 => "depthwise3",
@@ -104,8 +108,17 @@ impl ShaderKind {
     }
     pub fn source(self) -> String {
         match self {
-            Self::PointwiseBlocked32 => include_str!("pointwise_blocked.wgsl").into(),
+            Self::PointwiseBlocked32 | Self::PointwisePacked32 => format!(
+                "{}\n{}",
+                if self == Self::PointwisePacked32 {
+                    include_str!("pointwise_weights_packed.wgsl")
+                } else {
+                    include_str!("pointwise_weights_rowmajor.wgsl")
+                },
+                include_str!("pointwise_blocked.wgsl")
+            ),
             Self::CooperativeMatMul => include_str!("cooperative.wgsl").into(),
+            Self::PointwiseCooperative32 => self.cooperative_direct_source(),
             Self::PointwiseNhwc => include_str!("pointwise.wgsl").into(),
             Self::Attention | Self::AttentionViews => include_str!("attention.wgsl").replace(
                 "$VIEWS",
@@ -161,6 +174,70 @@ impl ShaderKind {
                 },
             ),
         }
+    }
+    pub fn common_source(self) -> String {
+        if self == Self::PointwisePacked32 {
+            include_str!("common.wgsl")
+                .replace("raw_b: array<$B>", "raw_b: array<vec4<f32>>")
+                .replace("return f32(raw_b[i]);", "return raw_b[i/4u][i%4u];")
+        } else {
+            include_str!("common.wgsl").into()
+        }
+    }
+    fn cooperative_direct_source(self) -> String {
+        // Named matrix fragments keep the 4x4 accumulator grid in registers.
+        // Dynamic arrays of cooperative matrices are not supported by WGSL.
+        let mut init = String::new();
+        let mut step = String::new();
+        let mut finish = String::new();
+        for row in 0..4 {
+            init.push_str(&format!(
+                r"
+                for (var i = lane; i < 64u; i += width) {{
+                    var value = 0.0;
+                    if p(19u) != 0u && mr + {row}u * 8u + i / 8u < rows {{
+                        value = load_c(mr + {row}u * 8u + i / 8u);
+                    }}
+                    result[dest + i] = value;
+                }}
+                workgroupBarrier();
+                var s{row}_0 = coopLoadT<MC>(&result[dest], 8u);
+            "
+            ));
+            for col in 1..4 {
+                init.push_str(&format!("var s{row}_{col} = s{row}_0;\n"));
+            }
+            init.push_str("workgroupBarrier();\n");
+            // Clamp only unused fragments; finish_fragment masks their stores.
+            step.push_str(&format!(
+                "let a{row} = coopLoadT<MA>(&raw_b[min(mr + {row}u * 8u, rows - 8u) * inner + base], inner);\n"
+            ));
+        }
+        for col in 0..4 {
+            step.push_str(&format!(
+                "let b{col} = coopLoadT<MB>(&raw_a[ai + base * columns + min(nc + {col}u * 8u, columns - 8u)], columns);\n"
+            ));
+        }
+        for row in 0..4 {
+            for col in 0..4 {
+                step.push_str(&format!(
+                    "s{row}_{col} = coopMultiplyAdd(a{row}, b{col}, s{row}_{col});\n"
+                ));
+                finish.push_str(&format!(
+                    r"
+                    coopStoreT(s{row}_{col}, &result[dest], 8u);
+                    workgroupBarrier();
+                    finish_fragment(dest, lane, width, batch, mr + {row}u * 8u, nc + {col}u * 8u);
+                    workgroupBarrier();
+                "
+                ));
+            }
+        }
+        include_str!("pointwise_cooperative.wgsl")
+            .replace("$TILE", "32")
+            .replace("$INIT", &init)
+            .replace("$STEP", &step)
+            .replace("$FINISH", &finish)
     }
     fn tiled_source(self) -> String {
         let tile = if matches!(
@@ -797,7 +874,7 @@ pub(super) fn specialize(
             continue;
         }
         let mut matrix = None;
-        let mut prefer_spatial32 = false;
+        let mut prefer_tile32 = false;
         let mut narrow_pointwise = false;
         match &plan.steps[r.nodes[0]].kind {
             BoundKind::Conv(g) if g.dh == 1 && g.dw == 1 && g.sh <= 2 && g.sw <= 2 => {
@@ -829,7 +906,8 @@ pub(super) fn specialize(
                 {
                     matrix = Some((g.cout, g.oh * g.ow, g.batch, true));
                     // Short recognition outputs benefit from direct 16x16
-                    // pointwise reuse before the usual 128-group threshold.
+                    // pointwise reuse down to 48 groups instead of the general
+                    // 128-group threshold. Keep the H1/channel/width guards.
                     // Keep the smaller maps and all other operators unchanged.
                     narrow_pointwise = metal_f32
                         && g.kh == 1
@@ -847,12 +925,23 @@ pub(super) fn specialize(
                     // output channels. Measured Metal 3x3, 5x5 and 7x7 layers
                     // benefit from the larger tile's operand reuse. Require
                     // complete output-channel tiles and retain occupancy guards.
-                    prefer_spatial32 = rgb_stem
+                    prefer_tile32 = rgb_stem
                         || (metal_f32
                             && matches!(g.kh, 3 | 5 | 7)
                             && g.cin >= 32
                             && g.cout.is_multiple_of(32)
-                            && g.oh * g.ow >= 1024);
+                            && g.oh * g.ow >= 1024)
+                        // Measured 192->96 recognition maps benefit from register
+                        // reuse even though their channel count is below 128.
+                        || (metal_f32
+                            && g.kh == 1
+                            && g.cin == 192
+                            && g.cout == 96
+                            && matches!(g.height, 6 | 12)
+                            && g.sh == 1
+                            && g.sw == 1
+                            && g.pt == 0
+                            && g.pl == 0);
                 }
             }
             BoundKind::MatMul {
@@ -896,10 +985,10 @@ pub(super) fn specialize(
             // shapes use more 16x16 groups before moving to 32x32 tiles.
             let groups16 = rows.div_ceil(16) * columns.div_ceil(16) * batches;
             let groups32 = rows.div_ceil(32) * columns.div_ceil(32) * batches;
-            if groups16 < 128 && !(narrow_pointwise && groups16 >= 64) {
+            if groups16 < 128 && !(narrow_pointwise && groups16 >= 48) {
                 continue;
             }
-            let tile = if (rows >= 128 || prefer_spatial32) && columns >= 64 && groups32 >= 64 {
+            let tile = if (rows >= 128 || prefer_tile32) && columns >= 64 && groups32 >= 64 {
                 32usize
             } else {
                 16

@@ -65,6 +65,8 @@ def main():
     parser.add_argument("--configs", nargs="+", type=config, default=[(1, 1, 2)])
     parser.add_argument("--modes", nargs="+", choices=["cpu", "inference-only", "full"], default=["full"])
     parser.add_argument("--csharp", nargs="*", choices=["cpu", "gpu"], default=[])
+    parser.add_argument("--csharp-reference-dir", type=Path,
+                        help="Canonical PRESET-CASE-cpu|gpu.json C# references; cross-implementation equivalence must be checked separately")
     parser.add_argument("--measurements", type=int, choices=range(4), default=3)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--alignment", action="store_true")
@@ -72,8 +74,8 @@ def main():
     args = parser.parse_args()
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
-    if args.csharp and args.backend != "vulkan":
-        parser.error("C# adapter currently qualifies Vulkan/CPU only")
+    if "gpu" in args.csharp and args.backend not in ("vulkan", "metal"):
+        parser.error("C# GPU comparison supports Vulkan or Metal")
     executable = ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench")
     inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "rust-toolchain.toml",
               ROOT / "examples/gpu_ocr_bench.rs", *filter(Path.is_file, (ROOT / "examples/support").rglob("*"))]
@@ -82,7 +84,8 @@ def main():
     args.report.mkdir(parents=True, exist_ok=False)
     frozen = args.report / executable.name
     shutil.copy2(executable, frozen)
-    manifest = {"schema": 1, "configuration": vars(args) | {"corpus": str(args.corpus), "report": str(args.report)},
+    manifest = {"schema": 1, "configuration": vars(args) | {"corpus": str(args.corpus), "report": str(args.report),
+                "csharp_reference_dir": str(args.csharp_reference_dir) if args.csharp_reference_dir else None},
                 "executable_sha256": digest(frozen), "source_sha256": hashes(inputs, ROOT),
                 "compiler": subprocess.check_output(["rustc", "-Vv"], text=True),
                 "cargo": subprocess.check_output(["cargo", "-V"], text=True),
@@ -95,7 +98,9 @@ def main():
         build = ROOT / "tools/reference/bin/Release/net10.0"
         reference_dll = build / "Sdcb.SimdPaddleOCR.GpuBench.dll"
         cs_inputs = [*filter(Path.is_file, (ROOT / "tools/reference").glob("*.cs*")),
-                     *[p for p in (REFERENCE / "src").rglob("*") if p.is_file() and p.suffix in (".cs", ".csproj", ".props", ".targets", ".spv") and "obj" not in p.parts and "bin" not in p.parts]]
+                     *[p for p in (REFERENCE / "src").rglob("*") if p.is_file() and p.suffix in (".cs", ".csproj", ".props", ".targets", ".spv", ".metal") and "obj" not in p.parts and "bin" not in p.parts],
+                     *[p for directory in (REFERENCE, REFERENCE.parent) for p in directory.iterdir()
+                       if p.is_file() and (p.suffix in (".props", ".targets") or p.name in ("global.json", "NuGet.Config", "nuget.config"))]]
         if max(p.stat().st_mtime for p in cs_inputs) > reference_dll.stat().st_mtime:
             raise RuntimeError("C# adapter predates source changes; rebuild")
         shutil.copytree(build, args.report / "csharp")
@@ -143,13 +148,22 @@ def main():
                     env = dict(os.environ, SIMD_OCR_BENCH_REFERENCE=str(reference.resolve()),
                                SIMD_OCR_BENCH_RGB=str(rgb.resolve()), SIMD_OCR_BENCH_WIDTH=str(image.width), SIMD_OCR_BENCH_HEIGHT=str(image.height),
                                SIMD_OCR_BENCH_CAPTURE=str(int(args.alignment)), SIMD_OCR_BENCH_PROFILE=str(int(args.profile)),
-                               SIMD_OCR_BENCH_MEASUREMENTS=str(args.measurements), DOTNET_TieredCompilation="0")
+                               SIMD_OCR_BENCH_MEASUREMENTS=str(args.measurements), SIMD_OCR_BENCH_GPU_BACKEND=args.backend,
+                               DOTNET_TieredCompilation="0")
                     if implementation == "rust":
                         command = [str(frozen.resolve()), args.backend, mode, str(path.resolve()), str(requests), str(slots), str(batch), preset]
                     else:
                         command = ["dotnet", str((args.report / "csharp/Sdcb.SimdPaddleOCR.GpuBench.dll").resolve()), "--ocr-bench", str((REFERENCE / "models").resolve()), preset, mode, str(rgb.resolve()), str(image.width), str(image.height), str(requests), str(batch)]
+                    selected_reference = reference
+                    reference_scope = "rust-cpu"
+                    if implementation == "csharp" and args.csharp_reference_dir:
+                        selected_reference = args.csharp_reference_dir / f"{preset}-{case}-{mode}.json"
+                        reference_scope = "implementation-cold-output; cross-implementation differences checked separately"
+                    env["SIMD_OCR_BENCH_REFERENCE"] = str(selected_reference.resolve())
+                    env["SIMD_OCR_BENCH_REFERENCE_SCOPE"] = reference_scope
                     record = {"label": label, "implementation": implementation, "command": command,
-                              "input_sha256": digest(path), "rgb_sha256": digest(rgb), "reference_sha256": digest(reference)}
+                              "input_sha256": digest(path), "rgb_sha256": digest(rgb), "reference_sha256": digest(selected_reference),
+                              "reference_scope": reference_scope}
                     try:
                         run = subprocess.run(command, cwd=ROOT, env=env, text=True, encoding="utf-8", capture_output=True, timeout=remaining)
                         (args.report / f"{label}.json").write_text(run.stdout, encoding="utf-8")

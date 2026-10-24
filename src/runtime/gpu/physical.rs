@@ -3,6 +3,49 @@ use super::*;
 use crate::runtime::{Op, graph_patterns as patterns};
 use operators::{Recipe, RecipeKind, ShaderKind};
 
+/// Called only after the device's FP32 8x8 cooperative capability is checked.
+/// Retain the existing short-map pointwise policy and require complete 8x8
+/// fragments for direct loads. The final 32x32 tile may be partial.
+pub(super) fn select_cooperative_pointwise(
+    recipes: &mut [Recipe],
+    descriptors: &[GpuTensorDescriptor],
+    limits: &wgpu::Limits,
+) -> RuntimeResult<()> {
+    for recipe in recipes {
+        if !matches!(
+            recipe.kind,
+            RecipeKind::Compute(ShaderKind::PointwisePacked32 | ShaderKind::PointwiseBlocked32)
+        ) {
+            continue;
+        }
+        let inner = recipe.words[3];
+        let rows = recipe.words[4];
+        let columns = recipe.words[7] * recipe.words[8];
+        if inner >= 128
+            && rows >= 64
+            && columns >= 64
+            && [inner, rows, columns].iter().all(|n| n.is_multiple_of(8))
+            && recipe
+                .inputs
+                .iter()
+                .chain(std::iter::once(&recipe.output))
+                .all(|id| {
+                    descriptors[id.0].precision == GpuPrecision::F32
+                        && descriptors[id.0].layout == GpuLayout::Canonical
+                })
+        {
+            recipe.kind = RecipeKind::Compute(ShaderKind::PointwiseCooperative32);
+            recipe.words[32] = rows.div_ceil(32);
+            recipe.words[33] = columns.div_ceil(32);
+            let tiles =
+                recipe.words[32] as usize * recipe.words[33] as usize * recipe.words[35] as usize;
+            (recipe.x, recipe.y) = dispatch_grid(tiles.div_ceil(2) * 64, limits)?;
+            recipe.words[34] = recipe.x;
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn lower(
     program: &Program,
     plan: &mut ShapePlan,
@@ -337,7 +380,7 @@ pub(super) fn lower(
     for mut recipe in physical {
         let metal_register_pointwise = backend == wgpu::Backend::Metal
             && matches!(&plan.steps[recipe.nodes[0]].kind, BoundKind::Conv(g)
-                if g.height <= 6 || (g.height == 12 && g.cin == 512 && g.cout == 256
+                if g.height <= 6 || (g.height == 12 && matches!((g.cin, g.cout), (512, 256) | (192, 96))
                     && matches!(recipe.kind, RecipeKind::Compute(ShaderKind::Conv32))));
         // Direct NCHW addressing removes spatial div/mod and bounds work from
         // measured FP32 pointwise shapes without adding a layout conversion.
@@ -361,13 +404,25 @@ pub(super) fn lower(
                 RecipeKind::Compute(ShaderKind::Conv16) => {
                     RecipeKind::Compute(ShaderKind::PointwiseNchw16)
                 }
-                // Four-by-four register blocks also improve the measured
-                // height-12 512->256 recognition layers. Other tall maps,
-                // backends and prescaled inputs retain their previous policy.
+                // Four-by-four register blocks improve the measured H12
+                // recognition layers. Immutable packs are selected only on
+                // Metal's measured short maps and 192->96 H12 geometry.
                 RecipeKind::Compute(ShaderKind::Conv32)
                     if metal_register_pointwise && g.cin >= 128 =>
                 {
-                    RecipeKind::Compute(ShaderKind::PointwiseBlocked32)
+                    RecipeKind::Compute(
+                        if (g.height <= 6 || (g.height == 12 && g.cin == 192 && g.cout == 96))
+                            && backend == wgpu::Backend::Metal
+                            && matches!(
+                                &program.model.graph().tensors[recipe.inputs[1].0].constant,
+                                Some(TensorData::F32(_))
+                            )
+                        {
+                            ShaderKind::PointwisePacked32
+                        } else {
+                            ShaderKind::PointwiseBlocked32
+                        },
+                    )
                 }
                 RecipeKind::Compute(ShaderKind::Conv32) => {
                     RecipeKind::Compute(ShaderKind::PointwiseNchw32)

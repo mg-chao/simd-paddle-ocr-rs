@@ -89,9 +89,16 @@ context. FP32 and mixed plans can share that context. It requires the adapter's
 `SHADER_F16` feature. `subgroups: true` opts
 into reductions using the advertised subgroup feature, without assuming a lane
 width. FP32 portable kernels require neither feature.
+`cooperative_pointwise: true` (the default) enables FP32 32×32 matrix tiles for
+eligible short-map pointwise convolutions on Metal. Selection checks support
+for FP32 8×8 matrix operands and accumulators, subgroup sizes, canonical FP32
+storage, and channel/spatial dimensions divisible by eight. Partial 32×32 tiles
+are masked. Unsupported shapes and adapters use the existing kernels; set
+`cooperative_pointwise: false` to disable this path. It requests wgpu's
+experimental cooperative feature internally, without startup tuning.
 `experimental_cooperative_matrix: true` (CLI
 `--gpu-experimental-cooperative-matrix`) opts in to the unqualified 8×8 FP32
-matrix tier. It checks advertised scalar types, dimensions, subgroup ranges,
+generic MatMul tier. It checks advertised scalar types, dimensions, subgroup ranges,
 and the experimental feature before requesting it. Unsupported configurations
 retain portable GPU kernels. It does not enable C#'s FP16 cooperative paths.
 No startup benchmarking or vendor-name selection occurs. See the pinned
@@ -164,6 +171,23 @@ and favors 32×32 tiles for eligible large spatial maps. These choices require
 no configuration changes or startup tuning. Other backends retain their earlier
 selection policy. The [M4 convolution results](gpu-register-optimization-2026-10-24.md)
 record the measured gains, correctness checks, and hardware limitations.
+
+Eligible Metal FP32 recognition pointwise layers can additionally use immutable
+K-major weight packs with four output channels per vector. Packs are created
+lazily, shared across requests using the same model/context, and included in
+device quotas and weight accounting; statistics expose `packed_weight_bytes`.
+Measured 192→96 maps at heights six/twelve prefer register tiles when occupancy
+guards permit, and narrow H1 maps can use direct16 from 48 tile groups. These
+choices add model-shared memory and retain FP32 arithmetic. The
+[pointwise throughput results](gpu-pointwise-throughput-2026-10-24.md) record
+the latency/memory tradeoff and local validation.
+
+On capable Metal devices, eligible packed/register pointwise layers instead
+load FP32 matrix fragments directly from canonical weights and NCHW features.
+Each subgroup computes a 32×32 output tile; two logical tiles share a workgroup.
+Bias, residuals, activations, and destination offsets keep the existing fused
+epilogue. This path avoids the extra packed-weight allocation for those layers.
+See the [matrix optimization results](gpu-matrix-optimization-2026-10-24.md).
 
 Immutable weights and head/pipeline caches are shared. Forks have independent
 activations and scratch. `cache_resident_scratch: true` opts in to the bounded

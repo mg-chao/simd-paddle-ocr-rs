@@ -35,14 +35,7 @@ fn main(@builtin(workgroup_id) group:vec3<u32>, @builtin(local_invocation_index)
     for(var base=0u;base<inner;base+=16u) {
         for(var i=lane;i<128u;i+=64u) {
             let r=mr+(i%8u)*4u; let k=base+i/8u;
-            var value=vec4<f32>(0.0);
-            if k<inner {
-                if r<rows {value.x=load_b(r*inner+k);}
-                if r+1u<rows {value.y=load_b((r+1u)*inner+k);}
-                if r+2u<rows {value.z=load_b((r+2u)*inner+k);}
-                if r+3u<rows {value.w=load_b((r+3u)*inner+k);}
-            }
-            weights[i]=value;
+            weights[i]=pointwise_weights(r,k,rows,inner);
         }
         for(var i=lane;i<128u;i+=64u) {
             let k=base+i/8u; let c=nc+(i%8u)*4u;

@@ -2164,7 +2164,9 @@ fn gpu_pointwise_layout_candidates() {
         let baseline = match recipe.kind {
             operators::RecipeKind::Compute(ShaderKind::PointwiseNchw16) => ShaderKind::Conv16,
             operators::RecipeKind::Compute(
-                ShaderKind::PointwiseNchw32 | ShaderKind::PointwiseBlocked32,
+                ShaderKind::PointwiseNchw32
+                | ShaderKind::PointwiseBlocked32
+                | ShaderKind::PointwisePacked32,
             ) => ShaderKind::Conv32,
             operators::RecipeKind::Compute(kind @ (ShaderKind::Conv16 | ShaderKind::Conv32)) => {
                 kind
@@ -2325,8 +2327,35 @@ fn pointwise_register_case(shape: [usize; 4], channels: usize, bias: bool, measu
 }
 
 fn convolution_kernel_candidates(case: ConvCase, kinds: &[operators::ShaderKind], measured: usize) {
+    convolution_kernel_candidates_with_workgroup(case, kinds, measured, 64);
+}
+
+fn convolution_kernel_candidates_with_workgroup(
+    case: ConvCase,
+    kinds: &[operators::ShaderKind],
+    measured: usize,
+    workgroup_size: usize,
+) {
     use operators::ShaderKind;
-    let context = hardware();
+    let context = if kinds
+        .iter()
+        .any(|kind| matches!(kind, ShaderKind::PointwiseCooperative32))
+    {
+        let context = GpuContext::new_with_options(GpuContextOptions {
+            experimental_cooperative_matrix: true,
+            ..hardware().options()
+        })
+        .unwrap();
+        assert!(
+            context
+                .device
+                .features()
+                .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
+        );
+        context
+    } else {
+        hardware()
+    };
     let shape = case.input;
     let channels = case.channels;
     let bias = case.bias;
@@ -2355,16 +2384,31 @@ fn convolution_kernel_candidates(case: ConvCase, kinds: &[operators::ShaderKind]
         dummy
     };
     for &kind in kinds {
+        let packed = (kind == ShaderKind::PointwisePacked32)
+            .then(|| compiled.packed_pointwise_weight(recipe.inputs[1]).unwrap());
+        let weights = packed.as_ref().unwrap_or(weights);
         let mut source =
-            format!("{}\n{}", include_str!("common.wgsl"), kind.source()).replace("$ENABLE", "");
+            format!("{}\n{}", kind.common_source(), kind.source()).replace("$ENABLE", "");
+        // Exercise one/two/many actual subgroups with the same logical tile map.
+        source = source.replace(
+            "@workgroup_size(64)",
+            &format!("@workgroup_size({workgroup_size})"),
+        );
+        // The production kernel reserves 16 subgroup slots for 64 threads at
+        // the minimum supported width (4); enlarge only the 128-thread probe.
+        if workgroup_size > 64 {
+            source = source.replace("array<f32, 1024>", "array<f32, 2048>");
+        }
+        if matches!(kind, ShaderKind::PointwiseCooperative32) {
+            source = format!("enable wgpu_cooperative_matrix;\n{source}");
+        }
         for token in ["$A", "$B", "$C", "$D", "$E", "$O"] {
             source = source.replace(token, "f32");
         }
         let mut words = recipe.words;
-        let tile = if matches!(kind, ShaderKind::Conv16 | ShaderKind::PointwiseNchw16) {
-            16
-        } else {
-            32
+        let tile = match kind {
+            ShaderKind::Conv16 | ShaderKind::PointwiseNchw16 => 16,
+            _ => 32,
         };
         let output_shape = case.output();
         words[32] = channels.div_ceil(tile) as u32;
@@ -2376,6 +2420,8 @@ fn convolution_kernel_candidates(case: ConvCase, kinds: &[operators::ShaderKind]
         let (x, y) = dispatch_grid(
             if kind == ShaderKind::Convolution {
                 expected.len()
+            } else if matches!(kind, ShaderKind::PointwiseCooperative32) {
+                (words[32] as usize * words[33] as usize * shape[0]).div_ceil(2) * 64
             } else {
                 words[32] as usize * words[33] as usize * shape[0] * 64
             },
@@ -2443,6 +2489,246 @@ fn convolution_kernel_candidates(case: ConvCase, kinds: &[operators::ShaderKind]
 }
 
 #[test]
+#[ignore = "bounded matrix experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_pointwise_cooperative_candidates() {
+    for (input, channels) in [
+        ([1, 1536, 3, 240], 768),
+        ([1, 1024, 6, 240], 512),
+        ([2, 192, 6, 136], 1024),
+    ] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "cooperative pointwise candidate",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias: true,
+            },
+            &[
+                operators::ShaderKind::PointwisePacked32,
+                operators::ShaderKind::PointwiseCooperative32,
+            ],
+            3,
+        );
+    }
+}
+
+fn pointwise_packed_weight_candidates(case: ConvCase, measured: usize) {
+    use operators::ShaderKind;
+    convolution_kernel_candidates(
+        case,
+        &[
+            ShaderKind::PointwiseBlocked32,
+            ShaderKind::PointwisePacked32,
+        ],
+        measured,
+    );
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_pointwise_packed_weights() {
+    for (input, channels, bias) in [
+        ([2, 33, 3, 37], 65, true),
+        ([1, 257, 1, 19], 129, false),
+        ([2, 192, 12, 131], 96, true),
+    ] {
+        pointwise_packed_weight_candidates(
+            ConvCase {
+                name: "packed pointwise weights",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias,
+            },
+            0,
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_packed_pointwise_cache_and_quota() {
+    let options = hardware().options();
+    let context = GpuContext::new_with_options(options).unwrap();
+    let case = ConvCase {
+        name: "shared packed pointwise weights",
+        input: [1, 128, 3, 129],
+        channels: 129,
+        kernel: [1; 2],
+        stride: [1; 2],
+        dilation: [1; 2],
+        pads: [0; 4],
+        group: 1,
+        bias: true,
+    };
+    let model = case.model();
+    let first = Arc::new(GpuCompiledModel::compile(model.clone(), context.clone()).unwrap());
+    let second = Arc::new(GpuCompiledModel::compile(model.clone(), context.clone()).unwrap());
+    assert!(Arc::ptr_eq(&first.weights, &second.weights));
+    let id = TensorId(
+        model
+            .graph()
+            .tensors
+            .iter()
+            .position(|t| t.name == "weights")
+            .unwrap(),
+    );
+    let original = first.weight_bytes();
+    let packed_bytes = case.channels.div_ceil(4) * 4 * case.input[1] * 4;
+    assert_eq!(first.packed_weight_bytes(), 0);
+    let buffers = std::thread::scope(|scope| {
+        let a = scope.spawn(|| first.packed_pointwise_weight(id).unwrap());
+        let b = scope.spawn(|| second.packed_pointwise_weight(id).unwrap());
+        [a.join().unwrap(), b.join().unwrap()]
+    });
+    assert!(Arc::ptr_eq(
+        &buffers[0].reservation,
+        &buffers[1].reservation
+    ));
+    assert_eq!(first.packed_weight_bytes(), packed_bytes);
+    assert_eq!(first.weight_bytes(), original + packed_bytes);
+    assert_eq!(
+        context.memory_statistics().used_bytes,
+        original + packed_bytes
+    );
+    let mut seen = std::collections::HashSet::new();
+    assert_eq!(
+        first.unique_weight_bytes(&mut seen),
+        original + packed_bytes
+    );
+    assert_eq!(second.unique_weight_bytes(&mut seen), 0);
+    drop((buffers, first, second));
+    assert_eq!(context.memory_statistics().used_bytes, 0);
+    // A failed pack does not publish a cache entry or leak its reservation.
+    let limited = GpuContext::new_with_options(GpuContextOptions {
+        max_device_bytes: Some(original + packed_bytes - 4),
+        ..options
+    })
+    .unwrap();
+    let compiled = GpuCompiledModel::compile(model, limited.clone()).unwrap();
+    assert_eq!(
+        compiled.packed_pointwise_weight(id).err().unwrap().kind(),
+        ErrorKind::ResourceLimit
+    );
+    assert_eq!(compiled.packed_weight_bytes(), 0);
+    assert_eq!(limited.memory_statistics().used_bytes, original);
+    drop(compiled);
+    assert_eq!(limited.memory_statistics().used_bytes, 0);
+}
+
+#[test]
+#[ignore = "bounded packed-weight experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_pointwise_packed_weight_performance() {
+    if cfg!(debug_assertions) {
+        panic!("release build required");
+    }
+    let timer = std::time::Instant::now();
+    for (input, channels) in [
+        ([1, 1536, 3, 240], 768),
+        ([1, 1024, 6, 240], 512),
+        ([2, 192, 6, 136], 1024),
+    ] {
+        pointwise_packed_weight_candidates(
+            ConvCase {
+                name: "packed pointwise weights",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias: true,
+            },
+            3,
+        );
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
+#[test]
+#[ignore = "bounded narrow pointwise experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_narrow_pointwise_performance() {
+    use operators::ShaderKind;
+    if cfg!(debug_assertions) {
+        panic!("release build required");
+    }
+    let timer = std::time::Instant::now();
+    for (input, channels) in [
+        ([1, 384, 1, 104], 120),
+        ([1, 768, 1, 80], 192),
+        ([1, 160, 1, 84], 160),
+    ] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "narrow pointwise",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias: true,
+            },
+            &[ShaderKind::Convolution, ShaderKind::PointwiseNchw16],
+            3,
+        );
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
+#[test]
+#[ignore = "bounded mid-channel pointwise experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_pointwise_mid_channels_performance() {
+    use operators::ShaderKind;
+    if cfg!(debug_assertions) {
+        panic!("release build required");
+    }
+    let timer = std::time::Instant::now();
+    for input in [[1, 192, 6, 248], [2, 192, 6, 136], [1, 192, 12, 216]] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "mid-channel pointwise",
+                input,
+                channels: 96,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias: true,
+            },
+            &[
+                ShaderKind::PointwiseNchw16,
+                ShaderKind::PointwiseBlocked32,
+                ShaderKind::PointwisePacked32,
+            ],
+            3,
+        );
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
+#[test]
 #[ignore = "requires a physical GPU"]
 fn gpu_hardware_pointwise_register_tiles_tails_and_offsets() {
     for (shape, channels, bias) in [
@@ -2489,7 +2775,7 @@ fn gpu_hardware_pointwise_register_fusion_and_selection() {
             .statistics()
             .specialized_kernels
             .iter()
-            .any(|k| k.family == "pointwise_blocked32"),
+            .any(|k| k.family == "pointwise_packed32"),
         hardware().adapter_info().backend == wgpu::Backend::Metal,
     );
     // Tall detector maps retain the previously qualified pointwise policy.
@@ -2511,7 +2797,7 @@ fn gpu_hardware_pointwise_register_fusion_and_selection() {
             .statistics()
             .specialized_kernels
             .iter()
-            .any(|k| k.family == "pointwise_blocked32")
+            .any(|k| k.family == "pointwise_packed32")
     );
 }
 
@@ -2568,6 +2854,15 @@ fn gpu_hardware_pointwise_recognition_shape_boundaries() {
 fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
     use operators::{RecipeKind, ShaderKind};
     let metal = hardware().adapter_info().backend == wgpu::Backend::Metal;
+    let aligned_metal = if hardware()
+        .device
+        .features()
+        .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
+    {
+        ShaderKind::PointwiseCooperative32
+    } else {
+        ShaderKind::PointwisePacked32
+    };
     for (input, channels, fast, previous, verify) in [
         (
             [1, 512, 12, 125],
@@ -2596,6 +2891,90 @@ fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
             ShaderKind::PointwiseNchw16,
             ShaderKind::Convolution,
             true,
+        ),
+        (
+            [1, 384, 1, 104],
+            120,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [1, 768, 1, 80],
+            192,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [1, 160, 1, 84],
+            160,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [1, 128, 1, 81],
+            128,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [1, 128, 1, 80],
+            128,
+            ShaderKind::Convolution,
+            ShaderKind::Convolution,
+            false,
+        ),
+        (
+            [1, 192, 6, 248],
+            96,
+            aligned_metal,
+            ShaderKind::PointwiseNchw16,
+            true,
+        ),
+        (
+            [2, 192, 6, 136],
+            96,
+            aligned_metal,
+            ShaderKind::PointwiseNchw16,
+            true,
+        ),
+        (
+            [1, 192, 12, 216],
+            96,
+            aligned_metal,
+            ShaderKind::PointwiseNchw16,
+            true,
+        ),
+        (
+            [1, 192, 6, 112],
+            96,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::PointwiseNchw16,
+            false,
+        ),
+        (
+            [1, 192, 6, 113],
+            96,
+            ShaderKind::PointwisePacked32,
+            ShaderKind::PointwiseNchw16,
+            true,
+        ),
+        (
+            [1, 192, 12, 56],
+            96,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::PointwiseNchw16,
+            false,
+        ),
+        (
+            [1, 192, 11, 216],
+            96,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::PointwiseNchw16,
+            false,
         ),
         (
             [1, 512, 11, 128],
@@ -2696,7 +3075,26 @@ fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
         if kind == if metal { ShaderKind::PointwiseNchw16 } else { ShaderKind::Convolution }));
     // Newly promoted H1 layers may also absorb a channel gate. H12 keeps the
     // existing prescaled kernel rather than extending the plain-Conv choice.
-    for (shape, channels) in [([1, 768, 1, 124], 192), ([1, 512, 12, 125], 256)] {
+    for (shape, channels, on_metal, other) in [
+        (
+            [1, 768, 1, 124],
+            192,
+            ShaderKind::PointwisePrescaled16,
+            ShaderKind::Convolution,
+        ),
+        (
+            [1, 512, 12, 125],
+            256,
+            ShaderKind::ConvPrescaled32,
+            ShaderKind::ConvPrescaled32,
+        ),
+        (
+            [1, 192, 12, 125],
+            96,
+            ShaderKind::PointwisePrescaled32,
+            ShaderKind::PointwisePrescaled16,
+        ),
+    ] {
         let graph = model(
             vec![
                 tensor(
@@ -2720,13 +3118,7 @@ fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
         compare_paths(graph.clone(), &shape, "recognition prescaled pointwise");
         let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
         let session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
-        let expected = if shape[2] == 12 {
-            ShaderKind::ConvPrescaled32
-        } else if metal {
-            ShaderKind::PointwisePrescaled16
-        } else {
-            ShaderKind::Convolution
-        };
+        let expected = if metal { on_metal } else { other };
         assert!(
             session
                 .recipes
@@ -2735,7 +3127,11 @@ fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
         );
         assert_eq!(
             session.dispatches.len(),
-            if metal || shape[2] == 12 { 1 } else { 2 }
+            if expected == ShaderKind::Convolution {
+                2
+            } else {
+                1
+            }
         );
     }
 }
@@ -3178,4 +3574,179 @@ fn gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back()
     let mut tensor = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
     assert!(tensor.memory_statistics().host_output_bytes > 0);
     tensor.run(&values(70, 1)).unwrap();
+}
+
+#[test]
+#[ignore = "requires a physical cooperative-matrix GPU"]
+fn gpu_hardware_pointwise_cooperative_tails() {
+    for (input, channels, bias, workgroup_size) in [
+        ([2, 40, 3, 40], 72, true, 32),
+        ([1, 264, 1, 24], 136, false, 128),
+        ([2, 192, 12, 130], 96, true, 64),
+    ] {
+        convolution_kernel_candidates_with_workgroup(
+            ConvCase {
+                name: "direct matrix tails",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias,
+            },
+            &[operators::ShaderKind::PointwiseCooperative32],
+            0,
+            workgroup_size,
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a physical Metal cooperative-matrix GPU"]
+fn gpu_hardware_pointwise_cooperative_selection_and_fusion() {
+    let context = hardware();
+    assert_eq!(context.info.backend, wgpu::Backend::Metal);
+    assert!(
+        context
+            .device
+            .features()
+            .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
+    );
+    assert!(!context.options.experimental_cooperative_matrix);
+    let portable = GpuContext::new_with_options(GpuContextOptions {
+        cooperative_pointwise: false,
+        ..context.options()
+    })
+    .unwrap();
+    assert!(
+        !portable
+            .device
+            .features()
+            .contains(wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX)
+    );
+    // Same fusion, once with partial 32-wide tiles and once with an incomplete
+    // 8-wide fragment that must use the portable kernel.
+    let shape = [2, 128, 3, 264];
+    for channels in [136, 129] {
+        let graph = model(
+            vec![
+                tensor("w", &[channels, 128, 1, 1], &values(channels * 128, 7)),
+                tensor("b", &[channels], &values(channels, 11)),
+                tensor("residual", &[1, channels, 1, 1], &values(channels, 13)),
+                node(
+                    "Conv",
+                    &["x", "w", "b"],
+                    "conv",
+                    &[integers("kernel_shape", &[1, 1])],
+                ),
+                node("Add", &["conv", "residual"], "sum", &[]),
+                node("Relu", &["sum"], "y", &[]),
+            ],
+            &shape,
+            &[2, channels, 3, 264],
+        );
+        let input = values(shape.iter().product(), 1);
+        let (_, expected) = reference(graph.clone(), &shape, &input);
+        for selected in [&context, &portable] {
+            let compiled =
+                Arc::new(GpuCompiledModel::compile(graph.clone(), selected.clone()).unwrap());
+            let mut session =
+                GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+            assert_eq!(session.dispatches.len(), 1);
+            assert_eq!(
+                session
+                    .statistics()
+                    .specialized_kernels
+                    .iter()
+                    .any(|k| k.family == "pointwise_cooperative32"),
+                selected.options.cooperative_pointwise && channels == 136
+            );
+            assert_close(
+                "matrix fusion or portable fallback",
+                session.run(&input).unwrap().data(),
+                &expected,
+            );
+        }
+    }
+    // Requesting the capability for pointwise must not opt generic MatMul in.
+    let shape = [256, 128];
+    let graph = model(
+        vec![
+            tensor("w", &[128, 256], &values(128 * 256, 7)),
+            node("MatMul", &["x", "w"], "y", &[]),
+        ],
+        &shape,
+        &[256, 256],
+    );
+    let session = GpuSession::new(
+        Arc::new(GpuCompiledModel::compile(graph, context).unwrap()),
+        &shape,
+        ExecutionLimits::default(),
+    )
+    .unwrap();
+    assert!(
+        !session
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|k| k.family == "experimental_cooperative_matmul8")
+    );
+}
+
+#[test]
+fn cooperative_pointwise_requires_complete_fp32_fragments() {
+    use operators::{Recipe, RecipeKind, ShaderKind};
+    let shape = Shape::new(&[1, 128, 3, 264]).unwrap();
+    let descriptors = vec![GpuTensorDescriptor::canonical(shape, GpuPrecision::F32); 3];
+    let mut recipe = Recipe {
+        node: 0,
+        nodes: vec![0],
+        kind: RecipeKind::Compute(ShaderKind::PointwisePacked32),
+        inputs: vec![TensorId(0), TensorId(1)],
+        output: TensorId(2),
+        words: [0; 128],
+        x: 1,
+        y: 1,
+    };
+    recipe.words[3] = 128;
+    recipe.words[4] = 136;
+    recipe.words[7] = 3;
+    recipe.words[8] = 264;
+    recipe.words[35] = 1;
+    // 5 * 25 = 125 tiles; the last workgroup must mask its second tile.
+    let mut eligible = [recipe.clone()];
+    physical::select_cooperative_pointwise(&mut eligible, &descriptors, &wgpu::Limits::default())
+        .unwrap();
+    assert!(matches!(
+        eligible[0].kind,
+        RecipeKind::Compute(ShaderKind::PointwiseCooperative32)
+    ));
+    assert_eq!((eligible[0].x, eligible[0].y), (63, 1));
+    for word in [3, 4, 8] {
+        let mut unaligned = [recipe.clone()];
+        unaligned[0].words[word] += 1;
+        physical::select_cooperative_pointwise(
+            &mut unaligned,
+            &descriptors,
+            &wgpu::Limits::default(),
+        )
+        .unwrap();
+        assert!(matches!(
+            unaligned[0].kind,
+            RecipeKind::Compute(ShaderKind::PointwisePacked32)
+        ));
+    }
+    for id in 0..3 {
+        let mut mixed = descriptors.clone();
+        mixed[id].precision = GpuPrecision::MixedF16;
+        let mut recipes = [recipe.clone()];
+        physical::select_cooperative_pointwise(&mut recipes, &mixed, &wgpu::Limits::default())
+            .unwrap();
+        assert!(matches!(
+            recipes[0].kind,
+            RecipeKind::Compute(ShaderKind::PointwisePacked32)
+        ));
+    }
 }

@@ -2,9 +2,9 @@
 alias MA = coop_mat8x8<f32, A>;
 alias MB = coop_mat8x8<f32, B>;
 alias MC = coop_mat8x8<f32, C>;
-var<workgroup> left:array<f32,512>;
-var<workgroup> right:array<f32,512>;
-var<workgroup> result:array<f32,512>;
+var<workgroup> left:array<f32,1024>;
+var<workgroup> right:array<f32,1024>;
+var<workgroup> result:array<f32,1024>;
 @compute @workgroup_size(64)
 fn main(@builtin(workgroup_id) group:vec3<u32>, @builtin(subgroup_id) sg:u32,
         @builtin(subgroup_invocation_id) lane:u32, @builtin(subgroup_size) width:u32,
