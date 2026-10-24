@@ -141,6 +141,12 @@ outputs when requested; oriented-crop APIs return their requested pixel bytes.
 The encoder composes preprocessing, graph execution, heads and decoding before
 submission. Recognition lines of the same width form bounded batches; different
 widths occupy independent request-owned slots, bounded by `max_in_flight`.
+Orientation classification groups up to four adjacent crops independently of
+recognition width. Its batch shape stays fixed while commands are pending;
+unused tail rows are ignored. Fixed-batch-one models and activation limits that
+cannot admit a larger classifier batch retain single-crop execution. This keeps
+at most three prepared crops beyond the current recognition unit. Classification
+batching does not change the public recognition batch-size setting.
 Available units are submitted without an external batch-filling wait. Results
 are restored to original line order. A recognition request holds one admission
 guard and at most two submitted waves, allowing encoding to overlap device
@@ -148,6 +154,13 @@ work. Pending waves retain their buffer reservations and readbacks until
 completion, including on early errors. Shape and candidate counts cross compact
 control-readback boundaries. Intermediate image, feature and vocabulary
 buffers do not cross to the host during normal full-GPU OCR.
+
+Dense 2×2 convolutions use the same bounded tiled kernels as eligible 1×1 and
+3×3 convolutions. On Metal, FP32 pointwise convolutions with feature-map height
+at most six can also use direct NCHW addressing for large channel reductions.
+Other backends retain the existing large-channel policy. These choices require
+no startup tuning. The [M4 optimization results](gpu-optimization-2026-10-24.md)
+record the measured gains and hardware limitations.
 
 Immutable weights and head/pipeline caches are shared. Forks have independent
 activations and scratch. `cache_resident_scratch: true` opts in to the bounded

@@ -268,20 +268,71 @@ impl Classification {
         batch: &mut Batch,
         image: &Image,
     ) -> RuntimeResult<(GpuBuffer, usize)> {
-        let window = image.width.min(image.height.saturating_mul(4));
-        let width = (80u64 * window as u64)
-            .div_ceil(image.height as u64)
-            .min(160) as usize;
-        preprocess(
-            batch,
-            image,
-            &self.session.resident_input(),
-            [window, image.height],
-            width,
-            false,
-        )?;
+        self.prepare_batch(1)?;
+        let (winners, widths) = self.record_batch(batch, std::slice::from_ref(image))?;
+        Ok((winners, widths[0]))
+    }
+    /// Choose the batch before recording any graphs. Keep this shape fixed
+    /// through a submission: queue parameter writes precede encoded GPU work.
+    pub fn prepare_batch(&mut self, capacity: usize) -> RuntimeResult<usize> {
+        if capacity == 0 || capacity > 4 {
+            return Err(RuntimeError::new(
+                "invalid resident classifier batch capacity",
+            ));
+        }
+        let graph = self.session.compiled.model().graph();
+        let mut capacity = match &graph.tensors[graph.inputs[0].0].shape {
+            crate::tensor::ShapeSpec::Ranked(dims)
+                if matches!(dims.first(), Some(crate::tensor::Dim::Known(1))) =>
+            {
+                1
+            }
+            _ => capacity,
+        };
+        loop {
+            match self.session.reshape(&[capacity, 3, 80, 160]) {
+                Ok(()) => return Ok(capacity),
+                // Batching is optional. Preserve requests whose activation
+                // budget admits the original one-crop classifier only.
+                Err(error) if error.kind() == ErrorKind::ResourceLimit && capacity > 1 => {
+                    capacity = capacity.div_ceil(2);
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    pub fn record_batch(
+        &mut self,
+        batch: &mut Batch,
+        images: &[Image],
+    ) -> RuntimeResult<(GpuBuffer, Vec<usize>)> {
+        let capacity = self.session.input_shape().dimensions()[0];
+        if images.is_empty() || images.len() > capacity {
+            return Err(RuntimeError::new("invalid resident classifier batch"));
+        }
+        let input = self.session.resident_input();
+        let mut widths = Vec::with_capacity(images.len());
+        for (index, image) in images.iter().enumerate() {
+            let window = image.width.min(image.height.saturating_mul(4));
+            let width = (80u64 * window as u64)
+                .div_ceil(image.height as u64)
+                .min(160) as usize;
+            preprocess_at(
+                batch,
+                image,
+                &input,
+                [window, image.height],
+                width,
+                false,
+                index,
+            )?;
+            widths.push(width);
+        }
+        // Tail rows are independent batch elements and their winners are never
+        // consumed. Keeping their storage avoids a shape/parameter change while
+        // earlier classifier graphs are still in the same command buffer.
         let features = batch.graph(&mut self.session, "classifier")?;
-        Ok((self.head.project(batch, &features, true)?, width))
+        Ok((self.head.project(batch, &features, true)?, widths))
     }
     pub fn run(
         &mut self,
@@ -501,6 +552,129 @@ impl Recognition {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires a physical GPU"]
+    fn gpu_resident_classifier_batches_preserve_rows_and_tails() {
+        use crate::{image::PixelFormat, orientation::Classifier};
+        let backend = match std::env::var("SIMD_OCR_GPU_BACKEND").as_deref() {
+            Ok("dx12") => GpuBackendPreference::Dx12,
+            Ok("metal") => GpuBackendPreference::Metal,
+            _ => GpuBackendPreference::Vulkan,
+        };
+        let context = GpuContext::new_with_options(GpuContextOptions {
+            backend,
+            ..Default::default()
+        })
+        .unwrap();
+        let cpu = crate::ocr::tests::synthetic_classifier_with_batch(None);
+        let compiled = Arc::new(
+            GpuCompiledModel::compile(cpu.program.model.clone(), context.clone()).unwrap(),
+        );
+        let mut reference = Classifier::new(cpu, ExecutionLimits::default()).unwrap();
+        let mut classifier = Classification::new(compiled, ExecutionLimits::default()).unwrap();
+        let pixels = (0..5)
+            .map(|i| {
+                (0..(13 + i * 2) * 9)
+                    .flat_map(|p| {
+                        let v = if i % 2 == 0 {
+                            8 + (p % 16) as u8
+                        } else {
+                            224 + (p % 16) as u8
+                        };
+                        [v, v, v, 255]
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let views = pixels
+            .iter()
+            .enumerate()
+            .map(|(i, p)| ImageView::new(p, 13 + i * 2, 9, 0, PixelFormat::Bgra32).unwrap())
+            .collect::<Vec<_>>();
+        let expected = views
+            .iter()
+            .map(|&image| reference.classify(image).unwrap())
+            .collect::<Vec<_>>();
+        assert!(expected.iter().any(|c| c.label == 0));
+        assert!(expected.iter().any(|c| c.label == 1));
+        classifier.prepare_batch(4).unwrap();
+        let mut batch = Batch::new(context.clone()).unwrap();
+        let output_bytes = 5 * 16 + pixels.iter().map(Vec::len).sum::<usize>();
+        let output = batch
+            .storage("batched classifier and rotation", output_bytes)
+            .unwrap();
+        let mut offset = 5 * 16;
+        for (group, inputs) in views.chunks(4).enumerate() {
+            let images = inputs
+                .iter()
+                .map(|&image| Image::upload(&mut batch, image).unwrap())
+                .collect::<Vec<_>>();
+            let (winners, widths) = classifier.record_batch(&mut batch, &images).unwrap();
+            batch.copy(
+                &winners,
+                0,
+                &output,
+                (group * 4 * 16) as u64,
+                (inputs.len() * 16) as u64,
+            );
+            for (row, image) in images.iter().enumerate() {
+                assert_eq!(widths[row], expected[group * 4 + row].resized_width);
+                let oriented =
+                    super::super::vision::orient_at(&mut batch, image, &winners, row, 0.5).unwrap();
+                let bytes = image.width * image.height * 4;
+                batch.copy(&oriented.buffer, 0, &output, offset as u64, bytes as u64);
+                offset += bytes;
+            }
+        }
+        let (actual, _) = batch.read(&output, output_bytes, false).unwrap();
+        let mut offset = 5 * 16;
+        for (i, expected) in expected.iter().enumerate() {
+            let class = crate::orientation::parse_gpu_classification(
+                &actual[i * 16..(i + 1) * 16],
+                expected.resized_width,
+            )
+            .unwrap();
+            assert_eq!(class.label, expected.label);
+            assert!((class.score - expected.score).abs() <= 1e-3);
+            let mut oriented = pixels[i].as_chunks::<4>().0.to_vec();
+            if expected.label == 1 && expected.score > 0.5 {
+                oriented.reverse();
+            }
+            assert_eq!(
+                &actual[offset..offset + pixels[i].len()],
+                oriented.as_flattened()
+            );
+            offset += pixels[i].len();
+        }
+        // A standalone call can reuse the classifier after batched work drains.
+        let (actual, _) = classifier.run(views[1], false).unwrap();
+        let actual =
+            crate::orientation::parse_gpu_classification(&actual, expected[1].resized_width)
+                .unwrap();
+        assert_eq!(actual.label, expected[1].label);
+        assert!((actual.score - expected[1].score).abs() <= 1e-3);
+
+        // Fixed-batch models and tight activation budgets retain the original
+        // one-image behavior; failed optional growth leaves the session usable.
+        for fixed in [false, true] {
+            let cpu = crate::ocr::tests::synthetic_classifier_with_batch(fixed.then_some(1));
+            let compiled = Arc::new(
+                GpuCompiledModel::compile(cpu.program.model.clone(), context.clone()).unwrap(),
+            );
+            let mut classifier = Classification::new(compiled, ExecutionLimits::default()).unwrap();
+            if !fixed {
+                classifier.session.limits.max_activation_bytes =
+                    classifier.session.memory.total_bytes();
+            }
+            assert_eq!(classifier.prepare_batch(4).unwrap(), 1);
+            let (actual, _) = classifier.run(views[1], false).unwrap();
+            let actual =
+                crate::orientation::parse_gpu_classification(&actual, expected[1].resized_width)
+                    .unwrap();
+            assert_eq!(actual.label, expected[1].label);
+            assert!((actual.score - expected[1].score).abs() <= 1e-3);
+        }
+    }
     #[test]
     #[ignore = "requires a physical GPU"]
     fn gpu_resident_projection_ctc_contract() {

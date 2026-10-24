@@ -10,6 +10,7 @@ pub(super) fn lower(
     limits: &wgpu::Limits,
     precision: GpuPrecision,
     descriptors: &mut Vec<GpuTensorDescriptor>,
+    backend: wgpu::Backend,
 ) -> RuntimeResult<Vec<Recipe>> {
     let mut recipes = operators::recipes(program, plan, limits)?;
     let count = plan.steps.len();
@@ -336,8 +337,9 @@ pub(super) fn lower(
     for mut recipe in physical {
         // Direct NCHW addressing removes spatial div/mod and bounds work from
         // measured FP32 pointwise shapes without adding a layout conversion.
-        // Large channel reductions retain the original kernel: current device
-        // measurements do not establish a benefit there.
+        // Metal also benefits on short recognition feature maps with large
+        // channel reductions. Retain the previous policy on other backends:
+        // large reductions regressed in the earlier AMD/Vulkan measurements.
         if precision == GpuPrecision::F32
             && let BoundKind::Conv(g) = &plan.steps[recipe.nodes[0]].kind
             && g.kh == 1
@@ -349,7 +351,7 @@ pub(super) fn lower(
             && g.oh == g.height
             && g.ow == g.width
             && g.cpg == g.cin
-            && g.cin <= 256
+            && (g.cin <= 256 || (backend == wgpu::Backend::Metal && g.height <= 6))
         {
             recipe.kind = match recipe.kind {
                 RecipeKind::Compute(ShaderKind::Conv16) => {

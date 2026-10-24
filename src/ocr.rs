@@ -2374,6 +2374,9 @@ pub(crate) mod tests {
         pixels
     }
     pub(crate) fn synthetic_classifier() -> Arc<CpuCompiledModel> {
+        synthetic_classifier_with_batch(Some(1))
+    }
+    pub(crate) fn synthetic_classifier_with_batch(batch: Option<u64>) -> Arc<CpuCompiledModel> {
         let weights = [-0.25f32, 0.5, -0.5, 0.25, -0.75, 0.75];
         let tensor = bytes(
             5,
@@ -2403,8 +2406,8 @@ pub(crate) mod tests {
                 ),
                 node("MatMul", &["feature", "weights"], "logits", vec![]),
                 node("Softmax", &["logits"], "y", integer("axis", 1)),
-                info("x", &[Some(1), Some(3), Some(80), Some(160)]),
-                info("y", &[Some(1), Some(2)]),
+                info("x", &[batch, Some(3), Some(80), Some(160)]),
+                info("y", &[batch, Some(2)]),
             ]
             .concat(),
         )
@@ -3156,13 +3159,17 @@ pub(crate) mod tests {
             lines: &crate::lines::OwnedOrientedLines,
             batch: usize,
         ) -> StageProfile {
-            let cpu = request.cpu.clone();
-            request.budgets = request.cpu_options.resolve(cpu.capacity(), true).unwrap();
+            let cpu = request.plan.cpu.clone();
+            request.budgets = request
+                .plan
+                .cpu_options
+                .resolve(cpu.capacity(), true)
+                .unwrap();
             let mut profile = StageProfile::default();
             recognize_parallel::<{ cfg!(feature = "profiling") }>(
                 &cpu,
                 &mut request.budgets,
-                request.cpu_options.line_workers == 0,
+                request.plan.cpu_options.line_workers == 0,
                 &request.recognizer,
                 &mut request.workers,
                 &mut request.recognition_results,

@@ -807,7 +807,7 @@ pub(super) fn specialize(
                     (r.x, r.y) = dispatch_grid(r.words[0] as usize, limits)?;
                     r.words[1] = r.x * 64;
                 } else if g.cpg == g.cin
-                    && ((g.kh == 1 && g.kw == 1) || (g.kh == 3 && g.kw == 3))
+                    && (g.kh == g.kw && matches!(g.kh, 1..=3))
                     && g.cout >= 8
                     && g.cpg >= 8
                 {

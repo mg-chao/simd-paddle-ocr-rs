@@ -1182,6 +1182,7 @@ impl GpuSession {
                 &compiled.context.limits,
                 activation_precision,
                 &mut descriptors,
+                compiled.context.info.backend,
             )?
         } else {
             operators::recipes(&compiled.program, &plan, &compiled.context.limits)?

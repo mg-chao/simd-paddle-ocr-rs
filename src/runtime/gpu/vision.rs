@@ -279,6 +279,22 @@ pub(crate) fn orient(
     winner: &GpuBuffer,
     threshold: f32,
 ) -> RuntimeResult<Image> {
+    orient_at(batch, image, winner, 0, threshold)
+}
+pub(crate) fn orient_at(
+    batch: &mut Batch,
+    image: &Image,
+    winners: &GpuBuffer,
+    row: usize,
+    threshold: f32,
+) -> RuntimeResult<Image> {
+    if row
+        .checked_add(1)
+        .and_then(|n| n.checked_mul(16))
+        .is_none_or(|n| n as u64 > winners.size())
+    {
+        return Err(RuntimeError::new("classifier winner row out of range"));
+    }
     let output = batch.storage("oriented crop", image.width * image.height * 4)?;
     let source = format!(
         "{PARAMETERS}{}",
@@ -288,8 +304,12 @@ pub(crate) fn orient(
     batch.dispatch(
         "classifier_rotation",
         &source,
-        &[(&image.buffer, true), (winner, true), (&output, false)],
-        &[(image.width * image.height) as u32, threshold.to_bits()],
+        &[(&image.buffer, true), (winners, true), (&output, false)],
+        &[
+            (image.width * image.height) as u32,
+            threshold.to_bits(),
+            row as u32,
+        ],
         [x, y, 1],
     )?;
     Ok(Image {

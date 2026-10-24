@@ -423,6 +423,64 @@ fn gpu_hardware_specialized_tiles_tails_and_long_reductions() {
     }
 }
 
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_dense_two_by_two_padding_and_tails() {
+    let mixed_context = GpuContext::new_with_options(GpuContextOptions {
+        backend: hardware().options().backend,
+        shader_f16: true,
+        ..Default::default()
+    })
+    .unwrap();
+    for (input, channels, stride, pads) in [
+        ([2, 17, 27, 35], 35, [1, 1], [0, 0, 1, 1]),
+        ([3, 33, 27, 67], 65, [2, 1], [0, 0, 1, 1]),
+        ([1, 65, 31, 69], 129, [1, 2], [1, 0, 0, 1]),
+    ] {
+        let case = ConvCase {
+            name: "dense 2x2 asymmetric padding",
+            input,
+            channels,
+            kernel: [2; 2],
+            stride,
+            dilation: [1; 2],
+            pads,
+            group: 1,
+            bias: true,
+        };
+        let compiled = Arc::new(GpuCompiledModel::compile(case.model(), hardware()).unwrap());
+        let session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        assert!(session.recipes.iter().any(|r| matches!(
+            r.kind,
+            operators::RecipeKind::Compute(
+                operators::ShaderKind::Conv16 | operators::ShaderKind::Conv32
+            )
+        )));
+        compare_paths(case.model(), &input, case.name);
+        let data = values(input.iter().product(), 3);
+        let (_, expected) = reference(case.model(), &input, &data);
+        let compiled = Arc::new(
+            GpuCompiledModel::compile_with_options(
+                case.model(),
+                mixed_context.clone(),
+                super::super::CompileOptions {
+                    gpu: GpuCompileOptions {
+                        precision: GpuPrecision::MixedF16,
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let mut mixed = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        let actual = mixed.run(&data).unwrap();
+        assert_eq!(actual.data().len(), expected.len());
+        for (&a, &b) in actual.data().iter().zip(&expected) {
+            assert!(a.is_finite() && (a - b).abs() <= 0.05 + 0.01 * b.abs());
+        }
+    }
+}
+
 fn compare_paths(model: Arc<Model>, shape: &[usize], label: &str) {
     let input = values(shape.iter().product(), 3);
     let (_, expected) = reference(model.clone(), shape, &input);
@@ -2068,7 +2126,7 @@ fn gpu_bounded_performance() {
 }
 
 #[test]
-#[ignore = "bounded pointwise experiment: three shapes, one correctness warmup and three timestamp samples per candidate"]
+#[ignore = "bounded pointwise experiment: three shapes, one correctness warmup and three wall/timestamp samples per candidate"]
 fn gpu_pointwise_layout_candidates() {
     use operators::ShaderKind;
     use resident::Batch;
@@ -2131,8 +2189,9 @@ fn gpu_pointwise_layout_candidates() {
             .unwrap();
         let dummy = &compiled.weights.dummy;
         let source = |kind: ShaderKind| {
-            let mut source = format!("{}\n{}", include_str!("common.wgsl"), kind.source())
-                .replace("$ENABLE", "");
+            let kernel = kind.source();
+            let mut source =
+                format!("{}\n{}", include_str!("common.wgsl"), kernel).replace("$ENABLE", "");
             for name in ["$A", "$B", "$C", "$D", "$E", "$O"] {
                 source = source.replace(name, "f32");
             }
@@ -2140,11 +2199,13 @@ fn gpu_pointwise_layout_candidates() {
         };
         for kind in [baseline, pointwise, ShaderKind::PointwiseNhwc] {
             let mut samples = Vec::new();
+            let mut wall_samples = Vec::new();
             for iteration in 0..4 {
                 assert!(
                     started.elapsed().as_secs() < 60,
                     "bounded experiment budget exhausted"
                 );
+                let timer = std::time::Instant::now();
                 let mut batch = Batch::new(context.clone()).unwrap();
                 batch.profiling = true;
                 let output = batch
@@ -2223,12 +2284,19 @@ fn gpu_pointwise_layout_candidates() {
                         .collect();
                     assert_close(kind.name(), &actual, &expected);
                 } else {
-                    samples.push(stats.profile.unwrap().compute_ns().unwrap() as f64 / 1000.);
+                    wall_samples.push(timer.elapsed().as_secs_f64() * 1e6);
+                    samples.push(
+                        stats
+                            .profile
+                            .unwrap()
+                            .compute_ns()
+                            .map(|ns| ns as f64 / 1000.),
+                    );
                 }
             }
             eprintln!(
                 "POINTWISE {}",
-                serde_json::json!({"input":shape,"channels":channels,"kernel":kind.name(),"samples_us":samples,"includes_layout_conversion":kind==ShaderKind::PointwiseNhwc})
+                serde_json::json!({"input":shape,"channels":channels,"kernel":kind.name(),"samples_us":samples,"wall_samples_us":wall_samples,"includes_layout_conversion":kind==ShaderKind::PointwiseNhwc})
             );
         }
     }

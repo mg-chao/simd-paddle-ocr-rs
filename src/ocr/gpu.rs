@@ -240,7 +240,7 @@ impl Pipeline {
         let mut order: Vec<usize> = (0..count).collect();
         order.sort_by_key(|&i| (sizes[i].tensor_width, i));
         let mut units: Vec<Vec<usize>> = Vec::new();
-        for index in order {
+        for &index in &order {
             if let Some(last) = units.last_mut()
                 && last.len() < batch_size
                 && sizes[last[0]].tensor_width == sizes[index].tensor_width
@@ -286,6 +286,20 @@ impl Pipeline {
             });
         }
         let context = self.detector.context.clone();
+        // Classification has a fixed input shape, so combine adjacent crops
+        // independently of recognition width. Only one bounded lookahead is
+        // retained in addition to the submitted waves, never all page crops.
+        let mut classification_batch = if self.classifier.is_some() {
+            count.min(4)
+        } else {
+            1
+        };
+        if let Some(classifier) = &mut self.classifier {
+            self.failed_stage = Stage::Classifier;
+            classification_batch = classifier.prepare_batch(classification_batch)?;
+        }
+        let mut prepared = std::collections::VecDeque::new();
+        let mut next_crop = 0;
         let admission = profiling.then(std::time::Instant::now);
         let gate = context.acquire_gate()?;
         if let Some(timer) = admission {
@@ -306,20 +320,45 @@ impl Pipeline {
                     let mut images = Vec::with_capacity(indices.len());
                     let mut classes = Vec::new();
                     for &index in indices {
-                        self.failed_stage = Stage::Detector;
-                        let image = crops.record(&mut batch, &detection.image, index)?;
-                        if let Some(classifier) = &mut self.classifier {
-                            self.failed_stage = Stage::Classifier;
-                            let (winner, width) = classifier.record(&mut batch, &image)?;
-                            images.push(vision::orient(
-                                &mut batch,
-                                &image,
-                                &winner,
-                                line_options.classifier_threshold,
-                            )?);
-                            classes.push((winner, width));
-                        } else {
-                            images.push(image);
+                        if prepared.is_empty() {
+                            let end = (next_crop + classification_batch).min(count);
+                            self.failed_stage = Stage::Detector;
+                            let raw = order[next_crop..end]
+                                .iter()
+                                .map(|&i| crops.record(&mut batch, &detection.image, i))
+                                .collect::<RuntimeResult<Vec<_>>>()?;
+                            if let Some(classifier) = &mut self.classifier {
+                                self.failed_stage = Stage::Classifier;
+                                let (winners, widths) =
+                                    classifier.record_batch(&mut batch, &raw)?;
+                                for (row, image) in raw.iter().enumerate() {
+                                    let image = vision::orient_at(
+                                        &mut batch,
+                                        image,
+                                        &winners,
+                                        row,
+                                        line_options.classifier_threshold,
+                                    )?;
+                                    prepared.push_back((
+                                        order[next_crop + row],
+                                        image,
+                                        Some((winners.clone(), row, widths[row])),
+                                    ));
+                                }
+                            } else {
+                                prepared.push_back((
+                                    order[next_crop],
+                                    raw.into_iter().next().unwrap(),
+                                    None,
+                                ));
+                            }
+                            next_crop = end;
+                        }
+                        let (prepared_index, image, class) = prepared.pop_front().unwrap();
+                        debug_assert_eq!(prepared_index, index);
+                        images.push(image);
+                        if let Some(class) = class {
+                            classes.push(class);
                         }
                     }
                     let shapes = indices.iter().map(|&i| sizes[i]).collect::<Vec<_>>();
@@ -344,8 +383,14 @@ impl Pipeline {
                 let compact = batch.storage("OCR compact output", total)?;
                 for (tokens, _, classes, offset, bytes) in &outputs {
                     batch.copy(tokens, 0, &compact, *offset as u64, *bytes as u64);
-                    for (j, (winner, _)) in classes.iter().enumerate() {
-                        batch.copy(winner, 0, &compact, (*offset + *bytes + j * 16) as u64, 16);
+                    for (j, (winner, row, _)) in classes.iter().enumerate() {
+                        batch.copy(
+                            winner,
+                            (row * 16) as u64,
+                            &compact,
+                            (*offset + *bytes + j * 16) as u64,
+                            16,
+                        );
                     }
                 }
                 self.failed_stage = Stage::Shared;
@@ -437,7 +482,7 @@ impl Pipeline {
                         let start = offset + bytes + j * 16;
                         let class = crate::orientation::parse_gpu_classification(
                             &data[start..start + 16],
-                            classes[j].1,
+                            classes[j].2,
                         )?;
                         (class.label, class.score)
                     };
