@@ -150,6 +150,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let mut measured = Vec::new();
     let mut statistics = Vec::new();
+    let mut run_statistics = Vec::new();
     for _ in 0..measurements {
         if !errors.is_empty() {
             break;
@@ -170,12 +171,23 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map(|w| w.gpu_pipeline_statistics())
                 .collect::<Vec<_>>(),
         );
+        // Capture per-invocation deltas outside the timed inference interval.
+        // These expose shape-cache churn without instrumenting GPU execution.
+        run_statistics.push(
+            workers
+                .iter()
+                .map(|w| w.latest_run().cloned())
+                .collect::<Vec<_>>(),
+        );
     }
     let mut sorted = measured.clone();
     sorted.sort_by(f64::total_cmp);
     let median = sorted.get(sorted.len() / 2).copied();
     let device = context.as_ref().map(|c| c.memory_statistics());
+    #[cfg(feature = "profiling")]
     let mut profiles = Vec::<serde_json::Value>::new();
+    #[cfg(not(feature = "profiling"))]
+    let profiles = Vec::<serde_json::Value>::new();
     if profile && errors.is_empty() {
         #[cfg(feature = "profiling")]
         for (worker, expected) in workers.iter_mut().zip(&reference) {
@@ -201,7 +213,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             "timing_contract":"group start through last inference return; excludes decode, owned copy, validation, serialization and profile calls",
             "qualified":errors.is_empty(),"errors":errors,"failed_outputs":failed_outputs,
             "startup_ms":startup_ms,"cold_run_ms":cold_ms,"warm_group_ms":measured,"median_group_ms":median,"images_per_second":median.map(|ms|requests as f64*1000./ms),
-            "retained_device_bytes":device.map(|d|d.used_bytes),"peak_device_bytes":device.map(|d|d.peak_bytes),"statistics":statistics.last(),"sample_statistics":statistics,"profiles":profiles,"outputs":reference
+            "retained_device_bytes":device.map(|d|d.used_bytes),"peak_device_bytes":device.map(|d|d.peak_bytes),"statistics":statistics.last(),"sample_statistics":statistics,"sample_run_statistics":run_statistics,"profiles":profiles,"outputs":reference
         }))?
     );
     Ok(())

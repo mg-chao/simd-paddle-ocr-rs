@@ -158,9 +158,12 @@ buffers do not cross to the host during normal full-GPU OCR.
 Dense 2×2 convolutions use the same bounded tiled kernels as eligible 1×1 and
 3×3 convolutions. On Metal, FP32 pointwise convolutions with feature-map height
 at most six can also use direct NCHW addressing for large channel reductions.
-Other backends retain the existing large-channel policy. These choices require
-no startup tuning. The [M4 optimization results](gpu-optimization-2026-10-24.md)
-record the measured gains and hardware limitations.
+Eligible 32×32 pointwise tiles with at least 128 input channels reuse operands
+in 4×4 register blocks. Metal FP32 also uses tiled dense 5×5/7×7 convolutions
+and favors 32×32 tiles for eligible large spatial maps. These choices require
+no configuration changes or startup tuning. Other backends retain their earlier
+selection policy. The [M4 convolution results](gpu-register-optimization-2026-10-24.md)
+record the measured gains, correctness checks, and hardware limitations.
 
 Immutable weights and head/pipeline caches are shared. Forks have independent
 activations and scratch. `cache_resident_scratch: true` opts in to the bounded

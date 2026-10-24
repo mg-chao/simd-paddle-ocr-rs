@@ -2163,7 +2163,9 @@ fn gpu_pointwise_layout_candidates() {
         let recipe = &session.recipes[0];
         let baseline = match recipe.kind {
             operators::RecipeKind::Compute(ShaderKind::PointwiseNchw16) => ShaderKind::Conv16,
-            operators::RecipeKind::Compute(ShaderKind::PointwiseNchw32) => ShaderKind::Conv32,
+            operators::RecipeKind::Compute(
+                ShaderKind::PointwiseNchw32 | ShaderKind::PointwiseBlocked32,
+            ) => ShaderKind::Conv32,
             operators::RecipeKind::Compute(kind @ (ShaderKind::Conv16 | ShaderKind::Conv32)) => {
                 kind
             }
@@ -2299,6 +2301,315 @@ fn gpu_pointwise_layout_candidates() {
                 serde_json::json!({"input":shape,"channels":channels,"kernel":kind.name(),"samples_us":samples,"wall_samples_us":wall_samples,"includes_layout_conversion":kind==ShaderKind::PointwiseNhwc})
             );
         }
+    }
+}
+
+fn pointwise_register_case(shape: [usize; 4], channels: usize, bias: bool, measured: usize) {
+    use operators::ShaderKind;
+    let case = ConvCase {
+        name: "pointwise register tiles",
+        input: shape,
+        channels,
+        kernel: [1; 2],
+        stride: [1; 2],
+        dilation: [1; 2],
+        pads: [0; 4],
+        group: 1,
+        bias,
+    };
+    convolution_kernel_candidates(
+        case,
+        &[ShaderKind::PointwiseNchw32, ShaderKind::PointwiseBlocked32],
+        measured,
+    );
+}
+
+fn convolution_kernel_candidates(case: ConvCase, kinds: &[operators::ShaderKind], measured: usize) {
+    use operators::ShaderKind;
+    let context = hardware();
+    let shape = case.input;
+    let channels = case.channels;
+    let bias = case.bias;
+    let model = case.model();
+    let input = values(shape.iter().product(), 1);
+    let (_, expected) = reference(model.clone(), &shape, &input);
+    let compiled = Arc::new(GpuCompiledModel::compile(model, context.clone()).unwrap());
+    let session = GpuSession::new(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
+    let recipe = &session.recipes[0];
+    let input_buffer = context
+        .create_buffer_init(
+            "register input",
+            bytemuck::cast_slice(&input),
+            wgpu::BufferUsages::STORAGE,
+        )
+        .unwrap();
+    let dummy = &compiled.weights.dummy;
+    let weights = compiled.weights.constants[recipe.inputs[1].0]
+        .as_ref()
+        .unwrap();
+    let bias_buffer = if bias {
+        compiled.weights.constants[recipe.inputs[2].0]
+            .as_ref()
+            .unwrap()
+    } else {
+        dummy
+    };
+    for &kind in kinds {
+        let mut source =
+            format!("{}\n{}", include_str!("common.wgsl"), kind.source()).replace("$ENABLE", "");
+        for token in ["$A", "$B", "$C", "$D", "$E", "$O"] {
+            source = source.replace(token, "f32");
+        }
+        let mut words = recipe.words;
+        let tile = if kind == ShaderKind::Conv16 { 16 } else { 32 };
+        let output_shape = case.output();
+        words[32] = channels.div_ceil(tile) as u32;
+        words[33] = (output_shape[2] * output_shape[3]).div_ceil(tile) as u32;
+        words[35] = shape[0] as u32;
+        // Exercise destination offsets as well as channel, spatial and K tails.
+        let offset = 7;
+        words[60] = offset as u32;
+        let (x, y) = dispatch_grid(
+            if kind == ShaderKind::Convolution {
+                expected.len()
+            } else {
+                words[32] as usize * words[33] as usize * shape[0] * 64
+            },
+            &context.limits,
+        )
+        .unwrap();
+        words[1] = x * 64;
+        words[34] = x;
+        let mut wall_samples = Vec::new();
+        let mut device_samples = Vec::new();
+        for iteration in 0..=measured {
+            let timer = std::time::Instant::now();
+            let mut batch = resident::Batch::new(context.clone()).unwrap();
+            batch.profiling = measured != 0;
+            let output = batch
+                .storage("register output", (expected.len() + offset) * 4)
+                .unwrap();
+            batch
+                .dispatch(
+                    kind.name(),
+                    &source,
+                    &[
+                        (&input_buffer, true),
+                        (weights, true),
+                        (bias_buffer, true),
+                        (dummy, true),
+                        (dummy, true),
+                        (&output, false),
+                    ],
+                    &words,
+                    [x, y, 1],
+                )
+                .unwrap();
+            let (bytes, stats) = batch
+                .read(&output, (expected.len() + offset) * 4, false)
+                .unwrap();
+            let wall = timer.elapsed().as_secs_f64() * 1e6;
+            if iteration == 0 {
+                assert!(bytes[..offset * 4].iter().all(|&b| b == 0));
+                let actual: Vec<f32> = bytes[offset * 4..]
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|b| f32::from_le_bytes(*b))
+                    .collect();
+                assert_close(kind.name(), &actual, &expected);
+            } else {
+                wall_samples.push(wall);
+                device_samples.push(
+                    stats
+                        .profile
+                        .unwrap()
+                        .compute_ns()
+                        .map(|ns| ns as f64 / 1000.),
+                );
+            }
+        }
+        if measured != 0 {
+            eprintln!(
+                "CONV_CANDIDATE {}",
+                serde_json::json!({"input":shape,"channels":channels,"kernel_shape":case.kernel,"kernel":kind.name(),"wall_samples_us":wall_samples,"device_samples_us":device_samples})
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_pointwise_register_tiles_tails_and_offsets() {
+    for (shape, channels, bias) in [
+        ([2, 33, 3, 37], 65, true),
+        ([1, 257, 1, 19], 129, false),
+        ([1, 128, 6, 136], 384, true),
+    ] {
+        pointwise_register_case(shape, channels, bias, 0);
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_pointwise_register_fusion_and_selection() {
+    let shape = [2, 128, 3, 271];
+    let output = [2, 129, 3, 271];
+    let graph = model(
+        vec![
+            tensor("w", &[129, 128, 1, 1], &values(129 * 128, 7)),
+            tensor("b", &[129], &values(129, 11)),
+            tensor("residual", &[1, 129, 1, 1], &values(129, 13)),
+            node(
+                "Conv",
+                &["x", "w", "b"],
+                "conv",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+            node("Add", &["conv", "residual"], "sum", &[]),
+            node("Relu", &["sum"], "y", &[]),
+        ],
+        &shape,
+        &output,
+    );
+    compare_paths(
+        graph.clone(),
+        &shape,
+        "register blocks with bias, broadcast residual and activation",
+    );
+    let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+    let session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+    assert_eq!(session.dispatches.len(), 1);
+    assert_eq!(
+        session
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|k| k.family == "pointwise_blocked32"),
+        hardware().adapter_info().backend == wgpu::Backend::Metal,
+    );
+    // Tall detector maps retain the previously qualified pointwise policy.
+    let case = ConvCase {
+        name: "tall pointwise",
+        input: [1, 128, 8, 136],
+        channels: 129,
+        kernel: [1; 2],
+        stride: [1; 2],
+        dilation: [1; 2],
+        pads: [0; 4],
+        group: 1,
+        bias: true,
+    };
+    let compiled = Arc::new(GpuCompiledModel::compile(case.model(), hardware()).unwrap());
+    let session = GpuSession::new(compiled, &case.input, ExecutionLimits::default()).unwrap();
+    assert!(
+        !session
+            .statistics()
+            .specialized_kernels
+            .iter()
+            .any(|k| k.family == "pointwise_blocked32")
+    );
+}
+
+#[test]
+#[ignore = "bounded pointwise register experiment: three shapes, one correctness warmup and three measured calls"]
+fn gpu_pointwise_register_performance() {
+    let timer = std::time::Instant::now();
+    for (shape, channels) in [
+        ([1, 1536, 3, 240], 768),
+        ([1, 1024, 6, 240], 512),
+        ([2, 192, 6, 136], 1024),
+    ] {
+        pointwise_register_case(shape, channels, true, 3);
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_large_spatial_tiles_padding_and_tails() {
+    use operators::ShaderKind;
+    for (input, channels, kernel, stride, pads) in [
+        ([2, 17, 31, 35], 33, 5, [2, 1], [1, 2, 3, 1]),
+        ([1, 33, 29, 39], 65, 7, [1, 2], [2, 3, 4, 1]),
+        ([1, 65, 32, 33], 64, 3, [1, 1], [1, 1, 1, 1]),
+    ] {
+        let case = ConvCase {
+            name: "large spatial tails",
+            input,
+            channels,
+            kernel: [kernel; 2],
+            stride,
+            dilation: [1; 2],
+            pads,
+            group: 1,
+            bias: true,
+        };
+        convolution_kernel_candidates(
+            case,
+            &[
+                ShaderKind::Convolution,
+                ShaderKind::Conv16,
+                ShaderKind::Conv32,
+            ],
+            0,
+        );
+        let compiled = Arc::new(GpuCompiledModel::compile(case.model(), hardware()).unwrap());
+        let session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        let expected = if hardware().adapter_info().backend == wgpu::Backend::Metal {
+            if kernel == 3 {
+                ShaderKind::Conv32
+            } else {
+                ShaderKind::Conv16
+            }
+        } else if kernel == 3 {
+            ShaderKind::Conv16
+        } else {
+            ShaderKind::Convolution
+        };
+        assert!(
+            matches!(session.recipes[0].kind, operators::RecipeKind::Compute(kind) if kind==expected)
+        );
+    }
+}
+
+#[test]
+#[ignore = "bounded spatial experiment: three shapes, one correctness warmup and three measured calls"]
+fn gpu_spatial_tile_performance() {
+    use operators::ShaderKind;
+    let timer = std::time::Instant::now();
+    for (cin, channels, kernel) in [(256, 64, 3), (32, 32, 5), (32, 32, 7)] {
+        let kinds = if kernel == 3 {
+            &[ShaderKind::Conv16, ShaderKind::Conv32][..]
+        } else {
+            &[
+                ShaderKind::Convolution,
+                ShaderKind::Conv16,
+                ShaderKind::Conv32,
+            ][..]
+        };
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "spatial tile candidate",
+                input: [1, cin, 128, 128],
+                channels,
+                kernel: [kernel; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [kernel / 2; 4],
+                group: 1,
+                bias: true,
+            },
+            kinds,
+            3,
+        );
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
     }
 }
 

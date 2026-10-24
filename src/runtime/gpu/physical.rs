@@ -169,7 +169,7 @@ pub(super) fn lower(
             physical.push(r);
         }
     }
-    operators::specialize(&mut physical, plan, limits)?;
+    operators::specialize(&mut physical, plan, limits, precision, backend)?;
     let mut layouts = Vec::new();
     for mut r in physical {
         if let BoundKind::Conv(g) = &plan.steps[r.nodes[0]].kind
@@ -356,6 +356,14 @@ pub(super) fn lower(
             recipe.kind = match recipe.kind {
                 RecipeKind::Compute(ShaderKind::Conv16) => {
                     RecipeKind::Compute(ShaderKind::PointwiseNchw16)
+                }
+                // Four-by-four register blocks reuse shared operands on the
+                // measured short FP32 Metal recognition maps. Keep the existing
+                // kernels for tall maps, other backends, and prescaled inputs.
+                RecipeKind::Compute(ShaderKind::Conv32)
+                    if backend == wgpu::Backend::Metal && g.height <= 6 && g.cin >= 128 =>
+                {
+                    RecipeKind::Compute(ShaderKind::PointwiseBlocked32)
                 }
                 RecipeKind::Compute(ShaderKind::Conv32) => {
                     RecipeKind::Compute(ShaderKind::PointwiseNchw32)

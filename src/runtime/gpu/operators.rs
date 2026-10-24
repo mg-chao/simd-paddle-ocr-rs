@@ -26,6 +26,7 @@ pub(super) enum ShaderKind {
     Conv32,
     PointwiseNchw16,
     PointwiseNchw32,
+    PointwiseBlocked32,
     PointwisePrescaled16,
     PointwisePrescaled32,
     Depthwise3,
@@ -87,6 +88,7 @@ impl ShaderKind {
             Self::Conv32 => "conv_implicit32",
             Self::PointwiseNchw16 => "pointwise_nchw16",
             Self::PointwiseNchw32 => "pointwise_nchw32",
+            Self::PointwiseBlocked32 => "pointwise_blocked32",
             Self::PointwisePrescaled16 => "pointwise_prescaled16",
             Self::PointwisePrescaled32 => "pointwise_prescaled32",
             Self::Depthwise3 => "depthwise3",
@@ -102,6 +104,7 @@ impl ShaderKind {
     }
     pub fn source(self) -> String {
         match self {
+            Self::PointwiseBlocked32 => include_str!("pointwise_blocked.wgsl").into(),
             Self::CooperativeMatMul => include_str!("cooperative.wgsl").into(),
             Self::PointwiseNhwc => include_str!("pointwise.wgsl").into(),
             Self::Attention | Self::AttentionViews => include_str!("attention.wgsl").replace(
@@ -782,7 +785,10 @@ pub(super) fn specialize(
     recipes: &mut [Recipe],
     plan: &ShapePlan,
     limits: &wgpu::Limits,
+    precision: GpuPrecision,
+    backend: wgpu::Backend,
 ) -> RuntimeResult<()> {
+    let metal_f32 = backend == wgpu::Backend::Metal && precision == GpuPrecision::F32;
     for r in recipes {
         if !matches!(
             r.kind,
@@ -791,6 +797,7 @@ pub(super) fn specialize(
             continue;
         }
         let mut matrix = None;
+        let mut prefer_spatial32 = false;
         match &plan.steps[r.nodes[0]].kind {
             BoundKind::Conv(g) if g.dh == 1 && g.dw == 1 && g.sh <= 2 && g.sw <= 2 => {
                 if g.cpg == 1
@@ -807,11 +814,21 @@ pub(super) fn specialize(
                     (r.x, r.y) = dispatch_grid(r.words[0] as usize, limits)?;
                     r.words[1] = r.x * 64;
                 } else if g.cpg == g.cin
-                    && (g.kh == g.kw && matches!(g.kh, 1..=3))
+                    && g.kh == g.kw
+                    && (matches!(g.kh, 1..=3) || (metal_f32 && matches!(g.kh, 5 | 7)))
                     && g.cout >= 8
                     && g.cpg >= 8
                 {
                     matrix = Some((g.cout, g.oh * g.ow, g.batch, true));
+                    // Large spatial maps provide enough groups even at 32/64
+                    // output channels. Measured Metal 3x3, 5x5 and 7x7 layers
+                    // benefit from the larger tile's operand reuse. Require
+                    // complete output-channel tiles and retain occupancy guards.
+                    prefer_spatial32 = metal_f32
+                        && matches!(g.kh, 3 | 5 | 7)
+                        && g.cin >= 32
+                        && g.cout.is_multiple_of(32)
+                        && g.oh * g.ow >= 1024;
                 }
             }
             BoundKind::MatMul {
@@ -858,7 +875,7 @@ pub(super) fn specialize(
             if groups16 < 128 {
                 continue;
             }
-            let tile = if rows >= 128 && columns >= 64 && groups32 >= 64 {
+            let tile = if (rows >= 128 || prefer_spatial32) && columns >= 64 && groups32 >= 64 {
                 32usize
             } else {
                 16
