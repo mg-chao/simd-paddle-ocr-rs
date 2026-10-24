@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Developer-only reproducible tensor comparison; no image preprocessing.
 use simd_paddle_ocr_rs::{
     model::Model,
@@ -35,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let context = GpuContext::new_with_options(GpuContextOptions {
         backend,
-        precision,
+        shader_f16: precision == GpuPrecision::MixedF16,
         subgroups: args.iter().any(|s| s == "subgroups"),
         ..Default::default()
     })?;
@@ -45,8 +46,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         if data.len() % 4 != 0 {
             return Err("invalid F32 input bytes".into());
         }
-        data.chunks_exact(4)
-            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+        data.as_chunks::<4>()
+            .0
+            .iter()
+            .map(|b| f32::from_le_bytes(*b))
             .collect()
     } else {
         (0..shape.iter().product())
@@ -56,13 +59,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let compiled = Arc::new(GpuCompiledModel::compile_with_options(
         model.clone(),
         context.clone(),
-        !args.iter().any(|s| s == "unfused"),
+        CompileOptions {
+            fusion: !args.iter().any(|s| s == "unfused"),
+            gpu: GpuCompileOptions { precision },
+            ..Default::default()
+        },
     )?);
-    assert_eq!(
-        model.cached_packed_weight_bytes(),
-        0,
-        "GPU compilation packed CPU weights"
-    );
     let mut gpu = GpuSession::new(compiled, &shape, ExecutionLimits::default())?;
     let cpu = Arc::new(CpuCompiledModel::compile(
         model.clone(),

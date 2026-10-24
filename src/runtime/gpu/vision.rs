@@ -26,7 +26,7 @@ impl Detector {
         Ok(Self {
             scratch: Arc::default(),
             context: compiled.context.clone(),
-            session: GpuSession::new(compiled, &[1, 3, 32, 32], limits)?,
+            session: GpuSession::new_resident(compiled, &[1, 3, 32, 32], limits, None)?,
         })
     }
     pub fn run(
@@ -177,7 +177,7 @@ impl Crops {
         let mut sizes = Vec::with_capacity(count);
         let mut original = Vec::with_capacity(count);
         let mut total = 0usize;
-        for row in bytes.chunks_exact(24) {
+        for row in bytes.as_chunks::<24>().0 {
             let word =
                 |i: usize| u32::from_le_bytes(row[i * 4..i * 4 + 4].try_into().unwrap()) as usize;
             let (w, h) = (word(0), word(1));
@@ -435,7 +435,7 @@ pub(crate) fn postprocess(
         } else {
             ""
         },
-        format!(
+        format_args!(
             "{PARAMETERS}{}",
             shader("precise.wgsl", include_str!("precise.wgsl"))
         ),
@@ -720,8 +720,10 @@ mod tests {
                 let mut expected = vec![0; transform.byte_count().unwrap()];
                 transform.extract_into(source, &mut expected).unwrap();
                 for (i, (actual, reference)) in data
-                    .chunks_exact(4)
-                    .zip(expected.chunks_exact(3))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .zip(expected.as_chunks::<3>().0.iter())
                     .enumerate()
                 {
                     assert_eq!(&actual[..3], reference, "{format:?} pixel {i}, {points:?}");

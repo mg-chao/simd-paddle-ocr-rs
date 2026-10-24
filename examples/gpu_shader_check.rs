@@ -1,5 +1,7 @@
+#![recursion_limit = "256"]
 //! Developer-only runtime loading for validation of the resident WGSL modules.
 use std::{error::Error, path::Path};
+#[allow(clippy::assertions_on_constants)]
 fn main() -> Result<(), Box<dyn Error>> {
     let backend = match std::env::var("SIMD_OCR_GPU_BACKEND").as_deref() {
         Ok("dx12") => wgpu::Backends::DX12,
@@ -97,6 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[allow(clippy::assertions_on_constants)]
 fn check_rounding(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -122,7 +125,8 @@ fn check_rounding(
         @group(0) @binding(0) var<storage,read> input:array<vec2<f32>>;
         @group(0) @binding(1) var<storage,read_write> output:array<f32>;
         @group(0) @binding(2) var<uniform> params:Params;
-        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3<u32>){{
+        @compute @workgroup_size(64) #[allow(clippy::assertions_on_constants)]
+fn main(@builtin(global_invocation_id) id:vec3<u32>){{
             if id.x>=params.words[0].x{{return;}}let a=input[id.x];
             output[id.x*3u]=dfloor(a);output[id.x*3u+1u]=daway(a);output[id.x*3u+2u]=dround(a);
         }}",
@@ -193,8 +197,10 @@ fn check_rounding(
     rx.recv()??;
     let bytes = readback.slice(..).get_mapped_range()?;
     let actual: Vec<f32> = bytes
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
         .collect();
     for (i, [hi, lo]) in cases.iter().copied().enumerate() {
         let x = hi as f64 + lo as f64;

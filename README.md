@@ -9,6 +9,8 @@ Windows x64 and native macOS Apple Silicon are supported; see
 [CPU usage](docs/cpu-usage.md) and [macOS setup](docs/macos-cpu-validation.md).
 GPU setup, backend selection and migration are in [GPU usage](docs/gpu-usage.md).
 CPU execution and FP32 remain the defaults.
+See [architecture and API migration](docs/architecture.md) for shared plans,
+compilation caches, and exclusive requests.
 
 ## Run OCR
 
@@ -42,15 +44,16 @@ simd-paddle-ocr-rs = { path = "../simd-paddle-ocr-rs" }
 ```
 
 ```rust,no_run
-use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet};
+use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet, RunOptions};
 use simd_paddle_ocr_rs::image::{ImageView, PixelFormat};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let models = OcrModelSet::from_directory("models", ModelPreset::ChineseV6Tiny, true)?;
-    let mut request = models.builder().build()?;
+    let plan = models.builder().build()?;
+    let mut request = plan.request()?;
     let pixels = vec![255u8; 640 * 480 * 3]; // Replace with decoded RGB pixels.
     let image = ImageView::new(&pixels, 640, 480, 0, PixelFormat::Rgb24)?;
-    let result = request.run(image, false)?;
+    let result = request.run(image, RunOptions::default())?;
     println!("{}", result.text);
     Ok(())
 }

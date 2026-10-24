@@ -28,9 +28,9 @@ fn options() -> impl Iterator<Item = CompileOptions> {
             ]
             .into_iter()
             .map(move |kernels| CompileOptions {
-                kernels,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                 fusion: true,
+                ..Default::default()
             })
         })
 }
@@ -261,7 +261,7 @@ fn gapped_full_constant_residual_only_fuses_with_canonical_storage() {
     let mut reference = session(model.clone(), CompileOptions::reference(), &INPUT_SHAPE);
     let expected = reference.run(&values).unwrap().data().to_vec();
     for options in options() {
-        let expected_fused = if options.layout == LayoutPolicy::Nchw {
+        let expected_fused = if options.cpu.layout == LayoutPolicy::Nchw {
             3
         } else {
             0

@@ -68,10 +68,10 @@ impl Head {
                           id: Option<TensorId>,
                           fallback: &[f32]|
          -> RuntimeResult<GpuBuffer> {
-            if compiled.precision == GpuPrecision::F32 {
-                if let Some(buffer) = id.and_then(|id| compiled.weights.constants[id.0].as_ref()) {
-                    return Ok(buffer.clone());
-                }
+            if compiled.precision == GpuPrecision::F32
+                && let Some(buffer) = id.and_then(|id| compiled.weights.constants[id.0].as_ref())
+            {
+                return Ok(buffer.clone());
             }
             let bytes = bytemuck::cast_slice(id.map(data).unwrap_or(fallback));
             let buffer = context.create_buffer_init(label, bytes, wgpu::BufferUsages::STORAGE)?;
@@ -118,7 +118,11 @@ impl Head {
         batch.ensure_context(&self.context)?;
         batch.ensure_context(&features.context)?;
         if features.descriptor.layout != GpuLayout::Canonical
-            || features.descriptor.shape.element_count() % self.metadata.inner != 0
+            || !features
+                .descriptor
+                .shape
+                .element_count()
+                .is_multiple_of(self.metadata.inner)
         {
             return Err(RuntimeError::new("noncanonical projection input"));
         }
@@ -244,11 +248,11 @@ impl Classification {
     pub fn new(compiled: Arc<GpuCompiledModel>, limits: ExecutionLimits) -> RuntimeResult<Self> {
         compiled.prepare_images()?;
         let head = Head::shared(&compiled, 2, 2, None)?;
-        let session = GpuSession::new_prefix(
+        let session = GpuSession::new_resident(
             compiled,
             &[1, 3, 80, 160],
             limits,
-            head.metadata.feature_node,
+            Some(head.metadata.feature_node),
         )?;
         Ok(Self {
             head,
@@ -283,32 +287,14 @@ impl Classification {
         &mut self,
         image: ImageView<'_>,
         profiling: bool,
-    ) -> RuntimeResult<crate::orientation::ClassificationResult> {
+    ) -> RuntimeResult<(Vec<u8>, usize)> {
         let mut batch = Batch::new(self.head.context.clone())?;
         batch.profiling = profiling;
         let image = Image::upload(&mut batch, image)?;
         let (winner, width) = self.record(&mut batch, &image)?;
         let (bytes, statistics) = batch.read(&winner, 16, false)?;
         super::vision::merge_statistics(&mut self.statistics, statistics);
-        Self::parse(&bytes, width)
-    }
-    pub fn parse(
-        bytes: &[u8],
-        resized_width: usize,
-    ) -> RuntimeResult<crate::orientation::ClassificationResult> {
-        let label = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
-        let score = f32::from_le_bytes(bytes[4..8].try_into().unwrap());
-        if label > 1
-            || !score.is_finite()
-            || u32::from_le_bytes(bytes[12..16].try_into().unwrap()) != 0
-        {
-            return Err(RuntimeError::new("invalid GPU classifier result"));
-        }
-        Ok(crate::orientation::ClassificationResult {
-            label,
-            score,
-            resized_width,
-        })
+        Ok((bytes, width))
     }
 }
 pub(crate) struct Token {
@@ -317,8 +303,31 @@ pub(crate) struct Token {
     pub start: usize,
     pub end: usize,
 }
-pub(crate) struct Decoded {
-    pub tokens: Vec<Token>,
+/// A validated view into the compact readback, without a second token allocation.
+#[derive(Clone, Copy)]
+pub(crate) struct Tokens<'a>(&'a [u8]);
+impl Tokens<'_> {
+    pub fn len(self) -> usize {
+        self.0.len() / 24
+    }
+    #[cfg(test)]
+    pub fn is_empty(self) -> bool {
+        self.0.is_empty()
+    }
+    pub fn iter(self) -> impl ExactSizeIterator<Item = Token> {
+        self.0.as_chunks::<24>().0.iter().map(|record| {
+            let word = |i: usize| u32::from_le_bytes(record[i * 4..i * 4 + 4].try_into().unwrap());
+            Token {
+                class: word(0) as usize,
+                score: f32::from_bits(word(1)),
+                start: word(2) as usize,
+                end: word(3) as usize,
+            }
+        })
+    }
+}
+pub(crate) struct Decoded<'a> {
+    pub tokens: Tokens<'a>,
     pub score: f32,
     pub text_bytes: usize,
     pub steps: usize,
@@ -335,11 +344,11 @@ impl Recognition {
         let compiled = compiled.with_full_precision()?;
         compiled.prepare_images()?;
         let head = Head::shared(&compiled, dictionary.class_count(), 3, Some(dictionary))?;
-        let session = GpuSession::new_prefix(
+        let session = GpuSession::new_resident(
             compiled,
             &[1, 3, 48, width],
             limits,
-            head.metadata.feature_node,
+            Some(head.metadata.feature_node),
         )?;
         Ok(Self {
             head,
@@ -351,11 +360,11 @@ impl Recognition {
         self.session.retained_device_bytes()
     }
     pub fn fork(&self) -> RuntimeResult<Self> {
-        let session = GpuSession::new_prefix(
+        let session = GpuSession::new_resident(
             self.session.compiled.clone(),
             &[1, 3, 48, 32],
             self.session.limits,
-            self.head.metadata.feature_node,
+            Some(self.head.metadata.feature_node),
         )?;
         Ok(Self {
             head: self.head.clone(),
@@ -374,7 +383,7 @@ impl Recognition {
         capture: bool,
         max_bytes: usize,
         profiling: bool,
-    ) -> RuntimeResult<Vec<Decoded>> {
+    ) -> RuntimeResult<(Vec<u8>, usize)> {
         let mut batch = Batch::new(self.head.context.clone())?;
         batch.profiling = profiling;
         let images = images
@@ -385,7 +394,7 @@ impl Recognition {
             self.record(&mut batch, &images, sizes, probability, capture, max_bytes)?;
         let (bytes, statistics) = batch.read(&buffer, (steps + 1) * images.len() * 24, false)?;
         super::vision::merge_statistics(&mut self.statistics, statistics);
-        Self::parse(&bytes, images.len(), steps, self.head.metadata.classes)
+        Ok((bytes, steps))
     }
     pub fn record(
         &mut self,
@@ -443,7 +452,7 @@ impl Recognition {
         count: usize,
         steps: usize,
         classes: usize,
-    ) -> RuntimeResult<Vec<Decoded>> {
+    ) -> RuntimeResult<Vec<Decoded<'_>>> {
         if bytes.len() != count * (steps + 1) * 24 {
             return Err(RuntimeError::new("invalid compact CTC length"));
         }
@@ -462,15 +471,9 @@ impl Recognition {
             if emitted > steps {
                 return Err(RuntimeError::new("invalid GPU CTC record count"));
             }
-            let mut tokens = Vec::with_capacity(emitted);
-            for i in 0..emitted {
-                let offset = base + (i + 1) * 6;
-                let token = Token {
-                    class: word(offset) as usize,
-                    score: f32::from_bits(word(offset + 1)),
-                    start: word(offset + 2) as usize,
-                    end: word(offset + 3) as usize,
-                };
+            let start = (base + 6) * 4;
+            let tokens = Tokens(&bytes[start..start + emitted * 24]);
+            for token in tokens.iter() {
                 if token.class == 0
                     || token.class >= classes
                     || !token.score.is_finite()
@@ -479,7 +482,6 @@ impl Recognition {
                 {
                     return Err(RuntimeError::new("invalid GPU CTC record"));
                 }
-                tokens.push(token);
             }
             let score = f32::from_bits(word(base + 2));
             if !score.is_finite() {
@@ -565,7 +567,7 @@ mod tests {
             } else {
                 4.
             };
-            for row in data.chunks_exact(16) {
+            for row in data.as_chunks::<16>().0.iter() {
                 assert_eq!(u32::from_le_bytes(row[..4].try_into().unwrap()), 63);
                 assert!(
                     (f32::from_le_bytes(row[4..8].try_into().unwrap()) - expected).abs() < 1e-6

@@ -6,7 +6,7 @@ use crate::{
     engine::{EngineLimits, OcrEngine},
     image::{ImageView, PixelFormat},
     model::Model,
-    ocr::{Ocr, OwnedOcr},
+    ocr::{OcrRequest, OwnedOcr},
     preprocess,
     recognizer::{Dictionary, RecognitionScoreMode, RecognizerOptions},
     runtime::{
@@ -45,7 +45,7 @@ fn hardware() -> Arc<GpuContext> {
         .clone()
 }
 
-fn synthetic(target: ExecutionTarget, mode: RecognitionScoreMode) -> Ocr {
+fn synthetic(target: ExecutionTarget, mode: RecognitionScoreMode) -> OcrRequest {
     let (det, rec) = crate::ocr::tests::synthetic_sources();
     let models = OcrModelSet::new(
         Arc::new(Model::load_bytes(&det).unwrap()),
@@ -69,6 +69,8 @@ fn synthetic(target: ExecutionTarget, mode: RecognitionScoreMode) -> Ocr {
         })
         .recognition_batch_size(2)
         .build()
+        .unwrap()
+        .request()
         .unwrap()
 }
 
@@ -241,10 +243,28 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
         RecognitionScoreMode::Probability,
     ] {
         let mut reference = synthetic(ExecutionTarget::Cpu, mode);
-        let expected = reference.run(image, true).unwrap().try_to_owned().unwrap();
+        let expected = reference
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         let mut request = synthetic(ExecutionTarget::Gpu, mode);
         assert!(request.uses_gpu());
-        let actual = request.run(image, true).unwrap().try_to_owned().unwrap();
+        let actual = request
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_ocr_close(&actual, &expected, "synthetic batch");
         assert_eq!(request.workers_len_for_gpu_test(), 0);
         assert!(request.retained_device_bytes() > 0);
@@ -272,7 +292,16 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
                 observations += 1;
                 if observations == 1 {
                     assert_ocr_close(
-                        &sibling.run(image, true).unwrap().try_to_owned().unwrap(),
+                        &sibling
+                            .run(
+                                image,
+                                crate::RunOptions {
+                                    capture_spans: true,
+                                },
+                            )
+                            .unwrap()
+                            .try_to_owned()
+                            .unwrap(),
                         &expected,
                         "sibling execution from an observer",
                     );
@@ -291,6 +320,23 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
                 > 0
         );
         assert_ocr_close(&traced, &expected, "GPU trace");
+        let latest = request.latest_run().unwrap();
+        assert_eq!(latest.execution, crate::OcrExecution::Hybrid);
+        assert!(
+            latest
+                .stages
+                .values()
+                .flatten()
+                .any(|s| s.diagnostic_readbacks > 0)
+        );
+        assert_eq!(
+            latest.gpu.as_ref().unwrap().projection,
+            crate::GpuPlacement::Cpu
+        );
+        assert_eq!(
+            latest.gpu.as_ref().unwrap().decoding,
+            crate::GpuPlacement::Cpu
+        );
         let mut cancelled_after_node = false;
         assert!(
             request
@@ -311,27 +357,56 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
         );
         assert!(cancelled_after_node);
         assert_ocr_close(
-            &request.run(image, true).unwrap().try_to_owned().unwrap(),
+            &request
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             &expected,
             "after cancel",
         );
         let mut fork = request.fork().unwrap();
         assert_ocr_close(
-            &fork.run(image, true).unwrap().try_to_owned().unwrap(),
+            &fork
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             &expected,
             "fork",
         );
-        let factory = request.into_factory();
+        let plan = request.plan().clone();
+        drop(request);
+        let factory = move || plan.request();
         let mut fresh = factory().unwrap();
         assert_ocr_close(
-            &fresh.run(image, true).unwrap().try_to_owned().unwrap(),
+            &fresh
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             &expected,
             "factory",
         );
         drop((factory, fresh, fork, sibling));
 
         let engine = OcrEngine::new(
-            synthetic(ExecutionTarget::Gpu, mode),
+            std::sync::Arc::new((synthetic(ExecutionTarget::Gpu, mode)).plan().clone()),
             EngineLimits {
                 max_requests: 2,
                 max_idle_bytes: 32 << 20,
@@ -340,7 +415,18 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
         .unwrap();
         std::thread::scope(|scope| {
             let jobs = (0..2)
-                .map(|_| scope.spawn(|| engine.run_owned(image, true).unwrap()))
+                .map(|_| {
+                    scope.spawn(|| {
+                        engine
+                            .run_owned(
+                                image,
+                                crate::RunOptions {
+                                    capture_spans: true,
+                                },
+                            )
+                            .unwrap()
+                    })
+                })
                 .collect::<Vec<_>>();
             for job in jobs {
                 assert_ocr_close(&job.join().unwrap(), &expected, "concurrent leases");
@@ -354,7 +440,7 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
         );
         drop(engine);
         let uncached = OcrEngine::new(
-            synthetic(ExecutionTarget::Gpu, mode),
+            std::sync::Arc::new((synthetic(ExecutionTarget::Gpu, mode)).plan().clone()),
             EngineLimits {
                 max_requests: 1,
                 max_idle_bytes: 1,
@@ -476,14 +562,24 @@ fn gpu_resident_auto_fallback_is_stage_scoped_and_restricted() {
     let pixels = crate::ocr::tests::two_lines();
     let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
     let expected = synthetic(ExecutionTarget::Cpu, RecognitionScoreMode::Logit)
-        .run(image, true)
+        .run(
+            image,
+            crate::RunOptions {
+                capture_spans: true,
+            },
+        )
         .unwrap()
         .try_to_owned()
         .unwrap();
     for (kind, strict_rec) in [
         (crate::error::ErrorKind::DeviceLost, false),
+        (crate::error::ErrorKind::Unsupported, false),
         (crate::error::ErrorKind::DeviceLost, true),
         (crate::error::ErrorKind::ResourceLimit, false),
+        (crate::error::ErrorKind::Allocation, false),
+        (crate::error::ErrorKind::InvalidInput, false),
+        (crate::error::ErrorKind::GpuValidation, false),
+        (crate::error::ErrorKind::GpuMapping, false),
     ] {
         let context = GpuContext::new_with_options(GpuContextOptions {
             backend: hardware().options().backend,
@@ -509,17 +605,260 @@ fn gpu_resident_auto_fallback_is_stage_scoped_and_restricted() {
         if strict_rec {
             builder = builder.recognizer_target(ExecutionTarget::Gpu);
         }
-        let mut request = builder.build().unwrap();
-        request.run(image, true).unwrap();
+        let mut request = builder.build().unwrap().request().unwrap();
+        request
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap();
         context.inject_failure_for_test(kind);
-        if kind == crate::error::ErrorKind::DeviceLost && !strict_rec {
+        if matches!(
+            kind,
+            crate::error::ErrorKind::DeviceLost | crate::error::ErrorKind::Unsupported
+        ) && !strict_rec
+        {
             assert_ocr_close(
-                &request.run(image, true).unwrap().try_to_owned().unwrap(),
+                &request
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true,
+                        },
+                    )
+                    .unwrap()
+                    .try_to_owned()
+                    .unwrap(),
                 &expected,
                 "resident Auto fallback",
             );
+            assert!(!request.uses_gpu());
+            assert_eq!(
+                request.latest_run().unwrap().execution,
+                crate::OcrExecution::Cpu
+            );
+            assert!(
+                request
+                    .execution_statistics()
+                    .values()
+                    .flatten()
+                    .all(|stage| stage
+                        .fallback
+                        .as_ref()
+                        .is_some_and(|failure| failure.kind == kind))
+            );
+            assert_eq!(
+                request.run(image, Default::default()).unwrap().text,
+                expected.text
+            );
+            assert_eq!(request.counters().runs, 3);
         } else {
-            assert_eq!(request.run(image, true).err().unwrap().kind(), kind);
+            assert_eq!(
+                request
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .err()
+                    .unwrap()
+                    .kind(),
+                kind
+            );
         }
     }
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_plan_requests_unicode_capture_and_latest_run_parity() {
+    use crate::{Compiler, CompilerOptions, GpuPipelineMode, RunOptions, ocr::OcrExecution};
+    let compiler = Arc::new(Compiler::new(CompilerOptions {
+        gpu: Some(hardware()),
+        ..Default::default()
+    }));
+    let (det, rec) = crate::ocr::tests::synthetic_sources();
+    let models = OcrModelSet::new(
+        Arc::new(Model::load_bytes(&det).unwrap()),
+        Arc::new(Model::load_bytes(&rec).unwrap()),
+        Arc::new(Dictionary::from_utf8("汉🙂\n".as_bytes()).unwrap()),
+        None,
+    );
+    let build = |target, mode| {
+        models
+            .clone()
+            .builder()
+            .compiler(compiler.clone())
+            .execution_target(target)
+            .gpu_pipeline_mode(mode)
+            .cpu_context(CpuContext::serial())
+            .detector_options(DetectorOptions {
+                limit_side_length: 96,
+                ..Default::default()
+            })
+            .build()
+            .unwrap()
+    };
+    let cpu = build(ExecutionTarget::Cpu, GpuPipelineMode::Full);
+    let full = build(ExecutionTarget::Gpu, GpuPipelineMode::Full);
+    let tensor = build(ExecutionTarget::Gpu, GpuPipelineMode::InferenceOnly);
+    assert!(Arc::ptr_eq(
+        full.recognizer().compiled().as_gpu().unwrap(),
+        tensor.recognizer().compiled().as_gpu().unwrap()
+    ));
+    let pixels = crate::ocr::tests::two_lines();
+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+    let mut cpu = cpu.request().unwrap();
+    let expected = cpu
+        .run(
+            image,
+            RunOptions {
+                capture_spans: true,
+            },
+        )
+        .unwrap()
+        .try_to_owned()
+        .unwrap();
+    assert!(expected.text.contains("汉🙂"));
+    for (plan, execution) in [
+        (full, OcrExecution::Resident),
+        (tensor, OcrExecution::Hybrid),
+    ] {
+        let mut request = plan.request().unwrap();
+        assert_eq!(request.activation_bytes(), 0);
+        assert_eq!(request.memory_snapshot().device_bytes, 0);
+        assert_ocr_close(
+            &request
+                .run(
+                    image,
+                    RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
+            &expected,
+            "Unicode spans",
+        );
+        assert_eq!(request.latest_run().unwrap().execution, execution);
+        let first = request.gpu_pipeline_statistics().unwrap();
+        let memory = request.memory_snapshot();
+        assert!(memory.host_bytes > 0 && memory.device_bytes > 0);
+        assert!(plan.shared_weights().device_bytes > 0);
+        if execution == OcrExecution::Resident {
+            assert!(
+                request
+                    .extractor()
+                    .detector()
+                    .execution_statistics()
+                    .execution_backend
+                    .is_none()
+            );
+            assert!(
+                request
+                    .recognizer()
+                    .execution_statistics()
+                    .execution_backend
+                    .is_none()
+            );
+        }
+        let result = request.run(image, RunOptions::default()).unwrap();
+        assert_eq!(result.text, expected.text);
+        assert!(result.iter().all(|line| line.ctc_spans.is_none()));
+        let second = request.gpu_pipeline_statistics().unwrap();
+        assert_eq!(
+            second.submissions, first.submissions,
+            "latest-run traffic must not accumulate"
+        );
+        assert_eq!(
+            request.counters().submissions,
+            first.submissions + second.submissions
+        );
+        assert_eq!(request.counters().runs, 2);
+        // Switching representation releases obsolete production buffers before running.
+        request
+            .set_gpu_pipeline_mode(GpuPipelineMode::InferenceOnly)
+            .unwrap();
+        request.run(image, RunOptions::default()).unwrap();
+        request
+            .set_gpu_pipeline_mode(GpuPipelineMode::Full)
+            .unwrap();
+        assert_eq!(request.memory_snapshot().device_bytes, 0);
+        assert!(
+            request
+                .recognizer()
+                .execution_statistics()
+                .execution_backend
+                .is_none()
+        );
+        assert_eq!(
+            request.run(image, RunOptions::default()).unwrap().text,
+            expected.text
+        );
+        assert_eq!(
+            request.latest_run().unwrap().execution,
+            OcrExecution::Resident
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_plan_context_validation_and_failed_mode_change_are_transactional() {
+    use crate::{Compiler, CompilerOptions, GpuPipelineMode, OcrPlan, ocr::OcrOptions};
+    let other = GpuContext::new_with_options(GpuContextOptions {
+        backend: hardware().options().backend,
+        ..Default::default()
+    })
+    .unwrap();
+    let (det, rec) = crate::ocr::tests::synthetic_sources();
+    let models = OcrModelSet::from_readers(&det[..], &rec[..], &b"A\n"[..], None).unwrap();
+    let left = models
+        .clone()
+        .builder()
+        .gpu_context(hardware())
+        .execution_target(ExecutionTarget::Gpu)
+        .build()
+        .unwrap();
+    let right = models
+        .builder()
+        .compiler(Arc::new(Compiler::new(CompilerOptions {
+            gpu: Some(other),
+            ..Default::default()
+        })))
+        .execution_target(ExecutionTarget::Gpu)
+        .build()
+        .unwrap();
+    let plan = OcrPlan::new(
+        left.extractor().clone(),
+        right.recognizer().clone(),
+        OcrOptions::default(),
+        CpuContext::serial(),
+        Default::default(),
+        1,
+    )
+    .unwrap();
+    assert!(plan.request().is_err());
+    let mut request = plan
+        .with_gpu_pipeline_mode(GpuPipelineMode::InferenceOnly)
+        .unwrap()
+        .request()
+        .unwrap();
+    assert!(
+        request
+            .set_gpu_pipeline_mode(GpuPipelineMode::Full)
+            .is_err()
+    );
+    assert_eq!(request.activation_bytes(), 0);
+    let pixels = vec![0; 32 * 32 * 3];
+    let image = ImageView::new(&pixels, 32, 32, 0, PixelFormat::Bgr24).unwrap();
+    assert_eq!(request.run(image, Default::default()).unwrap().text, "");
+    assert_eq!(
+        request.latest_run().unwrap().execution,
+        crate::OcrExecution::Hybrid
+    );
 }

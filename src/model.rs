@@ -181,7 +181,6 @@ pub struct ShapeRecipe {
 
 #[derive(Debug)]
 pub struct Model {
-    pub(crate) packed_weights: crate::runtime::packing::WeightCache,
     ir_version: i64,
     opsets: BTreeMap<String, i64>,
     source_bytes: u64,
@@ -193,11 +192,6 @@ pub struct Model {
 }
 
 impl Model {
-    /// Shared packed capacities retained by all compiled views of this model.
-    /// These bytes are separate from normalized coefficients and request arenas.
-    pub fn cached_packed_weight_bytes(&self) -> usize {
-        self.packed_weights.bytes()
-    }
     pub fn graph(&self) -> &Graph {
         &self.graph
     }
@@ -1293,7 +1287,6 @@ fn normalize_with_policy(
         outputs: output_names.iter().map(|n| index[n]).collect(),
     };
     Ok(Model {
-        packed_weights: crate::runtime::packing::WeightCache::default(),
         ir_version,
         opsets,
         source_bytes,

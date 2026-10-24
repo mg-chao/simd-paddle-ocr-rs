@@ -1,7 +1,7 @@
 //! Native GPU execution with shared weights, reusable storage and transactional shapes.
 use super::{
     BindScratch, ExecutionLimits, ExecutionStatistics, NodeTrace, Program, RuntimeError,
-    RuntimeResult, ShapePlan, bind_into, kernels::BoundKind,
+    RuntimeResult, ShapePlan, bind_into, bound::BoundKind,
 };
 use crate::profile::Timer;
 use crate::{
@@ -22,7 +22,6 @@ use std::{
 use wgpu::util::DeviceExt;
 mod fusions;
 pub(crate) mod heads;
-pub(crate) mod ocr;
 mod operators;
 mod physical;
 mod pipelines;
@@ -30,8 +29,9 @@ mod profile;
 pub(crate) mod resident;
 mod storage;
 pub(crate) mod vision;
+pub use super::{GpuCompileOptions, GpuPrecision};
 pub use resident::{GpuPipelineMode, GpuPipelineStatistics, GpuPlacement};
-pub use storage::{GpuLayout, GpuPrecision, GpuTensorDescriptor};
+pub use storage::{GpuLayout, GpuTensorDescriptor};
 #[cfg(test)]
 mod tests;
 pub use profile::{GpuExecutionProfile, GpuKernelProfile, GpuTimingGranularity};
@@ -75,7 +75,8 @@ pub enum GpuBackendPreference {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GpuContextOptions {
-    pub precision: GpuPrecision,
+    /// Request the shader-f16 device capability; plans choose whether to use it.
+    pub shader_f16: bool,
     pub subgroups: bool,
     /// Opt in to unqualified cooperative FP32 matrix kernels when advertised.
     pub experimental_cooperative_matrix: bool,
@@ -92,7 +93,7 @@ pub struct GpuContextOptions {
 impl Default for GpuContextOptions {
     fn default() -> Self {
         Self {
-            precision: GpuPrecision::F32,
+            shader_f16: false,
             subgroups: false,
             experimental_cooperative_matrix: false,
             backend: GpuBackendPreference::Auto,
@@ -140,7 +141,7 @@ impl GpuBuffer {
     }
 }
 thread_local! {static ACTIVE_CONTEXTS:RefCell<Vec<usize>>=const {RefCell::new(Vec::new())};}
-pub(super) struct Gate<'a> {
+pub(crate) struct Gate<'a> {
     context: &'a GpuContext,
     key: usize,
     // Admission reentrancy is tracked in thread-local state.
@@ -267,7 +268,7 @@ impl GpuContext {
             required_features |=
                 wgpu::Features::EXPERIMENTAL_COOPERATIVE_MATRIX | wgpu::Features::SUBGROUP;
         }
-        if options.precision == GpuPrecision::MixedF16 {
+        if options.shader_f16 {
             required_features |= wgpu::Features::SHADER_F16;
         }
         if options.subgroups {
@@ -359,9 +360,6 @@ impl GpuContext {
     pub fn enabled_features(&self) -> wgpu::Features {
         self.device.features()
     }
-    pub fn precision(&self) -> GpuPrecision {
-        self.options.precision
-    }
     pub fn memory_statistics(&self) -> GpuDeviceMemoryStatistics {
         GpuDeviceMemoryStatistics {
             used_bytes: self.ledger.used.load(Ordering::Acquire),
@@ -384,7 +382,7 @@ impl GpuContext {
         }
         self.available.notify_all();
     }
-    pub(super) fn acquire_gate(&self) -> RuntimeResult<Gate<'_>> {
+    pub(crate) fn acquire_gate(&self) -> RuntimeResult<Gate<'_>> {
         self.check_alive()?;
         let key = self as *const Self as usize;
         if ACTIVE_CONTEXTS.with(|v| v.borrow().contains(&key)) {
@@ -529,6 +527,7 @@ impl GpuContext {
             consume,
         )
     }
+    #[allow(clippy::too_many_arguments)]
     fn submit_and_map_profiled<const PROFILE: bool, T>(
         &self,
         encoder: wgpu::CommandEncoder,
@@ -576,24 +575,30 @@ impl GpuContext {
                 storage.unmap();
             }
             self.fail(message.clone());
-            return Err(RuntimeError::with_kind(ErrorKind::DeviceLost, message));
+            return Err(RuntimeError::caused_by(
+                ErrorKind::DeviceLost,
+                "GPU completion wait failed",
+                error,
+            ));
         }
         match receive.try_recv() {
             Ok(Ok(())) => {}
             Ok(Err(error)) => {
                 timings.completion_wait_ns = completion_timer.elapsed();
                 readback.unmap();
-                return Err(RuntimeError::with_kind(
+                return Err(RuntimeError::caused_by(
                     ErrorKind::GpuMapping,
-                    format!("GPU output mapping failed: {error}"),
+                    "GPU output mapping failed",
+                    error,
                 ));
             }
             Err(error) => {
                 timings.completion_wait_ns = completion_timer.elapsed();
                 readback.unmap();
-                return Err(RuntimeError::with_kind(
+                return Err(RuntimeError::caused_by(
                     ErrorKind::GpuMapping,
-                    format!("GPU mapping callback unavailable: {error}"),
+                    "GPU mapping callback unavailable",
+                    error,
                 ));
             }
         }
@@ -622,7 +627,7 @@ pub struct GpuCompiledModel {
     full_precision: Mutex<Option<Arc<GpuCompiledModel>>>,
     heads: Mutex<std::collections::HashMap<Vec<u32>, Arc<heads::Head>>>,
     fusion: bool,
-    program: Arc<super::LogicalGraph>,
+    pub(super) program: Arc<super::LogicalGraph>,
     context: Arc<GpuContext>,
     weights: Arc<GpuWeights>,
     pipelines: Arc<pipelines::Pipelines>,
@@ -678,26 +683,25 @@ impl GpuCompiledModel {
         GpuSupportReport { issues }
     }
     pub fn compile(model: Arc<Model>, context: Arc<GpuContext>) -> RuntimeResult<Self> {
-        Self::compile_with_options(model, context, true)
+        Self::compile_with_options(model, context, super::CompileOptions::default())
     }
     pub fn compile_with_options(
         model: Arc<Model>,
         context: Arc<GpuContext>,
-        fusion: bool,
+        options: super::CompileOptions,
     ) -> RuntimeResult<Self> {
         Self::from_graph(
             Arc::new(super::LogicalGraph::compile(model)?),
             context,
-            fusion,
+            options,
         )
     }
     pub fn from_graph(
         program: Arc<super::LogicalGraph>,
         context: Arc<GpuContext>,
-        fusion: bool,
+        options: super::CompileOptions,
     ) -> RuntimeResult<Self> {
-        let precision = context.precision();
-        Self::from_graph_precision(program, context, fusion, precision)
+        Self::from_graph_precision(program, context, options.fusion, options.gpu.precision)
     }
     fn from_graph_precision(
         program: Arc<super::LogicalGraph>,
@@ -705,6 +709,17 @@ impl GpuCompiledModel {
         fusion: bool,
         precision: GpuPrecision,
     ) -> RuntimeResult<Self> {
+        if precision == GpuPrecision::MixedF16
+            && !context
+                .device
+                .features()
+                .contains(wgpu::Features::SHADER_F16)
+        {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::Unsupported,
+                "mixed-f16 compilation requires a context with shader_f16 enabled",
+            ));
+        }
         let model = &program.model;
         validate_supported(&program)?;
         for tensor in &program.model.graph().tensors {
@@ -774,6 +789,31 @@ impl GpuCompiledModel {
             weights,
             pipelines,
         })
+    }
+    pub(crate) fn unique_weight_bytes(&self, seen: &mut std::collections::HashSet<usize>) -> usize {
+        let mut bytes = 0;
+        if seen.insert(Arc::as_ptr(&self.weights) as usize) {
+            bytes += self.weights.bytes;
+        }
+        if let Ok(normalization) = self.weights._normalization.lock()
+            && let Some(n) = &*normalization
+            && seen.insert(Arc::as_ptr(n) as usize)
+        {
+            bytes += n.bytes();
+        }
+        if let Ok(heads) = self.heads.lock() {
+            for head in heads.values() {
+                if seen.insert(Arc::as_ptr(head) as usize) {
+                    bytes += head.retained_bytes();
+                }
+            }
+        }
+        if let Ok(full) = self.full_precision.lock()
+            && let Some(full) = &*full
+        {
+            bytes += full.unique_weight_bytes(seen);
+        }
+        bytes
     }
     pub fn weight_bytes(&self) -> usize {
         self.weights.bytes
@@ -863,7 +903,20 @@ struct CachedPlan {
     recipes: Vec<operators::Recipe>,
     bindings: Option<(u64, Vec<Dispatch>)>,
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TransferMode {
+    Host,
+    Resident,
+}
+#[derive(Default)]
+struct HostTransfers {
+    readback: Option<GpuBuffer>,
+    input: Vec<f32>,
+    upload: Vec<u8>,
+    output: Vec<f32>,
+}
 pub struct GpuSession {
+    transfer_mode: TransferMode,
     submissions: Arc<AtomicUsize>,
     uploaded_bytes: u64,
     output_readback_bytes: u64,
@@ -879,10 +932,7 @@ pub struct GpuSession {
     limits: ExecutionLimits,
     plan: ShapePlan,
     buffers: Vec<GpuBuffer>,
-    readback: GpuBuffer,
-    input: Vec<f32>,
-    upload: Vec<u8>,
-    output: Vec<f32>,
+    transfers: HostTransfers,
     memory: GpuMemoryStatistics,
     execution_timings: GpuExecutionTimings,
     timestamps: Option<profile::TimestampStorage>,
@@ -909,7 +959,15 @@ impl GpuSession {
         let count = compiled.program.instructions.len();
         let output = compiled.program.output;
         let fusion = compiled.fusion;
-        Self::new_selected(compiled, dimensions, limits, count, output, fusion)
+        Self::new_selected(
+            compiled,
+            dimensions,
+            limits,
+            count,
+            output,
+            fusion,
+            TransferMode::Host,
+        )
     }
     /// Build the semantic schedule with generic kernels, for diagnostic comparison.
     pub fn new_unoptimized(
@@ -919,7 +977,15 @@ impl GpuSession {
     ) -> RuntimeResult<Self> {
         let count = compiled.program.instructions.len();
         let output = compiled.program.output;
-        Self::new_selected(compiled, dimensions, limits, count, output, false)
+        Self::new_selected(
+            compiled,
+            dimensions,
+            limits,
+            count,
+            output,
+            false,
+            TransferMode::Host,
+        )
     }
     pub(crate) fn new_diagnostic(
         compiled: Arc<GpuCompiledModel>,
@@ -941,9 +1007,46 @@ impl GpuSession {
             .ok_or_else(|| RuntimeError::new("GPU prefix node out of range"))?
             .output;
         let fusion = compiled.fusion;
-        Self::new_selected(compiled, dimensions, limits, last_node + 1, output, fusion)
+        Self::new_selected(
+            compiled,
+            dimensions,
+            limits,
+            last_node + 1,
+            output,
+            fusion,
+            TransferMode::Host,
+        )
     }
 
+    pub(crate) fn new_resident(
+        compiled: Arc<GpuCompiledModel>,
+        dimensions: &[usize],
+        limits: ExecutionLimits,
+        last_node: Option<usize>,
+    ) -> RuntimeResult<Self> {
+        let (count, output) = match last_node {
+            Some(last) => (
+                last + 1,
+                compiled
+                    .program
+                    .instructions
+                    .get(last)
+                    .ok_or_else(|| RuntimeError::new("GPU prefix node out of range"))?
+                    .output,
+            ),
+            None => (compiled.program.instructions.len(), compiled.program.output),
+        };
+        let fusion = compiled.fusion;
+        Self::new_selected(
+            compiled,
+            dimensions,
+            limits,
+            count,
+            output,
+            fusion,
+            TransferMode::Resident,
+        )
+    }
     fn new_selected(
         compiled: Arc<GpuCompiledModel>,
         dimensions: &[usize],
@@ -951,6 +1054,7 @@ impl GpuSession {
         node_count: usize,
         selected_output: TensorId,
         optimized: bool,
+        transfer_mode: TransferMode,
     ) -> RuntimeResult<Self> {
         let bound = Self::bind(
             &compiled,
@@ -960,8 +1064,19 @@ impl GpuSession {
             selected_output,
             optimized,
         )?;
-        let built = Self::build(&compiled, &bound, limits, &[], None, None, (0, 0), 0)?;
+        let built = Self::build(
+            &compiled,
+            &bound,
+            limits,
+            &[],
+            None,
+            None,
+            (0, 0),
+            0,
+            transfer_mode,
+        )?;
         let mut session = Self {
+            transfer_mode,
             submissions: Arc::new(AtomicUsize::new(0)),
             uploaded_bytes: 0,
             output_readback_bytes: 0,
@@ -973,10 +1088,7 @@ impl GpuSession {
             limits,
             plan: bound.plan,
             buffers: built.buffers,
-            readback: built.readback,
-            input: built.input,
-            upload: built.upload,
-            output: built.output,
+            transfers: built.transfers,
             dispatches: built.dispatches,
             parameters: built.parameters,
             parameter_data: built.parameter_data,
@@ -1141,6 +1253,7 @@ impl GpuSession {
             bindings: None,
         })
     }
+    #[allow(clippy::too_many_arguments)]
     fn build(
         compiled: &GpuCompiledModel,
         bound: &CachedPlan,
@@ -1150,6 +1263,7 @@ impl GpuSession {
         previous_parameters: Option<&GpuBuffer>,
         previous_host: (usize, usize),
         generation: u64,
+        transfer_mode: TransferMode,
     ) -> RuntimeResult<Built> {
         let context = &compiled.context;
         let selected = bound
@@ -1157,16 +1271,20 @@ impl GpuSession {
             .steps
             .last()
             .map_or(compiled.program.input, |step| step.output);
-        let output_elements = bound.plan.shapes[selected.0].element_count();
+        let host = transfer_mode == TransferMode::Host;
+        let input_elements = if host { bound.shape.element_count() } else { 0 };
+        let output_elements = if host {
+            bound.plan.shapes[selected.0].element_count()
+        } else {
+            0
+        };
         let precision = bound.descriptors[compiled.program.input.0].precision;
         let output_bytes = bound.descriptors[selected.0]
             .precision
             .bytes(output_elements);
         let host_output_bytes = output_elements * 4;
-        let upload_bytes = precision.bytes(bound.shape.element_count());
-        let host_input_bytes = bound
-            .shape
-            .element_count()
+        let upload_bytes = precision.bytes(input_elements);
+        let host_input_bytes = input_elements
             .checked_mul(4)
             .ok_or_else(|| resource("GPU host input size overflow"))?;
         let stride = 512usize.div_ceil(context.limits.min_uniform_buffer_offset_alignment as usize)
@@ -1248,20 +1366,25 @@ impl GpuSession {
                     .map(|b| &b.buffer)
                     .unwrap_or_else(|| &buffers[bound.plan.slots[id.0]].buffer)
             };
-            let readback =
-                if reuse && previous_readback.is_some_and(|b| b.size() >= output_bytes as u64) {
-                    previous_readback.unwrap().clone()
-                } else {
-                    context.create_buffer(
-                        "GPU output readback",
-                        output_bytes as u64,
-                        wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                    )?
-                };
-            let input = if reuse && previous_host.0 >= bound.shape.element_count() {
+            let readback = if !host {
+                None
+            } else {
+                Some(
+                    if reuse && previous_readback.is_some_and(|b| b.size() >= output_bytes as u64) {
+                        previous_readback.unwrap().clone()
+                    } else {
+                        context.create_buffer(
+                            "GPU output readback",
+                            output_bytes as u64,
+                            wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                        )?
+                    },
+                )
+            };
+            let input = if reuse && previous_host.0 >= input_elements {
                 Vec::new()
             } else {
-                allocate_f32(bound.shape.element_count())?
+                allocate_f32(input_elements)?
             };
             let output = if reuse && previous_host.1 >= output_elements {
                 Vec::new()
@@ -1297,7 +1420,7 @@ impl GpuSession {
             let mut dispatches = Vec::new();
             for (recipe_index, recipe) in bound.recipes.iter().enumerate() {
                 let shader = match &recipe.kind {
-                    operators::RecipeKind::Compute(shader) => shader.clone(),
+                    operators::RecipeKind::Compute(shader) => *shader,
                     operators::RecipeKind::Copy {
                         source_offset,
                         destination_offset,
@@ -1389,7 +1512,7 @@ impl GpuSession {
                 host_parameter_bytes: parameter_data.capacity(),
                 upload_bytes: upload.capacity(),
                 device_activation_bytes: buffers.iter().map(GpuBuffer::bytes).sum(),
-                readback_bytes: readback.bytes(),
+                readback_bytes: readback.as_ref().map_or(0, GpuBuffer::bytes),
                 host_input_bytes: if input.capacity() == 0 {
                     previous_host.0 * 4
                 } else {
@@ -1405,10 +1528,12 @@ impl GpuSession {
             check_budget(memory.total_bytes(), limits)?;
             Ok(Built {
                 buffers,
-                readback,
-                input,
-                upload,
-                output,
+                transfers: HostTransfers {
+                    readback,
+                    input,
+                    upload,
+                    output,
+                },
                 dispatches,
                 parameters,
                 parameter_data,
@@ -1452,10 +1577,14 @@ impl GpuSession {
             &bound,
             binding_limits,
             &self.buffers,
-            Some(&self.readback),
+            self.transfers.readback.as_ref(),
             Some(&self.parameters),
-            (self.input.capacity(), self.output.capacity()),
+            (
+                self.transfers.input.capacity(),
+                self.transfers.output.capacity(),
+            ),
             self.generation,
+            self.transfer_mode,
         )?;
         check_budget(
             built.memory.total_bytes() + self.memory.diagnostic_bytes + self.memory.profiling_bytes,
@@ -1478,19 +1607,21 @@ impl GpuSession {
             })
             .map(GpuBuffer::bytes)
             .sum::<usize>()
-            + if Arc::ptr_eq(&built.readback.reservation, &self.readback.reservation) {
-                built.readback.bytes()
-            } else {
-                0
-            };
+            + built
+                .transfers
+                .readback
+                .as_ref()
+                .zip(self.transfers.readback.as_ref())
+                .filter(|(a, b)| Arc::ptr_eq(&a.reservation, &b.reservation))
+                .map_or(0, |(a, _)| a.bytes());
         if self.parameters.buffer == built.parameters.buffer {
             shared += self.parameters.bytes();
         }
-        if built.input.capacity() == 0 {
-            shared += self.input.capacity() * 4;
+        if built.transfers.input.capacity() == 0 {
+            shared += self.transfers.input.capacity() * 4;
         }
-        if built.output.capacity() == 0 {
-            shared += self.output.capacity() * 4;
+        if built.transfers.output.capacity() == 0 {
+            shared += self.transfers.output.capacity() * 4;
         }
 
         let peak = self
@@ -1513,13 +1644,16 @@ impl GpuSession {
             old.bindings = None;
             bound.bindings = None;
         }
-        if built.input.capacity() == 0 {
-            std::mem::swap(&mut built.input, &mut self.input);
-            built.input.resize(bound.shape.element_count(), 0.0);
+        if self.transfer_mode == TransferMode::Host && built.transfers.input.capacity() == 0 {
+            std::mem::swap(&mut built.transfers.input, &mut self.transfers.input);
+            built
+                .transfers
+                .input
+                .resize(bound.shape.element_count(), 0.0);
         }
-        if built.output.capacity() == 0 {
-            std::mem::swap(&mut built.output, &mut self.output);
-            built.output.resize(
+        if self.transfer_mode == TransferMode::Host && built.transfers.output.capacity() == 0 {
+            std::mem::swap(&mut built.transfers.output, &mut self.transfers.output);
+            built.transfers.output.resize(
                 bound.plan.shapes[self.selected_output.0].element_count(),
                 0.0,
             );
@@ -1542,10 +1676,7 @@ impl GpuSession {
         self.descriptors = bound.descriptors;
         self.plan = bound.plan;
         self.buffers = built.buffers;
-        self.readback = built.readback;
-        self.input = built.input;
-        self.upload = built.upload;
-        self.output = built.output;
+        self.transfers = built.transfers;
         let diagnostic = self.memory.diagnostic_bytes;
         let previous_peak = self.memory.transition_peak_bytes;
         let profiling = self.memory.profiling_bytes;
@@ -1569,7 +1700,7 @@ impl GpuSession {
         result
     }
     pub(crate) fn input_data(&self) -> &[f32] {
-        &self.input
+        &self.transfers.input
     }
     pub fn input_shape(&self) -> Shape {
         self.plan.input_shape
@@ -1587,8 +1718,8 @@ impl GpuSession {
         self.descriptors[self.selected_output.0].precision
     }
     pub(crate) fn output_view(&self) -> RuntimeResult<TensorView<'_, f32>> {
-        TensorView::from_slice(self.output_shape(), &self.output)
-            .map_err(|error| RuntimeError::new(error.to_string()))
+        TensorView::from_slice(self.output_shape(), &self.transfers.output)
+            .map_err(RuntimeError::from)
     }
     pub fn execution_limits(&self) -> ExecutionLimits {
         self.limits
@@ -1607,7 +1738,7 @@ impl GpuSession {
     }
     pub fn retained_device_bytes(&self) -> usize {
         self.buffers.iter().map(GpuBuffer::bytes).sum::<usize>()
-            + self.readback.bytes()
+            + self.transfers.readback.as_ref().map_or(0, GpuBuffer::bytes)
             + self.parameters.bytes()
             + self
                 .diagnostic
@@ -1617,9 +1748,13 @@ impl GpuSession {
             + self.memory.profiling_bytes
     }
     pub fn retained_planning_bytes(&self) -> usize {
-        self.diagnostic
+        self.gpu_profile
             .as_ref()
-            .map_or(0, |d| d.retained_planning_bytes())
+            .map_or(0, GpuExecutionProfile::retained_bytes)
+            + self
+                .diagnostic
+                .as_ref()
+                .map_or(0, |d| d.retained_planning_bytes())
             + dispatch_metadata_bytes(&self.dispatches)
             + descriptor_metadata_bytes(&self.descriptors)
             + recipe_metadata_bytes(&self.recipes)
@@ -1740,7 +1875,7 @@ impl GpuSession {
     }
     #[cfg(feature = "profiling")]
     pub fn run_profiled(&mut self, input: &[f32]) -> RuntimeResult<TensorView<'_, f32>> {
-        if input.len() != self.input.len() {
+        if input.len() != self.transfers.input.len() {
             return Err(RuntimeError::with_kind(
                 ErrorKind::InvalidInput,
                 "GPU input length mismatch",
@@ -1920,8 +2055,14 @@ impl GpuSession {
         &mut self,
         fill: impl FnOnce(&mut [f32]) -> RuntimeResult<()>,
     ) -> RuntimeResult<()> {
-        fill(&mut self.input)?;
-        if let Some(index) = self.input.iter().position(|v| !v.is_finite()) {
+        if self.transfer_mode != TransferMode::Host {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::InvalidInput,
+                "resident sessions accept device inputs only",
+            ));
+        }
+        fill(&mut self.transfers.input).map_err(RuntimeError::callback)?;
+        if let Some(index) = self.transfers.input.iter().position(|v| !v.is_finite()) {
             return Err(RuntimeError::with_kind(
                 ErrorKind::InvalidInput,
                 format!("nonfinite input F32 at element {index}"),
@@ -1954,7 +2095,8 @@ impl GpuSession {
         self.execution_timings = GpuExecutionTimings::default();
 
         self.prepare_input(fill)?;
-        self.input_precision().write(&self.input, &mut self.upload);
+        self.input_precision()
+            .write(&self.transfers.input, &mut self.transfers.upload);
         self.prepare_profile::<PROFILE>()?;
         let context = self.compiled.context.clone();
         let admission_timer = Timer::<PROFILE>::start();
@@ -1971,9 +2113,11 @@ impl GpuSession {
                     .queue
                     .write_buffer(&self.parameters, 0, &self.parameter_data);
             }
-            context
-                .queue
-                .write_buffer(self.resolve(self.compiled.program.input), 0, &self.upload);
+            context.queue.write_buffer(
+                self.resolve(self.compiled.program.input),
+                0,
+                &self.transfers.upload,
+            );
             let mut encoder =
                 context
                     .device
@@ -1981,11 +2125,14 @@ impl GpuSession {
                         label: Some("GPU inference"),
                     });
             self.encode_graph_profiled::<PROFILE>(&mut encoder);
-            let bytes = output_precision.bytes(self.output.len()) as u64;
+            let bytes = output_precision.bytes(self.transfers.output.len()) as u64;
             encoder.copy_buffer_to_buffer(
                 self.resolve(self.selected_output),
                 0,
-                &self.readback,
+                self.transfers
+                    .readback
+                    .as_ref()
+                    .expect("host transfer session"),
                 0,
                 bytes,
             );
@@ -1996,11 +2143,14 @@ impl GpuSession {
                 );
             }
             self.submissions.fetch_add(1, Ordering::Relaxed);
-            self.uploaded_bytes += self.upload.len() as u64;
+            self.uploaded_bytes += self.transfers.upload.len() as u64;
             self.output_readback_bytes += bytes;
             context.submit_and_map_profiled::<PROFILE, _>(
                 encoder,
-                &self.readback,
+                self.transfers
+                    .readback
+                    .as_ref()
+                    .expect("host transfer session"),
                 bytes,
                 &submission_timer,
                 &mut timings,
@@ -2015,8 +2165,8 @@ impl GpuSession {
                     })
                     .as_slice(),
                 |view| {
-                    output_precision.decode(view, &mut self.output)?;
-                    validate_finite(&self.output)
+                    output_precision.decode(view, &mut self.transfers.output)?;
+                    validate_finite(&self.transfers.output)
                 },
             )
         });
@@ -2027,16 +2177,19 @@ impl GpuSession {
         if result.is_ok() {
             self.parameters_dirty = false;
         }
-        if result.is_err() {
-            if let Some(storage) = &self.timestamps {
-                storage.unmap();
-            }
+        if result.is_err()
+            && let Some(storage) = &self.timestamps
+        {
+            storage.unmap();
         }
         result?;
         if PROFILE && let Some(storage) = &self.timestamps {
             storage.finish(&context, self.gpu_profile.as_mut().unwrap())?;
         }
-        Ok(TensorView::from_slice(self.output_shape(), &self.output)?)
+        Ok(TensorView::from_slice(
+            self.output_shape(),
+            &self.transfers.output,
+        )?)
     }
 
     pub fn run_with_trace<F>(
@@ -2097,18 +2250,19 @@ impl GpuSession {
                 .transition_peak_bytes
                 .max(self.memory.total_bytes());
             result?;
-            return TensorView::from_slice(diagnostic.output_shape(), &diagnostic.output)
+            return TensorView::from_slice(diagnostic.output_shape(), &diagnostic.transfers.output)
                 .map_err(Into::into);
         }
         self.prepare_input(fill)?;
-        self.input_precision().write(&self.input, &mut self.upload);
+        self.input_precision()
+            .write(&self.transfers.input, &mut self.transfers.upload);
         let maximum = self
             .plan
             .steps
             .iter()
             .map(|step| self.plan.shapes[step.output.0].element_count())
             .max()
-            .unwrap_or(self.input.len());
+            .unwrap_or(self.transfers.input.len());
         let bytes = GpuPrecision::F32.bytes(maximum);
         if self.trace_output.len() < maximum {
             check_budget(
@@ -2157,7 +2311,7 @@ impl GpuSession {
                 context.queue.write_buffer(
                     self.resolve(self.compiled.program.input),
                     0,
-                    &self.upload,
+                    &self.transfers.upload,
                 );
                 Ok(())
             })?;
@@ -2220,13 +2374,18 @@ impl GpuSession {
             })?;
         }
         if self.node_count == 0 {
-            self.output.copy_from_slice(&self.input);
+            self.transfers.output.copy_from_slice(&self.transfers.input);
         } else {
-            let len = self.output.len();
-            self.output.copy_from_slice(&self.trace_output[..len]);
+            let len = self.transfers.output.len();
+            self.transfers
+                .output
+                .copy_from_slice(&self.trace_output[..len]);
         }
-        validate_finite(&self.output)?;
-        Ok(TensorView::from_slice(self.output_shape(), &self.output)?)
+        validate_finite(&self.transfers.output)?;
+        Ok(TensorView::from_slice(
+            self.output_shape(),
+            &self.transfers.output,
+        )?)
     }
 }
 struct Built {
@@ -2234,10 +2393,7 @@ struct Built {
     parameters: GpuBuffer,
     parameter_data: Vec<u8>,
     buffers: Vec<GpuBuffer>,
-    readback: GpuBuffer,
-    input: Vec<f32>,
-    upload: Vec<u8>,
-    output: Vec<f32>,
+    transfers: HostTransfers,
     memory: GpuMemoryStatistics,
 }
 fn descriptor_metadata_bytes(values: &Vec<GpuTensorDescriptor>) -> usize {
@@ -2266,7 +2422,7 @@ fn recipe_metadata_bytes(values: &Vec<operators::Recipe>) -> usize {
 }
 fn plan_metadata_bytes(plan: &ShapePlan) -> usize {
     plan.shapes.capacity() * std::mem::size_of::<Shape>()
-        + plan.steps.capacity() * std::mem::size_of::<super::kernels::BoundStep>()
+        + plan.steps.capacity() * std::mem::size_of::<super::bound::BoundStep>()
         + plan.slots.capacity() * std::mem::size_of::<usize>()
         + plan.lengths.capacity() * std::mem::size_of::<usize>()
 }
@@ -2282,7 +2438,7 @@ fn decode_f32(bytes: &[u8], output: &mut [f32]) -> RuntimeResult<()> {
     if bytes.len() != output.len() * 4 {
         return Err(RuntimeError::new("GPU readback length mismatch"));
     }
-    for (destination, bytes) in output.iter_mut().zip(bytes.chunks_exact(4)) {
+    for (destination, bytes) in output.iter_mut().zip(bytes.as_chunks::<4>().0.iter()) {
         *destination = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
     }
     Ok(())
@@ -2295,7 +2451,7 @@ fn validate_finite(values: &[f32]) -> RuntimeResult<()> {
     }
     Ok(())
 }
-fn resource(message: impl Into<String>) -> RuntimeError {
+pub(crate) fn resource(message: impl Into<String>) -> RuntimeError {
     RuntimeError::with_kind(ErrorKind::ResourceLimit, message)
 }
 fn bind_entry(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
@@ -2339,7 +2495,7 @@ fn checked_storage_bytes(elements: usize, limits: &wgpu::Limits) -> RuntimeResul
     let bytes = (elements as u64)
         .checked_mul(4)
         .ok_or_else(|| resource("GPU storage byte count overflow"))?;
-    if bytes > limits.max_buffer_size || bytes > u64::from(limits.max_storage_buffer_binding_size) {
+    if bytes > limits.max_buffer_size || bytes > limits.max_storage_buffer_binding_size {
         return Err(resource(format!(
             "GPU storage needs {bytes} bytes, exceeding device buffer or binding limit"
         )));

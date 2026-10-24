@@ -2855,7 +2855,7 @@ unsafe fn packed_depth9_avx2(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn try_transpose(
     backend: Backend,
-    p: &super::kernels::ConvTranspose,
+    p: &super::bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -2879,7 +2879,7 @@ pub(super) fn try_transpose(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn try_transpose_store(
     backend: Backend,
-    p: &super::kernels::ConvTranspose,
+    p: &super::bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -2937,7 +2937,7 @@ pub(super) fn try_transpose_store(
 #[allow(clippy::too_many_arguments)]
 fn transpose_run(
     _backend: Backend,
-    p: &super::kernels::ConvTranspose,
+    p: &super::bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -2978,7 +2978,7 @@ macro_rules! target_transpose {
         #[target_feature(enable=$features)]
         #[allow(clippy::too_many_arguments)]
         unsafe fn $name(
-            p: &super::kernels::ConvTranspose,
+            p: &super::bound::ConvTranspose,
             input: &[f32],
             weights: &[f32],
             bias: &[f32],
@@ -3001,7 +3001,7 @@ target_transpose!(transpose_avx512, "avx512f,avx2,fma", 16, true);
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn transpose_core<const N: usize, const FMA: bool>(
-    p: &super::kernels::ConvTranspose,
+    p: &super::bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -3028,7 +3028,7 @@ fn transpose_core<const N: usize, const FMA: bool>(
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn transpose_tile_impl<const N: usize, const FMA: bool, const OC: usize>(
-    p: &super::kernels::ConvTranspose,
+    p: &super::bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -3323,7 +3323,7 @@ native::outline! {
         const FMA: bool,
         const OC: usize,
     > (
-        p: &crate::runtime::kernels::ConvTranspose,
+        p: &crate::runtime::bound::ConvTranspose,
         input: &[f32],
         weights: &[f32],
         bias: &[f32],

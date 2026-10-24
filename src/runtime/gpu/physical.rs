@@ -171,67 +171,66 @@ pub(super) fn lower(
     operators::specialize(&mut physical, plan, limits)?;
     let mut layouts = Vec::new();
     for mut r in physical {
-        if let BoundKind::Conv(g) = &plan.steps[r.nodes[0]].kind {
-            if precision == GpuPrecision::MixedF16
-                && g.kh == 1
-                && g.kw == 1
-                && g.sh == 1
-                && g.sw == 1
-                && g.pt == 0
-                && g.pl == 0
-                && g.cpg == g.cin
-                && g.cin >= 64
-                && g.cout >= 64
-                && g.oh * g.ow >= 1024
-                && matches!(
-                    r.kind,
-                    RecipeKind::Compute(ShaderKind::Conv16 | ShaderKind::Conv32)
-                )
-            {
-                let padded = g.cin.div_ceil(16) * 16;
-                let count = g.batch * g.height * g.width * padded;
-                checked_storage_bytes(count, limits)?;
-                let storage = TensorId(plan.shapes.len());
-                let shape = plan.shapes[r.inputs[0].0];
-                plan.shapes.push(Shape::new(&[count])?);
-                plan.slots.push(usize::MAX);
-                descriptors.push(GpuTensorDescriptor {
-                    shape,
-                    precision,
-                    layout: GpuLayout::PaddedNhwc { channels: padded },
-                    strides: vec![g.height * g.width * padded, 1, g.width * padded, padded],
-                    storage_offset: 0,
-                });
-                let (x, y) = dispatch_grid(count, limits)?;
-                let mut words = [0; 128];
-                words[0] = count as u32;
-                words[1] = x * 64;
-                words[2] = 24;
-                words[3] = g.cin as u32;
-                words[4] = (g.height * g.width) as u32;
-                words[5] = padded as u32;
-                layouts.push(Recipe {
-                    node: r.node,
-                    nodes: vec![r.nodes[0]],
-                    kind: RecipeKind::Compute(ShaderKind::General),
-                    inputs: vec![r.inputs[0]],
-                    output: storage,
-                    words,
-                    x,
-                    y,
-                });
-                r.inputs[0] = storage;
-                r.kind = RecipeKind::Compute(ShaderKind::PointwiseNhwc);
-                r.words[32] = (g.oh * g.ow).div_ceil(16) as u32;
-                r.words[33] = g.cout.div_ceil(16) as u32;
-                r.words[35] = g.batch as u32;
-                r.words[36] = padded as u32;
-                (r.x, r.y) = dispatch_grid(
-                    g.batch * r.words[32] as usize * r.words[33] as usize * 64,
-                    limits,
-                )?;
-                r.words[34] = r.x;
-            }
+        if let BoundKind::Conv(g) = &plan.steps[r.nodes[0]].kind
+            && precision == GpuPrecision::MixedF16
+            && g.kh == 1
+            && g.kw == 1
+            && g.sh == 1
+            && g.sw == 1
+            && g.pt == 0
+            && g.pl == 0
+            && g.cpg == g.cin
+            && g.cin >= 64
+            && g.cout >= 64
+            && g.oh * g.ow >= 1024
+            && matches!(
+                r.kind,
+                RecipeKind::Compute(ShaderKind::Conv16 | ShaderKind::Conv32)
+            )
+        {
+            let padded = g.cin.div_ceil(16) * 16;
+            let count = g.batch * g.height * g.width * padded;
+            checked_storage_bytes(count, limits)?;
+            let storage = TensorId(plan.shapes.len());
+            let shape = plan.shapes[r.inputs[0].0];
+            plan.shapes.push(Shape::new(&[count])?);
+            plan.slots.push(usize::MAX);
+            descriptors.push(GpuTensorDescriptor {
+                shape,
+                precision,
+                layout: GpuLayout::PaddedNhwc { channels: padded },
+                strides: vec![g.height * g.width * padded, 1, g.width * padded, padded],
+                storage_offset: 0,
+            });
+            let (x, y) = dispatch_grid(count, limits)?;
+            let mut words = [0; 128];
+            words[0] = count as u32;
+            words[1] = x * 64;
+            words[2] = 24;
+            words[3] = g.cin as u32;
+            words[4] = (g.height * g.width) as u32;
+            words[5] = padded as u32;
+            layouts.push(Recipe {
+                node: r.node,
+                nodes: vec![r.nodes[0]],
+                kind: RecipeKind::Compute(ShaderKind::General),
+                inputs: vec![r.inputs[0]],
+                output: storage,
+                words,
+                x,
+                y,
+            });
+            r.inputs[0] = storage;
+            r.kind = RecipeKind::Compute(ShaderKind::PointwiseNhwc);
+            r.words[32] = (g.oh * g.ow).div_ceil(16) as u32;
+            r.words[33] = g.cout.div_ceil(16) as u32;
+            r.words[35] = g.batch as u32;
+            r.words[36] = padded as u32;
+            (r.x, r.y) = dispatch_grid(
+                g.batch * r.words[32] as usize * r.words[33] as usize * 64,
+                limits,
+            )?;
+            r.words[34] = r.x;
         }
         layouts.push(r);
     }
@@ -339,36 +338,34 @@ pub(super) fn lower(
         // measured FP32 pointwise shapes without adding a layout conversion.
         // Large channel reductions retain the original kernel: current device
         // measurements do not establish a benefit there.
-        if precision == GpuPrecision::F32 {
-            if let BoundKind::Conv(g) = &plan.steps[recipe.nodes[0]].kind {
-                if g.kh == 1
-                    && g.kw == 1
-                    && g.sh == 1
-                    && g.sw == 1
-                    && g.pt == 0
-                    && g.pl == 0
-                    && g.oh == g.height
-                    && g.ow == g.width
-                    && g.cpg == g.cin
-                    && g.cin <= 256
-                {
-                    recipe.kind = match recipe.kind {
-                        RecipeKind::Compute(ShaderKind::Conv16) => {
-                            RecipeKind::Compute(ShaderKind::PointwiseNchw16)
-                        }
-                        RecipeKind::Compute(ShaderKind::Conv32) => {
-                            RecipeKind::Compute(ShaderKind::PointwiseNchw32)
-                        }
-                        RecipeKind::Compute(ShaderKind::ConvPrescaled16) => {
-                            RecipeKind::Compute(ShaderKind::PointwisePrescaled16)
-                        }
-                        RecipeKind::Compute(ShaderKind::ConvPrescaled32) => {
-                            RecipeKind::Compute(ShaderKind::PointwisePrescaled32)
-                        }
-                        other => other,
-                    };
+        if precision == GpuPrecision::F32
+            && let BoundKind::Conv(g) = &plan.steps[recipe.nodes[0]].kind
+            && g.kh == 1
+            && g.kw == 1
+            && g.sh == 1
+            && g.sw == 1
+            && g.pt == 0
+            && g.pl == 0
+            && g.oh == g.height
+            && g.ow == g.width
+            && g.cpg == g.cin
+            && g.cin <= 256
+        {
+            recipe.kind = match recipe.kind {
+                RecipeKind::Compute(ShaderKind::Conv16) => {
+                    RecipeKind::Compute(ShaderKind::PointwiseNchw16)
                 }
-            }
+                RecipeKind::Compute(ShaderKind::Conv32) => {
+                    RecipeKind::Compute(ShaderKind::PointwiseNchw32)
+                }
+                RecipeKind::Compute(ShaderKind::ConvPrescaled16) => {
+                    RecipeKind::Compute(ShaderKind::PointwisePrescaled16)
+                }
+                RecipeKind::Compute(ShaderKind::ConvPrescaled32) => {
+                    RecipeKind::Compute(ShaderKind::PointwisePrescaled32)
+                }
+                other => other,
+            };
         }
         if matches!(
             recipe.kind,

@@ -16,6 +16,7 @@ include = [
     "examples/gpu_projection_bench.rs",
     "examples/gpu_shader_check.rs",
     "docs/cpu-usage.md",
+    "docs/architecture.md",
     "docs/macos-cpu-validation.md",
     "docs/gpu-usage.md",
     "docs/gpu-validation.md",

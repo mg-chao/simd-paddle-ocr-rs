@@ -197,10 +197,23 @@ fn assert_close(label: &str, actual: &[f32], expected: &[f32]) {
 }
 
 fn compare(model: Arc<Model>, shape: &[usize], label: &str) {
-    assert_eq!(model.cached_packed_weight_bytes(), 0);
-    let compiled = Arc::new(GpuCompiledModel::compile(model.clone(), hardware()).unwrap());
+    let compiler = crate::runtime::Compiler::new(crate::runtime::CompilerOptions {
+        gpu: Some(hardware()),
+        ..Default::default()
+    });
+    assert_eq!(compiler.cached_packed_weight_bytes(), 0);
+    let compiled = compiler
+        .compile(
+            model.clone(),
+            CompileOptions::default(),
+            crate::ExecutionTarget::Gpu,
+        )
+        .unwrap()
+        .as_gpu()
+        .unwrap()
+        .clone();
     assert_eq!(
-        model.cached_packed_weight_bytes(),
+        compiler.cached_packed_weight_bytes(),
         0,
         "GPU compilation must not prepare CPU packs"
     );
@@ -676,8 +689,21 @@ fn branch_model() -> Arc<Model> {
 #[ignore = "requires a physical GPU; run explicitly with --ignored --nocapture"]
 fn gpu_hardware_branch_rejoin_repeated_runs_and_shared_sessions() {
     let model = branch_model();
-    let compiled = Arc::new(GpuCompiledModel::compile(model.clone(), hardware()).unwrap());
-    assert_eq!(model.cached_packed_weight_bytes(), 0);
+    let compiler = crate::runtime::Compiler::new(crate::runtime::CompilerOptions {
+        gpu: Some(hardware()),
+        ..Default::default()
+    });
+    let compiled = compiler
+        .compile(
+            model.clone(),
+            CompileOptions::default(),
+            crate::ExecutionTarget::Gpu,
+        )
+        .unwrap()
+        .as_gpu()
+        .unwrap()
+        .clone();
+    assert_eq!(compiler.cached_packed_weight_bytes(), 0);
     let shape = [1, 2, 5, 7];
     let mut first = GpuSession::new(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
     let mut second = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
@@ -758,26 +784,27 @@ fn bind_program(
 
 #[test]
 fn supported_operators_are_validated_without_gpu_or_cpu_packing() {
+    let compiler = crate::runtime::Compiler::default();
     for model in [
         branch_model(),
         binary_model("Add", &[2, 3], &[3], true),
         binary_model("Mul", &[2, 3], &[], false),
     ] {
-        let program = Program::compile(model.clone()).unwrap();
+        let program = compiler.resources(model.clone()).unwrap().graph.clone();
         validate_supported(&program).unwrap();
-        assert_eq!(model.cached_packed_weight_bytes(), 0);
+        assert_eq!(compiler.cached_packed_weight_bytes(), 0);
     }
     for op in ["Sigmoid", "Sqrt", "Erf"] {
         let model = model(vec![node(op, &["x"], "y", &[])], &[2, 3], &[2, 3]);
-        let program = Program::compile(model.clone()).unwrap();
+        let program = compiler.resources(model.clone()).unwrap().graph.clone();
         validate_supported(&program).unwrap();
-        assert_eq!(model.cached_packed_weight_bytes(), 0);
+        assert_eq!(compiler.cached_packed_weight_bytes(), 0);
     }
     for op in ["Sub", "Div"] {
         let model = binary_model(op, &[2, 3], &[3], false);
-        let program = Program::compile(model.clone()).unwrap();
+        let program = compiler.resources(model.clone()).unwrap().graph.clone();
         validate_supported(&program).unwrap();
-        assert_eq!(model.cached_packed_weight_bytes(), 0);
+        assert_eq!(compiler.cached_packed_weight_bytes(), 0);
     }
 }
 
@@ -1005,15 +1032,9 @@ fn gpu_dispatch_grid_covers_tails_and_rejects_device_dimension_overflow() {
         ..Default::default()
     };
     assert_eq!(dispatch_grid(1, &limits).unwrap(), (1, 1));
-    assert_eq!(
-        dispatch_grid(WORKGROUP_SIZE as usize + 1, &limits).unwrap(),
-        (2, 1)
-    );
-    assert_eq!(
-        dispatch_grid(4 * WORKGROUP_SIZE as usize, &limits).unwrap(),
-        (2, 2)
-    );
-    assert!(dispatch_grid(4 * WORKGROUP_SIZE as usize + 1, &limits).is_err());
+    assert_eq!(dispatch_grid(WORKGROUP_SIZE + 1, &limits).unwrap(), (2, 1));
+    assert_eq!(dispatch_grid(4 * WORKGROUP_SIZE, &limits).unwrap(), (2, 2));
+    assert!(dispatch_grid(4 * WORKGROUP_SIZE + 1, &limits).is_err());
     assert!(dispatch_grid(usize::MAX, &limits).is_err());
 }
 
@@ -1720,7 +1741,7 @@ fn gpu_hardware_resident_fusions_and_experimental_selection() {
 fn gpu_hardware_nhwc_pointwise_region_preserves_boundaries() {
     let context = GpuContext::new_with_options(GpuContextOptions {
         backend: hardware().options().backend,
-        precision: GpuPrecision::MixedF16,
+        shader_f16: true,
         ..Default::default()
     })
     .unwrap();
@@ -1748,7 +1769,19 @@ fn gpu_hardware_nhwc_pointwise_region_preserves_boundaries() {
     );
     let input = values(shape.iter().product(), 1);
     let (_, expected) = reference(graph.clone(), &shape, &input);
-    let compiled = Arc::new(GpuCompiledModel::compile(graph, context).unwrap());
+    let compiled = Arc::new(
+        GpuCompiledModel::compile_with_options(
+            graph,
+            context,
+            super::super::CompileOptions {
+                gpu: GpuCompileOptions {
+                    precision: GpuPrecision::MixedF16,
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
     let mut session =
         GpuSession::new(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
     let actual = session.run(&input).unwrap();
@@ -1767,7 +1800,7 @@ fn gpu_hardware_nhwc_pointwise_region_preserves_boundaries() {
 fn gpu_hardware_mixed_storage_and_optional_subgroups() {
     for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
         let context = GpuContext::new_with_options(GpuContextOptions {
-            precision,
+            shader_f16: precision == GpuPrecision::MixedF16,
             subgroups: true,
             backend: hardware().options().backend,
             ..Default::default()
@@ -1786,7 +1819,17 @@ fn gpu_hardware_mixed_storage_and_optional_subgroups() {
             &shape,
             &shape,
         );
-        let compiled = Arc::new(GpuCompiledModel::compile(graph.clone(), context.clone()).unwrap());
+        let compiled = Arc::new(
+            GpuCompiledModel::compile_with_options(
+                graph.clone(),
+                context.clone(),
+                super::super::CompileOptions {
+                    gpu: GpuCompileOptions { precision },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
         let mut unfused =
             GpuSession::new_unoptimized(compiled, &shape, ExecutionLimits::default()).unwrap();
         assert_eq!(unfused.input_precision(), GpuPrecision::F32);
@@ -1805,7 +1848,17 @@ fn gpu_hardware_mixed_storage_and_optional_subgroups() {
             );
             let input = values(3 * columns, 1);
             let (_, expected) = reference(graph.clone(), &shape, &input);
-            let compiled = Arc::new(GpuCompiledModel::compile(graph, context.clone()).unwrap());
+            let compiled = Arc::new(
+                GpuCompiledModel::compile_with_options(
+                    graph,
+                    context.clone(),
+                    super::super::CompileOptions {
+                        gpu: GpuCompileOptions { precision },
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
+            );
             for fusion in [false, true] {
                 let mut session = if fusion {
                     GpuSession::new(compiled.clone(), &shape, ExecutionLimits::default())
@@ -1832,9 +1885,7 @@ fn gpu_hardware_mixed_storage_and_optional_subgroups() {
 #[test]
 #[ignore = "requires a physical GPU; injects device failure into a private context"]
 fn gpu_hardware_strict_auto_callbacks_and_concurrent_sessions() {
-    use crate::runtime::{
-        CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget, Session,
-    };
+    use crate::runtime::{ExecutionBackend, ExecutionTarget, Session};
     let context = GpuContext::new_with_options(GpuContextOptions {
         backend: hardware().options().backend,
         max_in_flight: 2,
@@ -1843,17 +1894,14 @@ fn gpu_hardware_strict_auto_callbacks_and_concurrent_sessions() {
     .unwrap();
     let model = branch_model();
     let shape = [1, 2, 5, 7];
+    let compiler = crate::runtime::Compiler::new(crate::runtime::CompilerOptions {
+        gpu: Some(context.clone()),
+        ..Default::default()
+    });
     let compile = |target| {
-        CompiledModel::compile(
-            model.clone(),
-            CompileOptions::default(),
-            ExecutionConfig {
-                target,
-                gpu: Some(context.clone()),
-                ..Default::default()
-            },
-        )
-        .unwrap()
+        compiler
+            .compile(model.clone(), CompileOptions::default(), target)
+            .unwrap()
     };
     let mut strict = Session::new_serial(
         compile(ExecutionTarget::Gpu),
@@ -1869,14 +1917,19 @@ fn gpu_hardware_strict_auto_callbacks_and_concurrent_sessions() {
     assert_eq!(duplicate.as_gpu().unwrap().weight_bytes(), weight_bytes);
     let mut auto =
         Session::new_serial(auto_model.clone(), &shape, ExecutionLimits::default()).unwrap();
-    assert_eq!(model.cached_packed_weight_bytes(), 0);
-    assert!(
-        auto.run_with_input(|_| Err(RuntimeError::with_kind(
-            ErrorKind::DeviceLost,
-            "callback failure"
-        )))
-        .is_err()
-    );
+    assert_eq!(compiler.cached_packed_weight_bytes(), 0);
+    let mut callbacks = 0;
+    let error = auto
+        .run_with_input(|_| {
+            callbacks += 1;
+            Err(RuntimeError::with_kind(
+                ErrorKind::DeviceLost,
+                "callback failure",
+            ))
+        })
+        .unwrap_err();
+    assert_eq!(callbacks, 1);
+    assert_eq!(error.origin(), crate::error::ErrorOrigin::Callback);
     assert_eq!(auto.execution_backend(), ExecutionBackend::Gpu);
     let input = values(70, 1);
     std::thread::scope(|scope| {
@@ -1904,9 +1957,14 @@ fn gpu_hardware_strict_auto_callbacks_and_concurrent_sessions() {
     );
     let output = auto.run(&input).unwrap().data().to_vec();
     assert!(matches!(auto.execution_backend(), ExecutionBackend::Cpu(_)));
-    assert!(auto.fallback_reason().unwrap().contains("injected loss"));
     assert!(
-        model.cached_packed_weight_bytes() > 0,
+        auto.fallback_error()
+            .unwrap()
+            .to_string()
+            .contains("injected loss")
+    );
+    assert!(
+        compiler.cached_packed_weight_bytes() > 0,
         "fallback must compile CPU packs lazily"
     );
     assert_close(
@@ -1962,11 +2020,21 @@ fn gpu_bounded_performance() {
     for (name, graph, shape, precision) in cases {
         let context = GpuContext::new_with_options(GpuContextOptions {
             backend: hardware().options().backend,
-            precision,
+            shader_f16: precision == GpuPrecision::MixedF16,
             ..Default::default()
         })
         .unwrap();
-        let compiled = Arc::new(GpuCompiledModel::compile(graph.clone(), context).unwrap());
+        let compiled = Arc::new(
+            GpuCompiledModel::compile_with_options(
+                graph.clone(),
+                context,
+                super::super::CompileOptions {
+                    gpu: GpuCompileOptions { precision },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
         let input = values(shape.iter().product(), 1);
         let (_, expected) = reference(graph, &shape, &input);
         for optimized in [false, true] {
@@ -2148,8 +2216,10 @@ fn gpu_pointwise_layout_candidates() {
                 let (bytes, stats) = batch.read(&output, expected.len() * 4, false).unwrap();
                 if iteration == 0 {
                     let actual: Vec<f32> = bytes
-                        .chunks_exact(4)
-                        .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+                        .as_chunks::<4>()
+                        .0
+                        .iter()
+                        .map(|b| f32::from_le_bytes(*b))
                         .collect();
                     assert_close(kind.name(), &actual, &expected);
                 } else {
@@ -2209,8 +2279,19 @@ fn benchmark_resident_candidates() {
                 .gpu_pipeline_mode(GpuPipelineMode::Full)
                 .recognition_batch_size(2)
                 .build()
+                .unwrap()
+                .request()
                 .unwrap();
-            let cold = request.run(image, true).unwrap().try_to_owned().unwrap();
+            let cold = request
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap();
             if let Some(expected) = &reference {
                 assert_eq!(&cold.text, expected);
             } else {
@@ -2219,7 +2300,14 @@ fn benchmark_resident_candidates() {
             let mut samples = Vec::new();
             for _ in 0..3 {
                 let clock = std::time::Instant::now();
-                let result = request.run(image, false).unwrap();
+                let result = request
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: false,
+                        },
+                    )
+                    .unwrap();
                 samples.push(clock.elapsed().as_secs_f64() * 1000.);
                 assert_eq!(&result.text, reference.as_ref().unwrap());
             }
@@ -2234,13 +2322,25 @@ fn benchmark_resident_candidates() {
 fn gpu_hardware_full_precision_variant_shares_context_and_isolates_weights() {
     let context = GpuContext::new_with_options(GpuContextOptions {
         backend: hardware().options().backend,
-        precision: GpuPrecision::MixedF16,
+        shader_f16: true,
         ..Default::default()
     })
     .unwrap();
     let (source, _) = crate::ocr::tests::synthetic_sources();
     let model = Arc::new(Model::load_bytes(&source).unwrap());
-    let mixed = Arc::new(GpuCompiledModel::compile(model, context.clone()).unwrap());
+    let mixed = Arc::new(
+        GpuCompiledModel::compile_with_options(
+            model,
+            context.clone(),
+            super::super::CompileOptions {
+                gpu: GpuCompileOptions {
+                    precision: GpuPrecision::MixedF16,
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
     let full = mixed.with_full_precision().unwrap();
     assert!(Arc::ptr_eq(&context, full.context()));
     assert!(Arc::ptr_eq(&full, &mixed.with_full_precision().unwrap()));
@@ -2265,4 +2365,36 @@ fn gpu_hardware_full_precision_variant_shares_context_and_isolates_weights() {
             .all(|&v| (v - expected).abs() < 1e-6)
     );
     assert_eq!(session.statistics().effective_precision, "F32");
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back() {
+    let compiled = Arc::new(GpuCompiledModel::compile(branch_model(), hardware()).unwrap());
+    let shape = [1, 2, 5, 7];
+    let mut resident =
+        GpuSession::new_resident(compiled.clone(), &shape, ExecutionLimits::default(), None)
+            .unwrap();
+    let memory = resident.memory_statistics();
+    assert_eq!(memory.host_input_bytes, 0);
+    assert_eq!(memory.host_output_bytes, 0);
+    assert_eq!(memory.upload_bytes, 0);
+    assert_eq!(memory.readback_bytes, 0);
+    assert!(memory.device_activation_bytes > 0);
+    let before = resident.input_shape();
+    assert!(
+        resident
+            .reshape_with_limits(
+                &shape,
+                ExecutionLimits {
+                    max_activation_bytes: 1
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(resident.input_shape(), before);
+    assert_eq!(resident.memory_statistics(), memory);
+    let mut tensor = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+    assert!(tensor.memory_statistics().host_output_bytes > 0);
+    tensor.run(&values(70, 1)).unwrap();
 }

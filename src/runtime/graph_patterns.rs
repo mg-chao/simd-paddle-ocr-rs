@@ -1,5 +1,5 @@
 //! Backend-independent semantic pattern matching.
-use super::kernels::BoundKind;
+use super::bound::BoundKind;
 use super::*;
 #[derive(Clone, Copy)]
 pub(super) enum Activation {

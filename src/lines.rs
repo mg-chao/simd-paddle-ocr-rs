@@ -250,12 +250,101 @@ pub enum LineTrace<'a> {
     },
 }
 
+#[derive(Clone)]
+pub struct OrientedLinePlan {
+    cpu: Arc<CpuContext>,
+    cpu_options: CpuOptions,
+    detector: std::sync::Arc<crate::detector::DetectorPlan>,
+    classifier: Option<std::sync::Arc<crate::orientation::ClassifierPlan>>,
+    options: LineOptions,
+}
+impl OrientedLinePlan {
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu_pipeline_mode(
+        self: &Arc<Self>,
+        mode: crate::runtime::gpu::GpuPipelineMode,
+    ) -> ImageResult<Arc<Self>> {
+        self.validate_contexts(mode == crate::runtime::gpu::GpuPipelineMode::Full)?;
+        let mut plan = self.as_ref().clone();
+        plan.detector = plan.detector.with_gpu_pipeline_mode(mode);
+        plan.classifier = plan
+            .classifier
+            .as_ref()
+            .map(|c| c.with_gpu_pipeline_mode(mode));
+        Ok(Arc::new(plan))
+    }
+    #[cfg(feature = "gpu")]
+    fn validate_contexts(&self, resident: bool) -> ImageResult<()> {
+        if resident
+            && let (Some(det), Some(cls)) = (
+                self.detector.compiled().as_gpu(),
+                self.classifier.as_ref().and_then(|c| c.compiled().as_gpu()),
+            )
+            && !Arc::ptr_eq(det.context(), cls.context())
+        {
+            return Err(ImageError::new(
+                "resident extraction requires one GPU context",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn new(
+        detector: std::sync::Arc<crate::detector::DetectorPlan>,
+        classifier: Option<CompiledModel>,
+        options: LineOptions,
+    ) -> ImageResult<std::sync::Arc<Self>> {
+        if !options.classifier_threshold.is_finite()
+            || !(0.0..=1.0).contains(&options.classifier_threshold)
+        {
+            return Err(ImageError::new(
+                "classifier_threshold must be finite and within [0,1]",
+            ));
+        }
+        if options.max_crop_pixels == 0
+            || options.max_classifier_image_pixels == 0
+            || options.max_total_crop_bytes == 0
+        {
+            return Err(ImageError::new("image and crop limits must be positive"));
+        }
+        let classifier = classifier
+            .map(|model| {
+                crate::orientation::ClassifierPlan::new(
+                    model,
+                    ClassifierOptions {
+                        max_image_pixels: options.max_classifier_image_pixels,
+                    },
+                    options.classifier_execution_limits,
+                )
+            })
+            .transpose()?;
+        Ok(std::sync::Arc::new(Self {
+            cpu: CpuContext::serial(),
+            cpu_options: CpuOptions::default(),
+            detector,
+            classifier,
+            options,
+        }))
+    }
+    pub fn request(self: &std::sync::Arc<Self>) -> ImageResult<OrientedLineExtractor> {
+        OrientedLineExtractor::from_plan(self.clone())
+    }
+    pub fn detector(&self) -> &std::sync::Arc<crate::detector::DetectorPlan> {
+        &self.detector
+    }
+    pub fn classifier(&self) -> Option<&std::sync::Arc<crate::orientation::ClassifierPlan>> {
+        self.classifier.as_ref()
+    }
+    pub fn options(&self) -> LineOptions {
+        self.options
+    }
+}
 pub struct OrientedLineExtractor {
+    plan: std::sync::Arc<OrientedLinePlan>,
     #[cfg(feature = "gpu")]
     gpu_statistics: Option<crate::runtime::gpu::GpuPipelineStatistics>,
     detector: Detector,
     classifier: Option<Classifier>,
-    options: LineOptions,
     transforms: Vec<CropTransform>,
     metadata: Vec<LineMetadata>,
     slab: Vec<u8>,
@@ -265,6 +354,19 @@ pub struct OrientedLineExtractor {
     classifier_workers: Vec<Classifier>,
 }
 impl OrientedLineExtractor {
+    pub fn plan(&self) -> &std::sync::Arc<OrientedLinePlan> {
+        &self.plan
+    }
+    pub fn set_resize_options(
+        &mut self,
+        policy: crate::detector::DetResizePolicy,
+        limit: usize,
+    ) -> ImageResult<()> {
+        self.detector.set_resize_options(policy, limit)?;
+        std::sync::Arc::make_mut(&mut self.plan).detector = self.detector.plan().clone();
+        Ok(())
+    }
+
     #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu_statistics.as_ref()
@@ -274,19 +376,20 @@ impl OrientedLineExtractor {
         &mut self,
         image: ImageView<'_>,
         profile: &mut crate::profile::StageProfile,
-        failed_stage: &mut crate::runtime::gpu::ocr::Stage,
+        failed_stage: &mut crate::ocr::gpu::Stage,
     ) -> ImageResult<crate::preprocess::DetSize> {
-        use crate::runtime::gpu::{heads::Classification, ocr::Stage, resident::*, vision};
+        use crate::ocr::gpu::Stage;
+        use crate::runtime::gpu::{resident::*, vision};
         *failed_stage = Stage::Detector;
         let detection = self.detector.detect_resident(image, PROFILE)?;
-        let crops = vision::Crops::prepare(&detection, self.options)?;
+        let crops = vision::Crops::prepare(&detection, self.plan.options)?;
         let mut statistics = detection.statistics.clone();
         vision::merge_statistics(&mut statistics, crops.statistics.clone());
         if self.classifier.is_some()
             && crops
                 .sizes
                 .iter()
-                .any(|&[w, h]| w * h > self.options.max_classifier_image_pixels)
+                .any(|&[w, h]| w * h > self.plan.options.max_classifier_image_pixels)
         {
             return Err(ImageError::new("crop exceeds max_classifier_image_pixels"));
         }
@@ -308,7 +411,7 @@ impl OrientedLineExtractor {
                     &mut batch,
                     &crop,
                     &winner,
-                    self.options.classifier_threshold,
+                    self.plan.options.classifier_threshold,
                 )?;
                 class = Some((winner, resized_width));
                 image
@@ -327,7 +430,7 @@ impl OrientedLineExtractor {
             let (data, stats) = batch.read(&output, aligned + 16, false)?;
             vision::merge_statistics(&mut statistics, stats);
             let classification = class
-                .map(|(_, width)| Classification::parse(&data[..16], width))
+                .map(|(_, width)| crate::orientation::parse_gpu_classification(&data[..16], width))
                 .transpose()?;
             let offset = self.slab.len();
             self.slab
@@ -345,7 +448,7 @@ impl OrientedLineExtractor {
                 unrotated_height,
                 vertical_rotation: vertical != 0,
                 applied_rotation_degrees: if classification
-                    .is_some_and(|c| should_rotate(c, self.options.classifier_threshold))
+                    .is_some_and(|c| should_rotate(c, self.plan.options.classifier_threshold))
                 {
                     180
                 } else {
@@ -367,7 +470,23 @@ impl OrientedLineExtractor {
         Ok(detection.size)
     }
     #[cfg(feature = "gpu")]
-    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
+    pub(crate) fn reset_run_statistics(&mut self) {
+        self.gpu_statistics = None;
+        self.detector.reset_run_statistics();
+        if let Some(c) = &mut self.classifier {
+            c.reset_run_statistics();
+        }
+        for c in &mut self.classifier_workers {
+            c.reset_run_statistics();
+        }
+    }
+    #[cfg(feature = "gpu")]
+    pub fn set_gpu_pipeline_mode(
+        &mut self,
+        mode: crate::runtime::gpu::GpuPipelineMode,
+    ) -> ImageResult<()> {
+        self.plan
+            .validate_contexts(mode == crate::runtime::gpu::GpuPipelineMode::Full)?;
         self.gpu_statistics = None;
         self.detector.set_gpu_pipeline_mode(mode);
         if let Some(cls) = &mut self.classifier {
@@ -376,82 +495,69 @@ impl OrientedLineExtractor {
         for cls in &mut self.classifier_workers {
             cls.set_gpu_pipeline_mode(mode);
         }
+        let plan = Arc::make_mut(&mut self.plan);
+        plan.detector = self.detector.plan().clone();
+        plan.classifier = self.classifier.as_ref().map(|c| c.plan().clone());
+        Ok(())
     }
     pub fn detector(&self) -> &Detector {
         &self.detector
     }
+    pub(crate) fn classifier_statistics(&self) -> Vec<crate::runtime::ExecutionStatistics> {
+        self.classifier
+            .iter()
+            .chain(&self.classifier_workers)
+            .map(Classifier::execution_statistics)
+            .collect()
+    }
     pub fn classifier(&self) -> Option<&Classifier> {
         self.classifier.as_ref()
     }
-    pub(crate) fn classifier_model(&self) -> Option<&CompiledModel> {
-        self.classifier.as_ref().map(Classifier::compiled)
-    }
     pub(crate) fn uses_gpu(&self) -> bool {
-        self.detector.compiled().is_gpu()
-            || self
-                .classifier
-                .as_ref()
-                .is_some_and(|c| c.compiled().is_gpu())
+        self.detector.uses_gpu() || self.classifier.as_ref().is_some_and(|c| c.uses_gpu())
     }
     pub fn new(
         detector: Detector,
         classifier: Option<CompiledModel>,
         options: LineOptions,
     ) -> ImageResult<Self> {
-        if !options.classifier_threshold.is_finite()
-            || !(0.0..=1.0).contains(&options.classifier_threshold)
-        {
-            return Err(ImageError::new(
-                "classifier_threshold must be finite and within [0,1]",
-            ));
+        OrientedLinePlan::new(detector.plan().clone(), classifier, options)?.request()
+    }
+    fn from_plan(plan: std::sync::Arc<OrientedLinePlan>) -> ImageResult<Self> {
+        let mut detector = plan.detector.request()?;
+        let mut classifier = plan.classifier.as_ref().map(|c| c.request()).transpose()?;
+        #[cfg(feature = "gpu")]
+        plan.validate_contexts(
+            detector.is_full_gpu() && classifier.as_ref().is_none_or(Classifier::is_full_gpu),
+        )?;
+        let budgets = plan.cpu_options.resolve(
+            plan.cpu.capacity(),
+            detector
+                .compiled()
+                .as_cpu()
+                .is_some_and(|c| c.options().cpu.layout == crate::runtime::LayoutPolicy::Auto),
+        )?;
+        detector.set_execution_context(plan.cpu.clone(), budgets.detector_threads())?;
+        if let Some(c) = &mut classifier {
+            c.set_execution_context(plan.cpu.clone(), 1)?;
         }
-        if options.max_crop_pixels == 0
-            || options.max_classifier_image_pixels == 0
-            || options.max_total_crop_bytes == 0
-        {
-            return Err(ImageError::new("image and crop limits must be positive"));
-        }
-        let classifier = classifier
-            .map(|model| {
-                Classifier::new_with_options(
-                    model,
-                    ClassifierOptions {
-                        max_image_pixels: options.max_classifier_image_pixels,
-                    },
-                    options.classifier_execution_limits,
-                )
-            })
-            .transpose()?;
         Ok(Self {
             detector,
             #[cfg(feature = "gpu")]
             gpu_statistics: None,
             classifier,
-            options,
             transforms: Vec::new(),
             metadata: Vec::new(),
             slab: Vec::new(),
-            cpu: CpuContext::serial(),
-            cpu_options: CpuOptions::default(),
-            budgets: CpuOptions::default().resolve(1, true)?,
+            cpu: plan.cpu.clone(),
+            cpu_options: plan.cpu_options,
+            budgets,
+            plan,
             classifier_workers: Vec::new(),
         })
     }
     pub fn fork(&self) -> ImageResult<Self> {
-        Ok(Self {
-            detector: self.detector.fork()?,
-            #[cfg(feature = "gpu")]
-            gpu_statistics: None,
-            classifier: self.classifier.as_ref().map(Classifier::fork).transpose()?,
-            options: self.options,
-            transforms: Vec::new(),
-            metadata: Vec::new(),
-            slab: Vec::new(),
-            cpu: self.cpu.clone(),
-            cpu_options: self.cpu_options,
-            budgets: self.budgets,
-            classifier_workers: Vec::new(),
-        })
+        self.plan.request()
     }
     pub fn set_execution_context(
         &mut self,
@@ -463,7 +569,7 @@ impl OrientedLineExtractor {
             self.detector
                 .compiled()
                 .as_cpu()
-                .is_some_and(|c| c.options().layout == crate::runtime::LayoutPolicy::Auto),
+                .is_some_and(|c| c.options().cpu.layout == crate::runtime::LayoutPolicy::Auto),
         )?;
         self.detector
             .set_execution_context(cpu.clone(), budgets.detector_threads())?;
@@ -473,16 +579,22 @@ impl OrientedLineExtractor {
         for classifier in &mut self.classifier_workers {
             classifier.set_execution_context(cpu.clone(), 1)?;
         }
+        let plan = Arc::make_mut(&mut self.plan);
+        plan.cpu = cpu.clone();
+        plan.cpu_options = options;
+        plan.detector = self.detector.plan().clone();
+        plan.classifier = self.classifier.as_ref().map(|c| c.plan().clone());
         self.cpu = cpu;
         self.cpu_options = options;
         self.budgets = budgets;
         Ok(())
     }
-    pub fn detector_mut(&mut self) -> &mut Detector {
+    #[cfg(test)]
+    pub(crate) fn detector_mut(&mut self) -> &mut Detector {
         &mut self.detector
     }
     pub fn options(&self) -> LineOptions {
-        self.options
+        self.plan.options
     }
     pub fn extract(&mut self, image: ImageView<'_>) -> ImageResult<OrientedLines<'_>> {
         self.extract_profiled::<false>(image, &mut crate::profile::StageProfile::default())
@@ -522,8 +634,8 @@ impl OrientedLineExtractor {
     {
         self.extract_impl::<true, false, _, _>(
             image,
-            &mut det_observer,
-            &mut line_observer,
+            &mut |event| det_observer(event).map_err(ImageError::callback),
+            &mut |event| line_observer(event).map_err(ImageError::callback),
             &mut crate::profile::StageProfile::default(),
         )
     }
@@ -547,7 +659,7 @@ impl OrientedLineExtractor {
             && self.detector.is_full_gpu()
             && self.classifier.as_ref().is_none_or(Classifier::is_full_gpu)
         {
-            use crate::runtime::gpu::ocr::Stage;
+            use crate::ocr::gpu::Stage;
             let mut stage = Stage::Shared;
             match self.extract_resident::<PROFILE>(image, profile, &mut stage) {
                 Ok(size) => {
@@ -575,10 +687,11 @@ impl OrientedLineExtractor {
                         self.detector.execution_limits(),
                     )?;
                     let classifier = self
-                        .classifier_model()
+                        .classifier()
+                        .map(Classifier::compiled)
                         .map(|model| fallback(model, Stage::Classifier))
                         .transpose()?;
-                    let mut replacement = Self::new(detector, classifier, self.options)?;
+                    let mut replacement = Self::new(detector, classifier, self.plan.options)?;
                     replacement.set_execution_context(self.cpu.clone(), self.cpu_options)?;
                     *self = replacement;
                 }
@@ -618,10 +731,10 @@ impl OrientedLineExtractor {
                 .width()
                 .checked_mul(transform.height())
                 .ok_or_else(|| ImageError::new("crop pixel overflow"))?;
-            if pixels > self.options.max_crop_pixels {
+            if pixels > self.plan.options.max_crop_pixels {
                 return Err(ImageError::new("crop exceeds max_crop_pixels"));
             }
-            if self.classifier.is_some() && pixels > self.options.max_classifier_image_pixels {
+            if self.classifier.is_some() && pixels > self.plan.options.max_classifier_image_pixels {
                 return Err(ImageError::new("crop exceeds max_classifier_image_pixels"));
             }
             let bytes = pixels
@@ -630,7 +743,9 @@ impl OrientedLineExtractor {
             let offset = total;
             total = total
                 .checked_add(bytes)
-                .filter(|&n| n <= self.options.max_total_crop_bytes && n <= isize::MAX as usize)
+                .filter(|&n| {
+                    n <= self.plan.options.max_total_crop_bytes && n <= isize::MAX as usize
+                })
                 .ok_or_else(|| ImageError::new("crops exceed max_total_crop_bytes"))?;
             self.metadata.push(LineMetadata {
                 detection: *detection_box,
@@ -659,10 +774,7 @@ impl OrientedLineExtractor {
         if PROFILE {
             profile.crop_ns = profile.crop_ns.saturating_add(crop_timer.elapsed());
         }
-        let gpu_classifier = self
-            .classifier
-            .as_ref()
-            .is_some_and(|c| c.compiled().is_gpu());
+        let gpu_classifier = self.classifier.as_ref().is_some_and(|c| c.uses_gpu());
         let crops_ready = !TRACE && self.cpu.capacity() > 1 && !self.metadata.is_empty();
         if crops_ready {
             extract_parallel::<PROFILE>(
@@ -678,7 +790,7 @@ impl OrientedLineExtractor {
                     &self.classifier
                 },
                 &mut self.classifier_workers,
-                self.options.classifier_threshold,
+                self.plan.options.classifier_threshold,
                 profile,
             )?;
             if !gpu_classifier {
@@ -742,7 +854,7 @@ impl OrientedLineExtractor {
                     classifier.classify_profiled::<PROFILE>(crop, profile)?
                 };
                 metadata.classification = Some(result);
-                if should_rotate(result, self.options.classifier_threshold) {
+                if should_rotate(result, self.plan.options.classifier_threshold) {
                     let rotation_timer = crate::profile::Timer::<PROFILE>::start();
                     self.cpu
                         .install(|| crop::rotate180(pixels, metadata.width, metadata.height))?;

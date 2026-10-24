@@ -99,6 +99,7 @@ unsafe fn full_k(
 
 #[test]
 #[ignore = "physical AVX2 diagnostic: three shapes, one warmup and three alternating pairs"]
+#[allow(clippy::needless_range_loop, clippy::assertions_on_constants)]
 fn inline_pointwise_comparison() {
     assert!(simd::avx2_fma_available());
     #[cfg(windows)]

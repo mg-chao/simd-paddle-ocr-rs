@@ -1,12 +1,6 @@
 //! Storage precision is independent of shader arithmetic: all accumulators are F32.
 use super::*;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize)]
-pub enum GpuPrecision {
-    #[default]
-    F32,
-    MixedF16,
-}
 impl GpuPrecision {
     pub(super) fn bytes(self, elements: usize) -> usize {
         (elements * if self == Self::F32 { 4 } else { 2 }).div_ceil(4) * 4
@@ -20,7 +14,7 @@ impl GpuPrecision {
         if self == Self::F32 {
             bytes[..values.len() * 4].copy_from_slice(bytemuck::cast_slice(values));
         } else {
-            for (value, dest) in values.iter().zip(bytes.chunks_exact_mut(2)) {
+            for (value, dest) in values.iter().zip(bytes.as_chunks_mut::<2>().0.iter_mut()) {
                 dest.copy_from_slice(&half::f16::from_f32(*value).to_le_bytes());
             }
         }
@@ -35,7 +29,7 @@ impl GpuPrecision {
         if self == Self::F32 {
             return decode_f32(bytes, values);
         }
-        for (dest, src) in values.iter_mut().zip(bytes.chunks_exact(2)) {
+        for (dest, src) in values.iter_mut().zip(bytes.as_chunks::<2>().0.iter()) {
             *dest = half::f16::from_le_bytes([src[0], src[1]]).to_f32();
         }
         Ok(())

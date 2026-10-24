@@ -45,6 +45,25 @@ pub struct GpuPipelineStatistics {
     pub projection: GpuPlacement,
     pub decoding: GpuPlacement,
 }
+impl GpuPipelineStatistics {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        (self.cpu_compute_stages.capacity() + self.kernels.capacity()) * size_of::<String>()
+            + self
+                .cpu_compute_stages
+                .iter()
+                .chain(&self.kernels)
+                .map(String::capacity)
+                .sum::<usize>()
+            + self.adapter.capacity()
+            + self.backend.capacity()
+            + self.driver.capacity()
+            + self.driver_info.capacity()
+            + self
+                .profile
+                .as_ref()
+                .map_or(0, GpuExecutionProfile::retained_bytes)
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub enum GpuPlacement {
     #[default]
@@ -146,7 +165,7 @@ pub(crate) fn storage(context: &GpuContext, label: &str, bytes: usize) -> Runtim
         .ok_or_else(|| resource("resident allocation overflow"))?
         / 4
         * 4;
-    if bytes == 0 || bytes as u64 > context.limits.max_storage_buffer_binding_size as u64 {
+    if bytes == 0 || bytes as u64 > context.limits.max_storage_buffer_binding_size {
         return Err(resource(format!(
             "{label} exceeds GPU storage binding limit"
         )));
@@ -732,7 +751,7 @@ impl Batch {
         }
         self.submit(source, bytes, control, &gate)?.finish()
     }
-    pub(super) fn submit<'a>(
+    pub(crate) fn submit<'a>(
         mut self,
         source: &GpuBuffer,
         bytes: usize,
@@ -745,7 +764,7 @@ impl Batch {
                 "resident admission belongs to another GPU context",
             ));
         }
-        if bytes == 0 || bytes % 4 != 0 || bytes as u64 > source.size() {
+        if bytes == 0 || !bytes.is_multiple_of(4) || bytes as u64 > source.size() {
             return Err(resource("invalid resident readback size"));
         }
         let readback = self.context.create_buffer(
@@ -987,7 +1006,7 @@ pub(crate) fn preprocess_at(
     batch.dispatch(
         &format!("image_normalize_{precision:?}"),
         &source_code,
-        &[(&image.buffer, true), (&lut, true), (&output.buffer, false)],
+        &[(&image.buffer, true), (lut, true), (&output.buffer, false)],
         &words,
         [x, y, 1],
     )

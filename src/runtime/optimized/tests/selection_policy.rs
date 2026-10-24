@@ -78,7 +78,10 @@ fn dense_pointwise_output_panels_and_neutral_inputs_follow_pinned_layout_gates()
             let request = session(
                 single_conv(cin, cout, 1, 1),
                 CompileOptions {
-                    kernels,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels,
+                        ..CompileOptions::default().cpu
+                    },
                     ..CompileOptions::default()
                 },
                 &shape,
@@ -173,8 +176,11 @@ fn a_narrow_pad_end_segment_has_two_internal_layout_transitions_and_restarts_at_
     let request = session(
         narrow_pad_end_segment(),
         CompileOptions {
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default().cpu
+            },
             fusion: false,
-            kernels: KernelPolicy::Portable4,
             ..CompileOptions::default()
         },
         &[1, 3, 5, 17],
@@ -195,9 +201,12 @@ fn neon_narrow_pad_end_keeps_a_segment_and_preserves_explicit_nchw() {
         let request = session(
             narrow_pad_end_segment(),
             CompileOptions {
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::NeonFma,
+                    layout,
+                },
                 fusion: false,
-                kernels: KernelPolicy::NeonFma,
-                layout,
+                ..Default::default()
             },
             &[1, 3, 5, 17],
         );
@@ -244,7 +253,10 @@ fn neon_narrow_pad_end_eligibility_is_limited_to_native_detector_geometry() {
         let request = session(
             parsed,
             CompileOptions {
-                kernels: KernelPolicy::NeonFma,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::NeonFma,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
             &[2, cin, 3, 7],
@@ -254,7 +266,10 @@ fn neon_narrow_pad_end_eligibility_is_limited_to_native_detector_geometry() {
         let pointwise = session(
             single_conv(cin, cout, 1, 1),
             CompileOptions {
-                kernels: KernelPolicy::NeonFma,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::NeonFma,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
             &[2, cin, 3, 7],
@@ -323,7 +338,10 @@ fn neon_narrow_three_eligibility_keeps_other_policies_and_geometry() {
             let request = session(
                 parsed.clone(),
                 CompileOptions {
-                    kernels,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels,
+                        ..CompileOptions::default().cpu
+                    },
                     ..CompileOptions::default()
                 },
                 &[2, cin, height, width],
@@ -365,9 +383,12 @@ fn neon_narrow_three_eligibility_keeps_other_policies_and_geometry() {
         let canonical = session(
             parsed,
             CompileOptions {
-                kernels: KernelPolicy::NeonFma,
-                layout: LayoutPolicy::Nchw,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::NeonFma,
+                    layout: LayoutPolicy::Nchw,
+                },
                 fusion: false,
+                ..Default::default()
             },
             &[2, cin, height, width],
         );
@@ -449,9 +470,12 @@ fn check_neon_narrow_session(cin: usize, cout: usize, kernel: usize, stride: usi
                 CpuCompiledModel::compile(
                     parsed.clone(),
                     CompileOptions {
-                        kernels: KernelPolicy::NeonFma,
-                        layout: LayoutPolicy::Auto,
+                        cpu: crate::runtime::CpuCompileOptions {
+                            kernels: KernelPolicy::NeonFma,
+                            layout: LayoutPolicy::Auto,
+                        },
                         fusion,
+                        ..Default::default()
                     },
                 )
                 .unwrap(),
@@ -568,7 +592,10 @@ fn eight_channel_pad_end_matches_an_independent_ordered_oracle_for_all_budgets_a
                 CpuCompiledModel::compile(
                     parsed.clone(),
                     CompileOptions {
-                        kernels,
+                        cpu: crate::runtime::CpuCompileOptions {
+                            kernels,
+                            ..CompileOptions::default().cpu
+                        },
                         ..CompileOptions::default()
                     },
                 )
@@ -637,8 +664,11 @@ fn batch_norm_continues_an_eligible_identity_stem_and_reuses_channel_workspace()
     let mut request = session(
         parsed,
         CompileOptions {
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default().cpu
+            },
             fusion: false,
-            kernels: KernelPolicy::Portable4,
             ..CompileOptions::default()
         },
         &[2, 16, 3, 7],
@@ -721,7 +751,10 @@ fn a_fused_residual_does_not_start_a_segment_for_a_neutral_base_input() {
         let mut request = session(
             parsed.clone(),
             CompileOptions {
-                kernels,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
             &[1, 1, 3, 17],
@@ -771,7 +804,7 @@ fn neon_projection_metadata_distinguishes_four_and_six_row_tiles() {
 #[test]
 fn neon_canonical_metadata_reports_portable_arithmetic_for_both_worker_policies() {
     use crate::runtime::{
-        kernels::{Conv, ConvTranspose},
+        bound::{Conv, ConvTranspose},
         simd::Backend,
     };
     let kind = BoundKind::Conv(Conv {
@@ -827,7 +860,7 @@ fn neon_canonical_metadata_reports_portable_arithmetic_for_both_worker_policies(
 
 #[test]
 fn neon_depthwise_metadata_names_packed_two_pixel_channel_tiles() {
-    use crate::runtime::{kernels::Conv, simd::Backend};
+    use crate::runtime::{bound::Conv, simd::Backend};
     for (channels, kernel, packed, expected) in [
         (32, 3, true, "nhwc_depthwise_neon_2x32"),
         (35, 3, true, "nhwc_depthwise_neon_2x32"),
@@ -882,9 +915,12 @@ fn neon_canonical_fallback_preserves_fused_store_results_and_statistics() {
     let mut control = session(
         parsed.clone(),
         CompileOptions {
-            kernels: KernelPolicy::Portable4,
-            layout: LayoutPolicy::Nchw,
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                layout: LayoutPolicy::Nchw,
+            },
             fusion: false,
+            ..Default::default()
         },
         &shape,
     );
@@ -892,9 +928,12 @@ fn neon_canonical_fallback_preserves_fused_store_results_and_statistics() {
     let mut request = session(
         parsed,
         CompileOptions {
-            kernels: KernelPolicy::NeonFma,
-            layout: LayoutPolicy::Nchw,
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::NeonFma,
+                layout: LayoutPolicy::Nchw,
+            },
             fusion: true,
+            ..Default::default()
         },
         &shape,
     );

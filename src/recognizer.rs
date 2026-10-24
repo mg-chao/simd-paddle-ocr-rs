@@ -379,7 +379,7 @@ impl CpuProjection {
     fn new(compiled: &CompiledModel, head: &ProjectionHead) -> ImageResult<Self> {
         let model = compiled.model_arc();
         let backend = compiled.as_cpu().map(|c| c.backend()).unwrap_or(
-            crate::runtime::simd::select_backend(crate::runtime::KernelPolicy::Auto)
+            crate::runtime::simd::select_backend(compiled.cpu_options.kernels)
                 .map_err(ImageError::new)?,
         );
         let packed = if backend != crate::runtime::Backend::Scalar {
@@ -387,7 +387,7 @@ impl CpuProjection {
             else {
                 unreachable!()
             };
-            Some(model.packed_weights.matrix(
+            Some(compiled.packed.matrix(
                 head.weights,
                 crate::runtime::packing::MatrixPacking::RowMajor,
                 || {
@@ -723,7 +723,7 @@ impl DecodeWorkspace {
     fn assemble_gpu(
         &mut self,
         dictionary: &Dictionary,
-        source: crate::runtime::gpu::heads::Decoded,
+        source: crate::runtime::gpu::heads::Decoded<'_>,
         size: RecognitionSize,
         capture: bool,
         budget: usize,
@@ -754,7 +754,7 @@ impl DecodeWorkspace {
         }
         self.emitted = source.tokens.len();
         self.score = source.score;
-        for token in source.tokens {
+        for token in source.tokens.iter() {
             let start = self.text.len();
             self.text.push_str(
                 dictionary
@@ -887,17 +887,20 @@ impl DecodeWorkspace {
     }
 }
 
-pub struct Recognizer {
-    #[cfg(feature = "gpu")]
-    gpu: Option<crate::runtime::gpu::heads::Recognition>,
-    #[cfg(feature = "gpu")]
-    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
+#[derive(Clone)]
+pub struct RecognizerPlan {
+    execution: crate::runtime::stage::RequestSettings,
     compiled: CompiledModel,
-    projection_cpu: Arc<std::sync::OnceLock<ImageResult<CpuProjection>>>,
-    dictionary: Arc<Dictionary>,
     options: RecognizerOptions,
     limits: ExecutionLimits,
     head: ProjectionHead,
+    dictionary: Arc<Dictionary>,
+    projection_cpu: Arc<std::sync::OnceLock<ImageResult<CpuProjection>>>,
+}
+pub struct Recognizer {
+    plan: Arc<RecognizerPlan>,
+    #[cfg(feature = "gpu")]
+    gpu: Option<crate::runtime::gpu::heads::Recognition>,
     session: Session,
     diagnostic: Option<Session>,
     resize: ResizeWorkspace,
@@ -911,11 +914,24 @@ pub struct Recognizer {
     last_projection: Option<ProjectionStatistics>,
 }
 impl Recognizer {
+    pub fn plan(&self) -> &Arc<RecognizerPlan> {
+        &self.plan
+    }
+    pub fn uses_gpu(&self) -> bool {
+        self.session.is_gpu()
+    }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn reset_run_statistics(&mut self) {
+        if let Some(gpu) = &mut self.gpu {
+            gpu.statistics = Default::default();
+        }
+    }
     #[cfg(feature = "gpu")]
     pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
-        self.gpu_mode = mode;
-        if mode == crate::runtime::gpu::GpuPipelineMode::InferenceOnly {
+        if self.plan.execution.gpu_mode != mode {
             self.gpu = None;
+            self.session.release_gpu_storage();
+            Arc::make_mut(&mut self.plan).execution.gpu_mode = mode;
         }
     }
     #[cfg(feature = "gpu")]
@@ -931,7 +947,7 @@ impl Recognizer {
     ) -> ImageResult<()> {
         self.batch_sizes.clear();
         for image in images {
-            if image.pixel_count()? > self.options.max_image_pixels {
+            if image.pixel_count()? > self.plan.options.max_image_pixels {
                 return Err(ImageError::new("source image exceeds max_image_pixels"));
             }
             let size = self.select_width(image.width(), image.height())?;
@@ -948,18 +964,18 @@ impl Recognizer {
         }
         if self.gpu.is_none() {
             self.gpu = Some(crate::runtime::gpu::heads::Recognition::new(
-                self.compiled.as_gpu().unwrap().clone(),
-                &self.dictionary,
+                self.plan.compiled.as_gpu().unwrap().clone(),
+                &self.plan.dictionary,
                 self.batch_sizes[0].tensor_width,
-                self.limits,
+                self.plan.limits,
             )?);
         }
-        let decoded = self.gpu.as_mut().unwrap().run(
+        let (bytes, steps) = self.gpu.as_mut().unwrap().run(
             images,
             &self.batch_sizes,
-            self.options.score_mode == RecognitionScoreMode::Probability,
+            self.plan.options.score_mode == RecognitionScoreMode::Probability,
             capture,
-            self.options.max_result_bytes,
+            self.plan.options.max_result_bytes,
             PROFILE,
         )?;
         if PROFILE {
@@ -970,16 +986,22 @@ impl Recognizer {
             profile.projection_ns += statistics.projection_encoding_ns;
             profile.recognized_lines += images.len();
         }
+        let decoded = crate::runtime::gpu::heads::Recognition::parse(
+            &bytes,
+            images.len(),
+            steps,
+            self.plan.dictionary.class_count(),
+        )?;
         self.batch_decoded
             .resize_with(images.len(), DecodeWorkspace::default);
-        let mut remaining = self.options.max_result_bytes;
+        let mut remaining = self.plan.options.max_result_bytes;
         for ((destination, source), &size) in self
             .batch_decoded
             .iter_mut()
             .zip(decoded)
             .zip(&self.batch_sizes)
         {
-            destination.assemble_gpu(&self.dictionary, source, size, capture, remaining)?;
+            destination.assemble_gpu(&self.plan.dictionary, source, size, capture, remaining)?;
             remaining -= destination.text.len() + destination.runs.len() * size_of::<CtcRun>();
         }
         self.last_projection = None;
@@ -987,9 +1009,16 @@ impl Recognizer {
     }
     #[cfg(feature = "gpu")]
     fn resident_fallback(&mut self, error: ImageError) -> ImageResult<()> {
-        let compiled = self.compiled.resident_fallback(RuntimeError::from(error))?;
-        let mut replacement =
-            Self::new(compiled, self.dictionary.clone(), self.options, self.limits)?;
+        let compiled = self
+            .plan
+            .compiled
+            .resident_fallback(RuntimeError::from(error))?;
+        let mut replacement = Self::new(
+            compiled,
+            self.plan.dictionary.clone(),
+            self.plan.options,
+            self.plan.limits,
+        )?;
         replacement.set_execution_context(
             self.session.cpu_context().clone(),
             self.session.intra_op_threads(),
@@ -998,22 +1027,7 @@ impl Recognizer {
         Ok(())
     }
     pub fn fork(&self) -> ImageResult<Self> {
-        let mut fork = Self::new(
-            self.compiled.clone(),
-            self.dictionary.clone(),
-            self.options,
-            self.limits,
-        )?;
-        fork.set_execution_context(
-            self.session.cpu_context().clone(),
-            self.session.intra_op_threads(),
-        )?;
-        #[cfg(feature = "gpu")]
-        {
-            fork.gpu_mode = self.gpu_mode;
-        }
-        fork.projection_cpu = self.projection_cpu.clone();
-        Ok(fork)
+        self.plan.request()
     }
     pub fn set_execution_context(
         &mut self,
@@ -1022,16 +1036,19 @@ impl Recognizer {
     ) -> ImageResult<()> {
         self.session.set_execution_context(cpu.clone(), threads)?;
         if let Some(diagnostic) = &mut self.diagnostic {
-            diagnostic.set_execution_context(cpu, threads)?;
+            diagnostic.set_execution_context(cpu.clone(), threads)?;
         }
+        let execution = &mut Arc::make_mut(&mut self.plan).execution;
+        execution.cpu = cpu;
+        execution.threads = threads.min(16);
         Ok(())
     }
-    pub fn new(
+    fn validate(
         compiled: impl Into<CompiledModel>,
         dictionary: Arc<Dictionary>,
         options: RecognizerOptions,
         limits: ExecutionLimits,
-    ) -> ImageResult<Self> {
+    ) -> ImageResult<RecognizerPlan> {
         let compiled = compiled.into();
         if options.target_width == 0
             || options.target_width > i32::MAX as usize
@@ -1052,39 +1069,57 @@ impl Recognizer {
         } else {
             options.target_width
         };
-        let session = match options.score_mode {
-            RecognitionScoreMode::Logit => Session::new_prefix(
-                compiled.clone(),
-                &[1, 3, 48, width],
-                limits,
-                head.feature_node,
-            )?,
-            RecognitionScoreMode::Probability => {
-                Session::new_serial(compiled.clone(), &[1, 3, 48, width], limits)?
-            }
-        };
+        let prefix =
+            (options.score_mode == RecognitionScoreMode::Logit).then_some(head.feature_node);
+        let output = compiled.validate_shape(&[1, 3, 48, width], limits, prefix)?;
         let output_width = match options.score_mode {
             RecognitionScoreMode::Logit => head.inner,
             RecognitionScoreMode::Probability => head.classes,
         };
-        Self::check_feature_shape(session.output_shape(), output_width)?;
+        Self::check_feature_shape(output, output_width)?;
         let projection_cpu = Arc::new(std::sync::OnceLock::new());
         if !compiled.is_gpu() {
             projection_cpu
                 .set(Ok(CpuProjection::new(&compiled, &head)?))
                 .ok();
         }
-        Ok(Self {
-            #[cfg(feature = "gpu")]
-            gpu: None,
-            #[cfg(feature = "gpu")]
-            gpu_mode: Default::default(),
-            projection_cpu,
+        Ok(RecognizerPlan {
+            execution: Default::default(),
             compiled,
-            dictionary,
             options,
             limits,
             head,
+            dictionary,
+            projection_cpu,
+        })
+    }
+    pub fn new(
+        compiled: impl Into<CompiledModel>,
+        dictionary: Arc<Dictionary>,
+        options: RecognizerOptions,
+        limits: ExecutionLimits,
+    ) -> ImageResult<Self> {
+        RecognizerPlan::new(compiled, dictionary, options, limits)?.request()
+    }
+    fn from_plan(plan: Arc<RecognizerPlan>) -> ImageResult<Self> {
+        let width = if plan.options.adaptive_width {
+            plan.options.min_width.max(1).div_ceil(32) * 32
+        } else {
+            plan.options.target_width
+        };
+        let prefix = (plan.options.score_mode == RecognitionScoreMode::Logit)
+            .then_some(plan.head.feature_node);
+        let mut session = Session::deferred(
+            plan.compiled.clone(),
+            &[1, 3, 48, width],
+            plan.limits,
+            prefix,
+        )?;
+        session.set_execution_context(plan.execution.cpu.clone(), plan.execution.threads)?;
+        Ok(Self {
+            plan,
+            #[cfg(feature = "gpu")]
+            gpu: None,
             session,
             diagnostic: None,
             resize: ResizeWorkspace::default(),
@@ -1099,9 +1134,9 @@ impl Recognizer {
         })
     }
     fn output_width(&self) -> usize {
-        match self.options.score_mode {
-            RecognitionScoreMode::Logit => self.head.inner,
-            RecognitionScoreMode::Probability => self.head.classes,
+        match self.plan.options.score_mode {
+            RecognitionScoreMode::Logit => self.plan.head.inner,
+            RecognitionScoreMode::Probability => self.plan.head.classes,
         }
     }
     fn check_feature_shape(shape: Shape, inner: usize) -> ImageResult<usize> {
@@ -1115,28 +1150,13 @@ impl Recognizer {
         Ok(d[1])
     }
     pub fn select_width(&self, width: usize, height: usize) -> ImageResult<RecognitionSize> {
-        if width == 0 || height == 0 || width > i32::MAX as usize || height > i32::MAX as usize {
-            return Err(ImageError::new("invalid recognition source dimensions"));
-        }
-        let natural = (48u64 * width as u64).div_ceil(height as u64);
-        let target = if self.options.adaptive_width {
-            natural.max(self.options.min_width as u64).div_ceil(32) * 32
-        } else {
-            self.options.target_width as u64
-        };
-        if target == 0 || target > i32::MAX as u64 {
-            return Err(ImageError::new("recognition tensor width overflow"));
-        }
-        Ok(RecognitionSize {
-            resized_width: natural.min(target) as usize,
-            tensor_width: target as usize,
-        })
+        self.plan.select_width(width, height)
     }
     pub fn resolved_options(&self) -> RecognizerOptions {
-        self.options
+        self.plan.options
     }
     pub fn compiled(&self) -> &CompiledModel {
-        &self.compiled
+        &self.plan.compiled
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
         #[cfg(feature = "gpu")]
@@ -1146,10 +1166,10 @@ impl Recognizer {
         self.session.statistics()
     }
     pub fn execution_limits(&self) -> ExecutionLimits {
-        self.limits
+        self.plan.limits
     }
     pub fn dictionary(&self) -> &Arc<Dictionary> {
-        &self.dictionary
+        &self.plan.dictionary
     }
     pub fn projection_statistics(&self) -> Option<ProjectionStatistics> {
         self.last_projection
@@ -1241,7 +1261,7 @@ impl Recognizer {
         capture: bool,
     ) -> ImageResult<RecognitionView<'_>> {
         let cpu = self.session.cpu_context().clone();
-        if self.compiled.is_gpu() {
+        if self.session.is_gpu() {
             return self.recognize_impl::<false>(image, capture, &mut StageProfile::default());
         }
         cpu.install(|| self.recognize_impl::<false>(image, capture, &mut StageProfile::default()))
@@ -1255,7 +1275,7 @@ impl Recognizer {
         capture: bool,
     ) -> ImageResult<RecognitionBatchView<'_>> {
         let cpu = self.session.cpu_context().clone();
-        if self.compiled.is_gpu() {
+        if self.session.is_gpu() {
             return self.recognize_batch_impl::<false, _>(
                 images.len(),
                 |i| Ok(images[i]),
@@ -1290,7 +1310,9 @@ impl Recognizer {
             return Ok(RecognitionBatchView { decoded: &[] });
         }
         #[cfg(feature = "gpu")]
-        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+        if self.session.is_gpu()
+            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+        {
             let images = (0..count).map(image).collect::<ImageResult<Vec<_>>>()?;
             if let Err(error) = self.recognize_gpu::<PROFILE>(&images, capture, profile) {
                 self.resident_fallback(error)?;
@@ -1312,7 +1334,7 @@ impl Recognizer {
             .map_err(allocation)?;
         for index in 0..count {
             let source = image(index)?;
-            if source.pixel_count()? > self.options.max_image_pixels {
+            if source.pixel_count()? > self.plan.options.max_image_pixels {
                 return Err(ImageError::new("source image exceeds max_image_pixels"));
             }
             let size = self.select_width(source.width(), source.height())?;
@@ -1384,18 +1406,20 @@ impl Recognizer {
                 .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
         }
         let projection_timer = Timer::<PROFILE>::start();
-        self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
+        self.last_projection = if self.plan.options.score_mode == RecognitionScoreMode::Probability
+        {
             probability_argmax(
                 feature.data(),
-                self.head.classes,
+                self.plan.head.classes,
                 &mut self.indices[..rows],
                 &mut self.scores[..rows],
             )?;
             None
         } else {
-            let (family, isa) = self.head.project_parallel(
-                self.projection_cpu
-                    .get_or_init(|| CpuProjection::new(&self.compiled, &self.head))
+            let (family, isa) = self.plan.head.project_parallel(
+                self.plan
+                    .projection_cpu
+                    .get_or_init(|| CpuProjection::new(&self.plan.compiled, &self.plan.head))
                     .as_ref()
                     .map_err(Clone::clone)?,
                 feature.data(),
@@ -1408,6 +1432,7 @@ impl Recognizer {
             )?;
             Some(ProjectionStatistics {
                 backend: self
+                    .plan
                     .projection_cpu
                     .get()
                     .unwrap()
@@ -1429,16 +1454,21 @@ impl Recognizer {
         }
         self.session.accumulate_gpu_profile::<PROFILE>(profile);
         let ctc_timer = Timer::<PROFILE>::start();
-        let mut remaining = self.options.max_result_bytes;
+        let mut remaining = self.plan.options.max_result_bytes;
         for (index, (decoded, &size)) in self.batch_decoded[..count]
             .iter_mut()
             .zip(&self.batch_sizes)
             .enumerate()
         {
             let offset = index * steps;
-            decoded.decode(&self.dictionary, steps, size, capture, remaining, |step| {
-                Ok((self.indices[offset + step], self.scores[offset + step]))
-            })?;
+            decoded.decode(
+                &self.plan.dictionary,
+                steps,
+                size,
+                capture,
+                remaining,
+                |step| Ok((self.indices[offset + step], self.scores[offset + step])),
+            )?;
             let bytes = decoded
                 .runs
                 .len()
@@ -1467,7 +1497,7 @@ impl Recognizer {
         let timer = Timer::<true>::start();
         let mut profile = StageProfile::default();
         let cpu = self.session.cpu_context().clone();
-        let result = if self.compiled.is_gpu() {
+        let result = if self.session.is_gpu() {
             self.recognize_impl::<true>(image, capture, &mut profile)
         } else {
             cpu.install(|| self.recognize_impl::<true>(image, capture, &mut profile))
@@ -1482,7 +1512,9 @@ impl Recognizer {
         profile: &mut StageProfile,
     ) -> ImageResult<RecognitionView<'_>> {
         #[cfg(feature = "gpu")]
-        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+        if self.session.is_gpu()
+            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+        {
             if let Err(error) = self.recognize_gpu::<PROFILE>(&[image], capture, profile) {
                 self.resident_fallback(error)?;
                 let cpu = self.session.cpu_context().clone();
@@ -1491,11 +1523,11 @@ impl Recognizer {
             return Ok(self.batch_decoded[0].view());
         }
         #[cfg(test)]
-        if !self.compiled.is_gpu() {
+        if !self.session.is_gpu() {
             self.session.cpu_context().assert_production_thread("REC");
         }
         let binding_timer = Timer::<PROFILE>::start();
-        if image.pixel_count()? > self.options.max_image_pixels {
+        if image.pixel_count()? > self.plan.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
         let size = self.select_width(image.width(), image.height())?;
@@ -1538,18 +1570,20 @@ impl Recognizer {
                 .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
         }
         let projection_timer = Timer::<PROFILE>::start();
-        self.last_projection = if self.options.score_mode == RecognitionScoreMode::Probability {
+        self.last_projection = if self.plan.options.score_mode == RecognitionScoreMode::Probability
+        {
             probability_argmax(
                 feature.data(),
-                self.head.classes,
+                self.plan.head.classes,
                 &mut self.indices[..steps],
                 &mut self.scores[..steps],
             )?;
             None
         } else {
-            let (family, isa) = self.head.project_parallel(
-                self.projection_cpu
-                    .get_or_init(|| CpuProjection::new(&self.compiled, &self.head))
+            let (family, isa) = self.plan.head.project_parallel(
+                self.plan
+                    .projection_cpu
+                    .get_or_init(|| CpuProjection::new(&self.plan.compiled, &self.plan.head))
                     .as_ref()
                     .map_err(Clone::clone)?,
                 feature.data(),
@@ -1562,6 +1596,7 @@ impl Recognizer {
             )?;
             Some(ProjectionStatistics {
                 backend: self
+                    .plan
                     .projection_cpu
                     .get()
                     .unwrap()
@@ -1584,11 +1619,11 @@ impl Recognizer {
         self.session.accumulate_gpu_profile::<PROFILE>(profile);
         let ctc_timer = Timer::<PROFILE>::start();
         self.decoded.decode(
-            &self.dictionary,
+            &self.plan.dictionary,
             steps,
             size,
             capture,
-            self.options.max_result_bytes,
+            self.plan.options.max_result_bytes,
             |i| Ok((self.indices[i], self.scores[i])),
         )?;
         if PROFILE {
@@ -1609,21 +1644,22 @@ impl Recognizer {
     where
         F: for<'a> FnMut(RecognitionTrace<'a>) -> ImageResult<()>,
     {
-        if image.pixel_count()? > self.options.max_image_pixels {
+        if image.pixel_count()? > self.plan.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
         let size = self.select_width(image.width(), image.height())?;
         let resize = &mut self.resize;
         Self::trace_run(
-            &self.compiled,
-            self.projection_cpu
-                .get_or_init(|| CpuProjection::new(&self.compiled, &self.head))
+            &self.plan.compiled,
+            self.plan
+                .projection_cpu
+                .get_or_init(|| CpuProjection::new(&self.plan.compiled, &self.plan.head))
                 .as_ref()
                 .map_err(Clone::clone)?,
-            &self.dictionary,
-            self.options,
-            self.limits,
-            &self.head,
+            &self.plan.dictionary,
+            self.plan.options,
+            self.plan.limits,
+            &self.plan.head,
             &mut self.diagnostic,
             &mut self.indices,
             &mut self.scores,
@@ -1794,6 +1830,63 @@ fn probability_argmax(
         }
     }
     Ok(())
+}
+
+impl RecognizerPlan {
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu_pipeline_mode(
+        self: &Arc<Self>,
+        mode: crate::runtime::gpu::GpuPipelineMode,
+    ) -> Arc<Self> {
+        let mut plan = self.as_ref().clone();
+        plan.execution.gpu_mode = mode;
+        Arc::new(plan)
+    }
+
+    pub fn execution_limits(&self) -> ExecutionLimits {
+        self.limits
+    }
+    pub fn dictionary(&self) -> &Arc<Dictionary> {
+        &self.dictionary
+    }
+    pub fn select_width(&self, width: usize, height: usize) -> ImageResult<RecognitionSize> {
+        if width == 0 || height == 0 || width > i32::MAX as usize || height > i32::MAX as usize {
+            return Err(ImageError::new("invalid recognition source dimensions"));
+        }
+        let natural = (48u64 * width as u64).div_ceil(height as u64);
+        let target = if self.options.adaptive_width {
+            natural.max(self.options.min_width as u64).div_ceil(32) * 32
+        } else {
+            self.options.target_width as u64
+        };
+        if target == 0 || target > i32::MAX as u64 {
+            return Err(ImageError::new("recognition tensor width overflow"));
+        }
+        Ok(RecognitionSize {
+            resized_width: natural.min(target) as usize,
+            tensor_width: target as usize,
+        })
+    }
+
+    pub fn new(
+        compiled: impl Into<CompiledModel>,
+        dictionary: Arc<Dictionary>,
+        options: RecognizerOptions,
+        limits: ExecutionLimits,
+    ) -> ImageResult<Arc<Self>> {
+        Ok(Arc::new(Recognizer::validate(
+            compiled, dictionary, options, limits,
+        )?))
+    }
+    pub fn request(self: &Arc<Self>) -> ImageResult<Recognizer> {
+        Recognizer::from_plan(self.clone())
+    }
+    pub fn options(&self) -> RecognizerOptions {
+        self.options
+    }
+    pub fn compiled(&self) -> &CompiledModel {
+        &self.compiled
+    }
 }
 
 #[cfg(test)]
@@ -2016,6 +2109,9 @@ mod tests {
     fn batch_activation_limit_failure_preserves_single_request_reuse() {
         let mut pipeline = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
         let template = pipeline.recognizer_mut();
+        let pixels = vec![255; 16 * 48 * 3];
+        let image = ImageView::new(&pixels, 16, 48, 0, PixelFormat::Bgr24).unwrap();
+        template.recognize(image, false).unwrap();
         let mut recognizer = Recognizer::new(
             template.compiled().clone(),
             template.dictionary().clone(),

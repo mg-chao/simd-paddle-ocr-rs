@@ -164,9 +164,9 @@ fn fusion_layout_prefix_and_trace_keep_normalized_identities() {
             let mut optimized = session(
                 model.clone(),
                 CompileOptions {
-                    kernels,
-                    layout,
+                    cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                     fusion: true,
+                    ..Default::default()
                 },
                 &shape,
             );
@@ -331,8 +331,7 @@ fn convolution_store_programs_preserve_order_tails_and_worker_bands() {
             [LayoutPolicy::Nchw, LayoutPolicy::Auto].map(|layout| (policy, layout))
         }) {
             let options = CompileOptions {
-                kernels,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                 ..CompileOptions::default()
             };
             let mut unfused = session(
@@ -422,7 +421,10 @@ fn packed_dense_does_not_retain_an_im2row_tensor() {
         let mut request = session(
             model,
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
             &[1, channels, 5, 13],
@@ -480,7 +482,10 @@ fn standalone_batch_norm_keeps_canonical_storage_without_channel_workspace() {
     let mut optimized = session(
         model,
         CompileOptions {
-            kernels: KernelPolicy::Portable4,
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default().cpu
+            },
             ..CompileOptions::default()
         },
         &[2, 17, 3, 7],
@@ -617,8 +622,10 @@ fn store_epilogue_reads_live_full_residual_and_preserves_intermediate_consumers(
             .collect::<Vec<_>>();
         for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
             let options = CompileOptions {
-                layout,
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    layout,
+                    kernels: KernelPolicy::Portable4,
+                },
                 ..CompileOptions::default()
             };
             let mut unfused = session(
@@ -662,9 +669,12 @@ fn packing_statistics_report_consumed_panels_for_each_operator() {
         let mut request = session(
             model.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    layout,
+                },
                 fusion: false,
+                ..Default::default()
             },
             &[2, 2],
         );
@@ -708,7 +718,10 @@ fn packing_statistics_exclude_prepared_panels_from_canonical_convolution() {
     let mut request = session(
         model,
         CompileOptions {
-            kernels: KernelPolicy::Portable4,
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default().cpu
+            },
             ..CompileOptions::default()
         },
         &[1, 2, 2, 3],
@@ -758,7 +771,10 @@ fn transpose_panels_are_shared_across_nodes_sessions_and_reshape() {
         CpuCompiledModel::compile(
             model.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
         )
@@ -871,9 +887,12 @@ fn initialized_arena_keeps_dirty_high_water_through_alternating_shapes() {
         let mut optimized = session(
             model.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    layout,
+                },
                 fusion: true,
+                ..Default::default()
             },
             &[1, 3, 8, 64],
         );
@@ -922,7 +941,10 @@ fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() 
         CpuCompiledModel::compile(
             model,
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
         )
@@ -969,7 +991,10 @@ fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() 
 fn tighter_activation_budget_replaces_the_initialized_high_water_arena() {
     let model = conv_model(false);
     let options = CompileOptions {
-        kernels: KernelPolicy::Portable4,
+        cpu: crate::runtime::CpuCompileOptions {
+            kernels: KernelPolicy::Portable4,
+            ..CompileOptions::default().cpu
+        },
         ..CompileOptions::default()
     };
     let mut optimized = session(model.clone(), options, &[1, 3, 8, 64]);
@@ -1153,8 +1178,7 @@ fn compound_activations_execute_inside_convolution_stores_in_both_layouts() {
         for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
             for kernels in [KernelPolicy::Portable4, KernelPolicy::Auto] {
                 let options = CompileOptions {
-                    kernels,
-                    layout,
+                    cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                     ..CompileOptions::default()
                 };
                 let mut unfused = session(
@@ -1346,12 +1370,15 @@ fn constant_matmul_reuses_nhwc_panels_only_under_reference_eligibility_and_keeps
         );
         for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
             let options = CompileOptions {
-                kernels: KernelPolicy::Portable4,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    layout,
+                },
                 fusion: true,
+                ..Default::default()
             };
             let mut request = session(parsed.clone(), options, &[7, 3]);
-            let cached = parsed.cached_packed_weight_bytes();
+            let cached = request.compiled.packed_cache.bytes();
             let input: Vec<_> = (0..7).flat_map(|_| [1e20, -1e20, 3.]).collect();
             for rows in [7, 6, 7] {
                 request.reshape(&[rows, 3]).unwrap();
@@ -1363,7 +1390,7 @@ fn constant_matmul_reuses_nhwc_panels_only_under_reference_eligibility_and_keeps
                     "bias Add must follow unbiased sum"
                 );
                 assert_eq!(
-                    parsed.cached_packed_weight_bytes(),
+                    request.compiled.packed_cache.bytes(),
                     cached,
                     "execution/reshape must reuse immutable panels"
                 );

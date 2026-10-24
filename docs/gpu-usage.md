@@ -21,21 +21,21 @@ per-stage CPU overrides remain hybrid and are reported as such.
 
 ```rust,no_run
 use simd_paddle_ocr_rs::{ExecutionTarget, GpuPipelineMode, ModelPreset, OcrModelSet};
-use simd_paddle_ocr_rs::runtime::gpu::{GpuBackendPreference, GpuContext, GpuContextOptions, GpuPrecision};
+use simd_paddle_ocr_rs::runtime::gpu::{GpuBackendPreference, GpuContext, GpuContextOptions};
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 let gpu = GpuContext::new_with_options(GpuContextOptions {
     backend: GpuBackendPreference::Vulkan,
-    precision: GpuPrecision::F32,
     max_device_bytes: Some(2 << 30),
     ..Default::default()
 })?;
 let models = OcrModelSet::from_directory("models", ModelPreset::ChineseV6Medium, true)?;
-let mut request = models.builder()
+let plan = models.builder()
     .execution_target(ExecutionTarget::Gpu)
     .gpu_pipeline_mode(GpuPipelineMode::Full)
     .gpu_context(gpu)
     .build()?;
-let independent_request = request.fork()?;
+let mut request = plan.request()?;
+let independent_request = plan.request()?;
 # Ok(())
 # }
 ```
@@ -50,14 +50,12 @@ For tensor inference, use backend-neutral `CompiledModel` and `Session`:
 
 ```rust,no_run
 use std::sync::Arc;
-use simd_paddle_ocr_rs::{CompiledModel, ExecutionConfig, ExecutionTarget, Session};
+use simd_paddle_ocr_rs::{Compiler, ExecutionTarget, Session};
 use simd_paddle_ocr_rs::{model::Model, runtime::{CompileOptions, ExecutionLimits}};
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 let model = Arc::new(Model::load_path("cls.onnx")?);
-let compiled = CompiledModel::compile(model, CompileOptions::default(), ExecutionConfig {
-    target: ExecutionTarget::Gpu,
-    ..Default::default()
-})?;
+let compiler = Compiler::default();
+let compiled = compiler.compile(model, CompileOptions::default(), ExecutionTarget::Gpu)?;
 let mut session = Session::new_serial(compiled, &[1, 3, 80, 160], ExecutionLimits::default())?;
 let input = vec![0.; 3 * 80 * 160];
 let output = session.run(&input)?; // logical F32; borrows the exclusive session
@@ -85,7 +83,10 @@ rounding in their residual streams can change close vocabulary decisions.
 Unfused and diagnostic plans also retain FP32 activations to
 avoid accumulating a half-rounding error at every arithmetic boundary; they
 share the same FP16 weights. Statistics report this effective storage policy.
-It requires the adapter's `SHADER_F16` feature. `subgroups: true` opts
+Select it with `CompileOptions.gpu.precision` and request
+`GpuContextOptions { shader_f16: true, ..Default::default() }` when creating the
+context. FP32 and mixed plans can share that context. It requires the adapter's
+`SHADER_F16` feature. `subgroups: true` opts
 into reductions using the advertised subgroup feature, without assuming a lane
 width. FP32 portable kernels require neither feature.
 `experimental_cooperative_matrix: true` (CLI
@@ -155,16 +156,28 @@ owners, is capped at 64 buffers and 64 MiB (or one quarter of the context quota)
 and participates in request-pool eviction accounting. Capacity errors remain
 visible; candidate limits retain the reference selection policy.
 
-`Ocr::gpu_pipeline_statistics()` returns the latest resident OCR run's transfer,
-placement, kernel and timing statistics; diagnostic bytes cover the request's
-traced sessions. Standalone stages aggregate completed runs. Image processing,
+`OcrRequest::gpu_pipeline_statistics()` returns the latest resident OCR run's transfer,
+placement, kernel and timing statistics. `latest_run()` includes typed stage
+reports; `counters()` provides cumulative totals separately. Diagnostic bytes
+in the latest run cover only that invocation. Standalone low-level session
+statistics retain cumulative counters. Image processing,
 geometry, projection and decoding have independent placement fields. Output,
 control and diagnostic readbacks are counted separately. Peak device bytes are
 the context's application allocation high-water mark; opaque driver allocations
-are excluded. Statistics do not make full GPU synonymous with faster execution.Upload counters measure image/tensor payloads; shared immutable model uploads
+are excluded. Statistics do not make full GPU synonymous with faster execution.
+Upload counters measure image/tensor payloads; shared immutable model uploads
 and small uniform parameter packets are excluded. They are not a PCIe traffic
 counter. Readback counters include the requested buffer bytes.
-Full-pipeline detector and recognizer inference retain FP32 weights andactivations even in a mixed context. Half-precision threshold crossings changedcontour topology, moved validation boxes by 1–2 source pixels, and shifted CTCspan boundaries despite FP32 attention residuals. Classifier inference retainsmixed storage. Each FP32 variant shares the samedevice, is cached independently by precision, and is included in weight/quotaaccounting. Stage statistics report its effective precision. Low-level tensorand `InferenceOnly` execution retain the requested mixed policy; their numericalerror gates alone do not guarantee identical discrete OCR decisions.
+
+Full-pipeline detector and recognizer inference retain FP32 weights and
+activations even in a mixed context. Half-precision threshold crossings changed
+contour topology, moved validation boxes by 1–2 source pixels, and shifted CTC
+span boundaries despite FP32 attention residuals. Classifier inference retains
+mixed storage. Each FP32 variant shares the same
+device, is cached independently by precision, and is included in weight/quota
+accounting. Stage statistics report its effective precision. Low-level tensor
+and `InferenceOnly` execution retain the requested mixed policy; their numerical
+error gates alone do not guarantee identical discrete OCR decisions.
 Traced calls retain unfused low-level execution at the requested model precision,
 including diagnostic CPU image/result processing. Their results can therefore
 differ from guarded mixed Full execution; normal residency claims exclude traces.
@@ -173,9 +186,11 @@ differ from guarded mixed Full execution; normal residency claims exclude traces
 
 `runtime::LogicalGraph` owns validation, host shape evaluation, dependencies and
 source lineage. `runtime::stage` dispatches immutable models and exclusive
-sessions. The CPU implementation owns its SIMD packs and physical layouts;
+sessions. `runtime::Compiler` owns shared validated graphs, CPU packs and lowered plans.
+The CPU implementation selects physical layouts;
 `runtime::gpu` owns device weights, shape schedules, liveness allocations and
-readbacks. GPU compilation never constructs a `CpuCompiledModel`. OCR prepares
+readbacks. `ocr::gpu` owns resident OCR orchestration and reusable text/span assembly.
+Resident sessions allocate no dense host transfer buffers. GPU compilation never constructs a `CpuCompiledModel`. OCR prepares
 GPU projection resources; CPU projection packs are lazy for GPU models. An
 `Auto` model's complete CPU plan is initialized once, on first allowed fallback.
 

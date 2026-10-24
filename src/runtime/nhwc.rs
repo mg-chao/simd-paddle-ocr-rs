@@ -1,5 +1,5 @@
 //! Channels-last kernels. Logical shapes always retain ONNX NCHW dimensions.
-use super::kernels::{BinaryOp, BoundKind, Conv};
+use super::bound::{BinaryOp, BoundKind, Conv};
 use super::optimized::Layout;
 #[cfg(test)]
 use super::simd::IdentityStore;
@@ -688,7 +688,7 @@ pub(super) fn execute<'a>(
 /// General logical-coordinate fallback, also retained as the measured oracle
 /// for the channel specialization. No activation or coefficient is copied.
 pub(super) fn binary_generic(
-    plan: &kernels::Broadcast,
+    plan: &bound::Broadcast,
     op: BinaryOp,
     info: impl Fn(usize) -> (Shape, Layout),
     a: &[f32],
@@ -731,7 +731,7 @@ pub(super) fn binary_generic(
 
 #[cfg(test)]
 pub(super) fn transpose_scalar(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -741,7 +741,7 @@ pub(super) fn transpose_scalar(
 }
 
 fn transpose_scalar_store(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -772,7 +772,7 @@ fn transpose_scalar_store(
 #[cfg(test)]
 pub(super) fn transpose_packed_rows(
     backend: Backend,
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -796,7 +796,7 @@ pub(super) fn transpose_packed_rows(
 #[allow(clippy::too_many_arguments)]
 fn transpose_packed_rows_store(
     backend: Backend,
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],

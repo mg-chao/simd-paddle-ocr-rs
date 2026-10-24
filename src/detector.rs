@@ -115,15 +115,51 @@ pub enum DetectionTrace<'a> {
     Probabilities { shape: Shape, values: &'a [f32] },
     Boxes(DetectionView<'a>),
 }
+#[derive(Clone)]
+pub struct DetectorPlan {
+    execution: crate::runtime::stage::RequestSettings,
+    compiled: CompiledModel,
+    options: DetectorOptions,
+    limits: ExecutionLimits,
+}
+impl DetectorPlan {
+    #[cfg(feature = "gpu")]
+    pub fn with_gpu_pipeline_mode(
+        self: &Arc<Self>,
+        mode: crate::runtime::gpu::GpuPipelineMode,
+    ) -> Arc<Self> {
+        let mut plan = self.as_ref().clone();
+        plan.execution.gpu_mode = mode;
+        Arc::new(plan)
+    }
+
+    pub fn execution_limits(&self) -> ExecutionLimits {
+        self.limits
+    }
+    pub fn new(
+        compiled: impl Into<CompiledModel>,
+        options: DetectorOptions,
+        limits: ExecutionLimits,
+    ) -> ImageResult<std::sync::Arc<Self>> {
+        let request = Detector::validate(compiled, options, limits)?;
+        Ok(std::sync::Arc::new(request))
+    }
+    pub fn request(self: &std::sync::Arc<Self>) -> ImageResult<Detector> {
+        Detector::from_plan(self.clone())
+    }
+    pub fn options(&self) -> DetectorOptions {
+        self.options
+    }
+    pub fn compiled(&self) -> &CompiledModel {
+        &self.compiled
+    }
+}
 pub struct Detector {
     #[cfg(feature = "gpu")]
     gpu: Option<crate::runtime::gpu::vision::Detector>,
     #[cfg(feature = "gpu")]
-    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
-    #[cfg(feature = "gpu")]
     gpu_statistics: crate::runtime::gpu::GpuPipelineStatistics,
-    compiled: CompiledModel,
-    options: DetectorOptions,
+    plan: std::sync::Arc<DetectorPlan>,
     session: Session,
     resize: ResizeWorkspace,
     db: db::Workspace,
@@ -132,7 +168,8 @@ pub struct Detector {
 impl Detector {
     #[cfg(feature = "gpu")]
     pub(crate) fn is_full_gpu(&self) -> bool {
-        self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+        self.session.is_gpu()
+            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
     }
     #[cfg(feature = "gpu")]
     pub(crate) fn detect_resident(
@@ -142,7 +179,7 @@ impl Detector {
     ) -> crate::runtime::RuntimeResult<crate::runtime::gpu::vision::Detection> {
         if self.gpu.is_none() {
             self.gpu = Some(crate::runtime::gpu::vision::Detector::new(
-                self.compiled.as_gpu().unwrap().clone(),
+                self.plan.compiled.as_gpu().unwrap().clone(),
                 self.session.execution_limits(),
             )?);
         }
@@ -150,51 +187,51 @@ impl Detector {
             .gpu
             .as_mut()
             .unwrap()
-            .run(image, self.options, profiling)?;
+            .run(image, self.plan.options, profiling)?;
         self.gpu_statistics = result.statistics.clone();
         Ok(result)
     }
     #[cfg(feature = "gpu")]
+    pub(crate) fn reset_run_statistics(&mut self) {
+        self.gpu_statistics = Default::default();
+    }
+    #[cfg(feature = "gpu")]
     pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
-        self.gpu_mode = mode;
-        if mode == crate::runtime::gpu::GpuPipelineMode::InferenceOnly {
+        if self.plan.execution.gpu_mode != mode {
             self.gpu = None;
+            self.session.release_gpu_storage();
+            Arc::make_mut(&mut self.plan).execution.gpu_mode = mode;
         }
     }
     #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu.as_ref().map(|_| &self.gpu_statistics)
     }
+    pub fn plan(&self) -> &std::sync::Arc<DetectorPlan> {
+        &self.plan
+    }
+    pub fn uses_gpu(&self) -> bool {
+        self.session.is_gpu()
+    }
     pub fn fork(&self) -> ImageResult<Self> {
-        let mut fork = Self::new(
-            self.compiled.clone(),
-            self.options,
-            self.session.execution_limits(),
-        )?;
-        fork.set_execution_context(
-            self.session.cpu_context().clone(),
-            self.session.intra_op_threads(),
-        )?;
-        #[cfg(feature = "gpu")]
-        {
-            fork.gpu_mode = self.gpu_mode;
-        }
-        Ok(fork)
+        self.plan.request()
     }
     pub fn set_execution_context(
         &mut self,
         cpu: Arc<crate::cpu::CpuContext>,
         threads: usize,
     ) -> ImageResult<()> {
-        self.session
-            .set_execution_context(cpu, threads)
-            .map_err(Into::into)
+        self.session.set_execution_context(cpu.clone(), threads)?;
+        let execution = &mut Arc::make_mut(&mut self.plan).execution;
+        execution.cpu = cpu;
+        execution.threads = threads.min(16);
+        Ok(())
     }
-    pub fn new(
+    fn validate(
         compiled: impl Into<CompiledModel>,
         mut options: DetectorOptions,
         limits: ExecutionLimits,
-    ) -> ImageResult<Self> {
+    ) -> ImageResult<DetectorPlan> {
         let compiled: CompiledModel = compiled.into();
         options.validate()?;
         if options.box_threshold.is_none() {
@@ -213,21 +250,36 @@ impl Detector {
                 0.45
             });
         }
-        let session = Session::new_serial(compiled.clone(), &[1, 3, 32, 32], limits)?;
-        if session.output_shape().dimensions() != [1, 1, 32, 32] {
+        let output = compiled.validate_shape(&[1, 3, 32, 32], limits, None)?;
+        if output.dimensions() != [1, 1, 32, 32] {
             return Err(ImageError::new(
                 "detector requires a [1,1,H,W] probability output matching input spatial dimensions",
             ));
         }
+        Ok(DetectorPlan {
+            execution: Default::default(),
+            compiled,
+            options,
+            limits,
+        })
+    }
+    pub fn new(
+        compiled: impl Into<CompiledModel>,
+        options: DetectorOptions,
+        limits: ExecutionLimits,
+    ) -> ImageResult<Self> {
+        DetectorPlan::new(compiled, options, limits)?.request()
+    }
+    fn from_plan(plan: std::sync::Arc<DetectorPlan>) -> ImageResult<Self> {
+        let mut session =
+            Session::deferred(plan.compiled.clone(), &[1, 3, 32, 32], plan.limits, None)?;
+        session.set_execution_context(plan.execution.cpu.clone(), plan.execution.threads)?;
         Ok(Self {
             #[cfg(feature = "gpu")]
             gpu: None,
             #[cfg(feature = "gpu")]
-            gpu_mode: Default::default(),
-            #[cfg(feature = "gpu")]
             gpu_statistics: Default::default(),
-            compiled,
-            options,
+            plan,
             session,
             resize: ResizeWorkspace::default(),
             db: db::Workspace::default(),
@@ -235,7 +287,7 @@ impl Detector {
         })
     }
     pub fn resolved_options(&self) -> DetectorOptions {
-        self.options
+        self.plan.options
     }
     /// Change image-dependent resizing without recompiling the model. Invalid
     /// options leave the reusable detector unchanged.
@@ -243,14 +295,14 @@ impl Detector {
         let options = DetectorOptions {
             resize_policy: policy,
             limit_side_length: limit,
-            ..self.options
+            ..self.plan.options
         };
         options.validate()?;
-        self.options = options;
+        std::sync::Arc::make_mut(&mut self.plan).options = options;
         Ok(())
     }
     pub fn compiled(&self) -> &CompiledModel {
-        &self.compiled
+        &self.plan.compiled
     }
     /// Statistics for the last bound production inference session.
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
@@ -321,7 +373,7 @@ impl Detector {
         width_ratio: f32,
         height_ratio: f32,
     ) -> ImageResult<DetectionView<'_>> {
-        if source.pixel_count()? > self.options.max_image_pixels
+        if source.pixel_count()? > self.plan.options.max_image_pixels
             || !width_ratio.is_finite()
             || !height_ratio.is_finite()
             || width_ratio <= 0.
@@ -332,7 +384,9 @@ impl Detector {
             ));
         }
         #[cfg(feature = "gpu")]
-        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+        if self.session.is_gpu()
+            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+        {
             use crate::runtime::gpu::{
                 GpuPrecision,
                 resident::{Batch, Tensor},
@@ -345,7 +399,7 @@ impl Detector {
             {
                 return Err(ImageError::new("invalid DB probability map size"));
             }
-            let context = self.compiled.as_gpu().unwrap().context().clone();
+            let context = self.plan.compiled.as_gpu().unwrap().context().clone();
             let prediction = Tensor::allocate(
                 context.clone(),
                 crate::tensor::Shape::new(&[1, 1, map_height, map_width])
@@ -358,7 +412,7 @@ impl Detector {
             let (boxes, _, statistics) = crate::runtime::gpu::vision::postprocess(
                 batch,
                 &prediction,
-                self.options,
+                self.plan.options,
                 DetSourceGeometry::new(source.width(), source.height())?,
             )?;
             self.db.boxes = boxes;
@@ -375,7 +429,7 @@ impl Detector {
             probabilities,
             map_width,
             map_height,
-            &self.options,
+            &self.plan.options,
             DetSourceGeometry::new(source.width(), source.height())?,
             &mut self.db,
         )?;
@@ -397,22 +451,27 @@ impl Detector {
     ) -> ImageResult<DetectionView<'_>> {
         let cpu = self.session.cpu_context().clone();
         #[cfg(feature = "gpu")]
-        if self.compiled.is_gpu() && self.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full {
+        if self.session.is_gpu()
+            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
+        {
             let result = (|| -> crate::runtime::RuntimeResult<_> {
                 if self.gpu.is_none() {
                     self.gpu = Some(crate::runtime::gpu::vision::Detector::new(
-                        self.compiled.as_gpu().unwrap().clone(),
+                        self.plan.compiled.as_gpu().unwrap().clone(),
                         self.session.execution_limits(),
                     )?);
                 }
-                self.gpu.as_mut().unwrap().run(image, self.options, PROFILE)
+                self.gpu
+                    .as_mut()
+                    .unwrap()
+                    .run(image, self.plan.options, PROFILE)
             })();
             let result = match result {
                 Ok(result) => result,
                 Err(error) => {
-                    let compiled = self.compiled.resident_fallback(error)?;
+                    let compiled = self.plan.compiled.resident_fallback(error)?;
                     let mut replacement =
-                        Self::new(compiled, self.options, self.session.execution_limits())?;
+                        Self::new(compiled, self.plan.options, self.session.execution_limits())?;
                     replacement.set_execution_context(cpu, self.session.intra_op_threads())?;
                     *self = replacement;
                     return self.detect_profiled::<PROFILE>(image, profile);
@@ -428,7 +487,7 @@ impl Detector {
                 height_ratio: result.size.height_ratio,
             });
         }
-        if self.compiled.is_gpu() {
+        if self.session.is_gpu() {
             self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile)
         } else {
             cpu.install(|| self.detect_impl::<false, PROFILE, _>(image, |_| Ok(()), profile))
@@ -442,7 +501,14 @@ impl Detector {
     where
         F: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
     {
-        self.detect_impl::<true, false, F>(image, observer, &mut StageProfile::default())
+        {
+            let mut observer = observer;
+            self.detect_impl::<true, false, _>(
+                image,
+                |event| observer(event).map_err(ImageError::callback),
+                &mut StageProfile::default(),
+            )
+        }
     }
     fn detect_impl<const TRACE: bool, const PROFILE: bool, F>(
         &mut self,
@@ -454,15 +520,18 @@ impl Detector {
         F: for<'a> FnMut(DetectionTrace<'a>) -> ImageResult<()>,
     {
         #[cfg(test)]
-        if !TRACE && !self.compiled.is_gpu() {
+        if !TRACE && !self.session.is_gpu() {
             self.session.cpu_context().assert_production_thread("DET");
         }
         let binding_timer = Timer::<PROFILE>::start();
-        if image.pixel_count()? > self.options.max_image_pixels {
+        if image.pixel_count()? > self.plan.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
         let geometry = DetSourceGeometry::new(image.width(), image.height())?;
-        let size = geometry.resize(self.options.limit_side_length, self.options.resize_policy)?;
+        let size = geometry.resize(
+            self.plan.options.limit_side_length,
+            self.plan.options.resize_policy,
+        )?;
         // Reshape is transactional; no processing starts before a valid binding exists.
         if PROFILE {
             profile.binding_ns = profile.binding_ns.saturating_add(binding_timer.elapsed());
@@ -561,7 +630,7 @@ impl Detector {
                 prediction.data(),
                 size.width,
                 size.height,
-                &self.options,
+                &self.plan.options,
                 geometry,
                 &mut self.db,
             )

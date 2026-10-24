@@ -85,7 +85,10 @@ fn neon_panel_stores_preserve_activation_order_residuals_and_batch_tails() {
                 let dims = shape.map(|v| v as i64);
                 let model = model(parts, &dims, &dims);
                 let options = CompileOptions {
-                    kernels: KernelPolicy::NeonFma,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels: KernelPolicy::NeonFma,
+                        ..CompileOptions::default().cpu
+                    },
                     ..CompileOptions::default()
                 };
                 let mut unfused = session(
@@ -159,7 +162,10 @@ fn neon_direct_transpose_stores_preserve_fused_graph_order_and_channel_tails() {
                     &output_shape.map(|v| v as i64),
                 );
                 let options = CompileOptions {
-                    kernels: KernelPolicy::NeonFma,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels: KernelPolicy::NeonFma,
+                        ..Default::default()
+                    },
                     ..Default::default()
                 };
                 let mut unfused = session(

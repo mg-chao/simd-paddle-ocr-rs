@@ -116,17 +116,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(context) = &context {
         builder = builder.gpu_context(context.clone());
     }
-    let template = builder.build()?;
-    let factory = template.into_factory();
+    let template = builder.build()?.request()?;
+    let plan = template.plan().clone();
+    drop(template);
+    let factory = move || plan.request();
     let mut workers = (0..requests)
         .map(|_| factory())
         .collect::<Result<Vec<_>, _>>()?;
     let startup_ms = wall.elapsed().as_secs_f64() * 1000.;
-    let execute=|workers:&mut Vec<simd_paddle_ocr_rs::ocr::Ocr>|->Result<(f64,Vec<OwnedOcr>),Box<dyn Error>>{
+    let execute=|workers:&mut Vec<simd_paddle_ocr_rs::ocr::OcrRequest>|->Result<(f64,Vec<OwnedOcr>),Box<dyn Error>>{
         let started=Instant::now();
         let values=std::thread::scope(|scope|{
             let jobs=workers.iter_mut().map(|worker|scope.spawn(move|| {
-                let result = worker.run(image,capture)?;
+                let result = worker.run(image, simd_paddle_ocr_rs::RunOptions { capture_spans: capture })?;
                 let elapsed = started.elapsed().as_secs_f64()*1000.;
                 Ok::<_,simd_paddle_ocr_rs::image::ImageError>((elapsed,result.try_to_owned()?))
             })).collect::<Vec<_>>();

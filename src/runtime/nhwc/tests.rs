@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::bound;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod performance;
 fn backends() -> Vec<Backend> {
@@ -288,7 +289,7 @@ fn channel_classifier_preserves_batched_left_gate_and_rank_one_meaning() {
         let gate = Shape::new(&[n, 17, 1, 1]).unwrap();
         for left in [false, true] {
             let (a, b) = if left { (gate, full) } else { (full, gate) };
-            let channel = kernels::Broadcast::new(a, b, full).channel().unwrap();
+            let channel = bound::Broadcast::new(a, b, full).channel().unwrap();
             assert_eq!(channel.channels, 17);
             assert_eq!(channel.plane, 15);
             assert_eq!(channel.batched, n == 2);
@@ -296,7 +297,7 @@ fn channel_classifier_preserves_batched_left_gate_and_rank_one_meaning() {
         }
     }
     assert!(
-        kernels::Broadcast::new(full, Shape::new(&[5]).unwrap(), full)
+        bound::Broadcast::new(full, Shape::new(&[5]).unwrap(), full)
             .channel()
             .is_none()
     );
@@ -310,7 +311,7 @@ fn packed_transpose_preserves_bias_first_tails_batches_and_exclusive_row_bands()
         (64, 24, 3, 9),
         (256, 64, 2, 33),
     ] {
-        let p = kernels::ConvTranspose {
+        let p = bound::ConvTranspose {
             batch: 2,
             cin,
             cout,
@@ -692,9 +693,9 @@ fn channel_pool_and_mean_vectors_match_logical_nchw_oracles() {
             );
         }
         for (output_shape, kind) in [
-            kernels::bind_max_pool(shape).unwrap(),
-            kernels::bind_average_pool(shape).unwrap(),
-            kernels::bind_reduce(shape, &[2, 3], true, false).unwrap(),
+            bound::bind_max_pool(shape).unwrap(),
+            bound::bind_average_pool(shape).unwrap(),
+            bound::bind_reduce(shape, &[2, 3], true, false).unwrap(),
         ] {
             let mut canonical = vec![0.; output_shape.element_count()];
             kernels::execute(&kind, &[TensorId(0)], |_| input.as_slice(), &mut canonical);
@@ -726,7 +727,7 @@ fn channel_pool_and_mean_vectors_match_logical_nchw_oracles() {
 #[test]
 fn single_output_transpose_uses_bias_first_pixel_vectors_and_disjoint_rows() {
     for (cin, width) in [(1, 1), (3, 7), (17, 8), (17, 9), (17, 17)] {
-        let p = kernels::ConvTranspose {
+        let p = bound::ConvTranspose {
             batch: 2,
             cin,
             cout: 1,

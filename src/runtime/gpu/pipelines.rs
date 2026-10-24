@@ -21,7 +21,7 @@ impl Pipelines {
         // Compile the portable foundation once. Unfused mixed-storage signatures
         // are added lazily during binding, and reused by all models and shapes.
         for &kind in ShaderKind::ALL {
-            result.get(context, kind, [context.precision(); 6])?;
+            result.get(context, kind, [GpuPrecision::F32; 6])?;
         }
         let result = Arc::new(result);
         *cache = Some(result.clone());

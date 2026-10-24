@@ -126,81 +126,73 @@ pub(super) fn replacement(
             let Some(act) = next(n[start].output) else {
                 return Ok(None);
             };
-            if matches!(n[act].kind, Op::Relu) && g.cin <= 256 && g.cout <= 64 && inputs.len() == 3
+            if matches!(n[act].kind, Op::Relu)
+                && g.cin <= 256
+                && g.cout <= 64
+                && inputs.len() == 3
+                && let Some(fc2) = next(n[act].output)
+                && let BoundKind::Conv(g2) = &plan.steps[fc2].kind
+                && g2.kh == 1
+                && g2.kw == 1
+                && g2.height == 1
+                && g2.width == 1
+                && g2.oh == 1
+                && g2.ow == 1
+                && g2.cpg == g2.cin
+                && g2.cin == g.cout
+                && g2.batch == g.batch
+                && n[fc2].inputs.len() == 3
+                && let Some(gate) = next(n[fc2].output)
+                && let Op::HardSigmoid { alpha, beta } = n[gate].kind
             {
-                if let Some(fc2) = next(n[act].output) {
-                    if let BoundKind::Conv(g2) = &plan.steps[fc2].kind {
-                        if g2.kh == 1
-                            && g2.kw == 1
-                            && g2.height == 1
-                            && g2.width == 1
-                            && g2.oh == 1
-                            && g2.ow == 1
-                            && g2.cpg == g2.cin
-                            && g2.cin == g.cout
-                            && g2.batch == g.batch
-                            && n[fc2].inputs.len() == 3
-                        {
-                            if let Some(gate) = next(n[fc2].output) {
-                                if let Op::HardSigmoid { alpha, beta } = n[gate].kind {
-                                    // Prefer the existing excitation/apply fusion unless
-                                    // this chain enables removal of the subsequent gate Mul.
-                                    let prescale = next(n[gate].output)
-                                        .filter(|&i| matches!(n[i].kind, Op::Mul))
-                                        .and_then(|mul| next(n[mul].output))
-                                        .is_some_and(|consumer| {
-                                            if let BoundKind::Conv(c) = &plan.steps[consumer].kind {
-                                                c.kh == 1
-                                                    && c.kw == 1
-                                                    && c.cpg == c.cin
-                                                    && c.cin >= 8
-                                                    && c.cout >= 8
-                                                    && c.batch
-                                                        * c.cout.div_ceil(16)
-                                                        * (c.oh * c.ow).div_ceil(16)
-                                                        >= 128
-                                            } else {
-                                                false
-                                            }
-                                        });
-                                    if !prescale {
-                                        return Ok(None);
-                                    }
-                                    let members = vec![start, act, fc2, gate];
-                                    let output = n[gate].output;
-                                    if patterns::closed_group(
-                                        program, &members, output, selected, count,
-                                    ) {
-                                        let mut words = [0; 128];
-                                        words[0] = g.batch as u32;
-                                        words[3] = g.cin as u32;
-                                        words[4] = g.cout as u32;
-                                        words[5] = g2.cout as u32;
-                                        words[9] = alpha.to_bits();
-                                        words[10] = beta.to_bits();
-                                        let (x, y) = dispatch_grid(g.batch * 64, limits)?;
-                                        words[1] = x;
-                                        return Ok(Some(Recipe {
-                                            node: gate,
-                                            nodes: members,
-                                            kind: RecipeKind::Compute(ShaderKind::SeChain),
-                                            inputs: vec![
-                                                inputs[0],
-                                                inputs[1],
-                                                inputs[2],
-                                                n[fc2].inputs[1],
-                                                n[fc2].inputs[2],
-                                            ],
-                                            output,
-                                            words,
-                                            x,
-                                            y,
-                                        }));
-                                    }
-                                }
-                            }
+                // Prefer the existing excitation/apply fusion unless
+                // this chain enables removal of the subsequent gate Mul.
+                let prescale = next(n[gate].output)
+                    .filter(|&i| matches!(n[i].kind, Op::Mul))
+                    .and_then(|mul| next(n[mul].output))
+                    .is_some_and(|consumer| {
+                        if let BoundKind::Conv(c) = &plan.steps[consumer].kind {
+                            c.kh == 1
+                                && c.kw == 1
+                                && c.cpg == c.cin
+                                && c.cin >= 8
+                                && c.cout >= 8
+                                && c.batch * c.cout.div_ceil(16) * (c.oh * c.ow).div_ceil(16) >= 128
+                        } else {
+                            false
                         }
-                    }
+                    });
+                if !prescale {
+                    return Ok(None);
+                }
+                let members = vec![start, act, fc2, gate];
+                let output = n[gate].output;
+                if patterns::closed_group(program, &members, output, selected, count) {
+                    let mut words = [0; 128];
+                    words[0] = g.batch as u32;
+                    words[3] = g.cin as u32;
+                    words[4] = g.cout as u32;
+                    words[5] = g2.cout as u32;
+                    words[9] = alpha.to_bits();
+                    words[10] = beta.to_bits();
+                    let (x, y) = dispatch_grid(g.batch * 64, limits)?;
+                    words[1] = x;
+                    return Ok(Some(Recipe {
+                        node: gate,
+                        nodes: members,
+                        kind: RecipeKind::Compute(ShaderKind::SeChain),
+                        inputs: vec![
+                            inputs[0],
+                            inputs[1],
+                            inputs[2],
+                            n[fc2].inputs[1],
+                            n[fc2].inputs[2],
+                        ],
+                        output,
+                        words,
+                        x,
+                        y,
+                    }));
                 }
             }
             match n[act].kind {

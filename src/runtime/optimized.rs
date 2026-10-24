@@ -1,5 +1,5 @@
 //! Physical execution is derived from, and never rewrites, the normalized graph.
-use super::kernels::{BinaryOp, BoundKind};
+use super::bound::{BinaryOp, BoundKind};
 use super::*;
 use crate::tensor::TensorView;
 
@@ -184,7 +184,7 @@ fn layout_neutral(shape: Shape) -> bool {
             || (shape.dimensions()[2] == 1 && shape.dimensions()[3] == 1))
 }
 
-fn conv_nhwc_capable(compiled: &CpuCompiledModel, index: usize, p: &kernels::Conv) -> bool {
+fn conv_nhwc_capable(compiled: &CpuCompiledModel, index: usize, p: &bound::Conv) -> bool {
     let instruction = &compiled.program.instructions[index];
     let constant_rank = |slot: usize, rank: usize| {
         instruction.inputs.get(slot).is_some_and(|id| {
@@ -301,7 +301,7 @@ impl Plan {
         let mut map = vec![None; logical.shapes.len()];
         let mut conversions = HashMap::new();
         let mut fused = 0;
-        let nhwc = compiled.options.layout == LayoutPolicy::Auto;
+        let nhwc = compiled.options.cpu.layout == LayoutPolicy::Auto;
         let input_layout = if nhwc
             && logical.input_shape.rank() == 4
             && !layout_neutral(logical.input_shape)
@@ -1339,7 +1339,7 @@ impl State {
                                 compiled.backend,
                                 packed,
                                 threads,
-                                compiled.options.layout == LayoutPolicy::Auto,
+                                compiled.options.cpu.layout == LayoutPolicy::Auto,
                             )
                         };
                         let fused = !epilogues.is_empty()
@@ -1460,7 +1460,7 @@ impl State {
     }
 }
 
-fn conv_params(p: &kernels::Conv) -> simd::Conv2d {
+fn conv_params(p: &bound::Conv) -> simd::Conv2d {
     simd::Conv2d {
         batch: p.batch,
         input_channels: p.cin,
@@ -1689,7 +1689,7 @@ fn execute_native<'a>(
     cpu: &CpuContext,
     threads: usize,
 ) {
-    if compiled.options.layout == LayoutPolicy::Auto
+    if compiled.options.cpu.layout == LayoutPolicy::Auto
         && let BoundKind::MatMul {
             rows,
             inner,

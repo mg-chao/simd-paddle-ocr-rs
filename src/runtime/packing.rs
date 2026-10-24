@@ -18,7 +18,7 @@ pub(crate) enum MatrixPacking {
     ConvOutputMajor,
 }
 
-/// Owned by the immutable parsed model, shared across compilation policies.
+/// Owned by an explicit compiler, shared across compilation policies.
 /// Entries are populated only for formats selected by a compiled consumer.
 #[derive(Debug, Default)]
 pub(crate) struct WeightCache {

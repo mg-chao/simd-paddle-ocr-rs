@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    runtime::kernels::{BatchedMatMul, BinaryOp, Broadcast, Conv},
+    runtime::bound::{BatchedMatMul, BinaryOp, Broadcast, Conv},
     tensor::MAX_RANK,
 };
 

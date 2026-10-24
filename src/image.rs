@@ -1,12 +1,7 @@
 //! Checked borrowed interleaved images. Alpha is ignored by OCR processing.
 
-crate::error::stage_error!(ImageError, InvalidInput);
+pub use crate::error::ImageError;
 
-impl From<crate::runtime::RuntimeError> for ImageError {
-    fn from(value: crate::runtime::RuntimeError) -> Self {
-        Self::caused_by(value.kind(), "runtime", value)
-    }
-}
 pub type ImageResult<T> = Result<T, ImageError>;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

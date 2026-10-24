@@ -133,18 +133,19 @@ crops remain in original-image coordinates; padding is clipped rather than
 treated as an image scale. Frozen detector-map replay applies the same mapping.
 
 ```rust,no_run
-use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet};
+use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet, RunOptions};
 use simd_paddle_ocr_rs::image::{ImageView, PixelFormat};
 
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 let models = OcrModelSet::from_directory("models", ModelPreset::ChineseV6Tiny, true)?;
-let mut request = models.builder().build()?;
+let plan = models.builder().build()?;
+let mut request = plan.request()?;
 let pixels = vec![255u8; 640 * 480 * 3]; // Application-owned decoded pixels.
 let image = ImageView::new(&pixels, 640, 480, 0, PixelFormat::Rgb24)?;
-let result = request.run(image, false)?;
+let result = request.run(image, RunOptions::default())?;
 println!("{}", result.text);
 let saved = result.try_to_owned()?; // May outlive the next request.run().
-let _next = request.run(image, false)?;
+let _next = request.run(image, RunOptions::default())?;
 println!("{}", saved.text);
 # Ok(())
 # }
@@ -159,10 +160,10 @@ packed. A nonzero stride may include padding, but must be at least
 a slice starting at its first pixel with the parent row stride. Negative
 strides and planar pixel layouts are not accepted.
 
-`Ocr::run` reuses mutable activation, crop and result buffers. Its `OcrView`
+`OcrRequest::run` reuses mutable activation, crop and result buffers. Its `OcrView`
 borrows that request, so finish reading it before the next mutable call.
 `try_to_owned` copies output into an independent `OwnedOcr` and can fail on
-allocation. Pass `true` as the capture argument to retain CTC spans; then call
+allocation. Pass `RunOptions { capture_spans: true }` to retain CTC spans; then call
 `line.estimate_character_boxes()`. Without capture, that method returns an
 error, including on an empty recognized line. Errors return no partial OCR
 result; a later valid call can reuse the request.
@@ -186,7 +187,7 @@ with 24–31 workers select sixteen single-threaded recognition owners when ther
 are at least 32 units.
 A same-width batch counts
 as one unit. Selection depends on the page and configuration, so concurrent
-request timing does not change line ownership. `Ocr::cpu_budgets()` reports the
+request timing does not change line ownership. `OcrRequest::cpu_budgets()` reports the
 selected budgets after a run. More line workers retain additional activation
 and workspace buffers; choose a capacity that fits the deployment memory budget.
 On NEON, automatic scheduling with eight owners and a base kernel budget of
@@ -199,7 +200,7 @@ individual kernel budgets.
 Automatic classifiers can use up to sixteen single-threaded workers, bounded
 by the request's available CPU share. A positive `line_workers` bounds both stages.
 Standalone line extractors retain the default four-classifier maximum. Nested
-recognizer work shares the context. `Ocr::fork()` creates another mutable
+recognizer work shares the context. `OcrRequest::fork()` creates another mutable
 request sharing compiled models, packed weights, dictionary and CPU capacity,
 while keeping its own activations and buffers. Recognition batching is opt-in
 with `.recognition_batch_size(n)` and groups crops with the same selected
@@ -225,7 +226,7 @@ recognizer calls retain their explicit budgets.
 For a service, configure an `OcrEngine` before sharing it:
 
 ```rust,no_run
-use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet};
+use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet, RunOptions};
 use simd_paddle_ocr_rs::engine::EngineLimits;
 use simd_paddle_ocr_rs::cpu::{CpuContext, CpuOptions};
 use std::sync::Arc;
@@ -238,7 +239,7 @@ let engine = models.builder()
         line_workers: 4, detector_threads: 8, preprocess_workers: 8,
     })
     .build_engine(EngineLimits { max_requests: 2, max_idle_bytes: 512 << 20 })?;
-// Share Arc::new(engine) with callers. engine.run_owned(image, false) copies
+// Share Arc::new(engine) with callers. engine.run_owned(image, RunOptions::default()) copies
 // a result before releasing its request; engine.acquire() offers borrowed use.
 println!("{:?}", engine.stats());
 # Ok(())
@@ -249,7 +250,7 @@ println!("{:?}", engine.stats());
 returns `None` immediately when full. A lease returns its request on drop and
 ties borrowed results to that lease. Blocking acquisition from an executing
 context or trace callback is rejected to avoid deadlock; use nonblocking
-acquisition there. Configure options on the builder/template before creating
+acquisition there. Configure options on the builder/plan before creating
 the engine.
 
 ## Resource limits and supported model shapes

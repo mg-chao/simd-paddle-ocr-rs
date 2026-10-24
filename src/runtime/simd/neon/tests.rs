@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime::bound;
 
 fn values(count: usize, factor: usize) -> Vec<f32> {
     (0..count)
@@ -122,7 +123,7 @@ fn neon_dense_fused_store_preserves_physical_offsets_and_partial_vectors() {
 
 #[test]
 fn neon_dynamic_attention_retains_broadcast_batch_offsets() {
-    let (_, kind) = crate::runtime::kernels::bind_matmul(
+    let (_, kind) = crate::runtime::bound::bind_matmul(
         crate::tensor::Shape::new(&[2, 1, 5, 7]).unwrap(),
         crate::tensor::Shape::new(&[1, 3, 7, 33]).unwrap(),
     )

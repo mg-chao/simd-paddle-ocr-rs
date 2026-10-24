@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 //! Decode a JPEG/PNG in application code, then run CPU or native GPU inference.
 use serde::Serialize;
 use simd_paddle_ocr_rs::{
@@ -209,6 +210,15 @@ fn run() -> Result<(), Box<dyn Error>> {
             "inference-only" => GpuPipelineMode::InferenceOnly,
             _ => return Err("GPU pipeline must be full or inference-only".into()),
         });
+        let precision = match args.gpu_precision.as_str() {
+            "f32" => GpuPrecision::F32,
+            "mixed-f16" => GpuPrecision::MixedF16,
+            _ => return Err("invalid GPU precision".into()),
+        };
+        builder = builder.compile_options(simd_paddle_ocr_rs::runtime::CompileOptions {
+            gpu: GpuCompileOptions { precision },
+            ..Default::default()
+        });
         builder = builder.gpu_options(GpuContextOptions {
             experimental_cooperative_matrix: args.experimental_cooperative_matrix,
             backend: match args.gpu_backend.as_str() {
@@ -218,11 +228,7 @@ fn run() -> Result<(), Box<dyn Error>> {
                 "metal" => GpuBackendPreference::Metal,
                 _ => return Err("invalid GPU backend".into()),
             },
-            precision: match args.gpu_precision.as_str() {
-                "f32" => GpuPrecision::F32,
-                "mixed-f16" => GpuPrecision::MixedF16,
-                _ => return Err("invalid GPU precision".into()),
-            },
+            shader_f16: precision == GpuPrecision::MixedF16,
             ..Default::default()
         });
     }
@@ -237,13 +243,17 @@ fn run() -> Result<(), Box<dyn Error>> {
     if let Some(threads) = args.threads {
         builder = builder.cpu_context(Arc::new(CpuContext::new(threads)?));
     }
-    let mut request = builder.build()?;
-    let result = request.run(image, args.alignment)?.try_to_owned()?;
+    let mut request = builder.build()?.request()?;
+    let result = request
+        .run(
+            image,
+            simd_paddle_ocr_rs::RunOptions {
+                capture_spans: args.alignment,
+            },
+        )?
+        .try_to_owned()?;
     if args.statistics {
-        eprintln!(
-            "{}",
-            serde_json::to_string_pretty(&request.execution_statistics())?
-        );
+        eprintln!("{}", serde_json::to_string_pretty(&request.latest_run())?);
         #[cfg(feature = "gpu")]
         if let Some(statistics) = request.gpu_pipeline_statistics() {
             eprintln!("{}", serde_json::to_string_pretty(&statistics)?);

@@ -120,7 +120,10 @@ fn smaller_arena_plan_still_enforces_limits_and_rejected_growth_is_reusable() {
         CpuCompiledModel::compile(
             source.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         )

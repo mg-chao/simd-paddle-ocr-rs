@@ -37,29 +37,31 @@ enum ModelPlan {
     Gpu(Arc<super::gpu::GpuCompiledModel>),
 }
 struct CpuFallback {
-    graph: Arc<super::LogicalGraph>,
+    resources: Arc<super::compiler::ModelResources>,
     options: CompileOptions,
     compiled: OnceLock<RuntimeResult<Arc<CpuCompiledModel>>>,
 }
 impl CpuFallback {
     fn get(&self) -> RuntimeResult<Arc<CpuCompiledModel>> {
         self.compiled
-            .get_or_init(|| {
-                CpuCompiledModel::from_graph(self.graph.clone(), self.options).map(Arc::new)
-            })
+            .get_or_init(|| self.resources.cpu(self.options))
             .clone()
     }
 }
 /// Immutable backend plan. Auto prepares full CPU resources only on fallback.
 #[derive(Clone)]
 pub struct CompiledModel {
+    pub(crate) cpu_options: super::CpuCompileOptions,
+    pub(crate) packed: Arc<super::packing::WeightCache>,
     plan: ModelPlan,
     fallback: Option<Arc<CpuFallback>>,
-    reason: Option<String>,
+    reason: Option<RuntimeError>,
 }
 impl From<Arc<CpuCompiledModel>> for CompiledModel {
     fn from(value: Arc<CpuCompiledModel>) -> Self {
         Self {
+            cpu_options: value.options().cpu,
+            packed: value.packed_cache.clone(),
             plan: ModelPlan::Cpu(value),
             fallback: None,
             reason: None,
@@ -70,6 +72,8 @@ impl From<Arc<CpuCompiledModel>> for CompiledModel {
 impl From<Arc<super::gpu::GpuCompiledModel>> for CompiledModel {
     fn from(value: Arc<super::gpu::GpuCompiledModel>) -> Self {
         Self {
+            cpu_options: Default::default(),
+            packed: Arc::default(),
             plan: ModelPlan::Gpu(value),
             fallback: None,
             reason: None,
@@ -82,27 +86,28 @@ impl CompiledModel {
         options: CompileOptions,
         execution: ExecutionConfig,
     ) -> RuntimeResult<Self> {
-        let graph = Arc::new(super::LogicalGraph::compile(model)?);
-        if execution.target == ExecutionTarget::Cpu {
-            return CpuCompiledModel::from_graph(graph, options)
-                .map(Arc::new)
-                .map(Into::into);
+        let compiler = super::Compiler::new(super::CompilerOptions {
+            #[cfg(feature = "gpu")]
+            gpu: execution.gpu,
+            #[cfg(feature = "gpu")]
+            gpu_options: execution.gpu_options,
+        });
+        compiler.compile(model, options, execution.target)
+    }
+    pub(crate) fn compile_with(
+        compiler: &super::Compiler,
+        model: Arc<Model>,
+        options: CompileOptions,
+        target: ExecutionTarget,
+    ) -> RuntimeResult<Self> {
+        let resources = compiler.resources(model)?;
+        if target == ExecutionTarget::Cpu {
+            return resources.cpu(options).map(Into::into);
         }
         #[cfg(feature = "gpu")]
-        let gpu = execution
-            .gpu
-            .map(Ok)
-            .unwrap_or_else(|| {
-                if execution.gpu_options == super::gpu::GpuContextOptions::default() {
-                    super::gpu::GpuContext::shared_default()
-                } else {
-                    super::gpu::GpuContext::new_with_options(execution.gpu_options)
-                }
-            })
-            .and_then(|context| {
-                super::gpu::GpuCompiledModel::from_graph(graph.clone(), context, options.fusion)
-            })
-            .map(Arc::new);
+        let gpu = compiler
+            .gpu()
+            .and_then(|context| resources.gpu(context, options));
         #[cfg(not(feature = "gpu"))]
         let gpu: RuntimeResult<()> = Err(RuntimeError::with_kind(
             ErrorKind::Unsupported,
@@ -112,9 +117,11 @@ impl CompiledModel {
             #[cfg(feature = "gpu")]
             Ok(gpu) => {
                 let mut result: Self = gpu.into();
-                if execution.target == ExecutionTarget::Auto {
+                result.packed = resources.packed.clone();
+                result.cpu_options = options.cpu;
+                if target == ExecutionTarget::Auto {
                     result.fallback = Some(Arc::new(CpuFallback {
-                        graph,
+                        resources: resources.clone(),
                         options,
                         compiled: OnceLock::new(),
                     }));
@@ -123,10 +130,9 @@ impl CompiledModel {
             }
             #[cfg(not(feature = "gpu"))]
             Ok(()) => unreachable!(),
-            Err(error) if execution.target == ExecutionTarget::Auto && fallback_allowed(&error) => {
-                let mut result: Self =
-                    Arc::new(CpuCompiledModel::from_graph(graph, options)?).into();
-                result.reason = Some(error.to_string());
+            Err(error) if target == ExecutionTarget::Auto && fallback_allowed(&error) => {
+                let mut result: Self = resources.cpu(options)?.into();
+                result.reason = Some(error);
                 Ok(result)
             }
             Err(error) => Err(error),
@@ -138,6 +144,16 @@ impl CompiledModel {
             #[cfg(feature = "gpu")]
             ModelPlan::Gpu(c) => c.model_arc(),
         }
+    }
+    /// Bind a stage contract without constructing an execution request.
+    pub(crate) fn validate_shape(
+        &self,
+        shape: &[usize],
+        limits: ExecutionLimits,
+        prefix: Option<usize>,
+    ) -> RuntimeResult<Shape> {
+        Session::validate(self, shape, limits, prefix.map_or(Mode::Full, Mode::Prefix))
+            .map(|bound| bound.output)
     }
     pub fn model(&self) -> &Model {
         match &self.plan {
@@ -170,8 +186,8 @@ impl CompiledModel {
     pub fn is_gpu(&self) -> bool {
         self.as_cpu().is_none()
     }
-    pub fn fallback_reason(&self) -> Option<&str> {
-        self.reason.as_deref()
+    pub fn fallback_error(&self) -> Option<&RuntimeError> {
+        self.reason.as_ref()
     }
     #[cfg(feature = "gpu")]
     pub(crate) fn resident_fallback(&self, error: RuntimeError) -> RuntimeResult<Self> {
@@ -182,12 +198,30 @@ impl CompiledModel {
             return Err(error);
         };
         let mut model: Self = fallback.get()?.into();
-        model.reason = Some(error.to_string());
+        model.reason = Some(error);
         Ok(model)
     }
 }
 fn fallback_allowed(error: &RuntimeError) -> bool {
-    matches!(error.kind(), ErrorKind::Unsupported | ErrorKind::DeviceLost)
+    error.allows_fallback()
+}
+
+#[derive(Clone)]
+pub(crate) struct RequestSettings {
+    pub cpu: Arc<CpuContext>,
+    pub threads: usize,
+    #[cfg(feature = "gpu")]
+    pub gpu_mode: super::gpu::GpuPipelineMode,
+}
+impl Default for RequestSettings {
+    fn default() -> Self {
+        Self {
+            cpu: CpuContext::serial(),
+            threads: 1,
+            #[cfg(feature = "gpu")]
+            gpu_mode: Default::default(),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -196,21 +230,120 @@ enum Mode {
     Prefix(usize),
     Diagnostic,
 }
+struct PendingSession {
+    input: Shape,
+    output: Shape,
+    limits: ExecutionLimits,
+}
 enum SessionKind {
-    Cpu(CpuSession),
+    Pending(PendingSession),
+    Cpu(Box<CpuSession>),
     #[cfg(feature = "gpu")]
-    Gpu(super::gpu::GpuSession),
+    Gpu(Box<super::gpu::GpuSession>),
 }
 /// Output borrows this request; GPU waits do not occupy the CPU executor.
 pub struct Session {
     inner: SessionKind,
     compiled: CompiledModel,
     mode: Mode,
-    reason: Option<String>,
+    reason: Option<RuntimeError>,
     cpu: Arc<CpuContext>,
     threads: usize,
 }
 impl Session {
+    /// Validate the stage contract without allocating execution storage.
+    pub(crate) fn deferred(
+        compiled: impl Into<CompiledModel>,
+        shape: &[usize],
+        limits: ExecutionLimits,
+        prefix: Option<usize>,
+    ) -> RuntimeResult<Self> {
+        let compiled = compiled.into();
+        let mode = prefix.map_or(Mode::Full, Mode::Prefix);
+        let pending = Self::validate(&compiled, shape, limits, mode)?;
+        Ok(Self {
+            reason: compiled.reason.clone(),
+            compiled,
+            inner: SessionKind::Pending(pending),
+            mode,
+            cpu: CpuContext::serial(),
+            threads: 1,
+        })
+    }
+    fn validate(
+        compiled: &CompiledModel,
+        shape: &[usize],
+        limits: ExecutionLimits,
+        mode: Mode,
+    ) -> RuntimeResult<PendingSession> {
+        if limits.max_activation_bytes == 0 {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::InvalidInput,
+                "max_activation_bytes must be positive",
+            ));
+        }
+        let graph = match &compiled.plan {
+            ModelPlan::Cpu(c) => &c.program,
+            #[cfg(feature = "gpu")]
+            ModelPlan::Gpu(c) => &c.program,
+        };
+        let (count, output) = match mode {
+            Mode::Prefix(last) => (
+                last + 1,
+                graph
+                    .instructions
+                    .get(last)
+                    .ok_or_else(|| RuntimeError::new("prefix node out of range"))?
+                    .output,
+            ),
+            _ => (graph.instructions.len(), graph.output),
+        };
+        let mut plan = super::ShapePlan::empty(graph.model.graph().tensors.len(), count);
+        super::bind_into(
+            graph,
+            shape,
+            ExecutionLimits {
+                max_activation_bytes: usize::MAX,
+            },
+            count,
+            output,
+            &mut plan,
+            &mut super::BindScratch::new(graph),
+        )?;
+        Ok(PendingSession {
+            input: plan.input_shape,
+            output: plan.shapes[output.0],
+            limits,
+        })
+    }
+    fn prepare(&mut self) -> RuntimeResult<()> {
+        if let SessionKind::Pending(p) = &self.inner {
+            let mut ready = Self::create(
+                self.compiled.clone(),
+                p.input.dimensions(),
+                p.limits,
+                self.mode,
+            )?;
+            ready.set_execution_context(self.cpu.clone(), self.threads)?;
+            *self = ready;
+        }
+        Ok(())
+    }
+    /// Drop tensor transfers and activations when selecting resident execution.
+    #[cfg(feature = "gpu")]
+    pub(crate) fn release_gpu_storage(&mut self) {
+        if matches!(self.inner, SessionKind::Gpu(_)) {
+            self.inner = SessionKind::Pending(PendingSession {
+                input: self.input_shape(),
+                output: self.output_shape(),
+                limits: self.execution_limits(),
+            });
+        }
+    }
+    pub(crate) fn is_gpu(&self) -> bool {
+        matches!(self.execution_backend(), ExecutionBackend::Gpu)
+    }
+
     pub fn new_serial(
         compiled: impl Into<CompiledModel>,
         shape: &[usize],
@@ -253,9 +386,9 @@ impl Session {
     ) -> RuntimeResult<Self> {
         let mut reason = compiled.reason.clone();
         let candidate = match &compiled.plan {
-            ModelPlan::Cpu(c) => {
-                Self::cpu_session(c.clone(), shape, limits, mode).map(SessionKind::Cpu)
-            }
+            ModelPlan::Cpu(c) => Self::cpu_session(c.clone(), shape, limits, mode)
+                .map(Box::new)
+                .map(SessionKind::Cpu),
             #[cfg(feature = "gpu")]
             ModelPlan::Gpu(c) => match mode {
                 Mode::Full => super::gpu::GpuSession::new(c.clone(), shape, limits),
@@ -266,13 +399,14 @@ impl Session {
                     super::gpu::GpuSession::new_diagnostic(c.clone(), shape, limits)
                 }
             }
+            .map(Box::new)
             .map(SessionKind::Gpu),
         };
         let inner = match candidate {
             Err(error) if fallback_allowed(&error) && compiled.fallback.is_some() => {
                 let cpu = compiled.fallback.as_ref().unwrap().get()?;
-                reason = Some(error.to_string());
-                SessionKind::Cpu(Self::cpu_session(cpu, shape, limits, mode)?)
+                reason = Some(error);
+                SessionKind::Cpu(Box::new(Self::cpu_session(cpu, shape, limits, mode)?))
             }
             other => other?,
         };
@@ -302,19 +436,20 @@ impl Session {
         }
         let mut cpu = Self::cpu_session(fallback.get()?, shape, limits, self.mode)?;
         cpu.set_execution_context(self.cpu.clone(), self.threads)?;
-        self.inner = SessionKind::Cpu(cpu);
-        self.reason = Some(error.to_string());
+        self.inner = SessionKind::Cpu(Box::new(cpu));
+        self.reason = Some(error);
         Ok(())
     }
     pub fn execution_backend(&self) -> ExecutionBackend {
         match &self.inner {
+            SessionKind::Pending(_) => self.compiled.execution_backend(),
             SessionKind::Cpu(s) => ExecutionBackend::Cpu(s.compiled.backend()),
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(_) => ExecutionBackend::Gpu,
         }
     }
-    pub fn fallback_reason(&self) -> Option<&str> {
-        self.reason.as_deref()
+    pub fn fallback_error(&self) -> Option<&RuntimeError> {
+        self.reason.as_ref()
     }
     pub fn cpu_context(&self) -> &Arc<CpuContext> {
         &self.cpu
@@ -333,6 +468,7 @@ impl Session {
             ));
         }
         match &mut self.inner {
+            SessionKind::Pending(_) => {}
             SessionKind::Cpu(s) => s.set_execution_context(cpu.clone(), threads)?,
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(_) => {}
@@ -349,7 +485,13 @@ impl Session {
         shape: &[usize],
         limits: ExecutionLimits,
     ) -> RuntimeResult<()> {
+        if matches!(self.inner, SessionKind::Pending(_)) {
+            self.inner =
+                SessionKind::Pending(Self::validate(&self.compiled, shape, limits, self.mode)?);
+            return Ok(());
+        }
         let result = match &mut self.inner {
+            SessionKind::Pending(_) => unreachable!(),
             SessionKind::Cpu(s) => s.reshape_with_limits(shape, limits),
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(s) => s.reshape_with_limits(shape, limits),
@@ -372,10 +514,11 @@ impl Session {
         &mut self,
         fill: impl FnOnce(&mut [f32]) -> RuntimeResult<()>,
     ) -> RuntimeResult<TensorView<'_, f32>> {
+        self.prepare()?;
         // Public inputs are always logical NCHW, including CPU fallback.
         #[allow(irrefutable_let_patterns)]
         if let SessionKind::Cpu(s) = &mut self.inner {
-            s.run_with_input(fill)?;
+            s.run_with_input(|input| fill(input).map_err(RuntimeError::callback))?;
             return self.output();
         }
         self.run_with_layout_input(|input, _| fill(input))
@@ -393,14 +536,20 @@ impl Session {
     where
         F: FnOnce(&mut [f32], bool) -> RuntimeResult<()>,
     {
+        self.prepare()?;
         #[allow(unused_mut)]
         let mut filled = false;
         let result = match &mut self.inner {
-            SessionKind::Cpu(s) => s.run_with_layout_input(fill).map(|_| ()),
+            SessionKind::Pending(_) => unreachable!(),
+            SessionKind::Cpu(s) => s
+                .run_with_layout_input(|input, layout| {
+                    fill(input, layout).map_err(RuntimeError::callback)
+                })
+                .map(|_| ()),
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(s) => s
                 .run_with_input_profiled::<PROFILE>(|input| {
-                    fill(input, false)?;
+                    fill(input, false).map_err(RuntimeError::callback)?;
                     filled = true;
                     Ok(())
                 })
@@ -429,6 +578,7 @@ impl Session {
     }
     fn output(&self) -> RuntimeResult<TensorView<'_, f32>> {
         match &self.inner {
+            SessionKind::Pending(_) => Err(RuntimeError::new("session has not executed")),
             SessionKind::Cpu(s) => s.output_view(),
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(s) => s.output_view(),
@@ -459,34 +609,47 @@ impl Session {
     pub fn run_with_input_and_trace<F, O>(
         &mut self,
         fill: F,
-        observer: O,
+        mut observer: O,
     ) -> RuntimeResult<TensorView<'_, f32>>
     where
         F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
         O: for<'a> FnMut(NodeTrace<'a>) -> RuntimeResult<()>,
     {
+        self.prepare()?;
         // Callbacks may have observable side effects: never replay on fallback.
         match &mut self.inner {
-            SessionKind::Cpu(s) => s.run_with_input_and_trace(fill, observer),
+            SessionKind::Pending(_) => unreachable!(),
+            SessionKind::Cpu(s) => s.run_with_input_and_trace(
+                |input| fill(input).map_err(RuntimeError::callback),
+                |event| observer(event).map_err(RuntimeError::callback),
+            ),
             #[cfg(feature = "gpu")]
-            SessionKind::Gpu(s) => s.run_with_input_and_trace(fill, observer),
+            SessionKind::Gpu(s) => s.run_with_input_and_trace(
+                |input| fill(input).map_err(RuntimeError::callback),
+                |event| observer(event).map_err(RuntimeError::callback),
+            ),
         }
     }
     pub fn retained_device_bytes(&self) -> usize {
         match &self.inner {
-            SessionKind::Cpu(_) => 0,
+            SessionKind::Pending(_) | SessionKind::Cpu(_) => 0,
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(s) => s.retained_device_bytes(),
         }
     }
     pub fn statistics(&self) -> ExecutionStatistics {
         let mut stats = match &self.inner {
+            SessionKind::Pending(_) => ExecutionStatistics::default(),
             SessionKind::Cpu(s) => s.statistics(),
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(s) => s.statistics(),
         };
-        stats.execution_backend = Some(self.execution_backend());
-        stats.fallback_reason = self.reason.clone();
+        stats.execution_backend =
+            (!matches!(self.inner, SessionKind::Pending(_))).then(|| self.execution_backend());
+        stats.fallback = self
+            .reason
+            .as_ref()
+            .map(crate::error::FailureProvenance::from);
         stats
     }
     pub(crate) fn accumulate_gpu_profile<const PROFILE: bool>(
@@ -507,7 +670,75 @@ impl Session {
         }
     }
 }
-macro_rules! delegate {
-    ($($name:ident -> $ty:ty),* $(,)?) => { impl Session { $(pub fn $name(&self)->$ty { match &self.inner { SessionKind::Cpu(s)=>s.$name(), #[cfg(feature="gpu")] SessionKind::Gpu(s)=>s.$name() } })* } }
+impl Session {
+    pub fn input_shape(&self) -> Shape {
+        match &self.inner {
+            SessionKind::Pending(p) => p.input,
+            SessionKind::Cpu(s) => s.input_shape(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.input_shape(),
+        }
+    }
 }
-delegate!(input_shape->Shape,output_shape->Shape,execution_limits->ExecutionLimits,activation_bytes->usize,retained_activation_bytes->usize,retained_scratch_bytes->usize,retained_planning_bytes->usize);
+impl Session {
+    pub fn output_shape(&self) -> Shape {
+        match &self.inner {
+            SessionKind::Pending(p) => p.output,
+            SessionKind::Cpu(s) => s.output_shape(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.output_shape(),
+        }
+    }
+}
+impl Session {
+    pub fn execution_limits(&self) -> ExecutionLimits {
+        match &self.inner {
+            SessionKind::Pending(p) => p.limits,
+            SessionKind::Cpu(s) => s.execution_limits(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.execution_limits(),
+        }
+    }
+}
+impl Session {
+    pub fn activation_bytes(&self) -> usize {
+        match &self.inner {
+            SessionKind::Pending(_) => 0,
+            SessionKind::Cpu(s) => s.activation_bytes(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.activation_bytes(),
+        }
+    }
+}
+impl Session {
+    pub fn retained_activation_bytes(&self) -> usize {
+        match &self.inner {
+            SessionKind::Pending(_) => 0,
+            SessionKind::Cpu(s) => s.retained_activation_bytes(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.retained_activation_bytes(),
+        }
+    }
+}
+impl Session {
+    pub fn retained_scratch_bytes(&self) -> usize {
+        match &self.inner {
+            SessionKind::Pending(_) => 0,
+            SessionKind::Cpu(s) => s.retained_scratch_bytes(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.retained_scratch_bytes(),
+        }
+    }
+}
+impl Session {
+    pub fn retained_planning_bytes(&self) -> usize {
+        match &self.inner {
+            SessionKind::Pending(_) => 0,
+            SessionKind::Cpu(s) => size_of::<CpuSession>() + s.retained_planning_bytes(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => {
+                size_of::<super::gpu::GpuSession>() + s.retained_planning_bytes()
+            }
+        }
+    }
+}

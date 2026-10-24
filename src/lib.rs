@@ -39,3 +39,9 @@ pub use characters::{CharacterBox, OwnedCharacterBox};
 #[cfg(feature = "gpu")]
 pub use runtime::gpu::{GpuPipelineMode, GpuPipelineStatistics, GpuPlacement};
 pub use runtime::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget, Session};
+
+pub use error::OcrStage;
+pub use ocr::{OcrExecution, OcrPlan, OcrRequest, RunOptions, RunStatistics};
+pub use runtime::{
+    CompileOptions, Compiler, CompilerOptions, CpuCompileOptions, ExecutionCounters, MemorySnapshot,
+};

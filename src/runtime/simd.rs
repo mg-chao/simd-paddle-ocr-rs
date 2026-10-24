@@ -1767,8 +1767,8 @@ impl Conv2d {
         self.groups == 1 && self.input_channels > 1 && self.horizontal_interior().len() < lanes
     }
 
-    fn original_plan(&self) -> super::kernels::Conv {
-        super::kernels::Conv {
+    fn original_plan(&self) -> super::bound::Conv {
+        super::bound::Conv {
             batch: self.batch,
             cin: self.input_channels,
             cout: self.output_channels,
@@ -3896,7 +3896,7 @@ mod tests {
         for (height, width) in [(1, 1), (2, 7), (6, 66)] {
             let shape = crate::tensor::Shape::new(&[2, 3, height, width]).unwrap();
             let input = values(shape.element_count());
-            let (output_shape, kind) = super::super::kernels::bind_max_pool(shape).unwrap();
+            let (output_shape, kind) = super::super::bound::bind_max_pool(shape).unwrap();
             let mut expected = vec![0.; output_shape.element_count()];
             super::super::kernels::execute(
                 &kind,
@@ -3910,7 +3910,7 @@ mod tests {
                 assert_bits(&actual, &expected);
             }
             if height == 6 {
-                let (output_shape, kind) = super::super::kernels::bind_average_pool(shape).unwrap();
+                let (output_shape, kind) = super::super::bound::bind_average_pool(shape).unwrap();
                 let mut expected = vec![0.; output_shape.element_count()];
                 super::super::kernels::execute(
                     &kind,
@@ -5122,7 +5122,7 @@ mod tests {
         let input = values(2 * 256 * 8 * 8);
         let weights = values(64 * 256 * 3 * 3);
         let bias = values(64);
-        let kind = crate::runtime::kernels::BoundKind::Conv(p.original_plan());
+        let kind = crate::runtime::bound::BoundKind::Conv(p.original_plan());
         let inputs = [TensorId(0), TensorId(1), TensorId(2)];
         let data = |id: TensorId| match id.0 {
             0 => input.as_slice(),

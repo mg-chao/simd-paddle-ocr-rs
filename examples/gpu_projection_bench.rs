@@ -1,6 +1,8 @@
+#![recursion_limit = "256"]
 //! Physical timestamp comparison: exactly one warmup and three samples per candidate.
 use std::{error::Error, time::Duration};
 use wgpu::util::DeviceExt;
+#[allow(clippy::assertions_on_constants)]
 fn main() -> Result<(), Box<dyn Error>> {
     assert!(!cfg!(debug_assertions), "release build required");
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -155,7 +157,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if iteration == 0 {
                     let data = readback.slice(..).get_mapped_range()?;
                     if let Some(expected) = &reference {
-                        for (a, b) in data.chunks_exact(16).zip(expected.chunks_exact(16)) {
+                        for (a, b) in data
+                            .as_chunks::<16>()
+                            .0
+                            .iter()
+                            .zip(expected.as_chunks::<16>().0.iter())
+                        {
                             assert_eq!(&a[..4], &b[..4]);
                             for offset in [4, 8] {
                                 let x = f32::from_le_bytes(a[offset..offset + 4].try_into()?);

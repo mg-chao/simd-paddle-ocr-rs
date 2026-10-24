@@ -117,7 +117,7 @@ fn compatible_add(
             && shape.rank() == 4
             && shape.dimensions() == [1, output.dimensions()[1], 1, 1])
         || (shape == output
-            && (compiled.options.layout == LayoutPolicy::Nchw
+            && (compiled.options.cpu.layout == LayoutPolicy::Nchw
                 || compiled.program.model.graph().tensors[other.0]
                     .constant
                     .is_none()))

@@ -24,6 +24,19 @@ pub struct GpuExecutionProfile {
     pub kernels: Vec<GpuKernelProfile>,
 }
 impl GpuExecutionProfile {
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.kernels.capacity() * size_of::<GpuKernelProfile>()
+            + self
+                .kernels
+                .iter()
+                .map(|k| {
+                    k.stage.capacity()
+                        + k.kernel.capacity()
+                        + (k.nodes.capacity() + k.output_shape.capacity()) * size_of::<usize>()
+                })
+                .sum::<usize>()
+    }
+
     pub fn compute_ns(&self) -> Option<u64> {
         self.kernels
             .iter()
