@@ -90,7 +90,8 @@ context. FP32 and mixed plans can share that context. It requires the adapter's
 into reductions using the advertised subgroup feature, without assuming a lane
 width. FP32 portable kernels require neither feature.
 `cooperative_pointwise: true` (the default) enables FP32 32×32 matrix tiles for
-eligible short-map pointwise convolutions on Metal. Selection checks support
+eligible pointwise convolutions on Metal, including canonical 32×32 tiled
+layers outside the short-map register policy. Selection checks support
 for FP32 8×8 matrix operands and accumulators, subgroup sizes, canonical FP32
 storage, and channel/spatial dimensions divisible by eight. Partial 32×32 tiles
 are masked. Unsupported shapes and adapters use the existing kernels; set
@@ -182,12 +183,14 @@ choices add model-shared memory and retain FP32 arithmetic. The
 [pointwise throughput results](gpu-pointwise-throughput-2026-10-24.md) record
 the latency/memory tradeoff and local validation.
 
-On capable Metal devices, eligible packed/register pointwise layers instead
+On capable Metal devices, eligible canonical 32×32, packed and register pointwise layers instead
 load FP32 matrix fragments directly from canonical weights and NCHW features.
 Each subgroup computes a 32×32 output tile; two logical tiles share a workgroup.
 Bias, residuals, activations, and destination offsets keep the existing fused
 epilogue. This path avoids the extra packed-weight allocation for those layers.
 See the [matrix optimization results](gpu-matrix-optimization-2026-10-24.md).
+The [matrix coverage extension](gpu-matrix-extension-2026-10-24.md) records
+the additional H12 recognition coverage and its measured Medium latency gain.
 
 Immutable weights and head/pipeline caches are shared. Forks have independent
 activations and scratch. `cache_resident_scratch: true` opts in to the bounded

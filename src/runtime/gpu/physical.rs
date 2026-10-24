@@ -4,8 +4,8 @@ use crate::runtime::{Op, graph_patterns as patterns};
 use operators::{Recipe, RecipeKind, ShaderKind};
 
 /// Called only after the device's FP32 8x8 cooperative capability is checked.
-/// Retain the existing short-map pointwise policy and require complete 8x8
-/// fragments for direct loads. The final 32x32 tile may be partial.
+/// Require canonical FP32 pointwise inputs and complete 8x8 fragments for
+/// direct loads. The final 32x32 tile may be partial.
 pub(super) fn select_cooperative_pointwise(
     recipes: &mut [Recipe],
     descriptors: &[GpuTensorDescriptor],
@@ -14,7 +14,11 @@ pub(super) fn select_cooperative_pointwise(
     for recipe in recipes {
         if !matches!(
             recipe.kind,
-            RecipeKind::Compute(ShaderKind::PointwisePacked32 | ShaderKind::PointwiseBlocked32)
+            RecipeKind::Compute(
+                ShaderKind::PointwiseNchw32
+                    | ShaderKind::PointwisePacked32
+                    | ShaderKind::PointwiseBlocked32
+            )
         ) {
             continue;
         }

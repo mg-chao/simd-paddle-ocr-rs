@@ -2166,7 +2166,8 @@ fn gpu_pointwise_layout_candidates() {
             operators::RecipeKind::Compute(
                 ShaderKind::PointwiseNchw32
                 | ShaderKind::PointwiseBlocked32
-                | ShaderKind::PointwisePacked32,
+                | ShaderKind::PointwisePacked32
+                | ShaderKind::PointwiseCooperative32,
             ) => ShaderKind::Conv32,
             operators::RecipeKind::Compute(kind @ (ShaderKind::Conv16 | ShaderKind::Conv32)) => {
                 kind
@@ -2517,6 +2518,42 @@ fn gpu_pointwise_cooperative_candidates() {
     }
 }
 
+#[test]
+#[ignore = "bounded long-map experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_pointwise_cooperative_long_map_candidates() {
+    use operators::ShaderKind;
+    let started = std::time::Instant::now();
+    for (input, channels) in [
+        ([1, 256, 12, 200], 512),
+        ([1, 192, 12, 216], 96),
+        ([1, 1536, 3, 240], 768),
+    ] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "cooperative long-map pointwise candidate",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias: true,
+            },
+            &[
+                ShaderKind::PointwiseNchw32,
+                ShaderKind::PointwiseBlocked32,
+                ShaderKind::PointwiseCooperative32,
+            ],
+            3,
+        );
+        assert!(
+            started.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
 fn pointwise_packed_weight_candidates(case: ConvCase, measured: usize) {
     use operators::ShaderKind;
     convolution_kernel_candidates(
@@ -2863,7 +2900,19 @@ fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
     } else {
         ShaderKind::PointwisePacked32
     };
+    let aligned_nchw = if aligned_metal == ShaderKind::PointwiseCooperative32 {
+        ShaderKind::PointwiseCooperative32
+    } else {
+        ShaderKind::PointwiseNchw32
+    };
     for (input, channels, fast, previous, verify) in [
+        (
+            [1, 256, 12, 200],
+            512,
+            aligned_nchw,
+            ShaderKind::PointwiseNchw32,
+            false,
+        ),
         (
             [1, 512, 12, 125],
             256,
@@ -3715,38 +3764,122 @@ fn cooperative_pointwise_requires_complete_fp32_fragments() {
     recipe.words[7] = 3;
     recipe.words[8] = 264;
     recipe.words[35] = 1;
-    // 5 * 25 = 125 tiles; the last workgroup must mask its second tile.
-    let mut eligible = [recipe.clone()];
-    physical::select_cooperative_pointwise(&mut eligible, &descriptors, &wgpu::Limits::default())
-        .unwrap();
-    assert!(matches!(
-        eligible[0].kind,
-        RecipeKind::Compute(ShaderKind::PointwiseCooperative32)
-    ));
-    assert_eq!((eligible[0].x, eligible[0].y), (63, 1));
-    for word in [3, 4, 8] {
-        let mut unaligned = [recipe.clone()];
-        unaligned[0].words[word] += 1;
+    for kind in [
+        ShaderKind::PointwiseNchw32,
+        ShaderKind::PointwiseBlocked32,
+        ShaderKind::PointwisePacked32,
+    ] {
+        recipe.kind = RecipeKind::Compute(kind);
+        // 5 * 25 = 125 tiles; the last workgroup must mask its second tile.
+        let mut eligible = [recipe.clone()];
         physical::select_cooperative_pointwise(
-            &mut unaligned,
+            &mut eligible,
             &descriptors,
             &wgpu::Limits::default(),
         )
         .unwrap();
         assert!(matches!(
-            unaligned[0].kind,
-            RecipeKind::Compute(ShaderKind::PointwisePacked32)
+            eligible[0].kind,
+            RecipeKind::Compute(ShaderKind::PointwiseCooperative32)
         ));
-    }
-    for id in 0..3 {
-        let mut mixed = descriptors.clone();
-        mixed[id].precision = GpuPrecision::MixedF16;
-        let mut recipes = [recipe.clone()];
-        physical::select_cooperative_pointwise(&mut recipes, &mixed, &wgpu::Limits::default())
+        assert_eq!((eligible[0].x, eligible[0].y), (63, 1));
+        // Alignment and minimum-size gates apply equally to the newly admitted
+        // NCHW family and the previously supported register-blocked families.
+        for (word, value) in [(3, 129), (4, 137), (8, 265), (3, 120), (4, 56), (8, 16)] {
+            let mut fallback = [recipe.clone()];
+            fallback[0].words[word] = value;
+            physical::select_cooperative_pointwise(
+                &mut fallback,
+                &descriptors,
+                &wgpu::Limits::default(),
+            )
             .unwrap();
+            assert!(matches!(fallback[0].kind, RecipeKind::Compute(actual) if actual == kind));
+            assert_eq!((fallback[0].x, fallback[0].y), (1, 1));
+        }
+        for id in 0..3 {
+            let mut mixed = descriptors.clone();
+            mixed[id].precision = GpuPrecision::MixedF16;
+            let mut recipes = [recipe.clone()];
+            physical::select_cooperative_pointwise(&mut recipes, &mixed, &wgpu::Limits::default())
+                .unwrap();
+            assert!(matches!(recipes[0].kind, RecipeKind::Compute(actual) if actual == kind));
+
+            let mut padded = descriptors.clone();
+            padded[id].layout = GpuLayout::PaddedNhwc { channels: 128 };
+            let mut recipes = [recipe.clone()];
+            physical::select_cooperative_pointwise(&mut recipes, &padded, &wgpu::Limits::default())
+                .unwrap();
+            assert!(matches!(recipes[0].kind, RecipeKind::Compute(actual) if actual == kind));
+        }
+    }
+    for kind in [
+        ShaderKind::PointwiseNchw16,
+        ShaderKind::PointwisePrescaled16,
+        ShaderKind::PointwisePrescaled32,
+        ShaderKind::ConvPrescaled32,
+        ShaderKind::SeChain,
+        ShaderKind::Conv32,
+        ShaderKind::MatMul32,
+    ] {
+        recipe.kind = RecipeKind::Compute(kind);
+        let mut recipes = [recipe.clone()];
+        physical::select_cooperative_pointwise(
+            &mut recipes,
+            &descriptors,
+            &wgpu::Limits::default(),
+        )
+        .unwrap();
+        assert!(matches!(recipes[0].kind, RecipeKind::Compute(actual) if actual == kind));
+        assert_eq!((recipes[0].x, recipes[0].y), (1, 1));
+    }
+}
+
+#[test]
+fn cooperative_pointwise_selection_covers_long_maps() {
+    use operators::{Recipe, RecipeKind, ShaderKind};
+    for (input, channels, kind, groups) in [
+        ([1, 256, 12, 200], 512, ShaderKind::PointwiseNchw32, 600),
+        ([1, 192, 12, 216], 96, ShaderKind::PointwisePacked32, 122),
+        ([1, 1536, 3, 240], 768, ShaderKind::PointwisePacked32, 276),
+    ] {
+        let [batch, inner, height, width] = input;
+        let descriptors = [
+            Shape::new(&input).unwrap(),
+            Shape::new(&[channels, inner, 1, 1]).unwrap(),
+            Shape::new(&[channels]).unwrap(),
+            Shape::new(&[batch, channels, height, width]).unwrap(),
+        ]
+        .map(|shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::F32));
+        let mut recipe = Recipe {
+            node: 0,
+            nodes: vec![0],
+            kind: RecipeKind::Compute(kind),
+            inputs: vec![TensorId(0), TensorId(1), TensorId(2)],
+            output: TensorId(3),
+            words: [0; 128],
+            x: 1,
+            y: 1,
+        };
+        recipe.words[3] = inner as u32;
+        recipe.words[4] = channels as u32;
+        recipe.words[7] = height as u32;
+        recipe.words[8] = width as u32;
+        recipe.words[19] = 1;
+        recipe.words[35] = batch as u32;
+        let mut recipes = [recipe];
+        physical::select_cooperative_pointwise(
+            &mut recipes,
+            &descriptors,
+            &wgpu::Limits::default(),
+        )
+        .unwrap();
         assert!(matches!(
             recipes[0].kind,
-            RecipeKind::Compute(ShaderKind::PointwisePacked32)
+            RecipeKind::Compute(ShaderKind::PointwiseCooperative32)
         ));
+        assert_eq!((recipes[0].x, recipes[0].y), (groups, 1));
+        assert_eq!(recipes[0].words[32], channels.div_ceil(32) as u32);
+        assert_eq!(recipes[0].words[33], (height * width).div_ceil(32) as u32);
     }
 }
