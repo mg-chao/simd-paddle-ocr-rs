@@ -335,6 +335,10 @@ pub(super) fn lower(
     }
     let mut staged = Vec::new();
     for mut recipe in physical {
+        let metal_register_pointwise = backend == wgpu::Backend::Metal
+            && matches!(&plan.steps[recipe.nodes[0]].kind, BoundKind::Conv(g)
+                if g.height <= 6 || (g.height == 12 && g.cin == 512 && g.cout == 256
+                    && matches!(recipe.kind, RecipeKind::Compute(ShaderKind::Conv32))));
         // Direct NCHW addressing removes spatial div/mod and bounds work from
         // measured FP32 pointwise shapes without adding a layout conversion.
         // Metal also benefits on short recognition feature maps with large
@@ -351,17 +355,17 @@ pub(super) fn lower(
             && g.oh == g.height
             && g.ow == g.width
             && g.cpg == g.cin
-            && (g.cin <= 256 || (backend == wgpu::Backend::Metal && g.height <= 6))
+            && (g.cin <= 256 || metal_register_pointwise)
         {
             recipe.kind = match recipe.kind {
                 RecipeKind::Compute(ShaderKind::Conv16) => {
                     RecipeKind::Compute(ShaderKind::PointwiseNchw16)
                 }
-                // Four-by-four register blocks reuse shared operands on the
-                // measured short FP32 Metal recognition maps. Keep the existing
-                // kernels for tall maps, other backends, and prescaled inputs.
+                // Four-by-four register blocks also improve the measured
+                // height-12 512->256 recognition layers. Other tall maps,
+                // backends and prescaled inputs retain their previous policy.
                 RecipeKind::Compute(ShaderKind::Conv32)
-                    if backend == wgpu::Backend::Metal && g.height <= 6 && g.cin >= 128 =>
+                    if metal_register_pointwise && g.cin >= 128 =>
                 {
                     RecipeKind::Compute(ShaderKind::PointwiseBlocked32)
                 }

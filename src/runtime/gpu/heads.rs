@@ -552,6 +552,273 @@ impl Recognition {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn projection_context(shader_f16: bool) -> Arc<GpuContext> {
+        let backend = match std::env::var("SIMD_OCR_GPU_BACKEND").as_deref() {
+            Ok("dx12") => GpuBackendPreference::Dx12,
+            Ok("metal") => GpuBackendPreference::Metal,
+            _ => GpuBackendPreference::Vulkan,
+        };
+        let context = GpuContext::new_with_options(GpuContextOptions {
+            backend,
+            shader_f16,
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(matches!(
+            context.adapter_info().device_type,
+            wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+        ));
+        context
+    }
+
+    fn projection_fixture(
+        context: &Arc<GpuContext>,
+        [rows, inner, classes]: [usize; 3],
+        precision: GpuPrecision,
+        [features, weights, bias]: [&[f32]; 3],
+    ) -> (Head, Tensor) {
+        let upload = |label, bytes: &[u8]| {
+            context
+                .create_buffer_init(
+                    label,
+                    bytes,
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                )
+                .unwrap()
+        };
+        let head = Head {
+            owned_bytes: 0,
+            metadata: ProjectionHead {
+                feature: TensorId(0),
+                feature_node: 0,
+                weights: TensorId(0),
+                bias: None,
+                inner,
+                classes,
+            },
+            weights: upload("projection test weights", bytemuck::cast_slice(weights)),
+            bias: upload("projection test bias", bytemuck::cast_slice(bias)),
+            lengths: upload(
+                "projection test token lengths",
+                bytemuck::cast_slice(&vec![1u32; classes]),
+            ),
+            context: context.clone(),
+        };
+        let features = upload("projection test features", &precision.encode(features));
+        let features = Tensor {
+            context: context.clone(),
+            buffer: features,
+            descriptor: GpuTensorDescriptor::canonical(
+                Shape::new(&[rows, 1, inner]).unwrap(),
+                precision,
+            ),
+        };
+        (head, features)
+    }
+
+    #[test]
+    #[ignore = "requires a physical GPU with shader-f16 support"]
+    fn gpu_projection_score_modes_preserve_contract() {
+        let context = projection_context(true);
+        for (rows, classes, precision) in [
+            (5, 130, GpuPrecision::F32),
+            (19, 4097, GpuPrecision::F32),
+            (5, 130, GpuPrecision::MixedF16),
+        ] {
+            let inner = 7;
+            let mut features = vec![0f32; rows * inner];
+            for row in 0..rows {
+                features[row * inner] = if row % 2 == 0 { 1. } else { -1. };
+            }
+            let mut weights = vec![0f32; inner * classes];
+            weights[63] = 2.;
+            weights[64] = 2.;
+            weights[classes - 1] = -2.;
+            let mut bias = vec![0f32; classes];
+            for class in [63, 64, classes - 1] {
+                bias[class] = 4.;
+            }
+            let (head, features) = projection_fixture(
+                &context,
+                [rows, inner, classes],
+                precision,
+                [&features, &weights, &bias],
+            );
+            for probability in [false, true] {
+                let mut batch = Batch::new(context.clone()).unwrap();
+                let winners = head.project(&mut batch, &features, probability).unwrap();
+                let (actual, _) = batch.read(&winners, rows * 16, false).unwrap();
+                for (row, record) in actual.as_chunks::<16>().0.iter().enumerate() {
+                    let word =
+                        |i: usize| u32::from_le_bytes(record[i * 4..i * 4 + 4].try_into().unwrap());
+                    // Equal winners straddle tiles 0 and 1; odd rows win in the
+                    // final, partially occupied class tile. Nineteen rows also
+                    // leave the fourth row group partially occupied.
+                    assert_eq!(
+                        word(0),
+                        if row % 2 == 0 {
+                            63
+                        } else {
+                            (classes - 1) as u32
+                        }
+                    );
+                    let score = if probability {
+                        let high = if row % 2 == 0 { 2. } else { 1. };
+                        let low = 3. - high;
+                        1. / (high + low * (-4f32).exp() + (classes - 3) as f32 * (-6f32).exp())
+                    } else {
+                        6.
+                    };
+                    assert!((f32::from_bits(word(1)) - score).abs() <= 1e-6 + 1e-5 * score.abs());
+                    assert_eq!(word(3), 0);
+                }
+                for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+                    bias[65] = invalid;
+                    context
+                        .upload_resident(&head.bias, bytemuck::cast_slice(&bias))
+                        .unwrap();
+                    let mut batch = Batch::new(context.clone()).unwrap();
+                    let winners = head.project(&mut batch, &features, probability).unwrap();
+                    let decoded = head
+                        .decode(&mut batch, &winners, 1, rows, true, usize::MAX)
+                        .unwrap();
+                    let (actual, _) = batch.read(&decoded, (rows + 1) * 24, false).unwrap();
+                    assert!(Recognition::parse(&actual, 1, rows, classes).is_err());
+                }
+                bias[65] = 0.;
+                context
+                    .upload_resident(&head.bias, bytemuck::cast_slice(&bias))
+                    .unwrap();
+            }
+        }
+    }
+
+    // The probability tail remains byte-for-byte identical to the original
+    // shader. Remove only the Logit early return to recover that baseline.
+    fn legacy_projection_source(kernel: &str) -> String {
+        let start = kernel
+            .find("    // Logit mode already has everything")
+            .unwrap();
+        let end = start + kernel[start..].find("    sums[lane]=").unwrap();
+        assert!(kernel[start..end].contains("if p(4u)==0u{"));
+        assert!(kernel[start..end].contains("return;"));
+        format!("{}{}", &kernel[..start], &kernel[end..])
+    }
+
+    #[test]
+    #[ignore = "bounded physical GPU comparison: three shapes, one correctness warmup and three measured calls per version"]
+    fn benchmark_gpu_logit_projection_reduction() {
+        if cfg!(debug_assertions) {
+            panic!("release build required");
+        }
+        let context = projection_context(false);
+        let mut execution = [std::time::Duration::ZERO; 2];
+        for (rows, inner, classes) in [(8, 80, 6906), (80, 80, 6906), (80, 192, 18710)] {
+            let values = |n: usize| {
+                (0..n)
+                    .map(|i| ((i * 37 + 19) % 127) as f32 / 63. - 1.)
+                    .collect::<Vec<_>>()
+            };
+            let (head, features) = projection_fixture(
+                &context,
+                [rows, inner, classes],
+                GpuPrecision::F32,
+                [
+                    &values(rows * inner),
+                    &values(inner * classes),
+                    &values(classes),
+                ],
+            );
+            let rows_per_group = if rows >= 16 && classes >= 4096 { 4 } else { 1 };
+            let kernel = if rows_per_group == 4 {
+                include_str!("heads4.wgsl")
+            } else {
+                include_str!("heads.wgsl")
+            };
+            let legacy = legacy_projection_source(kernel);
+            let mut expected = None;
+            for (version, kernel) in [legacy.as_str(), kernel].into_iter().enumerate() {
+                let source = format!("{PARAMETERS}{}", kernel.replace("$INPUT", "f32"));
+                let reduce = format!("{PARAMETERS}{}", include_str!("head_reduce.wgsl"));
+                let tiles = classes.div_ceil(64);
+                let words = [rows as u32, inner as u32, classes as u32, tiles as u32, 0];
+                let mut wall_us = Vec::new();
+                let mut device_us = Vec::new();
+                for iteration in 0..4 {
+                    assert!(
+                        execution[version].as_secs_f64() < 60.,
+                        "projection execution budget exhausted"
+                    );
+                    let start = std::time::Instant::now();
+                    let mut batch = Batch::new(context.clone()).unwrap();
+                    batch.profiling = true;
+                    let partial = batch
+                        .storage("projection comparison partial", rows * tiles * 16)
+                        .unwrap();
+                    let winners = batch
+                        .storage("projection comparison winners", rows * 16)
+                        .unwrap();
+                    batch
+                        .dispatch(
+                            &format!("projection_comparison_{version}_{rows_per_group}"),
+                            &source,
+                            &[
+                                (&features.buffer, true),
+                                (&head.weights, true),
+                                (&head.bias, true),
+                                (&partial, false),
+                            ],
+                            &words,
+                            [tiles as u32, rows.div_ceil(rows_per_group) as u32, 1],
+                        )
+                        .unwrap();
+                    batch
+                        .dispatch(
+                            "projection_comparison_winners",
+                            &reduce,
+                            &[(&partial, true), (&winners, false)],
+                            &words,
+                            [(rows as u32).div_ceil(64), 1, 1],
+                        )
+                        .unwrap();
+                    let (actual, stats) = batch.read(&winners, rows * 16, false).unwrap();
+                    let elapsed = start.elapsed();
+                    execution[version] += elapsed;
+                    assert!(
+                        execution[version].as_secs_f64() < 60.,
+                        "projection execution budget exhausted"
+                    );
+                    if iteration == 0 {
+                        if let Some(expected) = &expected {
+                            assert_eq!(&actual, expected, "Logit winners changed");
+                        } else {
+                            expected = Some(actual);
+                        }
+                    } else {
+                        wall_us.push(elapsed.as_secs_f64() * 1e6);
+                        device_us.push(
+                            stats
+                                .profile
+                                .and_then(|p| p.compute_ns())
+                                .map(|ns| ns as f64 / 1000.),
+                        );
+                    }
+                }
+                eprintln!(
+                    "PROJECTION {}",
+                    serde_json::json!({
+                        "shape": [rows, inner, classes], "rows_per_group": rows_per_group,
+                        "version": if version == 0 { "legacy" } else { "logit_fast_path" },
+                        "wall_us": wall_us, "device_us": device_us,
+                        "cumulative_execution_seconds": execution[version].as_secs_f64(),
+                        "warmup_calls": 1, "measured_calls": 3,
+                    })
+                );
+            }
+        }
+    }
+
     #[test]
     #[ignore = "requires a physical GPU"]
     fn gpu_resident_classifier_batches_preserve_rows_and_tails() {

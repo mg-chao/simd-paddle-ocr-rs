@@ -27,6 +27,12 @@ fn main(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:v
         }
         workgroupBarrier();
     }
+    // Logit mode already has everything it needs after the winner reduction.
+    // The parameter is uniform, so all lanes skip the probability barriers.
+    if p(4u)==0u{
+        if lane==0u{partial[row*p(3u)+group.x]=vec4<u32>(indices[0],bitcast<u32>(scores[0]),0u,invalid[0]);}
+        return;
+    }
     sums[lane]=select(0.0,exp(value-scores[0]),column<p(2u) && p(4u)!=0u);
     workgroupBarrier();
     for(var stride=32u;stride>0u;stride/=2u){if lane<stride{sums[lane]+=sums[lane+stride];}workgroupBarrier();}

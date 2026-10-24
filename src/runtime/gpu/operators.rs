@@ -798,8 +798,16 @@ pub(super) fn specialize(
         }
         let mut matrix = None;
         let mut prefer_spatial32 = false;
+        let mut narrow_pointwise = false;
         match &plan.steps[r.nodes[0]].kind {
             BoundKind::Conv(g) if g.dh == 1 && g.dw == 1 && g.sh <= 2 && g.sw <= 2 => {
+                let rgb_stem = metal_f32
+                    && g.cin == 3
+                    && g.kh == 3
+                    && g.kw == 3
+                    && g.sh == 2
+                    && g.sw == 2
+                    && g.cout >= 16;
                 if g.cpg == 1
                     && g.opg == 1
                     && g.cin == g.cout
@@ -817,18 +825,34 @@ pub(super) fn specialize(
                     && g.kh == g.kw
                     && (matches!(g.kh, 1..=3) || (metal_f32 && matches!(g.kh, 5 | 7)))
                     && g.cout >= 8
-                    && g.cpg >= 8
+                    && (g.cpg >= 8 || rgb_stem)
                 {
                     matrix = Some((g.cout, g.oh * g.ow, g.batch, true));
+                    // Short recognition outputs benefit from direct 16x16
+                    // pointwise reuse before the usual 128-group threshold.
+                    // Keep the smaller maps and all other operators unchanged.
+                    narrow_pointwise = metal_f32
+                        && g.kh == 1
+                        && g.sh == 1
+                        && g.sw == 1
+                        && g.pt == 0
+                        && g.pl == 0
+                        && g.height == 1
+                        && g.oh == 1
+                        && g.ow == g.width
+                        && g.cin >= 128
+                        && g.cout >= 64
+                        && g.ow >= 64;
                     // Large spatial maps provide enough groups even at 32/64
                     // output channels. Measured Metal 3x3, 5x5 and 7x7 layers
                     // benefit from the larger tile's operand reuse. Require
                     // complete output-channel tiles and retain occupancy guards.
-                    prefer_spatial32 = metal_f32
-                        && matches!(g.kh, 3 | 5 | 7)
-                        && g.cin >= 32
-                        && g.cout.is_multiple_of(32)
-                        && g.oh * g.ow >= 1024;
+                    prefer_spatial32 = rgb_stem
+                        || (metal_f32
+                            && matches!(g.kh, 3 | 5 | 7)
+                            && g.cin >= 32
+                            && g.cout.is_multiple_of(32)
+                            && g.oh * g.ow >= 1024);
                 }
             }
             BoundKind::MatMul {
@@ -868,11 +892,11 @@ pub(super) fn specialize(
         }
         if let Some((rows, columns, batches, conv)) = matrix {
             // Avoid leaving most compute units idle on a few large tiles.
-            // Narrow/small matrices retain the generic kernel; intermediate
+            // Other narrow/small matrices retain the generic kernel; intermediate
             // shapes use more 16x16 groups before moving to 32x32 tiles.
             let groups16 = rows.div_ceil(16) * columns.div_ceil(16) * batches;
             let groups32 = rows.div_ceil(32) * columns.div_ceil(32) * batches;
-            if groups16 < 128 {
+            if groups16 < 128 && !(narrow_pointwise && groups16 >= 64) {
                 continue;
             }
             let tile = if (rows >= 128 || prefer_spatial32) && columns >= 64 && groups32 >= 64 {

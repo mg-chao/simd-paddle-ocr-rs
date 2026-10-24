@@ -2361,7 +2361,11 @@ fn convolution_kernel_candidates(case: ConvCase, kinds: &[operators::ShaderKind]
             source = source.replace(token, "f32");
         }
         let mut words = recipe.words;
-        let tile = if kind == ShaderKind::Conv16 { 16 } else { 32 };
+        let tile = if matches!(kind, ShaderKind::Conv16 | ShaderKind::PointwiseNchw16) {
+            16
+        } else {
+            32
+        };
         let output_shape = case.output();
         words[32] = channels.div_ceil(tile) as u32;
         words[33] = (output_shape[2] * output_shape[3]).div_ceil(tile) as u32;
@@ -2526,6 +2530,404 @@ fn gpu_pointwise_register_performance() {
             "bounded experiment budget exhausted"
         );
     }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_pointwise_recognition_shape_boundaries() {
+    use operators::ShaderKind;
+    for (input, channels, bias) in [
+        ([2, 257, 12, 37], 129, true),
+        ([1, 129, 1, 19], 121, false),
+        ([2, 160, 1, 125], 160, true),
+    ] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "recognition pointwise boundaries",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias,
+            },
+            &[
+                ShaderKind::PointwiseNchw16,
+                ShaderKind::PointwiseNchw32,
+                ShaderKind::PointwiseBlocked32,
+            ],
+            0,
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_recognition_pointwise_policy_preserves_boundaries() {
+    use operators::{RecipeKind, ShaderKind};
+    let metal = hardware().adapter_info().backend == wgpu::Backend::Metal;
+    for (input, channels, fast, previous, verify) in [
+        (
+            [1, 512, 12, 125],
+            256,
+            ShaderKind::PointwiseBlocked32,
+            ShaderKind::Conv32,
+            true,
+        ),
+        (
+            [1, 768, 1, 124],
+            192,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [1, 384, 1, 128],
+            120,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [2, 160, 1, 65],
+            160,
+            ShaderKind::PointwiseNchw16,
+            ShaderKind::Convolution,
+            true,
+        ),
+        (
+            [1, 512, 11, 128],
+            256,
+            ShaderKind::Conv32,
+            ShaderKind::Conv32,
+            false,
+        ),
+        (
+            [1, 512, 13, 128],
+            256,
+            ShaderKind::Conv32,
+            ShaderKind::Conv32,
+            false,
+        ),
+        (
+            [1, 768, 2, 62],
+            192,
+            ShaderKind::Convolution,
+            ShaderKind::Convolution,
+            false,
+        ),
+        (
+            [1, 160, 1, 63],
+            160,
+            ShaderKind::Convolution,
+            ShaderKind::Convolution,
+            false,
+        ),
+        (
+            [1, 127, 1, 124],
+            160,
+            ShaderKind::Convolution,
+            ShaderKind::Convolution,
+            false,
+        ),
+        (
+            [1, 128, 1, 64],
+            64,
+            ShaderKind::Convolution,
+            ShaderKind::Convolution,
+            false,
+        ),
+    ] {
+        let graph = ConvCase {
+            name: "recognition pointwise policy",
+            input,
+            channels,
+            kernel: [1; 2],
+            stride: [1; 2],
+            dilation: [1; 2],
+            pads: [0; 4],
+            group: 1,
+            bias: true,
+        }
+        .model();
+        if verify {
+            compare_paths(
+                graph.clone(),
+                &input,
+                "recognition pointwise production policy",
+            );
+        }
+        let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+        let session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        assert!(
+            matches!(session.recipes[0].kind, RecipeKind::Compute(kind)
+            if kind == if metal { fast } else { previous }),
+            "input={input:?}, channels={channels}"
+        );
+    }
+    // Exercise the newly selected narrow path with an absorbed broadcast
+    // residual and activation, rather than only a standalone convolution.
+    let shape = [1, 768, 1, 124];
+    let output = [1, 192, 1, 124];
+    let graph = model(
+        vec![
+            tensor("w", &[192, 768, 1, 1], &values(192 * 768, 7)),
+            tensor("bias", &[192], &values(192, 11)),
+            tensor("residual", &[1, 192, 1, 1], &values(192, 13)),
+            node(
+                "Conv",
+                &["x", "w", "bias"],
+                "conv",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+            node("Add", &["conv", "residual"], "sum", &[]),
+            node("Relu", &["sum"], "y", &[]),
+        ],
+        &shape,
+        &output,
+    );
+    compare_paths(graph.clone(), &shape, "narrow pointwise fused epilogue");
+    let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+    let session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+    assert_eq!(session.dispatches.len(), 1);
+    assert!(matches!(session.recipes[0].kind, RecipeKind::Compute(kind)
+        if kind == if metal { ShaderKind::PointwiseNchw16 } else { ShaderKind::Convolution }));
+    // Newly promoted H1 layers may also absorb a channel gate. H12 keeps the
+    // existing prescaled kernel rather than extending the plain-Conv choice.
+    for (shape, channels) in [([1, 768, 1, 124], 192), ([1, 512, 12, 125], 256)] {
+        let graph = model(
+            vec![
+                tensor(
+                    "w",
+                    &[channels, shape[1], 1, 1],
+                    &values(channels * shape[1], 7),
+                ),
+                tensor("bias", &[channels], &values(channels, 11)),
+                tensor("scale", &[1, shape[1], 1, 1], &values(shape[1], 13)),
+                node("Mul", &["x", "scale"], "scaled", &[]),
+                node(
+                    "Conv",
+                    &["scaled", "w", "bias"],
+                    "y",
+                    &[integers("kernel_shape", &[1, 1])],
+                ),
+            ],
+            &shape,
+            &[1, channels, shape[2], shape[3]],
+        );
+        compare_paths(graph.clone(), &shape, "recognition prescaled pointwise");
+        let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+        let session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+        let expected = if shape[2] == 12 {
+            ShaderKind::ConvPrescaled32
+        } else if metal {
+            ShaderKind::PointwisePrescaled16
+        } else {
+            ShaderKind::Convolution
+        };
+        assert!(
+            session
+                .recipes
+                .iter()
+                .any(|r| matches!(r.kind, RecipeKind::Compute(kind) if kind==expected))
+        );
+        assert_eq!(
+            session.dispatches.len(),
+            if metal || shape[2] == 12 { 1 } else { 2 }
+        );
+    }
+}
+
+#[test]
+#[ignore = "bounded recognition pointwise experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_pointwise_recognition_shape_performance() {
+    use operators::ShaderKind;
+    let timer = std::time::Instant::now();
+    for (input, channels) in [
+        ([1, 512, 12, 128], 256),
+        ([1, 768, 1, 124], 192),
+        ([1, 160, 1, 124], 160),
+    ] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "recognition pointwise selection",
+                input,
+                channels,
+                kernel: [1; 2],
+                stride: [1; 2],
+                dilation: [1; 2],
+                pads: [0; 4],
+                group: 1,
+                bias: true,
+            },
+            &[
+                if input[2] == 12 {
+                    ShaderKind::Conv32
+                } else {
+                    ShaderKind::Convolution
+                },
+                ShaderKind::PointwiseNchw16,
+                ShaderKind::PointwiseNchw32,
+                ShaderKind::PointwiseBlocked32,
+            ],
+            3,
+        );
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
+#[test]
+#[ignore = "bounded RGB stem experiment: three shapes, one correctness warmup and three samples per candidate"]
+fn gpu_rgb_stem_performance() {
+    use operators::ShaderKind;
+    if cfg!(debug_assertions) {
+        panic!("release build required");
+    }
+    let timer = std::time::Instant::now();
+    for (input, channels) in [
+        ([1, 3, 512, 512], 16),
+        ([2, 3, 48, 256], 24),
+        ([2, 3, 48, 256], 64),
+    ] {
+        convolution_kernel_candidates(
+            ConvCase {
+                name: "RGB stem tiling",
+                input,
+                channels,
+                kernel: [3; 2],
+                stride: [2; 2],
+                dilation: [1; 2],
+                pads: [1; 4],
+                group: 1,
+                bias: true,
+            },
+            &[
+                ShaderKind::Convolution,
+                ShaderKind::Conv16,
+                ShaderKind::Conv32,
+            ],
+            3,
+        );
+        assert!(
+            timer.elapsed().as_secs() < 60,
+            "bounded experiment budget exhausted"
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_hardware_rgb_stem_candidates_preserve_padding_and_tails() {
+    use operators::{RecipeKind, ShaderKind};
+    let metal = hardware().adapter_info().backend == wgpu::Backend::Metal;
+    for (input, channels, pads) in [
+        ([2, 3, 47, 65], 17, [1, 2, 1, 0]),
+        ([1, 3, 48, 129], 64, [1; 4]),
+    ] {
+        let case = ConvCase {
+            name: "RGB stem boundaries",
+            input,
+            channels,
+            kernel: [3; 2],
+            stride: [2; 2],
+            dilation: [1; 2],
+            pads,
+            group: 1,
+            bias: true,
+        };
+        convolution_kernel_candidates(case, &[ShaderKind::Conv16, ShaderKind::Conv32], 0);
+        compare_paths(case.model(), &input, "RGB stem production selection");
+        let compiled = Arc::new(GpuCompiledModel::compile(case.model(), hardware()).unwrap());
+        let session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        let expected = if !metal {
+            ShaderKind::Convolution
+        } else if channels == 17 {
+            ShaderKind::Conv16
+        } else {
+            ShaderKind::Conv32
+        };
+        assert!(matches!(session.recipes[0].kind, RecipeKind::Compute(kind) if kind==expected));
+    }
+    for (input, channels, kernel, stride) in [
+        ([1, 3, 16, 16], 16, 3, 2),
+        ([1, 3, 64, 128], 15, 3, 2),
+        ([1, 4, 64, 128], 16, 3, 2),
+        ([1, 3, 64, 128], 16, 3, 1),
+        ([1, 3, 64, 128], 16, 5, 2),
+    ] {
+        let graph = ConvCase {
+            name: "RGB stem policy exclusion",
+            input,
+            channels,
+            kernel: [kernel; 2],
+            stride: [stride; 2],
+            dilation: [1; 2],
+            pads: [1; 4],
+            group: 1,
+            bias: true,
+        }
+        .model();
+        let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+        let session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        assert!(matches!(
+            session.recipes[0].kind,
+            RecipeKind::Compute(ShaderKind::Convolution)
+        ));
+    }
+    let shape = [1, 3, 64, 128];
+    let graph = model(
+        vec![
+            tensor("w", &[16, 3, 3, 3], &values(16 * 27, 7)),
+            tensor("bias", &[16], &values(16, 11)),
+            tensor("residual", &[1, 16, 1, 1], &values(16, 13)),
+            node(
+                "Conv",
+                &["x", "w", "bias"],
+                "conv",
+                &[
+                    integers("kernel_shape", &[3, 3]),
+                    integers("strides", &[2, 2]),
+                    integers("pads", &[1, 1, 1, 1]),
+                ],
+            ),
+            node("Add", &["conv", "residual"], "sum", &[]),
+            node("Relu", &["sum"], "y", &[]),
+        ],
+        &shape,
+        &[1, 16, 32, 64],
+    );
+    compare_paths(graph.clone(), &shape, "RGB stem fused epilogue");
+    let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+    let session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+    assert_eq!(session.dispatches.len(), 1);
+    assert!(matches!(session.recipes[0].kind, RecipeKind::Compute(kind)
+        if kind==if metal { ShaderKind::Conv32 } else { ShaderKind::Convolution }));
+}
+
+#[test]
+#[ignore = "bounded H12 packed-weight experiment: one shape, one correctness warmup and three samples per candidate"]
+fn gpu_pointwise_height_twelve_performance() {
+    use operators::ShaderKind;
+    convolution_kernel_candidates(
+        ConvCase {
+            name: "height twelve packed pointwise",
+            input: [1, 512, 12, 128],
+            channels: 256,
+            kernel: [1; 2],
+            stride: [1; 2],
+            dilation: [1; 2],
+            pads: [0; 4],
+            group: 1,
+            bias: true,
+        },
+        &[ShaderKind::Conv32, ShaderKind::PointwiseBlocked32],
+        3,
+    );
 }
 
 #[test]
