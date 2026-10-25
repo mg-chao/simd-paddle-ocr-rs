@@ -20,11 +20,23 @@ use std::{
     },
 };
 mod attention_packed;
+#[cfg(target_os = "macos")]
+#[path = "gpu/metal_buffers.rs"]
+mod buffers;
+#[cfg(not(target_os = "macos"))]
+#[path = "gpu/vulkan_buffers.rs"]
+mod buffers;
 mod conv_mpp;
 mod conv_mpp_lower;
 mod conv_mpp_staged;
 mod conv_weight_pack;
 mod depthwise_native;
+#[cfg(target_os = "macos")]
+#[path = "gpu/metal_execution.rs"]
+mod executor;
+#[cfg(not(target_os = "macos"))]
+#[path = "gpu/vulkan_execution.rs"]
+mod executor;
 mod fused_activation;
 mod fusions;
 mod half_native;
@@ -32,9 +44,7 @@ pub(crate) mod heads;
 mod linear_mpp;
 mod linear_native;
 mod max_pool;
-mod metal_buffers;
-mod metal_execution;
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod native_binding_tests;
 mod operators;
 mod physical;
@@ -89,7 +99,7 @@ pub struct GpuSupportIssue {
     pub source_indices: Vec<usize>,
     pub reason: String,
 }
-/// Resource and scheduling limits for the native Metal executor.
+/// Resource and scheduling limits for the platform GPU executor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GpuContextOptions {
     /// Concurrent admitted executions. Each request can retain two GPU waves.
@@ -133,7 +143,8 @@ impl Drop for Reservation {
 #[derive(Clone)]
 pub(crate) struct GpuBuffer {
     pub(super) buffer: wgpu::Buffer,
-    native: metal_buffers::NativeBuffer,
+    #[cfg(target_os = "macos")]
+    native: buffers::NativeBuffer,
     reservation: Arc<Reservation>,
 }
 impl Deref for GpuBuffer {
@@ -202,6 +213,7 @@ impl GpuContext {
                 "GPU limits must be positive; recognition_wave_size and classification_batch_size must be within 1..=16",
             ));
         }
+        #[cfg(target_os = "macos")]
         if !objc2::available!(macos = 26.0) {
             return Err(RuntimeError::with_kind(
                 ErrorKind::Unsupported,
@@ -209,7 +221,11 @@ impl GpuContext {
             ));
         }
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::METAL,
+            backends: if cfg!(target_os = "macos") {
+                wgpu::Backends::METAL
+            } else {
+                wgpu::Backends::VULKAN
+            },
             ..wgpu::InstanceDescriptor::new_without_display_handle()
         });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -221,12 +237,17 @@ impl GpuContext {
         .map_err(|error| {
             RuntimeError::caused_by(
                 ErrorKind::Unsupported,
-                "Metal adapter initialization failed",
+                "GPU adapter initialization failed",
                 error,
             )
         })?;
         let info = adapter.get_info();
-        if info.backend != wgpu::Backend::Metal
+        if info.backend
+            != if cfg!(target_os = "macos") {
+                wgpu::Backend::Metal
+            } else {
+                wgpu::Backend::Vulkan
+            }
             || !matches!(
                 info.device_type,
                 wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
@@ -234,7 +255,7 @@ impl GpuContext {
         {
             return Err(RuntimeError::with_kind(
                 ErrorKind::Unsupported,
-                "native Metal requires a physical GPU",
+                "GPU execution requires a physical GPU",
             ));
         }
         let available = adapter.limits();
@@ -252,20 +273,22 @@ impl GpuContext {
         if !requested.check_limits(&available) {
             return Err(RuntimeError::with_kind(
                 ErrorKind::Unsupported,
-                "Metal adapter cannot satisfy allocation and dispatch limits",
+                "GPU adapter cannot satisfy allocation and dispatch limits",
             ));
         }
-        // WGPU owns resource imports, blits and completion only. All compute
-        // compilation and execution belongs to the native Metal executor.
+        // Metal uses a native compute bridge; Vulkan uses managed compute.
+        // Both share device admission, buffers, transfers and completion.
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("simd-paddle-ocr Metal resources"),
-            required_features: wgpu::Features::empty(),
+            label: Some("simd-paddle-ocr GPU resources"),
+            required_features: if cfg!(target_os = "macos") {
+                wgpu::Features::empty()
+            } else {
+                adapter.features() & wgpu::Features::SHADER_F16
+            },
             required_limits: requested,
             ..Default::default()
         }))
-        .map_err(|error| {
-            RuntimeError::new(format!("Metal device initialization failed: {error}"))
-        })?;
+        .map_err(|error| RuntimeError::new(format!("GPU device initialization failed: {error}")))?;
         let failure = Arc::new(Mutex::new(None));
         let lost = failure.clone();
         device.set_device_lost_callback(move |reason, message| {
@@ -419,10 +442,11 @@ impl GpuContext {
         let reservation = self.reserve(
             usize::try_from(size).map_err(|_| resource("GPU buffer exceeds host index range"))?,
         )?;
-        let (buffer, native) = metal_buffers::allocate(&self.device, label, size, usage, None)?;
+        let (buffer, _native) = buffers::allocate(&self.device, label, size, usage, None)?;
         Ok(GpuBuffer {
             buffer,
-            native,
+            #[cfg(target_os = "macos")]
+            native: _native,
             reservation,
         })
     }
@@ -437,11 +461,12 @@ impl GpuContext {
             return Err(resource("GPU allocation exceeds device buffer limit"));
         }
         let reservation = self.reserve(size)?;
-        let (buffer, native) =
-            metal_buffers::allocate(&self.device, label, size as u64, usage, Some(contents))?;
+        let (buffer, _native) =
+            buffers::allocate(&self.device, label, size as u64, usage, Some(contents))?;
         Ok(GpuBuffer {
             buffer,
-            native,
+            #[cfg(target_os = "macos")]
+            native: _native,
             reservation,
         })
     }
@@ -601,6 +626,18 @@ impl GpuCompiledModel {
         precision: GpuPrecision,
         matrix_precision: GpuMatrixPrecision,
     ) -> RuntimeResult<Self> {
+        if context.info.backend != wgpu::Backend::Metal
+            && precision == GpuPrecision::MixedF16
+            && !context
+                .device
+                .features()
+                .contains(wgpu::Features::SHADER_F16)
+        {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::Unsupported,
+                "MixedF16 storage requires shader F16 support on this Vulkan device",
+            ));
+        }
         let model = &program.model;
         validate_supported(&program)?;
         for tensor in &program.model.graph().tensors {
@@ -750,7 +787,7 @@ struct Dispatch {
 enum Command {
     Compute {
         shader: operators::ShaderKind,
-        native: Arc<metal_execution::NativeDispatch>,
+        native: Arc<executor::NativeDispatch>,
     },
     Copy {
         source: TensorId,
@@ -1353,7 +1390,7 @@ impl GpuSession {
                         })
                         .collect();
                     owners.push(parameters.clone());
-                    metal_execution::NativeDispatch::prepare(
+                    executor::NativeDispatch::prepare(
                         pipeline,
                         owners,
                         vec![0, 0, 0, 0, 0, 0, offset as u64],
@@ -1844,7 +1881,12 @@ impl GpuSession {
                         Some((
                             self.compiled.model().graph().nodes[r.nodes[0]].op_type(),
                             kind.name(),
-                            format!("metal_{:?}", self.compiled.precision),
+                            format!(
+                                "{}_{:?}",
+                                format!("{:?}", self.compiled.context.info.backend)
+                                    .to_ascii_lowercase(),
+                                self.compiled.precision,
+                            ),
                             r.words[64] > 0,
                         ))
                     } else {

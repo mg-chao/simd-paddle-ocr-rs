@@ -38,7 +38,7 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>,@builtin(num_workgroups) gri
     if pixel_index>=plane { return; }
     let y=pixel_index/p(9u); let x=pixel_index%p(9u);
     if x>=p(7u) {
-        for(var c=0u;c<3u;c++){output[c*plane+pixel_index+p(12u)]=$OUT(bitcast<f32>(p(11u)));}
+        for(var c=0u;c<3u;c++){output[c*plane+pixel_index+p(12u)]=normalize_store(bitcast<f32>(p(11u)));}
         return;
     }
     var xc=coefficient(x,p(5u),p(7u));
@@ -52,6 +52,6 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>,@builtin(num_workgroups) gri
         let h0=pixel(x0,y0,c)*a+pixel(x1,y0,c)*b;
         let h1=pixel(x0,y1,c)*a+pixel(x1,y1,c)*b;
         let value=clamp((((h0>>4)*(2048-yc.y)>>16)+((h1>>4)*yc.y>>16)+2)>>2,0,255);
-        output[c*plane+pixel_index+p(12u)]=$OUT(lut[c*256u+u32(value)]);
+        output[c*plane+pixel_index+p(12u)]=normalize_store(lut[c*256u+u32(value)]);
     }
 }

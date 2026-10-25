@@ -1,4 +1,4 @@
-//! GPU regression for preserved half store boundaries under Metal compilation.
+//! GPU regression for preserved half store boundaries.
 use crate::runtime::gpu::resident::{Batch, NativeShader, PARAMETERS};
 use crate::runtime::gpu::{GpuContext, GpuContextOptions};
 use std::sync::{Arc, OnceLock};
@@ -154,10 +154,7 @@ kernel void round_edges(device const float* input [[buffer(0)]],
             )
             .unwrap();
     } else {
-        let common = include_str!("common.wgsl");
-        let start = common.find("fn output_round(").unwrap();
-        let end = start + common[start..].find("\nfn epilogue(").unwrap();
-        let helper = common[start..end].replace("$HALF_OUTPUT", "true");
+        let helper = include_str!("round_f16.wgsl");
         let shader = format!(
             "{PARAMETERS}\n{helper}\n{}",
             r#"
@@ -168,7 +165,7 @@ kernel void round_edges(device const float* input [[buffer(0)]],
 fn main(@builtin(global_invocation_id) position:vec3<u32>) {
     let index=position.x;
     if index<params.words[0].x {
-        output[index+params.words[0].y]=output_round(input[index]);
+        output[index+params.words[0].y]=round_to_half(input[index]);
     }
 }
 "#
@@ -226,9 +223,88 @@ fn main(@builtin(global_invocation_id) position:vec3<u32>) {
 }
 
 #[test]
-#[ignore = "requires a physical Metal GPU; 1153 IEEE conversion cases, one WGSL dispatch"]
+#[ignore = "requires a physical GPU; 1153 IEEE conversion cases, one WGSL dispatch"]
 fn gpu_round_f16_wgsl_ieee_edges_match_independent_oracle() {
     check(false);
+}
+
+#[test]
+#[ignore = "requires a physical GPU; 1153 actual half stores with independent IEEE oracle"]
+fn gpu_round_f16_tensor_stores_match_independent_oracle() {
+    use crate::runtime::gpu::{GpuPrecision, operators::ShaderKind};
+    let context = context();
+    let cases = fixture();
+    let input: Vec<_> = cases.iter().map(|case| case.bits).collect();
+    let source = context
+        .create_buffer_init(
+            "rounding input",
+            bytemuck::cast_slice(&input),
+            wgpu::BufferUsages::STORAGE,
+        )
+        .unwrap();
+    let prefix = 3;
+    let initial = vec![-777.0; prefix + cases.len() + 5];
+    let bytes = GpuPrecision::MixedF16.encode(&initial);
+    let output = context
+        .create_buffer_init(
+            "guarded half stores",
+            &bytes,
+            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        )
+        .unwrap();
+    let mut shader = ShaderKind::General
+        .common_source()
+        .replace("$ENABLE", "enable f16;")
+        .replace("$HALF_OUTPUT", "true")
+        .replace("$O", "f16");
+    for token in ["$A", "$B", "$C", "$D", "$E"] {
+        shader = shader.replace(token, "f32");
+    }
+    shader.push_str("\n@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3<u32>) { if id.x<p(0u) { store_output(id.x,load_a(id.x)); } }");
+    let mut words = [0; 128];
+    words[0] = cases.len() as u32;
+    words[60] = prefix as u32;
+    let mut batch = Batch::new(context).unwrap();
+    batch
+        .dispatch(
+            "half_tensor_stores",
+            &shader,
+            &[
+                (&source, true),
+                (&source, true),
+                (&source, true),
+                (&source, true),
+                (&source, true),
+                (&output, false),
+            ],
+            &words,
+            [cases.len().div_ceil(64) as u32, 1, 1],
+        )
+        .unwrap();
+    let (bytes, _) = batch.read(&output, bytes.len(), false).unwrap();
+    let mut actual = initial.clone();
+    GpuPrecision::MixedF16.decode(&bytes, &mut actual).unwrap();
+    assert_eq!(&actual[..prefix], &initial[..prefix]);
+    assert_eq!(
+        &actual[prefix + cases.len()..],
+        &initial[prefix + cases.len()..]
+    );
+    for (i, case) in cases.iter().enumerate() {
+        let expected = half::f16::from_f32(f32::from_bits(case.bits)).to_f32();
+        let actual = actual[prefix + i];
+        if expected.is_nan() {
+            assert!(actual.is_nan(), "half store {i}: {}", case.category);
+            assert_eq!(actual.is_sign_negative(), expected.is_sign_negative());
+        } else {
+            assert_eq!(
+                actual.to_bits(),
+                expected.to_bits(),
+                "half store {i}: {} input={:08x}",
+                case.category,
+                case.bits
+            );
+        }
+    }
 }
 
 #[test]

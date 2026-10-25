@@ -426,7 +426,7 @@ fn staged_c24_k3s2_specialization_is_shared_across_runtime_widths() {
     assert!(conv_mpp_staged::source(specialization, [GpuPrecision::F32; 6]).is_err());
 }
 
-fn selected_rgb(session: &GpuSession) -> Arc<metal_execution::NativePipeline> {
+fn selected_rgb(session: &GpuSession) -> Arc<executor::NativePipeline> {
     assert_eq!(session.input_precision(), GpuPrecision::MixedF16);
     assert!(
         session

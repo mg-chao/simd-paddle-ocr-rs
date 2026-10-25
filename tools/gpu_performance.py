@@ -1,4 +1,4 @@
-"""Frozen, bounded current Metal OCR comparisons.
+"""Frozen, bounded physical-device OCR comparisons.
 
 All implementations consume identical decoded RGB bytes. Cold outputs must pass
 the public OCR contract before warm measurements. Instrumented calls are separate.
@@ -77,7 +77,7 @@ def main():
     args = parser.parse_args()
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
-    executable = ROOT / "target/release/examples/gpu_ocr_bench"
+    executable = ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench")
     inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "rust-toolchain.toml",
               ROOT / "examples/gpu_ocr_bench.rs", *filter(Path.is_file, (ROOT / "examples/support").rglob("*"))]
     if max(p.stat().st_mtime for p in inputs) > executable.stat().st_mtime:

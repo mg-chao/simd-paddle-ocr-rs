@@ -54,7 +54,7 @@ fn metal_context(quota: Option<usize>) -> Arc<GpuContext> {
     .unwrap()
 }
 
-fn prepared(session: &GpuSession) -> Arc<metal_execution::NativeDispatch> {
+fn prepared(session: &GpuSession) -> Arc<executor::NativeDispatch> {
     match &session.dispatches[0].command {
         Command::Compute { native, .. } => native.clone(),
         _ => panic!("expected actual prepared native graph dispatch"),
@@ -342,7 +342,7 @@ fn gpu_hardware_prepared_native_metadata_validation() {
     let native = prepared(&session);
     let readonly = [true, true, true, true, true, false];
     let prepare = |owners, offsets| {
-        metal_execution::NativeDispatch::prepare(
+        executor::NativeDispatch::prepare(
             native.pipeline_for_test(),
             owners,
             offsets,
@@ -422,7 +422,7 @@ fn gpu_hardware_prepared_native_metadata_validation() {
             label: Some("native depth validation only"),
         });
     assert_eq!(
-        metal_execution::encode(&context, &mut encoder, &[(1, &native), (0, &native)], false)
+        executor::encode(&context, &mut encoder, &[(1, &native), (0, &native)], false)
             .unwrap_err()
             .kind(),
         ErrorKind::InvalidInput,
@@ -434,7 +434,7 @@ fn gpu_hardware_prepared_native_metadata_validation() {
                 label: Some("foreign native encoder validation only"),
             });
     assert_eq!(
-        metal_execution::encode(&foreign, &mut foreign_encoder, &[(0, &native)], false)
+        executor::encode(&foreign, &mut foreign_encoder, &[(0, &native)], false)
             .unwrap_err()
             .kind(),
         ErrorKind::InvalidInput

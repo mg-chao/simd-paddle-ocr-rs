@@ -69,7 +69,7 @@ def main():
     parser.add_argument("--report", type=Path, default=ROOT / "target/metal-validation")
     parser.add_argument("--sample", type=Path, default=ROOT.parent / "SimdPaddleOCR/examples/sample.jpg")
     parser.add_argument("--models", type=Path, default=ROOT.parent / "SimdPaddleOCR/models")
-    parser.add_argument("--executable", type=Path, default=ROOT / "target/release/examples/gpu_ocr_bench")
+    parser.add_argument("--executable", type=Path, default=ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench"))
     parser.add_argument("--wave", type=int, choices=range(1, 17), default=1)
     parser.add_argument("--classification-batch", type=int, choices=range(1, 17), default=4)
     parser.add_argument("--budget-seconds", type=float, default=70)
@@ -85,12 +85,13 @@ def main():
     cases = list(corpus["cases"]) if args.all_cases else args.cases
     if not set(cases) <= set(corpus["cases"]):
         parser.error("unknown corpus case")
+    executor = "Metal" if sys.platform == "darwin" else "Vulkan"
     manifest = dict(schema=2, platform=platform.platform(), compiler=output(["rustc", "-Vv"]),
-                    cargo=output(["cargo", "-V"]), executor="Metal", precision=args.precision, matrix=args.matrix,
+                    cargo=output(["cargo", "-V"]), executor=executor, precision=args.precision, matrix=args.matrix,
                     wave=args.wave, classification_batch=args.classification_batch,
                     source_sha256={str(p.relative_to(ROOT)): digest(p) for p in build_inputs},
                     executable_sha256=digest(args.executable), models={p.name: digest(p) for p in sorted(args.models.glob("*.onnx"))},
-                    corpus=corpus, measurements=0, qualification="physical Metal; unchanged Rust accuracy contracts", results=[])
+                    corpus=corpus, measurements=0, qualification=f"physical {executor}; unchanged Rust accuracy contracts", results=[])
     start = time.monotonic()
     for preset in args.presets:
         for case in cases:
@@ -106,7 +107,8 @@ def main():
                            SIMD_OCR_BENCH_CLASSIFICATION_BATCH=str(args.classification_batch),
                            SIMD_OCR_BENCH_MATRIX=args.matrix if target == "gpu" else "f32",
                            SIMD_OCR_BENCH_STORAGE="f16" if target == "gpu" and args.precision == "mixed-f16" else "f32")
-                env.pop("SIMD_OCR_BENCH_REFERENCE", None)
+                for key in ["SIMD_OCR_BENCH_REFERENCE", "SIMD_OCR_BENCH_RGB", "SIMD_OCR_BENCH_WIDTH", "SIMD_OCR_BENCH_HEIGHT"]:
+                    env.pop(key, None)
                 if target == "gpu": env["SIMD_OCR_BENCH_REFERENCE"] = str(reference.resolve())
                 run = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=remaining)
                 (args.report / f"{label}-run.json").write_text(run.stdout, encoding="utf-8")
@@ -123,11 +125,11 @@ def main():
                         reference.write_text(json.dumps(result["outputs"][0], indent=2, ensure_ascii=False), encoding="utf-8")
                     else:
                         for stats in result["cold_statistics"]:
-                            if (stats is None or stats.get("cpu_compute_stages") != []
+                            if (stats is None or stats.get("backend") != executor or stats.get("cpu_compute_stages") != []
                                     or stats.get("diagnostic_readback_bytes") != 0
                                     or stats.get("dispatches", 0) == 0
                                     or stats.get("native_graph_dispatches", 0) + stats.get("native_resident_dispatches", 0) != stats.get("dispatches")):
-                                record["errors"].append("native Metal residency contract")
+                                record["errors"].append(f"{executor} residency contract")
                 manifest["results"].append(record)
                 (args.report / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
                 print(label, "FAIL" if record["errors"] else "PASS", flush=True)

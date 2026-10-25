@@ -3,7 +3,6 @@ use super::*;
 use crate::runtime::{Op, graph_patterns as patterns};
 use operators::{Recipe, RecipeKind, ShaderKind};
 
-#[cfg(any(target_os = "macos", test))]
 #[path = "attention_native.rs"]
 pub(super) mod native;
 

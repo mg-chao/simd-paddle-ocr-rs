@@ -9,7 +9,7 @@ struct Access {
 }
 pub(super) enum Operation {
     Compute {
-        native: Arc<metal_execution::NativeDispatch>,
+        native: Arc<executor::NativeDispatch>,
     },
     Copy {
         source: GpuBuffer,
@@ -28,7 +28,7 @@ pub(super) fn identity(buffer: &GpuBuffer) -> usize {
     Arc::as_ptr(&buffer.reservation) as usize
 }
 impl Schedule {
-    pub fn take_native_resources(&mut self) -> Vec<Arc<metal_execution::NativeDispatch>> {
+    pub fn take_native_resources(&mut self) -> Vec<Arc<executor::NativeDispatch>> {
         std::mem::take(&mut self.operations)
             .into_iter()
             .filter_map(|(_, operation)| match operation {
@@ -105,6 +105,13 @@ impl Schedule {
                     dispatches.push((*depth, native.as_ref()));
                     index += 1;
                 }
+                // Vulkan's managed encoder tracks transfer/compute hazards.
+                // Keep the entire batch in one command buffer, including copies;
+                // only the raw Metal bridge requires separate encoders.
+                if !executor::SEPARATE_TRANSFER_ENCODERS {
+                    executor::encode(context, encoder, &dispatches, prefer_serial)?;
+                    continue;
+                }
                 if transfers_dirty {
                     let preceding = std::mem::replace(
                         encoder,
@@ -120,7 +127,7 @@ impl Schedule {
                 let mut raw = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("native dependency chunk"),
                 });
-                metal_execution::encode(context, &mut raw, &dispatches, prefer_serial)?;
+                executor::encode(context, &mut raw, &dispatches, prefer_serial)?;
                 completed.push(raw.finish());
                 continue;
             }

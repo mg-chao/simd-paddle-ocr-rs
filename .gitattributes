@@ -2,3 +2,6 @@
 /licenses/*.txt text eol=lf
 # Keep native shell entry points usable after Windows checkouts too.
 *.sh text eol=lf
+# Shader generators and qualification hashes require identical source bytes.
+*.wgsl text eol=lf
+*.metal text eol=lf

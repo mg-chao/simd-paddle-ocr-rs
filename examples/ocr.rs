@@ -17,7 +17,7 @@ const USAGE: &str = "Usage: ocr [OPTIONS] IMAGE\n\
     --execution TARGET cpu, auto, or gpu (default: cpu)\n\
     --det-execution TARGET / --rec-execution TARGET / --cls-execution TARGET\n\
     --gpu-precision P   f32 (default), or mixed-f16\n\
-    --gpu-matrix P      f32 (default), or f16 (native Metal fast mode)\n\
+    --gpu-matrix P      f32 (default), or f16 (explicit reduced precision)\n\
     --statistics       Print actual stage backends, kernels, and memory to stderr\n\
     --json              Print owned OCR output as JSON instead of joined text\n\
     --alignment         Capture CTC spans and token boxes; implies --json\n\

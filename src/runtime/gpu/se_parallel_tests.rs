@@ -482,9 +482,8 @@ fn hardware() {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[test]
-#[ignore = "requires physical Metal GPU; actual native translated SE tree, gate boundaries and offset guards"]
+#[ignore = "requires a physical GPU; actual native translated SE tree, gate boundaries and offset guards"]
 fn gpu_hardware_parallel_excitation_native_metal() {
     hardware();
 }

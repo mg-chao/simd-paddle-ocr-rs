@@ -290,7 +290,7 @@ fn hardware() {
 }
 
 #[test]
-#[ignore = "requires a physical Metal GPU with F16"]
+#[ignore = "requires a physical GPU with F16"]
 fn gpu_resident_image_pixel_reuse_matches_cpu_and_batch_offset() {
     hardware();
 }

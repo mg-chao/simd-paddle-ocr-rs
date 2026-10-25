@@ -1,4 +1,4 @@
-//! One native Metal pipeline cache for MSL and validated WGSL translated by Naga.
+//! Shared pipeline cache for native Metal and validated Vulkan WGSL execution.
 use super::*;
 use operators::ShaderKind;
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ enum ShaderSpecialization {
 type PipelineKey = (ShaderKind, [GpuPrecision; 6], ShaderSpecialization);
 pub(super) struct Pipelines {
     owner: Arc<Ledger>,
-    variants: Mutex<HashMap<PipelineKey, Arc<metal_execution::NativePipeline>>>,
+    variants: Mutex<HashMap<PipelineKey, Arc<executor::NativePipeline>>>,
     spatial_unavailable: Mutex<HashMap<PipelineKey, RuntimeError>>,
 }
 impl Pipelines {
@@ -46,7 +46,7 @@ impl Pipelines {
         context: &GpuContext,
         kind: ShaderKind,
         storage: [GpuPrecision; 6],
-    ) -> RuntimeResult<Arc<metal_execution::NativePipeline>> {
+    ) -> RuntimeResult<Arc<executor::NativePipeline>> {
         self.ensure_context(context)?;
         self.get_specialized(context, kind, storage, ShaderSpecialization::Generic)
     }
@@ -56,8 +56,11 @@ impl Pipelines {
         kind: ShaderKind,
         storage: [GpuPrecision; 6],
         words: &[u32; 128],
-    ) -> RuntimeResult<Arc<metal_execution::NativePipeline>> {
+    ) -> RuntimeResult<Arc<executor::NativePipeline>> {
         self.ensure_context(context)?;
+        if context.info.backend != wgpu::Backend::Metal {
+            return self.get(context, kind, storage);
+        }
         if attention_packed::native::eligible(kind, storage, words, &context.limits) {
             let specialization = ShaderSpecialization::AttentionSimd;
             let key = (kind, storage, specialization);
@@ -195,6 +198,11 @@ impl Pipelines {
         recipe: &operators::Recipe,
     ) -> RuntimeResult<bool> {
         self.ensure_context(context)?;
+        // These candidates change tensor layouts for Metal MPP/MSL kernels.
+        // Reject before rewriting any graph descriptors on other executors.
+        if context.info.backend != wgpu::Backend::Metal {
+            return Ok(false);
+        }
         let operators::RecipeKind::Compute(kind) = recipe.kind else {
             return Ok(false);
         };
@@ -283,7 +291,7 @@ impl Pipelines {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     pub(super) fn reject_pointwise_static_for_test(
         &self,
         specialization: pointwise_static::Specialization,
@@ -370,8 +378,14 @@ impl Pipelines {
         kind: ShaderKind,
         storage: [GpuPrecision; 6],
         specialization: ShaderSpecialization,
-    ) -> RuntimeResult<Arc<metal_execution::NativePipeline>> {
+    ) -> RuntimeResult<Arc<executor::NativePipeline>> {
         self.ensure_context(context)?;
+        if context.info.backend != wgpu::Backend::Metal && !kind.has_wgsl_source() {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::Unsupported,
+                "kernel requires Metal",
+            ));
+        }
         let mut variants = self
             .variants
             .lock()
@@ -409,7 +423,7 @@ impl Pipelines {
                 ));
             };
             let source = conv_mpp_staged::source(channels, storage)?;
-            metal_execution::compile_msl(
+            executor::compile_msl(
                 context,
                 &source,
                 channels.entry(),
@@ -423,7 +437,7 @@ impl Pipelines {
                 ));
             };
             let source = conv_mpp::source_storage(kernel, dimensions, storage)?;
-            metal_execution::compile_msl(context, &source, kernel.entry(), [128, 1, 1])?
+            executor::compile_msl(context, &source, kernel.entry(), [128, 1, 1])?
         } else if storage == [GpuPrecision::MixedF16; 6] && half_native::supports_kind(kind) {
             let (source, entry, groups) = match specialization {
                 ShaderSpecialization::PointwiseStatic(reduction) => (
@@ -458,7 +472,7 @@ impl Pipelines {
                 ),
                 _ => half_native::source(kind)?,
             };
-            metal_execution::compile_msl(context, &source, entry, groups)?
+            executor::compile_msl(context, &source, entry, groups)?
         } else if kind == ShaderKind::PointwiseF16 {
             if storage
                 != [
@@ -475,28 +489,28 @@ impl Pipelines {
                     "pointwise F16 requires Half operands and F32 results",
                 ));
             }
-            metal_execution::compile_msl(
+            executor::compile_msl(
                 context,
                 &pointwise_f16::source(),
                 "pointwise_f16",
                 [128, 1, 1],
             )?
         } else if kind == ShaderKind::LinearNative {
-            metal_execution::compile_msl(
+            executor::compile_msl(
                 context,
                 &linear_native::source(storage)?,
                 linear_native::ENTRY,
                 linear_native::WORKGROUP_SIZE,
             )?
         } else if kind == ShaderKind::LinearMpp {
-            metal_execution::compile_msl(
+            executor::compile_msl(
                 context,
                 &linear_mpp::source(storage)?,
                 linear_mpp::ENTRY,
                 linear_mpp::WORKGROUP_SIZE,
             )?
         } else if kind == ShaderKind::TailProjection {
-            metal_execution::compile_msl(
+            executor::compile_msl(
                 context,
                 &tail_projection::source(storage)?,
                 tail_projection::ENTRY,
@@ -508,7 +522,7 @@ impl Pipelines {
                 "native kernel requires canonical Half storage",
             ));
         } else {
-            metal_execution::compile_wgsl(context, &wgsl_source(kind, storage), "main", [0; 3])?
+            executor::compile_wgsl(context, &wgsl_source(kind, storage), "main", [0; 3])?
         };
         variants.insert(key, pipeline.clone());
         Ok(pipeline)

@@ -15,13 +15,22 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-HARDWARE = ["gpu_integration_tests"]
+HARDWARE = [
+    "gpu_integration_tests",
+    "runtime::gpu::tests::gpu_hardware_",
+    "gpu_round_f16_wgsl_ieee_edges_match_independent_oracle",
+    "gpu_round_f16_tensor_stores_match_independent_oracle",
+    "gpu_resident_image_pixel_reuse_matches_cpu_and_batch_offset",
+    "gpu_hardware_parallel_excitation_native_metal",
+    "gpu_hardware_small_projection_native_metal",
+    "gpu_hardware_small_projection_classifier_conv16_native",
+]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release", action="store_true")
-    parser.add_argument("--hardware", action="store_true", help="run the current Metal integration contract on a physical Mac")
+    parser.add_argument("--hardware", action="store_true", help="run GPU integration contracts on the physical development machine")
     parser.add_argument("--report", type=Path, default=ROOT / "target/architecture-validation")
     args = parser.parse_args()
     args.report.mkdir(parents=True, exist_ok=True)
@@ -71,9 +80,9 @@ def main():
         check(f"examples-{name}", ["cargo", "build", "--locked", *profile, *flags, "--examples"])
         check(f"doctests-{name}", ["cargo", "test", "--locked", *profile, *flags, "--doc"])
     if args.hardware:
-        if sys.platform != "darwin": parser.error("Metal hardware checks require macOS")
-        for test in HARDWARE:
-            check(f"metal-{test}", ["cargo", "test", "--locked", *profile,
+        executor = "metal" if sys.platform == "darwin" else "vulkan"
+        for test in HARDWARE + ([] if sys.platform == "darwin" else ["vulkan_"]):
+            check(f"{executor}-{test}", ["cargo", "test", "--locked", *profile,
                   "--all-features", "--lib", test, "--", "--ignored", "--test-threads=1"], timeout=120)
     return 0
 

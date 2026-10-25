@@ -51,6 +51,30 @@ pub(super) enum ShaderKind {
     SoftmaxFinish,
 }
 impl ShaderKind {
+    pub(super) fn has_wgsl_source(self) -> bool {
+        !matches!(
+            self,
+            Self::PointwiseNative64
+                | Self::PointwiseF16
+                | Self::LinearNative
+                | Self::LinearMpp
+                | Self::TailProjection
+                | Self::ConvMpp2s1
+                | Self::ConvMpp2Staged
+                | Self::ConvMpp3s2Staged
+                | Self::ConvMpp3s1
+                | Self::ConvMpp3s2
+                | Self::ConvMpp3s21
+                | Self::ConvMpp3s12
+                | Self::ConvMpp7s1
+                | Self::ConvMpp7s2
+                | Self::DepthwiseNative3
+                | Self::DepthwiseNative5
+                | Self::DepthwiseNative7
+                | Self::DepthwiseNative9
+                | Self::DepthwiseNative1x7
+        )
+    }
     #[cfg(test)]
     pub const ALL: &'static [Self] = &[
         Self::Attention,
@@ -191,7 +215,21 @@ impl ShaderKind {
         }
     }
     pub fn common_source(self) -> String {
-        include_str!("common.wgsl").into()
+        let source = self.metal_common_source();
+        if cfg!(target_os = "macos") {
+            source
+        } else {
+            // Vulkan's default F32-to-F16 conversion need not use ties-to-even.
+            // Round before conversion while retaining the qualified Metal source.
+            source.replace("$O(value)", "$O(output_round(value))")
+        }
+    }
+    pub(super) fn metal_common_source(self) -> String {
+        let rounding = include_str!("round_f16.wgsl").replace(
+            "fn round_to_half(value:f32)->f32 {",
+            "fn output_round(value:f32)->f32 {\n    if !$HALF_OUTPUT {return value;}",
+        );
+        include_str!("common.wgsl").replace("$ROUND_F16", &rounding)
     }
     fn tiled_source(self) -> String {
         let tile = if matches!(self, Self::MatMul32 | Self::Conv32) {

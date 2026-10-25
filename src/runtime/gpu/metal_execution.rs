@@ -3,7 +3,7 @@
 //! Imported buffers retain one Metal resource across compute and transfer APIs. This module
 //! records every compute encoder; the bridge owns the command buffer,
 //! submission, completion, readbacks, and error scopes throughout.
-use super::metal_buffers::NativeBuffer;
+use super::buffers::NativeBuffer;
 use super::*;
 use objc2::{rc::Retained, runtime::ProtocolObject};
 use objc2_foundation::{NSError, NSString};
@@ -13,6 +13,8 @@ use objc2_metal::{
     MTLLanguageVersion, MTLLibrary, MTLSize,
 };
 use std::ptr::NonNull;
+
+pub(super) const SEPARATE_TRANSFER_ENCODERS: bool = true;
 
 const SIZES_BUFFER_SLOT: usize = 30;
 

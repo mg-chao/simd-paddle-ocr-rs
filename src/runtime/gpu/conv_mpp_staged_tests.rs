@@ -313,7 +313,7 @@ fn expected(graph: Arc<Model>, shape: &[usize], input: &[f32]) -> Vec<f32> {
         .map(|x| half::f16::from_f32(x).to_f32())
         .collect()
 }
-fn selected(session: &GpuSession) -> Arc<metal_execution::NativePipeline> {
+fn selected(session: &GpuSession) -> Arc<executor::NativePipeline> {
     assert_eq!(session.input_precision(), GpuPrecision::MixedF16);
     assert_eq!(
         session.descriptors[session.selected_output.0].precision,

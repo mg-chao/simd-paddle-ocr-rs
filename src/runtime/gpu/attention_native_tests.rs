@@ -121,7 +121,7 @@ fn attention_simd_source_matches_qualified_bytes_and_current_naga_abi() {
     );
     let mut wgsl = format!(
         "{}\n{}",
-        include_str!("common.wgsl"),
+        ShaderKind::Attention.metal_common_source(),
         include_str!("attention.wgsl")
     )
     .replace("$ENABLE", "enable f16;")

@@ -13,8 +13,10 @@ import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+EXECUTOR = "Metal" if sys.platform == "darwin" else "Vulkan"
 MODELS = ("cls", "det", "small_det", "medium_det", "rec", "small_rec", "medium_rec")
 
 
@@ -211,10 +213,10 @@ def main():
                   [[1, 3, 128, 128], [1, 3, 96, 160]] if "det" in name else
                   [[batch, 3, 48, width] for batch in [1, 2] for width in [32, 128, 320]])
         for shape in shapes:
-            label = f"{name}-{'x'.join(map(str, shape))}-metal-{args.precision}"
+            label = f"{name}-{'x'.join(map(str, shape))}-{EXECUTOR.lower()}-{args.precision}"
             directory = args.report / label
             env = dict(os.environ, SIMD_OCR_COMPARE_DIR=str(directory.resolve()))
-            executable = ROOT / "target/release/examples/gpu_compare"
+            executable = ROOT / ("target/release/examples/gpu_compare.exe" if os.name == "nt" else "target/release/examples/gpu_compare")
             command = [str(executable), str(path.resolve()), *map(str, shape)]
             if args.precision == "mixed": command.append("mixed")
             run = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
@@ -224,7 +226,7 @@ def main():
             result.update(model_sha256=hashlib.sha256(source).hexdigest(), original_sha256=inv["sha256"],
                           boundary=args.boundary or inv["outputs"], returncode=run.returncode,
                           executable_sha256=hashlib.sha256(Path(command[0]).read_bytes()).hexdigest(),
-                          executor="Metal")
+                          executor=EXECUTOR)
             if (directory / "input.f32").exists():
                 result["input_sha256"] = hashlib.sha256((directory / "input.f32").read_bytes()).hexdigest()
             if args.reference and run.returncode == 0:
@@ -245,7 +247,7 @@ def main():
             (directory / "manifest.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
             all_results.append(result)
             print(label, "PASS" if run.returncode == 0 else "FAIL", result.get("max_abs"), flush=True)
-    (args.report / f"summary-metal-{args.precision}.json").write_text(json.dumps(all_results, indent=2), encoding="utf-8")
+    (args.report / f"summary-{EXECUTOR.lower()}-{args.precision}.json").write_text(json.dumps(all_results, indent=2), encoding="utf-8")
     if any(r["returncode"] or any(r.get(f"csharp-{b}", {}).get("failures", 0) for b in ["cpu", "gpu"]) for r in all_results):
         raise SystemExit(1)
 

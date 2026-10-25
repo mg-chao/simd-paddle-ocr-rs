@@ -7,11 +7,6 @@
 #![cfg_attr(feature = "gpu", recursion_limit = "256")]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
-compile_error!(
-    "The native Metal GPU implementation requires macOS 26 or later. Disable the gpu feature for CPU-only execution."
-);
-
 pub mod builder;
 pub mod characters;
 pub mod cpu;

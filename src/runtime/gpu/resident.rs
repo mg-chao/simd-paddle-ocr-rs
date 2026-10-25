@@ -187,7 +187,7 @@ pub(crate) fn storage(context: &GpuContext, label: &str, bytes: usize) -> Runtim
 
 pub(super) struct Kernel {
     ledger: Arc<Ledger>,
-    pipeline: Arc<metal_execution::NativePipeline>,
+    pipeline: Arc<executor::NativePipeline>,
     read_only: Box<[bool]>,
 }
 
@@ -284,9 +284,9 @@ impl Kernel {
         let pipeline = match source {
             KernelSource::Wgsl(source) => {
                 validate_wgsl_layout(source, read_only)?;
-                metal_execution::compile_wgsl(context, source, "main", [0; 3])?
+                executor::compile_wgsl(context, source, "main", [0; 3])?
             }
-            KernelSource::Native(shader) => metal_execution::compile_resident_msl(
+            KernelSource::Native(shader) => executor::compile_resident_msl(
                 context,
                 shader.source,
                 shader.entry_point,
@@ -679,7 +679,7 @@ impl Batch {
             wgpu::BufferUsages::UNIFORM,
         )?;
         kernel.validate_native_bindings(&self.context, buffers, &params)?;
-        let native = metal_execution::NativeDispatch::prepare(
+        let native = executor::NativeDispatch::prepare(
             kernel.pipeline.clone(),
             buffers
                 .iter()
@@ -1143,22 +1143,25 @@ pub(crate) fn preprocess_at(
         ));
     }
     let precision = output.descriptor.precision;
+    let output_type = if precision == GpuPrecision::MixedF16 {
+        "f16"
+    } else {
+        "f32"
+    };
+    let store = if precision == GpuPrecision::MixedF16 {
+        "f16(round_to_half(value))"
+    } else {
+        "value"
+    };
     let source_code = format!(
-        "{}{}{}",
+        "{}{PARAMETERS}{}\nfn normalize_store(value:f32)->{output_type} {{ return {store}; }}\n{}",
         if precision == GpuPrecision::MixedF16 {
             "enable f16;\n"
         } else {
             ""
         },
-        PARAMETERS,
-        shader("image.wgsl", include_str!("image.wgsl")).replace(
-            "$OUT",
-            if precision == GpuPrecision::MixedF16 {
-                "f16"
-            } else {
-                "f32"
-            }
-        )
+        include_str!("round_f16.wgsl"),
+        shader("image.wgsl", include_str!("image.wgsl")).replace("$OUT", output_type)
     );
     let constants = Normalization::shared(&batch.context)?;
     let lut = &constants.buffers[usize::from(detector)];

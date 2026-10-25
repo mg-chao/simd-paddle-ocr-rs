@@ -59,11 +59,10 @@ pub(in crate::runtime::gpu) fn eligible(
     })
 }
 
-#[cfg(target_os = "macos")]
 pub(in crate::runtime::gpu) fn compile(
     context: &GpuContext,
-) -> RuntimeResult<Arc<metal_execution::NativePipeline>> {
-    metal_execution::compile_msl_metadata(
+) -> RuntimeResult<Arc<executor::NativePipeline>> {
+    executor::compile_msl_metadata(
         context,
         source(),
         ENTRY,

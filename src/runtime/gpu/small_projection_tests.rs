@@ -546,9 +546,8 @@ fn hardware() {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[test]
-#[ignore = "requires physical Metal GPU; native translated small projection, fused epilogue and offset guards"]
+#[ignore = "requires a physical GPU; native translated small projection, fused epilogue and offset guards"]
 fn gpu_hardware_small_projection_native_metal() {
     hardware();
 }
@@ -675,9 +674,8 @@ fn classifier_hardware() {
     );
 }
 
-#[cfg(target_os = "macos")]
 #[test]
-#[ignore = "requires physical Metal GPU; native batched classifier Conv16 admission and guarded production WGSL"]
+#[ignore = "requires a physical GPU; native batched classifier Conv16 admission and guarded production WGSL"]
 fn gpu_hardware_small_projection_classifier_conv16_native() {
     classifier_hardware();
 }
