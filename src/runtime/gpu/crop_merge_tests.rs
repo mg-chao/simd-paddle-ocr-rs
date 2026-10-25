@@ -116,7 +116,8 @@ fn hardware(quota: bool) -> Arc<GpuContext> {
     .unwrap();
     assert!(matches!(
         context.adapter_info().device_type,
-        wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+        crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+            | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
     ));
     context
 }
@@ -295,7 +296,7 @@ fn gpu_resident_crop_header_guard_preserves_explicit_count_and_capacity_tails() 
         .create_buffer_init(
             "guarded box capacity",
             bytemuck::cast_slice(&words),
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )
         .unwrap();
     let merged = storage(&context, "guarded merged transforms", capacity * 128).unwrap();
@@ -321,7 +322,7 @@ fn gpu_resident_crop_header_guard_preserves_explicit_count_and_capacity_tails() 
         .create_buffer_init(
             "standalone explicit box count",
             bytemuck::cast_slice(&words),
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )
         .unwrap();
     let standalone = storage(&context, "standalone transforms", 128).unwrap();

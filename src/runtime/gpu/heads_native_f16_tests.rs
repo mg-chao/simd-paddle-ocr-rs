@@ -292,7 +292,7 @@ fn gpu_native_half_projection_ties_and_nonfinite() {
                     .create_buffer_init(
                         "defensive Half projection weights",
                         &GpuPrecision::MixedF16.encode(&case_weights),
-                        wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                        BufferUsage::STORAGE | BufferUsage::COPY_DST,
                     )
                     .unwrap();
                 let mut local = Head::new(&compiled, classes, 3, None).unwrap();

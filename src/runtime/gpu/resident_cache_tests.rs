@@ -137,7 +137,7 @@ fn gpu_hardware_resident_cached_bindings_reuse_and_submission_order() {
             .create_buffer(
                 "cached-view quota witness",
                 (quota - used) as u64,
-                wgpu::BufferUsages::COPY_DST,
+                BufferUsage::COPY_DST,
             )
             .unwrap();
         session.reshape(&[1, 96]).unwrap();

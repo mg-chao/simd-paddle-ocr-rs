@@ -184,7 +184,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(context) = &context {
         assert!(matches!(
             context.adapter_info().device_type,
-            wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+            simd_paddle_ocr_rs::runtime::gpu::GpuDeviceType::DiscreteGpu
+                | simd_paddle_ocr_rs::runtime::gpu::GpuDeviceType::IntegratedGpu
         ));
     }
     let models_dir = std::env::var_os("SIMD_OCR_BENCH_MODELS")

@@ -1,0 +1,1979 @@
+#version 450 core
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+struct Rect {
+    vec2 points[4];
+    vec2 side;
+    uint valid;
+};
+layout(std140, set = 0, binding = 5) uniform Params_block_0Compute { Params _group_0_binding_5_cs; };
+
+layout(std430, set = 0, binding = 0) readonly buffer type_8_block_1Compute { STORAGE_0 _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) readonly buffer type_9_block_2Compute { uint _group_0_binding_1_cs[]; };
+
+layout(std430, set = 0, binding = 2) readonly buffer type_9_block_3Compute { uint _group_0_binding_2_cs[]; };
+
+layout(std430, set = 0, binding = 3) buffer type_10_block_4Compute { vec2 _group_0_binding_3_cs[]; };
+
+layout(std430, set = 0, binding = 4) buffer type_9_block_5Compute { uint _group_0_binding_4_cs[]; };
+
+float rf(float x) {
+    uint _e6 = _group_0_binding_5_cs.words[63].w;
+    return uintBitsToFloat((floatBitsToUint(x) & _e6));
+}
+
+float af(float a, float b) {
+    float _e3 = rf((a + b));
+    return _e3;
+}
+
+float sf(float a_1, float b_1) {
+    float _e3 = rf((a_1 - b_1));
+    return _e3;
+}
+
+float mf(float a_2, float b_2) {
+    float _e3 = rf((a_2 * b_2));
+    return _e3;
+}
+
+vec2 ds(float x_1) {
+    return vec2(x_1, 0.0);
+}
+
+vec2 da(vec2 a_3, vec2 b_3) {
+    float _e4 = af(a_3.x, b_3.x);
+    float _e6 = sf(_e4, a_3.x);
+    float _e8 = sf(_e4, _e6);
+    float _e9 = sf(a_3.x, _e8);
+    float _e11 = sf(b_3.x, _e6);
+    float _e12 = af(_e9, _e11);
+    float _e14 = af(_e12, a_3.y);
+    float _e16 = af(_e14, b_3.y);
+    float _e17 = af(_e4, _e16);
+    float _e18 = sf(_e17, _e4);
+    float _e19 = sf(_e16, _e18);
+    return vec2(_e17, _e19);
+}
+
+vec2 dn(vec2 a_4) {
+    return -(a_4);
+}
+
+vec2 dm(vec2 a_5, vec2 b_4) {
+    float _e4 = mf(a_5.x, b_4.x);
+    float ah = uintBitsToFloat((floatBitsToUint(a_5.x) & 4294963200u));
+    float _e11 = sf(a_5.x, ah);
+    float bh = uintBitsToFloat((floatBitsToUint(b_4.x) & 4294963200u));
+    float _e18 = sf(b_4.x, bh);
+    float _e19 = mf(ah, bh);
+    float _e20 = sf(_e19, _e4);
+    float _e21 = mf(ah, _e18);
+    float _e22 = af(_e20, _e21);
+    float _e23 = mf(_e11, bh);
+    float _e24 = af(_e22, _e23);
+    float _e25 = mf(_e11, _e18);
+    float _e26 = af(_e24, _e25);
+    float _e29 = mf(a_5.x, b_4.y);
+    float _e30 = af(_e26, _e29);
+    float _e33 = mf(a_5.y, b_4.x);
+    float _e34 = af(_e30, _e33);
+    float _e35 = af(_e4, _e34);
+    float _e36 = sf(_e35, _e4);
+    float _e37 = sf(_e34, _e36);
+    return vec2(_e35, _e37);
+}
+
+vec2 dd(vec2 a_6, vec2 b_5) {
+    float _e5 = rf((a_6.x / b_5.x));
+    vec2 _e6 = ds(_e5);
+    vec2 _e7 = dm(b_5, _e6);
+    vec2 _e8 = dn(_e7);
+    vec2 _e9 = da(a_6, _e8);
+    vec2 _e10 = ds(_e5);
+    vec2 _e16 = ds(((_e9.x + _e9.y) / b_5.x));
+    vec2 _e17 = da(_e10, _e16);
+    return _e17;
+}
+
+vec2 dq(vec2 a_7) {
+    float _e3 = rf(sqrt(a_7.x));
+    if ((_e3 == 0.0)) {
+        vec2 _e7 = ds(0.0);
+        return _e7;
+    }
+    vec2 _e8 = ds(_e3);
+    vec2 _e9 = ds(_e3);
+    vec2 _e10 = ds(_e3);
+    vec2 _e11 = dm(_e9, _e10);
+    vec2 _e12 = dn(_e11);
+    vec2 _e13 = da(a_7, _e12);
+    vec2 _e16 = ds((2.0 * _e3));
+    vec2 _e17 = dd(_e13, _e16);
+    vec2 _e18 = da(_e8, _e17);
+    return _e18;
+}
+
+float dfloor(vec2 a_8) {
+    float base_5 = floor(a_8.x);
+    float _e4 = sf(a_8.x, base_5);
+    float _e6 = af(_e4, a_8.y);
+    float _e8 = af(base_5, floor(_e6));
+    return _e8;
+}
+
+float dvalue(vec2 a_9) {
+    return (a_9.x + a_9.y);
+}
+
+float dround(vec2 a_10) {
+    bool local_4 = false;
+    bool local_5 = false;
+    float _e1 = dfloor(a_10);
+    vec2 _e3 = ds(-(_e1));
+    vec2 _e4 = da(a_10, _e3);
+    float _e5 = dvalue(_e4);
+    if (!((_e5 > 0.5))) {
+        if ((_e5 == 0.5)) {
+            local_5 = ((int(_e1) & 1) != 0);
+        } else {
+            local_5 = false;
+        }
+        bool _e21 = local_5;
+        local_4 = _e21;
+    } else {
+        local_4 = true;
+    }
+    bool _e23 = local_4;
+    if (_e23) {
+        return (_e1 + 1.0);
+    }
+    return _e1;
+}
+
+vec2 dlength(vec2 a_11, vec2 b_6) {
+    vec2 _e3 = ds(a_11.x);
+    vec2 _e6 = ds(-(b_6.x));
+    vec2 _e7 = da(_e3, _e6);
+    vec2 _e9 = ds(a_11.y);
+    vec2 _e12 = ds(-(b_6.y));
+    vec2 _e13 = da(_e9, _e12);
+    vec2 _e14 = dm(_e7, _e7);
+    vec2 _e15 = dm(_e13, _e13);
+    vec2 _e16 = da(_e14, _e15);
+    vec2 _e17 = dq(_e16);
+    return _e17;
+}
+
+vec2 dpi() {
+    return vec2(3.1415927, -8.742278e-8);
+}
+
+vec2 datan(vec2 value) {
+    vec2 x_2 = vec2(0.0);
+    vec2 term = vec2(0.0);
+    vec2 sum = vec2(0.0);
+    uint n = 1u;
+    x_2 = value;
+    vec2 _e2 = x_2;
+    float _e3 = dvalue(_e2);
+    bool negative = (_e3 < 0.0);
+    if (negative) {
+        vec2 _e6 = x_2;
+        x_2 = -(_e6);
+    }
+    vec2 _e8 = x_2;
+    float _e9 = dvalue(_e8);
+    bool invert = (_e9 > 1.0);
+    if (invert) {
+        vec2 _e13 = ds(1.0);
+        vec2 _e14 = x_2;
+        vec2 _e15 = dd(_e13, _e14);
+        x_2 = _e15;
+    }
+    vec2 _e16 = x_2;
+    float _e17 = dvalue(_e16);
+    bool shift = (_e17 > 0.41421357);
+    if (shift) {
+        vec2 _e20 = x_2;
+        vec2 _e22 = ds(-1.0);
+        vec2 _e23 = da(_e20, _e22);
+        vec2 _e24 = x_2;
+        vec2 _e26 = ds(1.0);
+        vec2 _e27 = da(_e24, _e26);
+        vec2 _e28 = dd(_e23, _e27);
+        x_2 = _e28;
+    }
+    vec2 _e29 = x_2;
+    vec2 _e30 = x_2;
+    vec2 _e31 = dm(_e29, _e30);
+    vec2 _e32 = x_2;
+    term = _e32;
+    vec2 _e34 = x_2;
+    sum = _e34;
+    bool loop_init = true;
+    while(true) {
+        if (!loop_init) {
+            uint _e56 = n;
+            n = (_e56 + 1u);
+        }
+        loop_init = false;
+        uint _e38 = n;
+        if ((_e38 < 18u)) {
+        } else {
+            break;
+        }
+        {
+            vec2 _e41 = term;
+            vec2 _e43 = dm(-(_e41), _e31);
+            term = _e43;
+            vec2 _e44 = sum;
+            vec2 _e45 = term;
+            uint _e47 = n;
+            vec2 _e52 = ds(float(((2u * _e47) + 1u)));
+            vec2 _e53 = dd(_e45, _e52);
+            vec2 _e54 = da(_e44, _e53);
+            sum = _e54;
+        }
+    }
+    if (shift) {
+        vec2 _e58 = sum;
+        vec2 _e59 = dpi();
+        vec2 _e61 = ds(0.25);
+        vec2 _e62 = dm(_e59, _e61);
+        vec2 _e63 = da(_e58, _e62);
+        sum = _e63;
+    }
+    if (invert) {
+        vec2 _e64 = dpi();
+        vec2 _e66 = ds(0.5);
+        vec2 _e67 = dm(_e64, _e66);
+        vec2 _e68 = sum;
+        vec2 _e70 = da(_e67, -(_e68));
+        sum = _e70;
+    }
+    vec2 _e71 = sum;
+    vec2 _e72 = sum;
+    return (negative ? -(_e72) : _e71);
+}
+
+vec2 datan2_(vec2 y, vec2 x_3) {
+    vec2 a_12 = vec2(0.0);
+    float _e2 = dvalue(x_3);
+    if ((_e2 == 0.0)) {
+        vec2 _e5 = dpi();
+        float _e6 = dvalue(y);
+        vec2 _e12 = ds(((_e6 >= 0.0) ? 0.5 : -0.5));
+        vec2 _e13 = dm(_e5, _e12);
+        return _e13;
+    }
+    vec2 _e14 = dd(y, x_3);
+    vec2 _e15 = datan(_e14);
+    a_12 = _e15;
+    float _e17 = dvalue(x_3);
+    if ((_e17 < 0.0)) {
+        vec2 _e20 = a_12;
+        vec2 _e21 = dpi();
+        vec2 _e23 = dpi();
+        float _e24 = dvalue(y);
+        vec2 _e28 = da(_e20, ((_e24 >= 0.0) ? _e23 : -(_e21)));
+        a_12 = _e28;
+    }
+    vec2 _e29 = a_12;
+    return _e29;
+}
+
+vec4 dsincos(vec2 angle) {
+    vec2 sn = vec2(0.0);
+    vec2 cs = vec2(0.0);
+    vec2 st = vec2(0.0);
+    vec2 ct = vec2(0.0);
+    uint n_1 = 1u;
+    vec2 _e1 = dpi();
+    vec2 _e2 = da(angle, _e1);
+    vec2 _e3 = dpi();
+    vec2 _e5 = ds(2.0);
+    vec2 _e6 = dm(_e3, _e5);
+    vec2 _e7 = dd(_e2, _e6);
+    float _e8 = dvalue(_e7);
+    float turns = floor(_e8);
+    vec2 _e10 = dpi();
+    vec2 _e13 = ds((turns * 2.0));
+    vec2 _e14 = dm(_e10, _e13);
+    vec2 _e16 = da(angle, -(_e14));
+    vec2 _e17 = dm(_e16, _e16);
+    sn = _e16;
+    vec2 _e20 = ds(1.0);
+    cs = _e20;
+    st = _e16;
+    vec2 _e24 = ds(1.0);
+    ct = _e24;
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e68 = n_1;
+            n_1 = (_e68 + 1u);
+        }
+        loop_init_1 = false;
+        uint _e28 = n_1;
+        if ((_e28 < 16u)) {
+        } else {
+            break;
+        }
+        {
+            vec2 _e31 = st;
+            vec2 _e33 = dm(-(_e31), _e17);
+            uint _e35 = n_1;
+            uint _e38 = n_1;
+            vec2 _e44 = ds(float(((2u * _e35) * ((2u * _e38) + 1u))));
+            vec2 _e45 = dd(_e33, _e44);
+            st = _e45;
+            vec2 _e46 = ct;
+            vec2 _e48 = dm(-(_e46), _e17);
+            uint _e50 = n_1;
+            uint _e55 = n_1;
+            vec2 _e59 = ds(float((((2u * _e50) - 1u) * (2u * _e55))));
+            vec2 _e60 = dd(_e48, _e59);
+            ct = _e60;
+            vec2 _e61 = sn;
+            vec2 _e62 = st;
+            vec2 _e63 = da(_e61, _e62);
+            sn = _e63;
+            vec2 _e64 = cs;
+            vec2 _e65 = ct;
+            vec2 _e66 = da(_e64, _e65);
+            cs = _e66;
+        }
+    }
+    vec2 _e70 = sn;
+    vec2 _e71 = cs;
+    return vec4(_e70, _e71);
+}
+
+vec2 dacos(vec2 x_4) {
+    vec2 _e2 = ds(1.0);
+    vec2 _e3 = dm(x_4, x_4);
+    vec2 _e5 = da(_e2, -(_e3));
+    vec2 _e6 = dq(_e5);
+    vec2 _e7 = datan2_(_e6, x_4);
+    return _e7;
+}
+
+float daway(vec2 x_5) {
+    float _e1 = dvalue(x_5);
+    if ((_e1 < 0.0)) {
+        vec2 _e6 = ds(0.5);
+        vec2 _e7 = da(-(x_5), _e6);
+        float _e8 = dfloor(_e7);
+        return -(_e8);
+    }
+    vec2 _e11 = ds(0.5);
+    vec2 _e12 = da(x_5, _e11);
+    float _e13 = dfloor(_e12);
+    return _e13;
+}
+
+uint p(uint i_2) {
+    uint _e9 = _group_0_binding_5_cs.words[(i_2 / 4u)][(i_2 % 4u)];
+    return _e9;
+}
+
+float cross_(vec2 o, vec2 a_13, vec2 b_7) {
+    vec2 u_1 = (a_13 - o);
+    vec2 v_1 = (b_7 - o);
+    float _e7 = mf(u_1.x, v_1.y);
+    float _e10 = mf(u_1.y, v_1.x);
+    float _e11 = sf(_e7, _e10);
+    return _e11;
+}
+
+float flength(vec2 d) {
+    float _e3 = mf(d.x, d.x);
+    float _e6 = mf(d.y, d.y);
+    float _e7 = af(_e3, _e6);
+    vec2 _e8 = ds(_e7);
+    vec2 _e9 = dq(_e8);
+    float _e10 = dvalue(_e9);
+    return _e10;
+}
+
+float divide(float a_14, float b_8) {
+    vec2 _e2 = ds(a_14);
+    vec2 _e3 = ds(b_8);
+    vec2 _e4 = dd(_e2, _e3);
+    float _e5 = dvalue(_e4);
+    return _e5;
+}
+
+float project(vec2 a_15, vec2 b_9) {
+    float _e4 = mf(a_15.x, b_9.x);
+    float _e7 = mf(a_15.y, b_9.y);
+    float _e8 = af(_e4, _e7);
+    return _e8;
+}
+
+vec2 from_axes(vec2 u, vec2 v, float a_16, float b_10) {
+    float _e5 = mf(u.x, a_16);
+    float _e7 = mf(v.x, b_10);
+    float _e8 = af(_e5, _e7);
+    float _e10 = mf(u.y, a_16);
+    float _e12 = mf(v.y, b_10);
+    float _e13 = af(_e10, _e12);
+    return vec2(_e8, _e13);
+}
+
+vec2 direction(vec2 delta) {
+    if ((delta.x == 0.0)) {
+        return vec2(0.0, sign(delta.y));
+    }
+    if ((delta.y == 0.0)) {
+        return vec2(sign(delta.x), 0.0);
+    }
+    float _e15 = flength(delta);
+    float _e17 = divide(delta.x, _e15);
+    float _e19 = divide(delta.y, _e15);
+    return vec2(_e17, _e19);
+}
+
+vec2[4] ordered(vec2 input_[4]) {
+    uint lo = 0u;
+    uint hi = 0u;
+    uint i_3 = 1u;
+    uint remain[2] = uint[2](0u, 0u);
+    uint n_2 = 0u;
+    uint i_4 = 0u;
+    bool local_6 = false;
+    bool local_7 = false;
+    vec2 result[4] = vec2[4](vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0));
+    bool local_8 = false;
+    bool good = true;
+    uint i_5 = 0u;
+    bool local_9 = false;
+    float angles[4] = float[4](0.0, 0.0, 0.0, 0.0);
+    uint order[4] = uint[4](0u, 1u, 2u, 3u);
+    uint i_6 = 0u;
+    uint i_7 = 1u;
+    uint j = 0u;
+    bool local_10 = false;
+    uint first = 0u;
+    uint i_8 = 1u;
+    bool local_11 = false;
+    bool local_12 = false;
+    bool local_13 = false;
+    bool local_14 = false;
+    uint i_9 = 0u;
+    bool loop_init_2 = true;
+    while(true) {
+        if (!loop_init_2) {
+            uint _e43 = i_3;
+            i_3 = (_e43 + 1u);
+        }
+        loop_init_2 = false;
+        uint _e7 = i_3;
+        if ((_e7 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e10 = i_3;
+            uint _e13 = i_3;
+            uint _e17 = lo;
+            uint _e20 = lo;
+            if (((input_[_e10].x + input_[_e13].y) < (input_[_e17].x + input_[_e20].y))) {
+                uint _e25 = i_3;
+                lo = _e25;
+            }
+            uint _e26 = i_3;
+            uint _e29 = i_3;
+            uint _e33 = hi;
+            uint _e36 = hi;
+            if (((input_[_e26].x + input_[_e29].y) > (input_[_e33].x + input_[_e36].y))) {
+                uint _e41 = i_3;
+                hi = _e41;
+            }
+        }
+    }
+    bool loop_init_3 = true;
+    while(true) {
+        if (!loop_init_3) {
+            uint _e77 = i_4;
+            i_4 = (_e77 + 1u);
+        }
+        loop_init_3 = false;
+        uint _e50 = i_4;
+        if ((_e50 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e53 = i_4;
+            uint _e54 = lo;
+            if ((_e53 != _e54)) {
+                uint _e58 = i_4;
+                uint _e59 = hi;
+                local_6 = (_e58 != _e59);
+            } else {
+                local_6 = false;
+            }
+            bool _e62 = local_6;
+            if (_e62) {
+                uint _e65 = n_2;
+                local_7 = (_e65 < 2u);
+            } else {
+                local_7 = false;
+            }
+            bool _e69 = local_7;
+            if (_e69) {
+                uint _e70 = n_2;
+                uint _e72 = i_4;
+                remain[_e70] = _e72;
+                uint _e74 = n_2;
+                n_2 = (_e74 + 1u);
+            }
+        }
+    }
+    result = input_;
+    uint _e80 = n_2;
+    if ((_e80 == 2u)) {
+        uint _e85 = lo;
+        uint _e86 = hi;
+        local_8 = (_e85 != _e86);
+    } else {
+        local_8 = false;
+    }
+    bool _e89 = local_8;
+    if (_e89) {
+        uint _e91 = remain[0];
+        vec2 a_17 = input_[_e91];
+        uint _e94 = remain[1];
+        vec2 b_11 = input_[_e94];
+        uint _e96 = lo;
+        uint _e106 = hi;
+        result = vec2[4](input_[_e96], (((a_17.y - a_17.x) < (b_11.y - b_11.x)) ? a_17 : b_11), input_[_e106], (((a_17.y - a_17.x) < (b_11.y - b_11.x)) ? b_11 : a_17));
+        bool loop_init_4 = true;
+        while(true) {
+            if (!loop_init_4) {
+                uint _e150 = i_5;
+                i_5 = (_e150 + 1u);
+            }
+            loop_init_4 = false;
+            uint _e121 = i_5;
+            if ((_e121 < 4u)) {
+            } else {
+                break;
+            }
+            {
+                bool _e124 = good;
+                if (_e124) {
+                    uint _e127 = i_5;
+                    vec2 _e129 = result[_e127];
+                    uint _e130 = i_5;
+                    vec2 _e136 = result[((_e130 + 1u) % 4u)];
+                    uint _e137 = i_5;
+                    vec2 _e143 = result[((_e137 + 2u) % 4u)];
+                    float _e144 = cross_(_e129, _e136, _e143);
+                    local_9 = (_e144 > 0.0);
+                } else {
+                    local_9 = false;
+                }
+                bool _e148 = local_9;
+                good = _e148;
+            }
+        }
+        bool _e152 = good;
+        if (_e152) {
+            vec2 _e153[4] = result;
+            return _e153;
+        }
+    }
+    vec2 center = ((((input_[0] + input_[1]) + input_[2]) + input_[3]) * 0.25);
+    bool loop_init_5 = true;
+    while(true) {
+        if (!loop_init_5) {
+            uint _e189 = i_6;
+            i_6 = (_e189 + 1u);
+        }
+        loop_init_5 = false;
+        uint _e172 = i_6;
+        if ((_e172 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e175 = i_6;
+            uint _e177 = i_6;
+            uint _e182 = i_6;
+            angles[_e175] = atan((input_[_e177].y - center.y), (input_[_e182].x - center.x));
+        }
+    }
+    bool loop_init_6 = true;
+    while(true) {
+        if (!loop_init_6) {
+            uint _e231 = i_7;
+            i_7 = (_e231 + 1u);
+        }
+        loop_init_6 = false;
+        uint _e193 = i_7;
+        if ((_e193 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e196 = i_7;
+            uint k_1 = order[_e196];
+            uint _e199 = i_7;
+            j = _e199;
+            while(true) {
+                uint _e201 = j;
+                if ((_e201 > 0u)) {
+                    uint _e206 = j;
+                    uint _e210 = order[(_e206 - 1u)];
+                    float _e212 = angles[_e210];
+                    float _e214 = angles[k_1];
+                    local_10 = (_e212 > _e214);
+                } else {
+                    local_10 = false;
+                }
+                bool _e217 = local_10;
+                if (_e217) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e218 = j;
+                    uint _e220 = j;
+                    uint _e224 = order[(_e220 - 1u)];
+                    order[_e218] = _e224;
+                    uint _e226 = j;
+                    j = (_e226 - 1u);
+                }
+            }
+            uint _e228 = j;
+            order[_e228] = k_1;
+        }
+    }
+    bool loop_init_7 = true;
+    while(true) {
+        if (!loop_init_7) {
+            uint _e291 = i_8;
+            i_8 = (_e291 + 1u);
+        }
+        loop_init_7 = false;
+        uint _e237 = i_8;
+        if ((_e237 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e240 = i_8;
+            uint _e242 = order[_e240];
+            vec2 a_18 = input_[_e242];
+            uint _e244 = first;
+            uint _e246 = order[_e244];
+            vec2 b_12 = input_[_e246];
+            if (!(((a_18.x + a_18.y) < (b_12.x + b_12.y)))) {
+                if (((a_18.x + a_18.y) == (b_12.x + b_12.y))) {
+                    if (!((a_18.y < b_12.y))) {
+                        if ((a_18.y == b_12.y)) {
+                            local_14 = (a_18.x < b_12.x);
+                        } else {
+                            local_14 = false;
+                        }
+                        bool _e282 = local_14;
+                        local_13 = _e282;
+                    } else {
+                        local_13 = true;
+                    }
+                    bool _e284 = local_13;
+                    local_12 = _e284;
+                } else {
+                    local_12 = false;
+                }
+                bool _e286 = local_12;
+                local_11 = _e286;
+            } else {
+                local_11 = true;
+            }
+            bool _e288 = local_11;
+            if (_e288) {
+                uint _e289 = i_8;
+                first = _e289;
+            }
+        }
+    }
+    bool loop_init_8 = true;
+    while(true) {
+        if (!loop_init_8) {
+            uint _e309 = i_9;
+            i_9 = (_e309 + 1u);
+        }
+        loop_init_8 = false;
+        uint _e295 = i_9;
+        if ((_e295 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e298 = i_9;
+            uint _e300 = first;
+            uint _e301 = i_9;
+            uint _e306 = order[((_e300 + _e301) % 4u)];
+            result[_e298] = input_[_e306];
+        }
+    }
+    vec2 _e311[4] = result;
+    return _e311;
+}
+
+Rect rectangle(uint base, uint count) {
+    Rect result_1 = Rect(vec2[4](vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0)), vec2(0.0), 0u);
+    uint first_1 = 0u;
+    uint i_10 = 1u;
+    bool local_15 = false;
+    bool local_16 = false;
+    float best = 3.402823e38;
+    uint e = 0u;
+    vec2 low = vec2(0.0);
+    vec2 high = vec2(0.0);
+    uint i_11 = 0u;
+    result_1.valid = 0u;
+    if ((count < 3u)) {
+        Rect _e7 = result_1;
+        return _e7;
+    }
+    bool loop_init_9 = true;
+    while(true) {
+        if (!loop_init_9) {
+            uint _e44 = i_10;
+            i_10 = (_e44 + 1u);
+        }
+        loop_init_9 = false;
+        uint _e12 = i_10;
+        if ((_e12 < count)) {
+        } else {
+            break;
+        }
+        {
+            uint _e15 = i_10;
+            vec2 a_19 = _group_0_binding_3_cs[(base + _e15)];
+            uint _e20 = first_1;
+            vec2 b_13 = _group_0_binding_3_cs[(base + _e20)];
+            if (!((a_19.x < b_13.x))) {
+                if ((a_19.x == b_13.x)) {
+                    local_16 = (a_19.y < b_13.y);
+                } else {
+                    local_16 = false;
+                }
+                bool _e39 = local_16;
+                local_15 = _e39;
+            } else {
+                local_15 = true;
+            }
+            bool _e41 = local_15;
+            if (_e41) {
+                uint _e42 = i_10;
+                first_1 = _e42;
+            }
+        }
+    }
+    bool loop_init_10 = true;
+    while(true) {
+        if (!loop_init_10) {
+            uint _e137 = e;
+            e = (_e137 + 1u);
+        }
+        loop_init_10 = false;
+        uint _e50 = e;
+        if ((_e50 < count)) {
+        } else {
+            break;
+        }
+        {
+            uint _e52 = first_1;
+            uint _e53 = e;
+            uint edge = ((_e52 + _e53) % count);
+            vec2 _e62 = _group_0_binding_3_cs[(base + ((edge + 1u) % count))];
+            vec2 _e66 = _group_0_binding_3_cs[(base + edge)];
+            vec2 delta_1 = (_e62 - _e66);
+            float _e68 = flength(delta_1);
+            if ((_e68 <= 0.0)) {
+                continue;
+            }
+            vec2 _e71 = direction(delta_1);
+            vec2 v_2 = vec2(-(_e71.y), _e71.x);
+            low = vec2(3.402823e38);
+            high = vec2(-3.402823e38);
+            i_11 = 0u;
+            bool loop_init_11 = true;
+            while(true) {
+                if (!loop_init_11) {
+                    uint _e99 = i_11;
+                    i_11 = (_e99 + 1u);
+                }
+                loop_init_11 = false;
+                uint _e84 = i_11;
+                if ((_e84 < count)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e87 = i_11;
+                    vec2 q_3 = _group_0_binding_3_cs[(base + _e87)];
+                    float _e91 = project(q_3, _e71);
+                    float _e92 = project(q_3, v_2);
+                    vec2 projected = vec2(_e91, _e92);
+                    vec2 _e94 = low;
+                    low = min(_e94, projected);
+                    vec2 _e96 = high;
+                    high = max(_e96, projected);
+                }
+            }
+            vec2 _e101 = high;
+            vec2 _e102 = low;
+            vec2 side = (_e101 - _e102);
+            float _e106 = mf(side.x, side.y);
+            float _e107 = best;
+            if ((_e106 < _e107)) {
+                best = _e106;
+                result_1.side = side;
+                float _e112 = low.x;
+                float _e114 = low.y;
+                vec2 _e115 = from_axes(_e71, v_2, _e112, _e114);
+                float _e117 = high.x;
+                float _e119 = low.y;
+                vec2 _e120 = from_axes(_e71, v_2, _e117, _e119);
+                float _e122 = high.x;
+                float _e124 = high.y;
+                vec2 _e125 = from_axes(_e71, v_2, _e122, _e124);
+                float _e127 = low.x;
+                float _e129 = high.y;
+                vec2 _e130 = from_axes(_e71, v_2, _e127, _e129);
+                result_1.points = vec2[4](_e115, _e120, _e125, _e130);
+                result_1.valid = uint((_e106 > 0.0));
+            }
+        }
+    }
+    vec2 _e141[4] = result_1.points;
+    vec2 _e142[4] = ordered(_e141);
+    result_1.points = _e142;
+    Rect _e143 = result_1;
+    return _e143;
+}
+
+uint push_hull(uint base_1, uint count_1, uint lower, vec2 point) {
+    uint n_3 = 0u;
+    bool local_17 = false;
+    n_3 = count_1;
+    while(true) {
+        uint _e5 = n_3;
+        if ((_e5 >= (lower + 2u))) {
+            uint _e12 = n_3;
+            vec2 _e17 = _group_0_binding_3_cs[((base_1 + _e12) - 2u)];
+            uint _e19 = n_3;
+            vec2 _e24 = _group_0_binding_3_cs[((base_1 + _e19) - 1u)];
+            float _e25 = cross_(_e17, _e24, point);
+            local_17 = (_e25 <= 0.0);
+        } else {
+            local_17 = false;
+        }
+        bool _e29 = local_17;
+        if (_e29) {
+        } else {
+            break;
+        }
+        {
+            uint _e31 = n_3;
+            n_3 = (_e31 - 1u);
+        }
+    }
+    uint _e34 = n_3;
+    _group_0_binding_3_cs[(base_1 + _e34)] = point;
+    uint _e37 = n_3;
+    return (_e37 + 1u);
+}
+
+uint hull_rows(uint base_2, uint rowbase, uint ybase, uint height) {
+    uint count_2 = 0u;
+    uint y_1 = 0u;
+    bool skipped = false;
+    uint yy = 0u;
+    bool loop_init_12 = true;
+    while(true) {
+        if (!loop_init_12) {
+            uint _e45 = y_1;
+            y_1 = (_e45 + 1u);
+        }
+        loop_init_12 = false;
+        uint _e8 = y_1;
+        if ((_e8 < height)) {
+        } else {
+            break;
+        }
+        {
+            uint _e11 = y_1;
+            uint lo_1 = _group_0_binding_2_cs[((rowbase + _e11) * 2u)];
+            uint _e18 = y_1;
+            uint hi_1 = _group_0_binding_2_cs[(((rowbase + _e18) * 2u) + 1u)];
+            if ((lo_1 > hi_1)) {
+                continue;
+            }
+            uint _e27 = count_2;
+            uint _e30 = y_1;
+            uint _e34 = push_hull(base_2, _e27, 0u, vec2(float(lo_1), float((ybase + _e30))));
+            count_2 = _e34;
+            if ((hi_1 != lo_1)) {
+                uint _e36 = count_2;
+                uint _e39 = y_1;
+                uint _e43 = push_hull(base_2, _e36, 0u, vec2(float(hi_1), float((ybase + _e39))));
+                count_2 = _e43;
+            }
+        }
+    }
+    uint _e47 = count_2;
+    if ((_e47 < 2u)) {
+        return 0u;
+    }
+    uint _e51 = count_2;
+    uint lower_1 = (_e51 - 1u);
+    yy = height;
+    bool loop_init_13 = true;
+    while(true) {
+        if (!loop_init_13) {
+            uint _e94 = yy;
+            yy = (_e94 - 1u);
+        }
+        loop_init_13 = false;
+        uint _e57 = yy;
+        if ((_e57 > 0u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e60 = yy;
+            uint y_3 = (_e60 - 1u);
+            uint lo_2 = _group_0_binding_2_cs[((rowbase + y_3) * 2u)];
+            uint hi_2 = _group_0_binding_2_cs[(((rowbase + y_3) * 2u) + 1u)];
+            if ((lo_2 > hi_2)) {
+                continue;
+            }
+            bool _e78 = skipped;
+            if (_e78) {
+                uint _e79 = count_2;
+                uint _e84 = push_hull(base_2, _e79, lower_1, vec2(float(hi_2), float((ybase + y_3))));
+                count_2 = _e84;
+            } else {
+                skipped = true;
+            }
+            if ((hi_2 != lo_2)) {
+                uint _e87 = count_2;
+                uint _e92 = push_hull(base_2, _e87, lower_1, vec2(float(lo_2), float((ybase + y_3))));
+                count_2 = _e92;
+            }
+        }
+    }
+    uint _e96 = count_2;
+    return (_e96 - 1u);
+}
+
+uint hull_points(uint base_3, uint n_4) {
+    uint i_12 = 1u;
+    uint j_1 = 0u;
+    bool local_18 = false;
+    bool local_19 = false;
+    uint unique = 0u;
+    uint i_13 = 0u;
+    bool local_20 = false;
+    uint count_3 = 0u;
+    uint i_14 = 0u;
+    uint j_2 = 0u;
+    bool loop_init_14 = true;
+    while(true) {
+        if (!loop_init_14) {
+            uint _e53 = i_12;
+            i_12 = (_e53 + 1u);
+        }
+        loop_init_14 = false;
+        uint _e4 = i_12;
+        if ((_e4 < n_4)) {
+        } else {
+            break;
+        }
+        {
+            uint _e7 = i_12;
+            vec2 q_4 = _group_0_binding_3_cs[(base_3 + _e7)];
+            uint _e11 = i_12;
+            j_1 = _e11;
+            while(true) {
+                uint _e13 = j_1;
+                if ((_e13 > 0u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e17 = j_1;
+                    vec2 prev = _group_0_binding_3_cs[((base_3 + _e17) - 1u)];
+                    if (!((prev.x < q_4.x))) {
+                        if ((prev.x == q_4.x)) {
+                            local_19 = (prev.y <= q_4.y);
+                        } else {
+                            local_19 = false;
+                        }
+                        bool _e38 = local_19;
+                        local_18 = _e38;
+                    } else {
+                        local_18 = true;
+                    }
+                    bool _e40 = local_18;
+                    if (_e40) {
+                        break;
+                    }
+                    uint _e42 = j_1;
+                    _group_0_binding_3_cs[(base_3 + _e42)] = prev;
+                    uint _e46 = j_1;
+                    j_1 = (_e46 - 1u);
+                }
+            }
+            uint _e49 = j_1;
+            _group_0_binding_3_cs[(base_3 + _e49)] = q_4;
+        }
+    }
+    bool loop_init_15 = true;
+    while(true) {
+        if (!loop_init_15) {
+            uint _e91 = i_13;
+            i_13 = (_e91 + 1u);
+        }
+        loop_init_15 = false;
+        uint _e59 = i_13;
+        if ((_e59 < n_4)) {
+        } else {
+            break;
+        }
+        {
+            uint _e62 = i_13;
+            vec2 q_5 = _group_0_binding_3_cs[(base_3 + _e62)];
+            uint _e66 = unique;
+            if (!((_e66 == 0u))) {
+                uint _e73 = unique;
+                vec2 _e78 = _group_0_binding_3_cs[((base_3 + _e73) - 1u)];
+                local_20 = any(notEqual(q_5, _e78));
+            } else {
+                local_20 = true;
+            }
+            bool _e82 = local_20;
+            if (_e82) {
+                uint _e84 = unique;
+                _group_0_binding_3_cs[(base_3 + _e84)] = q_5;
+                uint _e88 = unique;
+                unique = (_e88 + 1u);
+            }
+        }
+    }
+    uint _e93 = unique;
+    if ((_e93 < 3u)) {
+        return 0u;
+    }
+    uint out_ = (base_3 + 512u);
+    bool loop_init_16 = true;
+    while(true) {
+        if (!loop_init_16) {
+            uint _e115 = i_14;
+            i_14 = (_e115 + 1u);
+        }
+        loop_init_16 = false;
+        uint _e103 = i_14;
+        uint _e104 = unique;
+        if ((_e103 < _e104)) {
+        } else {
+            break;
+        }
+        {
+            uint _e106 = count_3;
+            uint _e109 = i_14;
+            vec2 _e112 = _group_0_binding_3_cs[(base_3 + _e109)];
+            uint _e113 = push_hull(out_, _e106, 0u, _e112);
+            count_3 = _e113;
+        }
+    }
+    uint _e117 = count_3;
+    uint lower_2 = (_e117 - 1u);
+    uint _e120 = unique;
+    j_2 = (_e120 - 1u);
+    bool loop_init_17 = true;
+    while(true) {
+        if (!loop_init_17) {
+            uint _e137 = j_2;
+            j_2 = (_e137 - 1u);
+        }
+        loop_init_17 = false;
+        uint _e124 = j_2;
+        if ((_e124 > 0u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e127 = count_3;
+            uint _e129 = j_2;
+            vec2 _e134 = _group_0_binding_3_cs[((base_3 + _e129) - 1u)];
+            uint _e135 = push_hull(out_, _e127, lower_2, _e134);
+            count_3 = _e135;
+        }
+    }
+    uint _e139 = count_3;
+    return (_e139 - 1u);
+}
+
+float score(vec2 points[4]) {
+    vec2 low_1 = vec2(0.0);
+    vec2 high_1 = vec2(0.0);
+    uint i_15 = 1u;
+    ivec2 q[4] = ivec2[4](ivec2(0), ivec2(0), ivec2(0), ivec2(0));
+    uint i_16 = 0u;
+    float sum_1 = 0.0;
+    float correction = 0.0;
+    uint count_4 = 0u;
+    int y_2 = 0;
+    float thresholds[4] = float[4](0.0, 0.0, 0.0, 0.0);
+    int lows[4] = int[4](0, 0, 0, 0);
+    int highs[4] = int[4](0, 0, 0, 0);
+    uint nt = 0u;
+    uint nh = 0u;
+    uint i_17 = 0u;
+    bool local_21 = false;
+    bool local_22 = false;
+    uint i_18 = 0u;
+    uint j_3 = 0u;
+    bool local_23 = false;
+    uint t = 0u;
+    int x_6 = 0;
+    bool local_24 = false;
+    bool inside = false;
+    uint k = 0u;
+    bool local_25 = false;
+    bool local_26 = false;
+    low_1 = points[0];
+    vec2 _e3 = low_1;
+    high_1 = _e3;
+    bool loop_init_18 = true;
+    while(true) {
+        if (!loop_init_18) {
+            uint _e19 = i_15;
+            i_15 = (_e19 + 1u);
+        }
+        loop_init_18 = false;
+        uint _e7 = i_15;
+        if ((_e7 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            vec2 _e10 = low_1;
+            uint _e11 = i_15;
+            low_1 = min(_e10, points[_e11]);
+            vec2 _e14 = high_1;
+            uint _e15 = i_15;
+            high_1 = max(_e14, points[_e15]);
+        }
+    }
+    float _e22 = low_1.x;
+    int left = max(int(floor(_e22)), 0);
+    float _e28 = high_1.x;
+    uint _e32 = p(0u);
+    int right = min(int(ceil(_e28)), (int(_e32) - 1));
+    float _e38 = low_1.y;
+    int top = max(int(floor(_e38)), 0);
+    float _e44 = high_1.y;
+    uint _e48 = p(1u);
+    int bottom = min(int(ceil(_e44)), (int(_e48) - 1));
+    bool loop_init_19 = true;
+    while(true) {
+        if (!loop_init_19) {
+            uint _e67 = i_16;
+            i_16 = (_e67 + 1u);
+        }
+        loop_init_19 = false;
+        uint _e56 = i_16;
+        if ((_e56 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e59 = i_16;
+            uint _e61 = i_16;
+            q[_e59] = (ivec2(points[_e61]) - ivec2(left, top));
+        }
+    }
+    y_2 = top;
+    bool loop_init_20 = true;
+    while(true) {
+        if (!loop_init_20) {
+            int _e312 = y_2;
+            y_2 = (_e312 + 1);
+        }
+        loop_init_20 = false;
+        int _e76 = y_2;
+        if ((_e76 <= bottom)) {
+        } else {
+            break;
+        }
+        {
+            int _e78 = y_2;
+            int cy = (_e78 - top);
+            thresholds = float[4](0.0, 0.0, 0.0, 0.0);
+            lows = int[4](0, 0, 0, 0);
+            highs = int[4](0, 0, 0, 0);
+            nt = 0u;
+            nh = 0u;
+            i_17 = 0u;
+            bool loop_init_21 = true;
+            while(true) {
+                if (!loop_init_21) {
+                    uint _e189 = i_17;
+                    i_17 = (_e189 + 1u);
+                }
+                loop_init_21 = false;
+                uint _e92 = i_17;
+                if ((_e92 < 4u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e95 = i_17;
+                    ivec2 a_20 = q[_e95];
+                    uint _e98 = i_17;
+                    ivec2 b_14 = q[((_e98 + 3u) % 4u)];
+                    ivec2 d_1 = (b_14 - a_20);
+                    if (((a_20.y > cy) != (b_14.y > cy))) {
+                        uint _e111 = nt;
+                        float _e118 = mf(float(d_1.x), float((cy - a_20.y)));
+                        float _e121 = divide(_e118, float(d_1.y));
+                        float _e124 = af(_e121, float(a_20.x));
+                        thresholds[_e111] = _e124;
+                        uint _e126 = nt;
+                        nt = (_e126 + 1u);
+                    }
+                    if (!((cy < min(a_20.y, b_14.y)))) {
+                        local_21 = (cy > max(a_20.y, b_14.y));
+                    } else {
+                        local_21 = true;
+                    }
+                    bool _e140 = local_21;
+                    if (_e140) {
+                        continue;
+                    }
+                    if ((d_1.y == 0)) {
+                        uint _e144 = nh;
+                        lows[_e144] = min(a_20.x, b_14.x);
+                        uint _e149 = nh;
+                        highs[_e149] = max(a_20.x, b_14.x);
+                        uint _e155 = nh;
+                        nh = (_e155 + 1u);
+                    } else {
+                        int num = ((cy - a_20.y) * d_1.x);
+                        if (((num % d_1.y) == 0)) {
+                            int x_7 = (a_20.x + (num / d_1.y));
+                            if ((x_7 >= min(a_20.x, b_14.x))) {
+                                local_22 = (x_7 <= max(a_20.x, b_14.x));
+                            } else {
+                                local_22 = false;
+                            }
+                            bool _e180 = local_22;
+                            if (_e180) {
+                                uint _e181 = nh;
+                                lows[_e181] = x_7;
+                                uint _e183 = nh;
+                                highs[_e183] = x_7;
+                                uint _e186 = nh;
+                                nh = (_e186 + 1u);
+                            }
+                        }
+                    }
+                }
+            }
+            i_18 = 1u;
+            bool loop_init_22 = true;
+            while(true) {
+                if (!loop_init_22) {
+                    uint _e227 = i_18;
+                    i_18 = (_e227 + 1u);
+                }
+                loop_init_22 = false;
+                uint _e193 = i_18;
+                uint _e194 = nt;
+                if ((_e193 < _e194)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e196 = i_18;
+                    float v_3 = thresholds[_e196];
+                    uint _e199 = i_18;
+                    j_3 = _e199;
+                    while(true) {
+                        uint _e201 = j_3;
+                        if ((_e201 > 0u)) {
+                            uint _e206 = j_3;
+                            float _e210 = thresholds[(_e206 - 1u)];
+                            local_23 = (_e210 > v_3);
+                        } else {
+                            local_23 = false;
+                        }
+                        bool _e213 = local_23;
+                        if (_e213) {
+                        } else {
+                            break;
+                        }
+                        {
+                            uint _e214 = j_3;
+                            uint _e216 = j_3;
+                            float _e220 = thresholds[(_e216 - 1u)];
+                            thresholds[_e214] = _e220;
+                            uint _e222 = j_3;
+                            j_3 = (_e222 - 1u);
+                        }
+                    }
+                    uint _e224 = j_3;
+                    thresholds[_e224] = v_3;
+                }
+            }
+            t = 0u;
+            x_6 = left;
+            bool loop_init_23 = true;
+            while(true) {
+                if (!loop_init_23) {
+                    int _e309 = x_6;
+                    x_6 = (_e309 + 1);
+                }
+                loop_init_23 = false;
+                int _e232 = x_6;
+                if ((_e232 <= right)) {
+                } else {
+                    break;
+                }
+                {
+                    int _e234 = x_6;
+                    int cx = (_e234 - left);
+                    while(true) {
+                        uint _e236 = t;
+                        uint _e237 = nt;
+                        if ((_e236 < _e237)) {
+                            uint _e241 = t;
+                            float _e243 = thresholds[_e241];
+                            local_24 = (_e243 <= float(cx));
+                        } else {
+                            local_24 = false;
+                        }
+                        bool _e247 = local_24;
+                        if (_e247) {
+                        } else {
+                            break;
+                        }
+                        {
+                            uint _e249 = t;
+                            t = (_e249 + 1u);
+                        }
+                    }
+                    uint _e251 = nt;
+                    uint _e252 = t;
+                    inside = (((_e251 - _e252) & 1u) != 0u);
+                    k = 0u;
+                    bool loop_init_24 = true;
+                    while(true) {
+                        if (!loop_init_24) {
+                            uint _e283 = k;
+                            k = (_e283 + 1u);
+                        }
+                        loop_init_24 = false;
+                        uint _e261 = k;
+                        uint _e262 = nh;
+                        if ((_e261 < _e262)) {
+                        } else {
+                            break;
+                        }
+                        {
+                            bool _e264 = inside;
+                            if (!(_e264)) {
+                                uint _e268 = k;
+                                int _e270 = lows[_e268];
+                                if ((cx >= _e270)) {
+                                    uint _e274 = k;
+                                    int _e276 = highs[_e274];
+                                    local_26 = (cx <= _e276);
+                                } else {
+                                    local_26 = false;
+                                }
+                                bool _e279 = local_26;
+                                local_25 = _e279;
+                            } else {
+                                local_25 = true;
+                            }
+                            bool _e281 = local_25;
+                            inside = _e281;
+                        }
+                    }
+                    bool _e285 = inside;
+                    if (_e285) {
+                        int _e287 = y_2;
+                        uint _e290 = p(0u);
+                        int _e292 = x_6;
+                        float _e296 = _group_0_binding_0_cs[((uint(_e287) * _e290) + uint(_e292))];
+                        float _e298 = correction;
+                        float _e299 = sf(float(_e296), _e298);
+                        float _e300 = sum_1;
+                        float _e301 = af(_e300, _e299);
+                        float _e302 = sum_1;
+                        float _e303 = sf(_e301, _e302);
+                        float _e304 = sf(_e303, _e299);
+                        correction = _e304;
+                        sum_1 = _e301;
+                        uint _e306 = count_4;
+                        count_4 = (_e306 + 1u);
+                    }
+                }
+            }
+        }
+    }
+    float _e314 = sum_1;
+    uint _e315 = count_4;
+    uint _e320 = count_4;
+    return ((_e320 > 0u) ? (_e314 / float(max(_e315, 1u))) : 0.0);
+}
+
+vec2 rounded(vec2 q_1) {
+    return (sign(q_1) * floor((abs(q_1) + vec2(0.5))));
+}
+
+vec2 offset_point(vec2 q_2, vec4 normal, vec2 radius) {
+    vec2 _e4 = ds(q_2.x);
+    vec2 _e6 = dm(normal.xy, radius);
+    vec2 _e7 = da(_e4, _e6);
+    float _e8 = daway(_e7);
+    vec2 _e10 = ds(q_2.y);
+    vec2 _e12 = dm(normal.zw, radius);
+    vec2 _e13 = da(_e10, _e12);
+    float _e14 = daway(_e13);
+    return vec2(_e8, _e14);
+}
+
+uint unclip(uint base_4, vec2 points_1[4]) {
+    vec2 area = vec2(0.0);
+    vec2 perimeter = vec2(0.0);
+    uint i_19 = 0u;
+    bool local_27 = false;
+    vec2 pts[4] = vec2[4](vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0));
+    uint n_5 = 0u;
+    uint i_20 = 0u;
+    bool local_28 = false;
+    bool local_29 = false;
+    vec2 winding = vec2(0.0);
+    uint i_21 = 0u;
+    uint i_22 = 0u;
+    vec4 normals[4] = vec4[4](vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
+    uint i_23 = 0u;
+    uint count_5 = 0u;
+    uint previous = 0u;
+    uint i_24 = 0u;
+    vec2 end = vec2(0.0);
+    uint steps = 0u;
+    vec2 vx = vec2(0.0);
+    vec2 vy = vec2(0.0);
+    uint j_4 = 0u;
+    vec2 _e3 = ds(0.0);
+    area = _e3;
+    vec2 _e6 = ds(0.0);
+    perimeter = _e6;
+    bool loop_init_25 = true;
+    while(true) {
+        if (!loop_init_25) {
+            uint _e41 = i_19;
+            i_19 = (_e41 + 1u);
+        }
+        loop_init_25 = false;
+        uint _e10 = i_19;
+        if ((_e10 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e13 = i_19;
+            vec2 a_21 = points_1[_e13];
+            uint _e15 = i_19;
+            vec2 b_15 = points_1[((_e15 + 1u) % 4u)];
+            vec2 _e21 = area;
+            vec2 _e23 = ds(a_21.x);
+            vec2 _e25 = ds(b_15.y);
+            vec2 _e26 = dm(_e23, _e25);
+            vec2 _e28 = ds(b_15.x);
+            vec2 _e30 = ds(a_21.y);
+            vec2 _e31 = dm(_e28, _e30);
+            vec2 _e33 = da(_e26, -(_e31));
+            vec2 _e34 = da(_e21, _e33);
+            area = _e34;
+            vec2 d_2 = (b_15 - a_21);
+            vec2 _e36 = perimeter;
+            float _e37 = flength(d_2);
+            vec2 _e38 = ds(_e37);
+            vec2 _e39 = da(_e36, _e38);
+            perimeter = _e39;
+        }
+    }
+    vec2 _e43 = area;
+    float _e44 = dvalue(_e43);
+    if ((_e44 < 0.0)) {
+        vec2 _e47 = area;
+        area = -(_e47);
+    }
+    vec2 _e49 = area;
+    vec2 _e51 = ds(0.5);
+    vec2 _e52 = dm(_e49, _e51);
+    uint _e54 = p(3u);
+    vec2 _e56 = ds(uintBitsToFloat(_e54));
+    vec2 _e57 = dm(_e52, _e56);
+    vec2 _e58 = perimeter;
+    vec2 _e59 = dd(_e57, _e58);
+    float _e60 = dvalue(_e59);
+    if ((_e60 > 0.0)) {
+        float _e65 = dvalue(_e59);
+        local_27 = (_e65 < 3.402823e38);
+    } else {
+        local_27 = false;
+    }
+    bool _e69 = local_27;
+    if (!(_e69)) {
+        return 0u;
+    }
+    bool loop_init_26 = true;
+    while(true) {
+        if (!loop_init_26) {
+            uint _e103 = i_20;
+            i_20 = (_e103 + 1u);
+        }
+        loop_init_26 = false;
+        uint _e77 = i_20;
+        if ((_e77 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e80 = i_20;
+            vec2 q_6 = roundEven(points_1[_e80]);
+            uint _e83 = n_5;
+            if ((_e83 > 0u)) {
+                uint _e88 = n_5;
+                vec2 _e92 = pts[(_e88 - 1u)];
+                local_28 = all(equal(_e92, q_6));
+            } else {
+                local_28 = false;
+            }
+            bool _e96 = local_28;
+            if (_e96) {
+                continue;
+            }
+            uint _e97 = n_5;
+            pts[_e97] = q_6;
+            uint _e100 = n_5;
+            n_5 = (_e100 + 1u);
+        }
+    }
+    uint _e105 = n_5;
+    if ((_e105 >= 2u)) {
+        vec2 _e111 = pts[0];
+        uint _e112 = n_5;
+        vec2 _e116 = pts[(_e112 - 1u)];
+        local_29 = all(equal(_e111, _e116));
+    } else {
+        local_29 = false;
+    }
+    bool _e120 = local_29;
+    if (_e120) {
+        uint _e122 = n_5;
+        n_5 = (_e122 - 1u);
+    }
+    uint _e124 = n_5;
+    if ((_e124 < 3u)) {
+        return 0u;
+    }
+    vec2 _e129 = ds(0.0);
+    winding = _e129;
+    bool loop_init_27 = true;
+    while(true) {
+        if (!loop_init_27) {
+            uint _e161 = i_21;
+            i_21 = (_e161 + 1u);
+        }
+        loop_init_27 = false;
+        uint _e133 = i_21;
+        uint _e134 = n_5;
+        if ((_e133 < _e134)) {
+        } else {
+            break;
+        }
+        {
+            uint _e136 = i_21;
+            vec2 a_22 = pts[_e136];
+            uint _e139 = i_21;
+            uint _e142 = n_5;
+            vec2 b_16 = pts[((_e139 + 1u) % _e142)];
+            vec2 _e146 = winding;
+            vec2 _e148 = ds(a_22.x);
+            vec2 _e150 = ds(b_16.y);
+            vec2 _e151 = dm(_e148, _e150);
+            vec2 _e153 = ds(b_16.x);
+            vec2 _e155 = ds(a_22.y);
+            vec2 _e156 = dm(_e153, _e155);
+            vec2 _e158 = da(_e151, -(_e156));
+            vec2 _e159 = da(_e146, _e158);
+            winding = _e159;
+        }
+    }
+    vec2 _e163 = winding;
+    float _e164 = dvalue(_e163);
+    if ((_e164 < 0.0)) {
+        bool loop_init_28 = true;
+        while(true) {
+            if (!loop_init_28) {
+                uint _e193 = i_22;
+                i_22 = (_e193 + 1u);
+            }
+            loop_init_28 = false;
+            uint _e169 = i_22;
+            uint _e170 = n_5;
+            if ((_e169 < (_e170 / 2u))) {
+            } else {
+                break;
+            }
+            {
+                uint _e174 = i_22;
+                vec2 q_7 = pts[_e174];
+                uint _e177 = i_22;
+                uint _e179 = n_5;
+                uint _e182 = i_22;
+                vec2 _e185 = pts[((_e179 - 1u) - _e182)];
+                pts[_e177] = _e185;
+                uint _e186 = n_5;
+                uint _e189 = i_22;
+                pts[((_e186 - 1u) - _e189)] = q_7;
+            }
+        }
+    }
+    bool loop_init_29 = true;
+    while(true) {
+        if (!loop_init_29) {
+            uint _e235 = i_23;
+            i_23 = (_e235 + 1u);
+        }
+        loop_init_29 = false;
+        uint _e198 = i_23;
+        uint _e199 = n_5;
+        if ((_e198 < _e199)) {
+        } else {
+            break;
+        }
+        {
+            uint _e201 = i_23;
+            uint _e204 = n_5;
+            vec2 _e207 = pts[((_e201 + 1u) % _e204)];
+            uint _e208 = i_23;
+            vec2 _e210 = pts[_e208];
+            vec2 d_3 = (_e207 - _e210);
+            vec2 _e213 = ds(d_3.x);
+            vec2 _e215 = ds(d_3.x);
+            vec2 _e216 = dm(_e213, _e215);
+            vec2 _e218 = ds(d_3.y);
+            vec2 _e220 = ds(d_3.y);
+            vec2 _e221 = dm(_e218, _e220);
+            vec2 _e222 = da(_e216, _e221);
+            vec2 _e223 = dq(_e222);
+            uint _e224 = i_23;
+            vec2 _e227 = ds(d_3.y);
+            vec2 _e228 = dd(_e227, _e223);
+            vec2 _e231 = ds(-(d_3.x));
+            vec2 _e232 = dd(_e231, _e223);
+            normals[_e224] = vec4(_e228, _e232);
+        }
+    }
+    uint _e239 = n_5;
+    previous = (_e239 - 1u);
+    bool loop_init_30 = true;
+    while(true) {
+        if (!loop_init_30) {
+            uint _e399 = i_24;
+            i_24 = (_e399 + 1u);
+        }
+        loop_init_30 = false;
+        uint _e245 = i_24;
+        uint _e246 = n_5;
+        if ((_e245 < _e246)) {
+        } else {
+            break;
+        }
+        {
+            uint _e248 = i_24;
+            vec2 q_8 = pts[_e248];
+            uint _e251 = previous;
+            vec4 incoming = normals[_e251];
+            uint _e254 = i_24;
+            vec4 outgoing = normals[_e254];
+            uint _e258 = count_5;
+            vec2 _e261 = offset_point(q_8, incoming, _e59);
+            _group_0_binding_3_cs[(base_4 + _e258)] = _e261;
+            uint _e263 = count_5;
+            count_5 = (_e263 + 1u);
+            vec2 _e267 = dm(incoming.xy, outgoing.zw);
+            vec2 _e270 = dm(incoming.zw, outgoing.xy);
+            vec2 _e272 = da(_e267, -(_e270));
+            float _e273 = dvalue(_e272);
+            if ((_e273 >= 0.0)) {
+                vec2 _e278 = dm(incoming.xy, outgoing.xy);
+                vec2 _e281 = dm(incoming.zw, outgoing.zw);
+                vec2 _e282 = da(_e278, _e281);
+                float _e283 = dvalue(_e282);
+                if ((_e283 < 0.985)) {
+                    vec2 _e288 = datan2_(incoming.zw, incoming.xy);
+                    vec2 _e291 = datan2_(outgoing.zw, outgoing.xy);
+                    end = _e291;
+                    vec2 _e293 = end;
+                    float _e294 = dvalue(_e293);
+                    float _e295 = dvalue(_e288);
+                    if ((_e294 < _e295)) {
+                        vec2 _e297 = end;
+                        vec2 _e298 = dpi();
+                        vec2 _e300 = ds(2.0);
+                        vec2 _e301 = dm(_e298, _e300);
+                        vec2 _e302 = da(_e297, _e301);
+                        end = _e302;
+                    }
+                    vec2 _e303 = end;
+                    vec2 _e305 = da(_e303, -(_e288));
+                    vec2 _e306 = dpi();
+                    vec2 _e308 = ds(2.0);
+                    vec2 _e309 = dm(_e306, _e308);
+                    vec2 _e310 = dd(_e305, _e309);
+                    float _e311 = dvalue(_e59);
+                    vec2 _e314 = ds(min(0.25, _e311));
+                    vec2 _e316 = dpi();
+                    vec2 _e317 = dm(_e310, _e316);
+                    vec2 _e319 = ds(1.0);
+                    vec2 _e320 = dd(_e314, _e59);
+                    vec2 _e322 = da(_e319, -(_e320));
+                    vec2 _e323 = dacos(_e322);
+                    vec2 _e324 = dd(_e317, _e323);
+                    float _e325 = dvalue(_e324);
+                    steps = max(2u, uint(_e325));
+                    uint _e329 = steps;
+                    vec2 _e332 = ds(222.0);
+                    vec2 _e333 = dm(_e332, _e310);
+                    float _e334 = dvalue(_e333);
+                    steps = min(_e329, max(2u, uint(_e334)));
+                    uint _e338 = steps;
+                    vec2 _e340 = ds(float(_e338));
+                    vec2 _e341 = dd(_e305, _e340);
+                    vec4 _e342 = dsincos(_e341);
+                    vec4 _e343 = dsincos(_e288);
+                    vx = _e343.zw;
+                    vy = _e343.xy;
+                    j_4 = 0u;
+                    bool loop_init_31 = true;
+                    while(true) {
+                        if (!loop_init_31) {
+                            uint _e380 = j_4;
+                            j_4 = (_e380 + 1u);
+                        }
+                        loop_init_31 = false;
+                        uint _e350 = j_4;
+                        uint _e351 = steps;
+                        if ((_e350 <= _e351)) {
+                        } else {
+                            break;
+                        }
+                        {
+                            uint _e354 = count_5;
+                            vec2 _e357 = vx;
+                            vec2 _e358 = vy;
+                            vec2 _e360 = offset_point(q_8, vec4(_e357, _e358), _e59);
+                            _group_0_binding_3_cs[(base_4 + _e354)] = _e360;
+                            uint _e362 = count_5;
+                            count_5 = (_e362 + 1u);
+                            vec2 _e364 = vx;
+                            vec2 _e366 = dm(_e364, _e342.zw);
+                            vec2 _e367 = vy;
+                            vec2 _e369 = dm(_e367, _e342.xy);
+                            vec2 _e371 = da(_e366, -(_e369));
+                            vec2 _e372 = vy;
+                            vec2 _e374 = dm(_e372, _e342.zw);
+                            vec2 _e375 = vx;
+                            vec2 _e377 = dm(_e375, _e342.xy);
+                            vec2 _e378 = da(_e374, _e377);
+                            vy = _e378;
+                            vx = _e371;
+                        }
+                    }
+                }
+            } else {
+                uint _e383 = count_5;
+                _group_0_binding_3_cs[(base_4 + _e383)] = q_8;
+                uint _e387 = count_5;
+                count_5 = (_e387 + 1u);
+            }
+            uint _e390 = count_5;
+            vec2 _e393 = offset_point(q_8, outgoing, _e59);
+            _group_0_binding_3_cs[(base_4 + _e390)] = _e393;
+            uint _e395 = count_5;
+            count_5 = (_e395 + 1u);
+            uint _e397 = i_24;
+            previous = _e397;
+        }
+    }
+    uint _e401 = count_5;
+    return _e401;
+}
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    Rect r = Rect(vec2[4](vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0)), vec2(0.0), 0u);
+    bool local = false;
+    bool local_1 = false;
+    uint i = 0u;
+    bool local_2 = false;
+    bool local_3 = false;
+    uint i_1 = 0u;
+    uint index = id.x;
+    uint _e4 = _group_0_binding_1_cs[1];
+    if ((index >= _e4)) {
+        return;
+    }
+    uint m = (16u + (index * 8u));
+    uint _e14 = _group_0_binding_1_cs[(m + 4u)];
+    uint _e19 = _group_0_binding_1_cs[(m + 2u)];
+    uint height_1 = ((_e14 - _e19) + 1u);
+    uint _e27 = _group_0_binding_1_cs[(m + 5u)];
+    uint base_6 = ((_e27 * 4u) + (index * 1024u));
+    uint out_1 = (index * 16u);
+    _group_0_binding_4_cs[(out_1 + 9u)] = 0u;
+    uint _e44 = _group_0_binding_1_cs[(m + 5u)];
+    uint _e49 = _group_0_binding_1_cs[(m + 2u)];
+    uint _e50 = hull_rows(base_6, _e44, _e49, height_1);
+    Rect _e51 = rectangle(base_6, _e50);
+    r = _e51;
+    uint _e54 = r.valid;
+    if (!((_e54 == 0u))) {
+        float _e62 = r.side.x;
+        float _e65 = r.side.y;
+        local = (min(_e62, _e65) < 3.0);
+    } else {
+        local = true;
+    }
+    bool _e70 = local;
+    if (_e70) {
+        return;
+    }
+    vec2 _e72[4] = r.points;
+    float _e73 = score(_e72);
+    uint _e75 = p(2u);
+    if (!((_e73 >= uintBitsToFloat(_e75)))) {
+        return;
+    }
+    vec2 _e80[4] = r.points;
+    uint _e81 = unclip(base_6, _e80);
+    uint _e82 = hull_points(base_6, _e81);
+    Rect _e85 = rectangle((base_6 + 512u), _e82);
+    r = _e85;
+    uint _e87 = r.valid;
+    if (!((_e87 == 0u))) {
+        float _e95 = r.side.x;
+        float _e98 = r.side.y;
+        local_1 = (min(_e95, _e98) < 5.0);
+    } else {
+        local_1 = true;
+    }
+    bool _e103 = local_1;
+    if (_e103) {
+        return;
+    }
+    bool loop_init_32 = true;
+    while(true) {
+        if (!loop_init_32) {
+            uint _e152 = i;
+            i = (_e152 + 1u);
+        }
+        loop_init_32 = false;
+        uint _e106 = i;
+        if ((_e106 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e110 = i;
+            uint _e114 = i;
+            float _e117 = r.points[_e114].x;
+            uint _e119 = p(0u);
+            float _e121 = divide(_e117, float(_e119));
+            uint _e123 = p(6u);
+            float _e125 = mf(_e121, float(_e123));
+            uint _e127 = i;
+            float _e130 = r.points[_e127].y;
+            uint _e132 = p(1u);
+            float _e134 = divide(_e130, float(_e132));
+            uint _e136 = p(7u);
+            float _e138 = mf(_e134, float(_e136));
+            uint _e144 = p(4u);
+            uint _e147 = p(5u);
+            _group_0_binding_3_cs[(base_6 + _e110)] = clamp(roundEven(vec2(_e125, _e138)), vec2(0.0), vec2(float(_e144), float(_e147)));
+        }
+    }
+    uint _e155 = hull_points(base_6, 4u);
+    Rect _e158 = rectangle((base_6 + 512u), _e155);
+    r = _e158;
+    uint _e160 = r.valid;
+    if (!((_e160 == 0u))) {
+        vec2 _e168 = r.points[0];
+        vec2 _e171 = r.points[1];
+        local_2 = (distance(_e168, _e171) <= 4.0);
+    } else {
+        local_2 = true;
+    }
+    bool _e176 = local_2;
+    if (!(_e176)) {
+        vec2 _e182 = r.points[0];
+        vec2 _e185 = r.points[3];
+        local_3 = (distance(_e182, _e185) <= 4.0);
+    } else {
+        local_3 = true;
+    }
+    bool _e190 = local_3;
+    if (_e190) {
+        return;
+    }
+    bool loop_init_33 = true;
+    while(true) {
+        if (!loop_init_33) {
+            uint _e223 = i_1;
+            i_1 = (_e223 + 1u);
+        }
+        loop_init_33 = false;
+        uint _e193 = i_1;
+        if ((_e193 < 4u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e197 = i_1;
+            uint _e203 = i_1;
+            float _e206 = r.points[_e203].x;
+            _group_0_binding_4_cs[(out_1 + (_e197 * 2u))] = floatBitsToUint(_e206);
+            uint _e209 = i_1;
+            uint _e217 = i_1;
+            float _e220 = r.points[_e217].y;
+            _group_0_binding_4_cs[((out_1 + (_e209 * 2u)) + 1u)] = floatBitsToUint(_e220);
+        }
+    }
+    _group_0_binding_4_cs[(out_1 + 8u)] = floatBitsToUint(_e73);
+    _group_0_binding_4_cs[(out_1 + 9u)] = 1u;
+    return;
+}
+

@@ -1,0 +1,114 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+const uint K = 3u;
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    float sum = 0.0;
+    uint ky = 0u;
+    uint kx = 0u;
+    bool local = false;
+    bool local_1 = false;
+    bool local_2 = false;
+    uint _e4 = p(1u);
+    uint index_1 = (id.x + (id.y * _e4));
+    uint _e8 = p(0u);
+    if ((index_1 >= _e8)) {
+        return;
+    }
+    uint _e11 = p(7u);
+    uint _e13 = p(8u);
+    uint _e17 = p(4u);
+    uint co = ((index_1 / (_e11 * _e13)) % _e17);
+    uint _e20 = p(7u);
+    uint _e22 = p(8u);
+    uint _e25 = p(4u);
+    uint batch = (index_1 / ((_e20 * _e22) * _e25));
+    uint _e29 = p(8u);
+    uint ox = (index_1 % _e29);
+    uint _e32 = p(8u);
+    uint _e35 = p(7u);
+    uint oy = ((index_1 / _e32) % _e35);
+    uint _e40 = p(19u);
+    if ((_e40 != 0u)) {
+        float _e43 = load_c(co);
+        sum = _e43;
+    }
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e129 = ky;
+            ky = (_e129 + 1u);
+        }
+        loop_init_1 = false;
+        uint _e46 = ky;
+        if ((_e46 < K)) {
+        } else {
+            break;
+        }
+        {
+            kx = 0u;
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e126 = kx;
+                    kx = (_e126 + 1u);
+                }
+                loop_init_2 = false;
+                uint _e51 = kx;
+                if ((_e51 < K)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e55 = p(13u);
+                    uint _e57 = ky;
+                    uint _e61 = p(17u);
+                    int iy = (int(((oy * _e55) + _e57)) - int(_e61));
+                    uint _e65 = p(14u);
+                    uint _e67 = kx;
+                    uint _e71 = p(18u);
+                    int ix = (int(((ox * _e65) + _e67)) - int(_e71));
+                    if ((iy >= 0)) {
+                        local = (ix >= 0);
+                    } else {
+                        local = false;
+                    }
+                    bool _e81 = local;
+                    if (_e81) {
+                        uint _e85 = p(5u);
+                        local_1 = (iy < int(_e85));
+                    } else {
+                        local_1 = false;
+                    }
+                    bool _e89 = local_1;
+                    if (_e89) {
+                        uint _e93 = p(6u);
+                        local_2 = (ix < int(_e93));
+                    } else {
+                        local_2 = false;
+                    }
+                    bool _e97 = local_2;
+                    if (_e97) {
+                        float _e98 = sum;
+                        uint _e100 = p(3u);
+                        uint _e104 = p(5u);
+                        uint _e109 = p(6u);
+                        float _e113 = load_a(((((((batch * _e100) + co) * _e104) + uint(iy)) * _e109) + uint(ix)));
+                        uint _e116 = ky;
+                        uint _e120 = kx;
+                        float _e122 = load_b(((((co * K) + _e116) * K) + _e120));
+                        sum = (_e98 + (_e113 * _e122));
+                    }
+                }
+            }
+        }
+    }
+    float _e131 = sum;
+    float _e132 = epilogue(_e131, index_1);
+    store_output(index_1, _e132);
+    return;
+}
+

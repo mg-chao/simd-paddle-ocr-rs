@@ -42,7 +42,9 @@ pub struct StageProfile {
     /// counters cover production runs only, are nested in stage inference wall
     /// times, and do not measure device kernel execution time.
     pub gpu_admission_wait_ns: u64,
-    /// Host upload, command encoding, queue submission and mapping registration.
+    /// Host upload preparation and command encoding.
+    pub gpu_encoding_ns: u64,
+    /// Host queue submission.
     pub gpu_submission_ns: u64,
     /// Host wait for submitted work and its readback mapping callback.
     pub gpu_completion_wait_ns: u64,
@@ -89,6 +91,22 @@ pub struct StageProfile {
 }
 
 impl StageProfile {
+    #[cfg(feature = "gpu")]
+    pub(crate) fn record_gpu(&mut self, statistics: &crate::runtime::gpu::GpuPipelineStatistics) {
+        self.gpu_admission_wait_ns += statistics.admission_wait_ns;
+        self.gpu_encoding_ns += statistics.encoding_ns;
+        self.gpu_submission_ns += statistics.submission_ns;
+        self.gpu_completion_wait_ns += statistics.completion_wait_ns;
+        self.gpu_readback_ns += statistics.readback_ns;
+        if let Some(ns) = statistics
+            .profile
+            .as_ref()
+            .and_then(|profile| profile.compute_ns())
+        {
+            self.gpu_compute_ns = Some(self.gpu_compute_ns.unwrap_or(0).saturating_add(ns));
+        }
+    }
+
     pub(crate) fn merge(&mut self, other: Self) {
         macro_rules! add { ($($field:ident),*) => { $(self.$field = self.$field.saturating_add(other.$field);)* }; }
         add!(
@@ -96,6 +114,7 @@ impl StageProfile {
             binding_ns,
             reshape_ns,
             gpu_admission_wait_ns,
+            gpu_encoding_ns,
             gpu_submission_ns,
             gpu_completion_wait_ns,
             gpu_readback_ns,

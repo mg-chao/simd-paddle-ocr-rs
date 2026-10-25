@@ -1,5 +1,6 @@
 //! Production resident graph execution through the concurrent Metal encoder.
 use super::*;
+use backend::test_support::MetalTestBatch;
 use operators::{RecipeKind, ShaderKind};
 use resident::Batch;
 
@@ -48,7 +49,7 @@ kernel void resident_three_operands(device const float* input [[buffer(0)]],
         let second = batch.storage("resident ABI second", bytes).unwrap();
         let third = batch.storage("resident ABI third", bytes).unwrap();
         batch
-            .dispatch(
+            .dispatch_wgsl(
                 "resident_abi_wgsl",
                 WGSL,
                 &[(&input, true), (&first, false)],
@@ -57,9 +58,9 @@ kernel void resident_three_operands(device const float* input [[buffer(0)]],
             )
             .unwrap();
         batch
-            .dispatch_native(
+            .dispatch_msl(
                 "resident_abi_msl",
-                resident::NativeShader {
+                backend::test_support::MetalTestShader {
                     source: MSL,
                     entry_point: "resident_three_operands",
                     workgroup_size: [64, 1, 1],
@@ -70,7 +71,7 @@ kernel void resident_three_operands(device const float* input [[buffer(0)]],
             )
             .unwrap();
         batch
-            .dispatch(
+            .dispatch_wgsl(
                 "resident_abi_wgsl",
                 WGSL,
                 &[(&second, true), (&third, false)],
@@ -81,7 +82,7 @@ kernel void resident_three_operands(device const float* input [[buffer(0)]],
         let output = if graph == 0 {
             let extra = batch.storage("resident ABI extra", bytes).unwrap();
             let error = batch
-                .dispatch(
+                .dispatch_wgsl(
                     "resident_abi_override",
                     &fallback,
                     &[(&third, true), (&extra, false)],
@@ -91,7 +92,7 @@ kernel void resident_three_operands(device const float* input [[buffer(0)]],
                 .unwrap_err();
             assert_eq!(error.kind(), ErrorKind::Unsupported);
             batch
-                .dispatch(
+                .dispatch_wgsl(
                     "resident_abi_extra",
                     WGSL,
                     &[(&third, true), (&extra, false)],
@@ -147,7 +148,7 @@ kernel void resident_three_operands(device const float* input [[buffer(0)]],
         .upload_resident(&input, bytemuck::cast_slice(&[2.0f32]))
         .unwrap();
     profiled
-        .dispatch(
+        .dispatch_wgsl(
             "resident_abi_wgsl",
             WGSL,
             &[(&input, true), (&output, false)],
@@ -194,7 +195,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // Prime the compiled shader/layout cache and prove native admission. This
     // operation retains its operands without constructing a WGPU bind group.
     batch
-        .dispatch(
+        .dispatch_wgsl(
             NAME,
             WGSL,
             &[(&input, true), (&output, false)],
@@ -207,17 +208,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let other = GpuContext::new_with_options(context.options()).unwrap();
     let foreign = other
-        .create_buffer("foreign native input", 4, wgpu::BufferUsages::STORAGE)
+        .create_buffer("foreign native input", 4, BufferUsage::STORAGE)
         .unwrap();
     let copy_only = context
-        .create_buffer(
-            "native input missing STORAGE",
-            4,
-            wgpu::BufferUsages::COPY_SRC,
-        )
+        .create_buffer("native input missing STORAGE", 4, BufferUsage::COPY_SRC)
         .unwrap();
     let unaligned = context
-        .create_buffer("unaligned native storage", 3, wgpu::BufferUsages::STORAGE)
+        .create_buffer("unaligned native storage", 3, BufferUsage::STORAGE)
         .unwrap();
     for (invalid, kind) in [
         (&foreign, ErrorKind::InvalidInput),
@@ -225,7 +222,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         (&unaligned, ErrorKind::ResourceLimit),
     ] {
         let error = batch
-            .dispatch(
+            .dispatch_wgsl(
                 NAME,
                 WGSL,
                 &[(invalid, true), (&output, false)],
@@ -244,7 +241,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         vec![(&input, true)],
     ] {
         let error = batch
-            .dispatch(NAME, WGSL, &buffers, &[1, 3], [1, 1, 1])
+            .dispatch_wgsl(NAME, WGSL, &buffers, &[1, 3], [1, 1, 1])
             .unwrap_err();
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
         assert_eq!(batch.statistics.dispatches, 1);
@@ -322,7 +319,7 @@ fn gpu_native_resident_reflected_sizes_and_alias_validation() {
             "{}{declarations}\n\
              @group(0) @binding(2) var<uniform> params: Params;\n\
              @compute @workgroup_size(64) fn main(@builtin(local_invocation_index) lane: u32) {{ if lane == 0u {{ {body} }} }}",
-            resident::PARAMETERS
+            metal_resident_sources::PARAMETERS
         );
         let input = batch
             .storage("minimum-sized native input", input_bytes)
@@ -332,7 +329,7 @@ fn gpu_native_resident_reflected_sizes_and_alias_validation() {
             .unwrap();
         let before = batch.statistics.native_resident_dispatches;
         batch
-            .dispatch(
+            .dispatch_wgsl(
                 name,
                 &source,
                 &[(&input, true), (&output, false)],
@@ -351,7 +348,7 @@ fn gpu_native_resident_reflected_sizes_and_alias_validation() {
             [(&input, true), (&invalid, false)]
         };
         let error = batch
-            .dispatch(name, &source, &operands, &[1], [1, 1, 1])
+            .dispatch_wgsl(name, &source, &operands, &[1], [1, 1, 1])
             .unwrap_err();
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
         assert!(error.to_string().contains(&format!("at least {minimum}")));
@@ -372,7 +369,7 @@ struct Params { words: array<vec4<u32>,65> }
     if lane == 0u { output[0] = input[0] + f32(params.words[64].x); }
 }"#;
     let error = batch
-        .dispatch(
+        .dispatch_wgsl(
             "resident_native_minimum_oversized_uniform",
             oversized_uniform,
             &[(&input, true), (&output, false)],
@@ -391,10 +388,10 @@ struct Params { words: array<vec4<u32>,65> }
          @group(0) @binding(1) var<storage, read_write> output: array<f32>;\n\
          @group(0) @binding(2) var<uniform> params: Params;\n\
          @compute @workgroup_size(64) fn main(@builtin(local_invocation_index) lane: u32) {{ if lane == 0u {{ output[0] = input[0] + f32(params.words[0].x); }} }}",
-        resident::PARAMETERS
+        metal_resident_sources::PARAMETERS
     );
     let error = batch
-        .dispatch(
+        .dispatch_wgsl(
             "resident_native_conflicting_alias",
             &alias_source,
             &[(&input, true), (&input, false)],
@@ -428,11 +425,11 @@ struct Params { words: array<vec4<u32>,65> }
              @group(0) @binding(2) var<storage, read_write> output: array<f32>;\n\
              @group(0) @binding(3) var<uniform> params: Params;\n\
              @compute @workgroup_size(64) fn main(@builtin(local_invocation_index) lane: u32) {{ if lane == 0u {{ {body} }} }}",
-            resident::PARAMETERS
+            metal_resident_sources::PARAMETERS
         );
         let duplicate = if read_only { &input } else { &output };
         batch
-            .dispatch(
+            .dispatch_wgsl(
                 name,
                 &source,
                 &[(&input, true), (duplicate, read_only), (&output, false)],
@@ -447,10 +444,10 @@ struct Params { words: array<vec4<u32>,65> }
          @group(0) @binding(1) var<storage, read_write> output: array<f32>;\n\
          @group(0) @binding(2) var<uniform> params: Params;\n\
          @compute @workgroup_size(64) fn main(@builtin(local_invocation_index) lane: u32) {{ if lane == 0u {{ output[0] = f32(params.words[0].x); }} }}",
-        resident::PARAMETERS
+        metal_resident_sources::PARAMETERS
     );
     batch
-        .dispatch(
+        .dispatch_wgsl(
             "resident_native_inactive_fixed_array_allowed",
             &inactive,
             &[(&input, true), (&output, false)],

@@ -5,19 +5,16 @@ use crate::{image::ImageView, projection::ProjectionHead, recognizer::Dictionary
 #[path = "head_winner.rs"]
 mod head_winner;
 
-const NATIVE_PROJECTION: NativeShader<'static> = NativeShader {
-    source: include_str!("heads_native.metal"),
-    entry_point: "head_mpp32x64",
-    workgroup_size: [128, 1, 1],
+const NATIVE_PROJECTION: KernelKey = KernelKey {
+    id: KernelId::ProjectionMatrixF32,
+    precision: 0,
 };
-const NATIVE_PROJECTION_NAME: &str = "projection_mpp32_F32";
-const NATIVE_PROJECTION_F16: NativeShader<'static> = NativeShader {
-    source: include_str!("heads_native_f16.metal"),
-    entry_point: "head_mpp32x64_f16",
-    workgroup_size: [128, 1, 1],
+const NATIVE_PROJECTION_F16: KernelKey = KernelKey {
+    id: KernelId::ProjectionMatrixF16,
+    precision: 0,
 };
-const NATIVE_PROJECTION_F16_NAME: &str = "projection_mpp32_F16";
-
+const NATIVE_PROJECTION_NAME: &str = "projection_matrix_F32";
+const NATIVE_PROJECTION_F16_NAME: &str = "projection_matrix_F16";
 pub(crate) struct Head {
     pub metadata: ProjectionHead,
     owned_bytes: usize,
@@ -84,20 +81,19 @@ impl Head {
             Some(TensorData::F32(t)) => t.data(),
             _ => unreachable!(),
         };
-        let mut upload = |label,
-                          id: Option<TensorId>,
-                          fallback: &[f32]|
-         -> RuntimeResult<GpuBuffer> {
-            if compiled.precision == GpuPrecision::F32
-                && let Some(buffer) = id.and_then(|id| compiled.weights.constants[id.0].as_ref())
-            {
-                return Ok(buffer.clone());
-            }
-            let bytes = bytemuck::cast_slice(id.map(data).unwrap_or(fallback));
-            let buffer = context.create_buffer_init(label, bytes, wgpu::BufferUsages::STORAGE)?;
-            owned_bytes += buffer.bytes();
-            Ok(buffer)
-        };
+        let mut upload =
+            |label, id: Option<TensorId>, fallback: &[f32]| -> RuntimeResult<GpuBuffer> {
+                if compiled.precision == GpuPrecision::F32
+                    && let Some(buffer) =
+                        id.and_then(|id| compiled.weights.constants[id.0].as_ref())
+                {
+                    return Ok(buffer.clone());
+                }
+                let bytes = bytemuck::cast_slice(id.map(data).unwrap_or(fallback));
+                let buffer = context.create_buffer_init(label, bytes, BufferUsage::STORAGE)?;
+                owned_bytes += buffer.bytes();
+                Ok(buffer)
+            };
         let weights = upload("GPU projection weights F32", Some(metadata.weights), &[])?;
         let bias = upload(
             "GPU projection bias F32",
@@ -114,7 +110,7 @@ impl Head {
         let lengths = context.create_buffer_init(
             "GPU dictionary token lengths",
             bytemuck::cast_slice(&lengths),
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )?;
         owned_bytes += lengths.bytes();
         let native_projection = Self::probe_native_projection(&context)?;
@@ -139,20 +135,10 @@ impl Head {
         })
     }
     fn probe_native_projection(context: &GpuContext) -> RuntimeResult<bool> {
-        probe_native(
-            context,
-            NATIVE_PROJECTION_NAME,
-            NATIVE_PROJECTION,
-            &[true, true, true, false],
-        )
+        probe_native(context, NATIVE_PROJECTION, &[true, true, true, false])
     }
     fn probe_native_projection_f16(context: &GpuContext) -> RuntimeResult<bool> {
-        probe_native(
-            context,
-            NATIVE_PROJECTION_F16_NAME,
-            NATIVE_PROJECTION_F16,
-            &[true, true, true, false],
-        )
+        probe_native(context, NATIVE_PROJECTION_F16, &[true, true, true, false])
     }
     fn native_geometry(&self, rows: usize) -> bool {
         rows >= 8
@@ -206,16 +192,9 @@ impl Head {
                     .checked_mul(64)
                     .ok_or_else(|| resource("projection feature conversion dispatch overflow"))?;
                 let converted = Tensor::allocate(self.context.clone(), shape, GpuPrecision::F32)?;
-                let source = format!(
-                    "enable f16;\n{PARAMETERS}{}",
-                    shader(
-                        "heads_features_f32.wgsl",
-                        include_str!("heads_features_f32.wgsl")
-                    )
-                );
                 batch.dispatch(
                     "projection_features_F16_F32",
-                    &source,
+                    KernelKey::storage(KernelId::HeadsFeaturesF32, GpuPrecision::MixedF16),
                     &[(&features.buffer, true), (&converted.buffer, false)],
                     &[count, row_stride],
                     [x, y, 1],
@@ -250,7 +229,7 @@ impl Head {
             } else {
                 (NATIVE_PROJECTION_NAME, NATIVE_PROJECTION, &self.weights)
             };
-            batch.dispatch_native(
+            batch.dispatch(
                 name,
                 shader,
                 &[
@@ -269,31 +248,16 @@ impl Head {
                 } else {
                     1
                 };
-            let kernel = if rows_per_group == 4 {
-                shader("heads4.wgsl", include_str!("heads4.wgsl"))
-            } else {
-                shader("heads.wgsl", include_str!("heads.wgsl"))
-            };
-            let source = format!(
-                "{}{}{}",
-                if precision == GpuPrecision::MixedF16 {
-                    "enable f16;\n"
-                } else {
-                    ""
-                },
-                PARAMETERS,
-                kernel.replace(
-                    "$INPUT",
-                    if precision == GpuPrecision::MixedF16 {
-                        "f16"
-                    } else {
-                        "f32"
-                    }
-                )
-            );
             batch.dispatch(
                 &format!("projection_tiles{rows_per_group}_{precision:?}"),
-                &source,
+                KernelKey::storage(
+                    if rows_per_group == 4 {
+                        KernelId::Heads4
+                    } else {
+                        KernelId::Heads
+                    },
+                    precision,
+                ),
                 &[
                     (&features.buffer, true),
                     (&self.weights, true),
@@ -318,13 +282,9 @@ impl Head {
                 [rows as u32, 1, 1],
             )?;
         } else {
-            let source = format!(
-                "{PARAMETERS}{}",
-                shader("head_reduce.wgsl", include_str!("head_reduce.wgsl"))
-            );
             batch.dispatch(
                 "projection_winners",
-                &source,
+                KernelKey::new(KernelId::HeadReduce),
                 &[(&partial, true), (&winners, false)],
                 &words,
                 [(rows as u32).div_ceil(64), 1, 1],
@@ -355,13 +315,9 @@ impl Head {
             max_bytes.min(u32::MAX as usize) as u32,
             std::mem::size_of::<crate::recognizer::CtcRun>() as u32,
         ];
-        let source = format!(
-            "{PARAMETERS}{}",
-            shader("ctc.wgsl", include_str!("ctc.wgsl"))
-        );
         batch.dispatch(
             "ctc_compaction",
-            &source,
+            KernelKey::new(KernelId::Ctc),
             &[(winners, true), (&self.lengths, true), (&output, false)],
             &words,
             [sequences as u32, 1, 1],
@@ -700,7 +656,8 @@ mod tests {
         let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
         assert!(matches!(
             context.adapter_info().device_type,
-            wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+            crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+                | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
         ));
         context
     }
@@ -713,11 +670,7 @@ mod tests {
     ) -> (Head, Tensor) {
         let upload = |label, bytes: &[u8]| {
             context
-                .create_buffer_init(
-                    label,
-                    bytes,
-                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                )
+                .create_buffer_init(label, bytes, BufferUsage::STORAGE | BufferUsage::COPY_DST)
                 .unwrap()
         };
         let head = Head {
@@ -832,9 +785,10 @@ mod tests {
 
     #[test]
     #[ignore = "requires a physical Metal GPU"]
+    #[cfg(target_os = "macos")]
     fn gpu_projection_matrix_dense_tail_and_nonfinite_contract() {
         let context = projection_context();
-        assert_eq!(context.info.backend, wgpu::Backend::Metal);
+        assert_eq!(context.info.backend, crate::runtime::gpu::GpuApi::Metal);
         let (rows, inner, classes) = (17, 16, 4097);
         // Odd numerators make every feature and weight nonzero, including the
         // last reduction element in the single-class and single-row tails.
@@ -1113,7 +1067,8 @@ mod tests {
         let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
         assert!(matches!(
             context.adapter_info().device_type,
-            wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+            crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+                | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
         ));
         let classes = 130;
         let inner = 7;
@@ -1127,11 +1082,7 @@ mod tests {
         lengths[2] = 0;
         let buffer = |label, data: &[u8]| {
             context
-                .create_buffer_init(
-                    label,
-                    data,
-                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-                )
+                .create_buffer_init(label, data, BufferUsage::STORAGE | BufferUsage::COPY_SRC)
                 .unwrap()
         };
         let head = Head {
@@ -1229,9 +1180,11 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     mod native_projection {
         include!("heads_native_tests.rs");
     }
+    #[cfg(target_os = "macos")]
     mod native_projection_f16 {
         include!("heads_native_f16_tests.rs");
         include!("head_winner_head_tests.rs");

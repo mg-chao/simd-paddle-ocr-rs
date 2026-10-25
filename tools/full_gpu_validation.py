@@ -66,18 +66,18 @@ def main():
     parser.add_argument("--presets", nargs="+", choices=["tiny", "small", "medium"], default=["tiny"])
     parser.add_argument("--cases", nargs="+", default=["typical", "dense", "vertical"])
     parser.add_argument("--all-cases", action="store_true")
-    parser.add_argument("--report", type=Path, default=ROOT / "target/metal-validation")
+    parser.add_argument("--report", type=Path, default=ROOT / "target/gpu-validation")
     parser.add_argument("--sample", type=Path, default=ROOT.parent / "SimdPaddleOCR/examples/sample.jpg")
     parser.add_argument("--models", type=Path, default=ROOT.parent / "SimdPaddleOCR/models")
     parser.add_argument("--executable", type=Path, default=ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench"))
     parser.add_argument("--wave", type=int, choices=range(1, 17), default=1)
     parser.add_argument("--classification-batch", type=int, choices=range(1, 17), default=4)
-    parser.add_argument("--budget-seconds", type=float, default=70)
+    parser.add_argument("--budget-seconds", type=float, default=60)
     args = parser.parse_args()
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
     build_inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock",
-                    ROOT / "rust-toolchain.toml", ROOT / "examples/gpu_ocr_bench.rs", ROOT / "examples/support/ocr_compare.rs"]
+                    ROOT / "build.rs", ROOT / "rust-toolchain.toml", ROOT / "examples/gpu_ocr_bench.rs", ROOT / "examples/support/ocr_compare.rs"]
     if max(p.stat().st_mtime for p in build_inputs) > args.executable.stat().st_mtime:
         raise RuntimeError("release executable predates source changes; rebuild before qualification")
     args.report.mkdir(parents=True, exist_ok=False)

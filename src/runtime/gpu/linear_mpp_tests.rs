@@ -1,7 +1,9 @@
 use super::super::tests::{bind_program, model, node, tensor};
 use super::*;
 use crate::runtime::CompileOptions;
-use resident::{Batch, NativeShader};
+use backend::test_support::MetalTestBatch;
+use backend::test_support::MetalTestShader;
+use resident::Batch;
 
 #[derive(Clone, Copy)]
 struct Case {
@@ -111,8 +113,8 @@ fn bound(case: Case) -> (Program, ShapePlan, Vec<GpuTensorDescriptor>, Recipe) {
     .unwrap();
     (program, plan, descriptors, recipe)
 }
-fn limits() -> wgpu::Limits {
-    wgpu::Limits {
+fn limits() -> crate::runtime::gpu::GpuLimits {
+    crate::runtime::gpu::GpuLimits {
         max_compute_workgroup_storage_size: 32 * 1024,
         ..Default::default()
     }
@@ -454,9 +456,9 @@ fn hardware() {
         let mut buffers = operands.iter().map(|b| (b, true)).collect::<Vec<_>>();
         buffers.push((&output, false));
         batch
-            .dispatch_native(
+            .dispatch_msl(
                 "linear_mpp_guards",
-                NativeShader {
+                MetalTestShader {
                     source: &source,
                     entry_point: ENTRY,
                     workgroup_size: WORKGROUP_SIZE,

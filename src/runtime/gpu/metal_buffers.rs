@@ -10,8 +10,8 @@ use objc2_foundation::NSString;
 use objc2_metal::{MTLBuffer, MTLDevice, MTLResource, MTLResourceOptions};
 
 #[derive(Clone, Debug)]
-pub(super) struct NativeBuffer {
-    pub(super) raw: Retained<ProtocolObject<dyn MTLBuffer>>,
+pub(in crate::runtime::gpu) struct NativeBuffer {
+    pub(in crate::runtime::gpu) raw: Retained<ProtocolObject<dyn MTLBuffer>>,
 }
 
 // SAFETY: Retained Metal buffer resources can be retained, released and bound

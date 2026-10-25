@@ -1,8 +1,10 @@
 use super::super::tests::{integers, model, node, tensor};
 use super::*;
 use crate::runtime::CompileOptions;
+use backend::test_support::MetalTestBatch;
+use backend::test_support::MetalTestShader;
 use operators::RecipeKind;
-use resident::{Batch, NativeShader};
+use resident::Batch;
 
 const STORAGE: [GpuPrecision; 6] = [GpuPrecision::MixedF16; 6];
 const ORIGINAL_SPECIALIZATIONS: [Specialization; 3] = [
@@ -346,9 +348,9 @@ fn raw_guards(
     let mut buffers = operands.iter().map(|b| (b, true)).collect::<Vec<_>>();
     buffers.push((&output, false));
     batch
-        .dispatch_native(
+        .dispatch_msl(
             "static_pointwise_guards",
-            NativeShader {
+            MetalTestShader {
                 source: &source,
                 entry_point: ENTRY,
                 workgroup_size: WORKGROUP_SIZE,

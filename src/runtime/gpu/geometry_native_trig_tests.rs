@@ -49,67 +49,12 @@ fn native_trig_requires_explicit_half_matrix_native_and_bounded_geometry() {
     }
 }
 
-fn function(source: &str, name: &str) -> std::ops::Range<usize> {
-    let start = source.find(&format!("fn {name}(")).unwrap();
-    let brace = start + source[start..].find('{').unwrap();
-    let mut depth = 0;
-    for (index, value) in source.as_bytes().iter().enumerate().skip(brace) {
-        if *value == b'{' {
-            depth += 1;
-        }
-        if *value == b'}' {
-            depth -= 1;
-            if depth == 0 {
-                return start..index + 1;
-            }
-        }
-    }
-    panic!("unclosed {name}")
-}
-
-#[test]
-fn native_trig_restores_precise_arithmetic_and_geometry_source() {
-    let precise = include_str!("precise.wgsl");
-    let candidate = include_str!("precise_native_trig.wgsl");
-    let mut restored = candidate.to_owned();
-    for name in ["datan", "datan2", "dsincos", "dacos"] {
-        let at = function(&restored, name);
-        restored.replace_range(at, &precise[function(precise, name)]);
-    }
-    // This whole-source equality proves that none of the compensated helpers,
-    // Kahan anchors, rounding rules or constants changed outside the four APIs.
-    assert_eq!(restored, precise);
-    for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
-        let enable = if precision == GpuPrecision::MixedF16 {
-            "enable f16;\n"
-        } else {
-            ""
-        };
-        let body = include_str!("db_geometry.wgsl").replace(
-            "$INPUT",
-            if precision == GpuPrecision::MixedF16 {
-                "f16"
-            } else {
-                "f32"
-            },
-        );
-        assert_eq!(
-            geometry_source(precision, false),
-            format!("{enable}{PARAMETERS}{precise}{body}")
-        );
-        assert_eq!(
-            geometry_source(precision, true),
-            format!("{enable}{PARAMETERS}{candidate}{body}")
-        );
-    }
-}
-
 fn hardware() -> Arc<GpuContext> {
     let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
-    assert_eq!(context.info.backend, wgpu::Backend::Metal);
     assert!(matches!(
         context.info.device_type,
-        wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+        crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+            | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
     ));
     context
 }
@@ -272,11 +217,11 @@ fn run_geometry(context: &Arc<GpuContext>, f: &Fixture, native: bool) -> Vec<u32
             .create_buffer_init(
                 label,
                 bytes,
-                wgpu::BufferUsages::STORAGE
+                BufferUsage::STORAGE
                     | if copy_source {
-                        wgpu::BufferUsages::COPY_SRC
+                        BufferUsage::COPY_SRC
                     } else {
-                        wgpu::BufferUsages::empty()
+                        BufferUsage::empty()
                     },
             )
             .unwrap()
@@ -428,7 +373,7 @@ fn assert_box_overlap(a: &[[f32; 2]; 4], b: &[[f32; 2]; 4]) {
 }
 
 #[test]
-#[ignore = "requires physical Metal; Half metadata, high-origin tiny rotations, offset ties and count/scratch guards"]
+#[ignore = "requires a physical GPU; Half metadata, high-origin tiny rotations, offset ties and count/scratch guards"]
 fn gpu_native_trig_geometry_metadata_ties_and_boundary_guards() {
     let context = hardware();
     for fixture in fixtures() {
@@ -453,7 +398,7 @@ fn gpu_native_trig_geometry_metadata_ties_and_boundary_guards() {
 }
 
 #[test]
-#[ignore = "requires physical Metal; policy, pre-admission compilation fallback and prepared validation errors"]
+#[ignore = "requires a physical GPU; policy, pre-admission compilation fallback and prepared validation errors"]
 fn gpu_native_trig_policy_compile_fallback_and_prepared_validation() {
     let context = hardware();
     let mut calls = Vec::new();
@@ -461,25 +406,23 @@ fn gpu_native_trig_policy_compile_fallback_and_prepared_validation() {
         &context,
         GpuPrecision::MixedF16,
         true,
-        |ctx, name, source, layout| {
-            calls.push(name.to_owned());
-            Kernel::get(
-                ctx,
-                name,
-                if name.contains("native_trig") {
-                    "invalid WGSL source"
-                } else {
-                    source
-                },
-                layout,
-            )
+        |ctx, key, layout| {
+            calls.push(key);
+            if key.id == KernelId::DbGeometryFast {
+                Err(RuntimeError::with_kind(
+                    ErrorKind::GpuValidation,
+                    "rejected candidate interface",
+                ))
+            } else {
+                Kernel::get(ctx, key, layout)
+            }
         },
     )
     .unwrap();
     assert_eq!(name, "db_geometry_MixedF16");
     assert_eq!(calls.len(), 2);
     let mut calls = 0;
-    let error = geometry_kernel_with(&context, GpuPrecision::MixedF16, true, |_, _, _, _| {
+    let error = geometry_kernel_with(&context, GpuPrecision::MixedF16, true, |_, _, _| {
         calls += 1;
         Err(RuntimeError::with_kind(
             ErrorKind::Allocation,
@@ -495,7 +438,7 @@ fn gpu_native_trig_policy_compile_fallback_and_prepared_validation() {
         .create_buffer_init(
             "prepared rejected binding",
             &[0u8; 16],
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )
         .unwrap();
     let mut batch = Batch::new(context.clone()).unwrap();
@@ -536,11 +479,7 @@ fn gpu_native_trig_policy_compile_fallback_and_prepared_validation() {
 
     let other_context = hardware();
     let other_buffer = other_context
-        .create_buffer_init(
-            "foreign prepared binding",
-            &[0u8; 16],
-            wgpu::BufferUsages::STORAGE,
-        )
+        .create_buffer_init("foreign prepared binding", &[0u8; 16], BufferUsage::STORAGE)
         .unwrap();
     let other_bindings = [
         (&other_buffer, true),

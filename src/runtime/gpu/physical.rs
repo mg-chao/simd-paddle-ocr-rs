@@ -8,7 +8,7 @@ pub(super) fn lower(
     program: &Program,
     plan: &mut ShapePlan,
     selected: TensorId,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     precision: GpuPrecision,
     descriptors: &mut Vec<GpuTensorDescriptor>,
     matrix_precision: GpuMatrixPrecision,

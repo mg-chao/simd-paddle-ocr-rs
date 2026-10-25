@@ -1,0 +1,254 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_4_block_0Compute { uint _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) readonly buffer type_5_block_1Compute { float _group_0_binding_1_cs[]; };
+
+layout(std430, set = 0, binding = 2) buffer type_5_block_2Compute { STORAGE_2 _group_0_binding_2_cs[]; };
+
+layout(std140, set = 0, binding = 3) uniform Params_block_3Compute { Params _group_0_binding_3_cs; };
+
+float round_to_half(float value) {
+    uint bits = floatBitsToUint(value);
+    uint sign_ = (bits & 2147483648u);
+    uint magnitude = (bits & 2147483647u);
+    if ((magnitude >= 2139095040u)) {
+        return value;
+    }
+    if ((magnitude < 947912704u)) {
+        if ((magnitude <= 855638016u)) {
+            return uintBitsToFloat(sign_);
+        }
+        uint shift = (126u - (magnitude >> 23u));
+        uint mantissa = ((magnitude & 8388607u) | 8388608u);
+        uint rounded = (((mantissa + ((1u << (shift - 1u)) - 1u)) + ((mantissa >> shift) & 1u)) >> shift);
+        return uintBitsToFloat((sign_ | floatBitsToUint((float(rounded) * 5.9604645e-8))));
+    }
+    uint rounded_1 = ((magnitude + 4095u) + ((magnitude >> 13u) & 1u));
+    if ((rounded_1 >= 1199570944u)) {
+        return uintBitsToFloat((sign_ | 2139095040u));
+    }
+    return uintBitsToFloat((sign_ | (rounded_1 & 4294959104u)));
+}
+
+float normalize_store(float value_1) {
+#if !(PRECISION_MASK & 4)
+    return value_1;
+#endif
+    float _e1 = round_to_half(value_1);
+    return _e1;
+}
+
+uint p(uint i) {
+    uint _e9 = _group_0_binding_3_cs.words[(i / 4u)][(i % 4u)];
+    return _e9;
+}
+
+int pixel(uint x, uint y, uint c_2) {
+    bool local = false;
+    uint _e4 = p(0u);
+    if (!((x >= _e4))) {
+        uint _e10 = p(1u);
+        local = (y >= _e10);
+    } else {
+        local = true;
+    }
+    bool _e13 = local;
+    if (_e13) {
+        return 0;
+    }
+    uint _e18 = p(4u);
+    uint channel = ((_e18 != 0u) ? (2u - c_2) : c_2);
+    uint _e23 = p(2u);
+    uint _e26 = p(3u);
+    uint byte = (((y * _e23) + (x * _e26)) + channel);
+    uint _e34 = _group_0_binding_0_cs[(byte / 4u)];
+    return int(((_e34 >> ((byte % 4u) * 8u)) & 255u));
+}
+
+uvec2 multiply_divide(uint a, uint b, uint d) {
+    uint rem = 0u;
+    uint quotient = 0u;
+    uint bit = 32u;
+    if ((a == 0u)) {
+        return uvec2(0u);
+    }
+    if ((b <= (4294967295u / a))) {
+        uint product = (a * b);
+        return uvec2((product / d), (product % d));
+    }
+    uint a0_ = (a & 65535u);
+    uint a1_ = (a >> 16u);
+    uint b0_ = (b & 65535u);
+    uint b1_ = (b >> 16u);
+    uint w0_ = (a0_ * b0_);
+    uint t = ((a1_ * b0_) + (w0_ >> 16u));
+    uint w1_ = ((t & 65535u) + (a0_ * b1_));
+    uint high = (((a1_ * b1_) + (t >> 16u)) + (w1_ >> 16u));
+    uint low = ((w1_ << 16u) + (w0_ & 65535u));
+    rem = high;
+    bool loop_init = true;
+    while(true) {
+        if (!loop_init) {
+            uint _e73 = bit;
+            bit = (_e73 - 1u);
+        }
+        loop_init = false;
+        uint _e48 = bit;
+        if ((_e48 > 0u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e51 = rem;
+            uint _e54 = bit;
+            rem = ((_e51 << 1u) | ((low >> (_e54 - 1u)) & 1u));
+            uint _e61 = rem;
+            if ((_e61 >= d)) {
+                uint _e63 = rem;
+                rem = (_e63 - d);
+                uint _e65 = quotient;
+                uint _e67 = bit;
+                quotient = (_e65 | (1u << (_e67 - 1u)));
+            }
+        }
+    }
+    uint _e75 = quotient;
+    uint _e76 = rem;
+    return uvec2(_e75, _e76);
+}
+
+ivec2 coefficient(uint position, uint source, uint destination) {
+    bool local_1 = false;
+    bool local_2 = false;
+    uint denominator = (2u * destination);
+    uvec2 _e9 = multiply_divide(((2u * position) + 1u), source, denominator);
+    int base = (int(_e9.x) - ((_e9.y >= destination) ? 0 : 1));
+    uint rem_1 = (((_e9.y + denominator) - destination) % denominator);
+    uvec2 _e23 = multiply_divide(rem_1, 2048u, denominator);
+    uint whole = _e23.x;
+    uint rest = _e23.y;
+    if (!(((rest * 2u) > denominator))) {
+        if (((rest * 2u) == denominator)) {
+            local_2 = ((whole & 1u) != 0u);
+        } else {
+            local_2 = false;
+        }
+        bool _e42 = local_2;
+        local_1 = _e42;
+    } else {
+        local_1 = true;
+    }
+    bool up = local_1;
+    return ivec2(base, int((whole + uint(up))));
+}
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    uvec3 grid = gl_NumWorkGroups;
+    uint c = 0u;
+    ivec2 xc = ivec2(0);
+    uint c_1 = 0u;
+    uint pixel_index = (id.x + ((id.y * grid.x) * 64u));
+    uint _e10 = p(8u);
+    uint _e12 = p(9u);
+    uint plane = (_e10 * _e12);
+    if ((pixel_index >= plane)) {
+        return;
+    }
+    uint _e16 = p(9u);
+    uint y_1 = (pixel_index / _e16);
+    uint _e19 = p(9u);
+    uint x_1 = (pixel_index % _e19);
+    uint _e22 = p(7u);
+    if ((x_1 >= _e22)) {
+        bool loop_init_1 = true;
+        while(true) {
+            if (!loop_init_1) {
+                uint _e42 = c;
+                c = (_e42 + 1u);
+            }
+            loop_init_1 = false;
+            uint _e26 = c;
+            if ((_e26 < 3u)) {
+            } else {
+                break;
+            }
+            {
+                uint _e30 = c;
+                uint _e34 = p(12u);
+                uint _e38 = p(11u);
+                float _e40 = normalize_store(uintBitsToFloat(_e38));
+                _group_0_binding_2_cs[(((_e30 * plane) + pixel_index) + _e34)] = STORAGE_2(_e40);
+            }
+        }
+        return;
+    }
+    uint _e45 = p(5u);
+    uint _e47 = p(7u);
+    ivec2 _e48 = coefficient(x_1, _e45, _e47);
+    xc = _e48;
+    int _e51 = xc.x;
+    if ((_e51 < 0)) {
+        xc = ivec2(0, 0);
+    }
+    int _e58 = xc.x;
+    uint _e60 = p(5u);
+    if ((_e58 >= (int(_e60) - 1))) {
+        uint _e66 = p(5u);
+        xc = ivec2((int(_e66) - 1), 0);
+    }
+    uint _e73 = p(6u);
+    uint _e75 = p(8u);
+    ivec2 _e76 = coefficient(y_1, _e73, _e75);
+    int _e78 = xc.x;
+    uint x0_ = uint(_e78);
+    uint _e83 = p(5u);
+    uint x1_ = min((x0_ + 1u), (_e83 - 1u));
+    uint _e89 = p(6u);
+    uint y0_ = uint(min(max(_e76.x, 0), (int(_e89) - 1)));
+    uint _e100 = p(6u);
+    uint y1_ = uint(min(max((_e76.x + 1), 0), (int(_e100) - 1)));
+    int _e108 = xc.y;
+    int a_1 = (2048 - _e108);
+    int b_1 = xc.y;
+    bool loop_init_2 = true;
+    while(true) {
+        if (!loop_init_2) {
+            uint _e172 = c_1;
+            c_1 = (_e172 + 1u);
+        }
+        loop_init_2 = false;
+        uint _e115 = c_1;
+        if ((_e115 < 3u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e118 = c_1;
+            int _e119 = pixel(x0_, y0_, _e118);
+            uint _e121 = c_1;
+            int _e122 = pixel(x1_, y0_, _e121);
+            int h0_ = ((_e119 * a_1) + (_e122 * b_1));
+            uint _e125 = c_1;
+            int _e126 = pixel(x0_, y1_, _e125);
+            uint _e128 = c_1;
+            int _e129 = pixel(x1_, y1_, _e128);
+            int h1_ = ((_e126 * a_1) + (_e129 * b_1));
+            int value_2 = min(max(((((((h0_ >> 4u) * (2048 - _e76.y)) >> 16u) + (((h1_ >> 4u) * _e76.y) >> 16u)) + 2) >> 2u), 0), 255);
+            uint _e155 = c_1;
+            uint _e159 = p(12u);
+            uint _e163 = c_1;
+            float _e169 = _group_0_binding_1_cs[((_e163 * 256u) + uint(value_2))];
+            float _e170 = normalize_store(_e169);
+            _group_0_binding_2_cs[(((_e155 * plane) + pixel_index) + _e159)] = STORAGE_2(_e170);
+        }
+    }
+    return;
+}
+

@@ -15,7 +15,7 @@ pub(super) fn lower(
     plan: &mut ShapePlan,
     recipes: Vec<Recipe>,
     descriptors: &mut Vec<GpuTensorDescriptor>,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     matrix_precision: GpuMatrixPrecision,
     admit: &mut dyn FnMut(&Recipe) -> RuntimeResult<bool>,
 ) -> RuntimeResult<Vec<Recipe>> {
@@ -176,7 +176,7 @@ pub(super) fn lower(
 fn prepare_pointwise(
     recipe: &mut Recipe,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> RuntimeResult<bool> {
     if !matches!(
         recipe.kind,
@@ -274,7 +274,7 @@ fn prepare_pointwise(
 fn checked_pack_bytes(
     count: usize,
     precision: GpuPrecision,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> RuntimeResult<()> {
     if count == 0 || u32::try_from(count).is_err() {
         return Err(resource(

@@ -254,14 +254,7 @@ fn gpu_native_projection_scalar_width_fallback() {
     );
     // This qualification GPU has width 32. Recompile the exact fallback body
     // behind a forced uniform condition, without assuming a nonexistent device.
-    let source = NATIVE_PROJECTION
-        .source
-        .replace("if (width != 32u)", "if (true)");
-    assert_ne!(source, NATIVE_PROJECTION.source);
-    let shader = NativeShader {
-        source: &source,
-        ..NATIVE_PROJECTION
-    };
+    let shader = KernelKey::new(KernelId::ProjectionScalarProbe);
     let tiles = classes.div_ceil(64);
     for probability in [false, true] {
         let mut batch = Batch::new(context.clone()).unwrap();
@@ -277,7 +270,7 @@ fn gpu_native_projection_scalar_width_fallback() {
             u32::from(probability),
         ];
         batch
-            .dispatch_native(
+            .dispatch(
                 "projection_mpp_scalar_F32",
                 shader,
                 &[
@@ -293,7 +286,7 @@ fn gpu_native_projection_scalar_width_fallback() {
         batch
             .dispatch(
                 "projection_winners",
-                &format!("{PARAMETERS}{}", include_str!("head_reduce.wgsl")),
+                KernelKey::new(KernelId::HeadReduce),
                 &[(&partial, true), (&winners, false)],
                 &words,
                 [(rows as u32).div_ceil(64), 1, 1],

@@ -65,7 +65,7 @@ fn max_pool_vector_admission_checks_geometry_layout_and_explicit_fast_policy() {
     let program = Program::compile(fixture(shape, Use::Direct)).unwrap();
     let plan = bind_program(&program, &shape, ExecutionLimits::default()).unwrap();
     let descriptors = tensor_descriptors(&plan, GpuPrecision::MixedF16);
-    let original = operators::recipes(&program, &plan, &wgpu::Limits::default())
+    let original = operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default())
         .unwrap()
         .remove(0);
     {
@@ -76,7 +76,7 @@ fn max_pool_vector_admission_checks_geometry_layout_and_explicit_fast_policy() {
                 &mut recipes,
                 &plan,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 matrix
             )
             .unwrap(),
@@ -99,7 +99,7 @@ fn max_pool_vector_admission_checks_geometry_layout_and_explicit_fast_policy() {
                 &mut recipes,
                 &plan,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -114,7 +114,7 @@ fn max_pool_vector_admission_checks_geometry_layout_and_explicit_fast_policy() {
             &mut recipes,
             &plan,
             &descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16
         )
         .unwrap(),
@@ -145,7 +145,7 @@ fn max_pool_vector_keeps_prefix_escaping_values_and_concat_offsets() {
             &program,
             &mut plan,
             program.output,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,
@@ -185,13 +185,18 @@ fn max_pool_vector_keeps_prefix_escaping_values_and_concat_offsets() {
         )
         .unwrap();
         let descriptors = tensor_descriptors(&prefix, GpuPrecision::MixedF16);
-        let mut recipes = operators::recipes(&program, &prefix, &wgpu::Limits::default()).unwrap();
+        let mut recipes = operators::recipes(
+            &program,
+            &prefix,
+            &crate::runtime::gpu::GpuLimits::default(),
+        )
+        .unwrap();
         assert_eq!(
             select(
                 &mut recipes,
                 &prefix,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),

@@ -1,6 +1,6 @@
 //! GPU regression for preserved half store boundaries.
-use crate::runtime::gpu::resident::{Batch, NativeShader, PARAMETERS};
-use crate::runtime::gpu::{GpuContext, GpuContextOptions};
+use crate::runtime::gpu::resident::Batch;
+use crate::runtime::gpu::{BufferUsage, GpuContext, GpuContextOptions, KernelId, KernelKey};
 use std::sync::{Arc, OnceLock};
 
 #[derive(Clone, Copy)]
@@ -96,7 +96,7 @@ fn context() -> Arc<GpuContext> {
         .clone()
 }
 
-fn check(native: bool) {
+fn check() {
     let context = context();
     let cases = fixture();
     let input: Vec<_> = cases.iter().map(|case| case.bits).collect();
@@ -108,78 +108,29 @@ fn check(native: bool) {
         .create_buffer_init(
             "rounding edge F32 input",
             bytemuck::cast_slice(&input),
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )
         .unwrap();
     let output = context
         .create_buffer_init(
             "rounding edge F32 output with sentinels",
             bytemuck::cast_slice(&initial),
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            BufferUsage::STORAGE | BufferUsage::COPY_SRC,
         )
         .unwrap();
     let words = [cases.len() as u32, prefix as u32];
     let groups = [cases.len().div_ceil(64) as u32, 1, 1];
     let mut batch = Batch::new(context).unwrap();
-    let name = if native {
-        "round_f16_edges_msl"
-    } else {
-        "round_f16_edges_wgsl"
-    };
-    if native {
-        let shader = format!(
-            "{}\n{}",
-            include_str!("round_f16.metal"),
-            r#"
-struct RoundParams { uint4 words[64]; };
-kernel void round_edges(device const float* input [[buffer(0)]],
-    device float* output [[buffer(1)]], constant RoundParams& params [[buffer(2)]],
-    uint index [[thread_position_in_grid]]) {
-    if (index < params.words[0].x)
-        output[index + params.words[0].y] = round_to_half(input[index]);
-}
-"#
-        );
-        batch
-            .dispatch_native(
-                name,
-                NativeShader {
-                    source: &shader,
-                    entry_point: "round_edges",
-                    workgroup_size: [64, 1, 1],
-                },
-                &[(&source, true), (&output, false)],
-                &words,
-                groups,
-            )
-            .unwrap();
-    } else {
-        let helper = include_str!("round_f16.wgsl");
-        let shader = format!(
-            "{PARAMETERS}\n{helper}\n{}",
-            r#"
-@group(0) @binding(0) var<storage,read> input:array<f32>;
-@group(0) @binding(1) var<storage,read_write> output:array<f32>;
-@group(0) @binding(2) var<uniform> params:Params;
-@compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) position:vec3<u32>) {
-    let index=position.x;
-    if index<params.words[0].x {
-        output[index+params.words[0].y]=round_to_half(input[index]);
-    }
-}
-"#
-        );
-        batch
-            .dispatch(
-                name,
-                &shader,
-                &[(&source, true), (&output, false)],
-                &words,
-                groups,
-            )
-            .unwrap();
-    }
+    let name = "round_f16_edges";
+    batch
+        .dispatch(
+            name,
+            KernelKey::new(KernelId::RoundHalfProbe),
+            &[(&source, true), (&output, false)],
+            &words,
+            groups,
+        )
+        .unwrap();
     let (bytes, statistics) = batch.read(&output, initial.len() * 4, false).unwrap();
     assert_eq!(statistics.dispatches, 1);
     assert!(statistics.kernels.iter().any(|kernel| kernel == name));
@@ -223,15 +174,15 @@ fn main(@builtin(global_invocation_id) position:vec3<u32>) {
 }
 
 #[test]
-#[ignore = "requires a physical GPU; 1153 IEEE conversion cases, one WGSL dispatch"]
-fn gpu_round_f16_wgsl_ieee_edges_match_independent_oracle() {
-    check(false);
+#[ignore = "requires a physical GPU; 1153 IEEE conversion cases, one native dispatch"]
+fn gpu_round_f16_ieee_edges_match_independent_oracle() {
+    check();
 }
 
 #[test]
 #[ignore = "requires a physical GPU; 1153 actual half stores with independent IEEE oracle"]
 fn gpu_round_f16_tensor_stores_match_independent_oracle() {
-    use crate::runtime::gpu::{GpuPrecision, operators::ShaderKind};
+    use crate::runtime::gpu::GpuPrecision;
     let context = context();
     let cases = fixture();
     let input: Vec<_> = cases.iter().map(|case| case.bits).collect();
@@ -239,7 +190,7 @@ fn gpu_round_f16_tensor_stores_match_independent_oracle() {
         .create_buffer_init(
             "rounding input",
             bytemuck::cast_slice(&input),
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )
         .unwrap();
     let prefix = 3;
@@ -249,18 +200,13 @@ fn gpu_round_f16_tensor_stores_match_independent_oracle() {
         .create_buffer_init(
             "guarded half stores",
             &bytes,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            BufferUsage::STORAGE | BufferUsage::COPY_SRC,
         )
         .unwrap();
-    let mut shader = ShaderKind::General
-        .common_source()
-        .replace("$ENABLE", "enable f16;")
-        .replace("$HALF_OUTPUT", "true")
-        .replace("$O", "f16");
-    for token in ["$A", "$B", "$C", "$D", "$E"] {
-        shader = shader.replace(token, "f32");
-    }
-    shader.push_str("\n@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id:vec3<u32>) { if id.x<p(0u) { store_output(id.x,load_a(id.x)); } }");
+    let shader = KernelKey {
+        id: KernelId::HalfStoreProbe,
+        precision: 32,
+    };
     let mut words = [0; 128];
     words[0] = cases.len() as u32;
     words[60] = prefix as u32;
@@ -268,7 +214,7 @@ fn gpu_round_f16_tensor_stores_match_independent_oracle() {
     batch
         .dispatch(
             "half_tensor_stores",
-            &shader,
+            shader,
             &[
                 (&source, true),
                 (&source, true),
@@ -305,10 +251,4 @@ fn gpu_round_f16_tensor_stores_match_independent_oracle() {
             );
         }
     }
-}
-
-#[test]
-#[ignore = "requires a physical Metal GPU; 1153 IEEE conversion cases, one native MSL dispatch"]
-fn gpu_round_f16_msl_ieee_edges_match_independent_oracle() {
-    check(true);
 }

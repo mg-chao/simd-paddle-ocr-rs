@@ -17,6 +17,7 @@ pub(super) enum Kernel {
 }
 
 impl Kernel {
+    #[cfg(target_os = "macos")]
     pub(super) fn entry(self) -> &'static str {
         match self {
             Self::K2S1 => "conv_mpp2s1",
@@ -55,6 +56,8 @@ impl Kernel {
             _ => None,
         }
     }
+
+    #[cfg(target_os = "macos")]
 
     fn geometry(self) -> (u32, u32, u32) {
         match self {
@@ -111,6 +114,7 @@ fn valid_input(input: [u32; 3]) -> bool {
 /// Generate the complete ABI from the pipeline's storage signature. Matrix
 /// operands may be half with F32 tails, or every data binding may be half.
 /// Accumulators and epilogue arithmetic stay F32 in both representations.
+#[cfg(target_os = "macos")]
 pub(super) fn source_storage(
     kernel: Kernel,
     input: [u32; 3],
@@ -146,6 +150,8 @@ pub(super) fn source_storage(
     })
 }
 
+#[cfg(target_os = "macos")]
+
 fn validate_storage(storage: [GpuPrecision; 6]) -> RuntimeResult<()> {
     if storage[0] != GpuPrecision::MixedF16
         || storage[1] != GpuPrecision::MixedF16
@@ -168,7 +174,7 @@ fn validate_storage(storage: [GpuPrecision; 6]) -> RuntimeResult<()> {
 pub(super) fn prepare_recipe(
     recipe: &mut operators::Recipe,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> RuntimeResult<Option<Kernel>> {
     use operators::{RecipeKind, ShaderKind};
     if !matches!(

@@ -1,6 +1,7 @@
 //! The oracle quantizes only matrix operands, then reproduces storage boundaries.
 use super::super::tests::{bind_program, integer, model, node, tensor};
 use super::*;
+#[cfg(target_os = "macos")]
 use crate::runtime::CompileOptions;
 
 #[derive(Clone, Copy, Debug)]
@@ -72,8 +73,8 @@ fn fixture(case: Case, concat: bool) -> Arc<Model> {
     )
 }
 
-fn limits() -> wgpu::Limits {
-    wgpu::Limits {
+fn limits() -> crate::runtime::gpu::GpuLimits {
+    crate::runtime::gpu::GpuLimits {
         max_compute_workgroup_storage_size: 32 * 1024,
         ..Default::default()
     }
@@ -215,9 +216,11 @@ fn linear_native_admission_failure_preserves_the_generic_native_graph() {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn quantize(value: f32) -> f32 {
     half::f16::from_f32(value).to_f32()
 }
+#[cfg(target_os = "macos")]
 fn store(value: f32, precision: GpuPrecision) -> f32 {
     if precision == GpuPrecision::MixedF16 {
         quantize(value)
@@ -226,6 +229,7 @@ fn store(value: f32, precision: GpuPrecision) -> f32 {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn oracle(
     case: Case,
     input: &[f32],
@@ -268,6 +272,7 @@ fn oracle(
     output
 }
 
+#[cfg(target_os = "macos")]
 fn assert_close(actual: &[f32], expected: &[f32], case: Case, precision: GpuPrecision) {
     assert_eq!(actual.len(), expected.len());
     for (index, (&actual, &expected)) in actual.iter().zip(expected).enumerate() {
@@ -280,10 +285,12 @@ fn assert_close(actual: &[f32], expected: &[f32], case: Case, precision: GpuPrec
     }
 }
 
+#[cfg(target_os = "macos")]
 fn context() -> Arc<GpuContext> {
     GpuContext::new_with_options(GpuContextOptions::default()).unwrap()
 }
 
+#[cfg(target_os = "macos")]
 fn session(
     context: &Arc<GpuContext>,
     case: Case,
@@ -314,6 +321,7 @@ fn session(
 
 #[test]
 #[ignore = "requires physical Metal; canonical token GEMM, split-K and all dimension/fusion tails"]
+#[cfg(target_os = "macos")]
 fn gpu_hardware_linear_native_quantized_oracle_and_storage_boundaries() {
     let context = context();
     let cases = [
@@ -386,6 +394,7 @@ fn gpu_hardware_linear_native_quantized_oracle_and_storage_boundaries() {
 
 #[test]
 #[ignore = "requires physical Metal; native token writes into nonzero concatenation slice"]
+#[cfg(target_os = "macos")]
 fn gpu_hardware_linear_native_concat_offset() {
     let context = context();
     let case = Case {
@@ -421,6 +430,7 @@ fn gpu_hardware_linear_native_concat_offset() {
 
 #[test]
 #[ignore = "requires physical Metal; optimizer must preserve two distinct half-store ties"]
+#[cfg(target_os = "macos")]
 fn gpu_hardware_linear_native_preserves_half_tie_boundaries() {
     let context = context();
     let shape = [1, 3, 16];

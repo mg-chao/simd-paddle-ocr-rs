@@ -1,5 +1,6 @@
 //! Canonical Half1x7 depthwise selection and independent physical execution.
 use super::*;
+use backend::test_support::MetalTestBatch;
 use operators::Recipe;
 
 #[derive(Clone, Copy)]
@@ -97,7 +98,7 @@ fn rect_fixture() -> (Recipe, Vec<GpuTensorDescriptor>) {
         .iter()
         .map(|&shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::MixedF16))
         .collect();
-    let recipe = operators::recipes(&program, &plan, &wgpu::Limits::default())
+    let recipe = operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default())
         .unwrap()
         .remove(0);
     (recipe, descriptors)
@@ -136,7 +137,7 @@ fn half_native_depthwise_1x7_admission_is_explicit_half_and_preserves_metadata()
         half_native::select(
             &mut selected,
             &descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16
         )
         .unwrap(),
@@ -167,7 +168,7 @@ fn half_native_depthwise_1x7_admission_is_explicit_half_and_preserves_metadata()
         half_native::select(
             &mut strict,
             &descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F32
         )
         .unwrap(),
@@ -182,7 +183,7 @@ fn half_native_depthwise_1x7_admission_is_explicit_half_and_preserves_metadata()
             half_native::select(
                 &mut selected,
                 &changed,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -224,7 +225,7 @@ fn half_native_depthwise_1x7_rejects_other_geometry_layouts_and_capacity() {
             half_native::select(
                 &mut selected,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -235,7 +236,7 @@ fn half_native_depthwise_1x7_rejects_other_geometry_layouts_and_capacity() {
     }
     for case in 0..3 {
         let mut changed = descriptors.clone();
-        let mut limits = wgpu::Limits::default();
+        let mut limits = crate::runtime::gpu::GpuLimits::default();
         match case {
             0 => changed[recipe.inputs[0].0].layout = GpuLayout::PaddedNhwc { channels: 7 },
             1 => changed[recipe.inputs[1].0].shape = Shape::new(&[7, 1, 7, 1]).unwrap(),
@@ -267,7 +268,7 @@ fn half_native_depthwise_1x7_prefix_and_escaping_values_remain_available() {
             &program,
             &mut plan,
             program.output,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,
@@ -278,7 +279,7 @@ fn half_native_depthwise_1x7_prefix_and_escaping_values_remain_available() {
             half_native::select(
                 &mut recipes,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -322,7 +323,7 @@ fn half_native_depthwise_1x7_prefix_and_escaping_values_remain_available() {
             &program,
             &mut prefix,
             conv,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,
@@ -333,7 +334,7 @@ fn half_native_depthwise_1x7_prefix_and_escaping_values_remain_available() {
             half_native::select(
                 &mut recipes,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -453,7 +454,8 @@ fn gpu_hardware_half_native_depthwise_1x7_fusions_prefix_and_offsets() {
 #[test]
 #[ignore = "requires physical Metal GPU; native Half1x7 direct seven-buffer ABI with odd output offset and sentinels"]
 fn gpu_hardware_half_native_depthwise_1x7_native_offset_sentinels() {
-    use resident::{Batch, NativeShader};
+    use backend::test_support::MetalTestShader;
+    use resident::Batch;
     let shape = [2, 7, 1, 17];
     let graph = rect_graph(shape, [0, 3, 0, 3], Use::ResidualSwish);
     let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
@@ -506,7 +508,7 @@ fn gpu_hardware_half_native_depthwise_1x7_native_offset_sentinels() {
         .create_buffer_init(
             "Half1x7 sentinel output",
             &precision.encode(&initial),
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            BufferUsage::STORAGE | BufferUsage::COPY_SRC,
         )
         .unwrap();
     let mut words = recipe.words;
@@ -515,9 +517,9 @@ fn gpu_hardware_half_native_depthwise_1x7_native_offset_sentinels() {
         half_native::source(ShaderKind::DepthwiseNative1x7).unwrap();
     let mut batch = Batch::new(context).unwrap();
     batch
-        .dispatch_native(
+        .dispatch_msl(
             "half_depthwise1x7_sentinels",
-            NativeShader {
+            MetalTestShader {
                 source: &source,
                 entry_point: entry,
                 workgroup_size,

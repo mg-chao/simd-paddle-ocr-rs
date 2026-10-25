@@ -23,8 +23,8 @@ fn packet() -> [u32; 128] {
 #[test]
 fn attention_simd_admission_preserves_storage_packet_and_resource_guards() {
     let words = packet();
-    let limits = wgpu::Limits::default();
-    let allowed = |w: &[u32; 128], l: &wgpu::Limits| {
+    let limits = crate::runtime::gpu::GpuLimits::default();
+    let allowed = |w: &[u32; 128], l: &crate::runtime::gpu::GpuLimits| {
         eligible(
             ShaderKind::AttentionViews,
             [GpuPrecision::MixedF16; 6],

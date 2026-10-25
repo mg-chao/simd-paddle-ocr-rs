@@ -441,9 +441,7 @@ impl OrientedLineExtractor {
             });
         }
         if PROFILE {
-            profile.gpu_submission_ns += statistics.submission_ns;
-            profile.gpu_completion_wait_ns += statistics.completion_wait_ns;
-            profile.gpu_readback_ns += statistics.readback_ns;
+            profile.record_gpu(&statistics);
         }
         if let Some(previous) = &mut self.gpu_statistics {
             vision::merge_statistics(previous, statistics);

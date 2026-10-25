@@ -4,6 +4,7 @@ use std::mem::size_of;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum GpuTimingGranularity {
     Unavailable,
+    Dispatch,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]

@@ -165,18 +165,29 @@ impl Classifier {
         &self.plan.compiled
     }
     pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
+        let mut primary = self.session.counter_snapshot();
+        if let Some(diagnostic) = &self.diagnostic {
+            primary.add_diagnostics(diagnostic.counter_snapshot());
+        }
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
-            return gpu.session.counter_snapshot();
+            let mut counters = gpu.session.counter_snapshot();
+            counters.add_diagnostics(primary);
+            return counters;
         }
-        self.session.counter_snapshot()
+        primary
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
-            return gpu.session.statistics();
+            return gpu
+                .session
+                .statistics()
+                .with_diagnostics(self.counter_snapshot());
         }
-        self.session.statistics()
+        self.session
+            .statistics()
+            .with_diagnostics(self.counter_snapshot())
     }
     pub fn new(compiled: impl Into<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
         Self::new_with_options(compiled, ClassifierOptions::default(), limits)
@@ -305,9 +316,7 @@ impl Classifier {
             };
             let gpu = self.gpu.as_ref().unwrap();
             if PROFILE {
-                profile.gpu_submission_ns += gpu.statistics.submission_ns;
-                profile.gpu_completion_wait_ns += gpu.statistics.completion_wait_ns;
-                profile.gpu_readback_ns += gpu.statistics.readback_ns;
+                profile.record_gpu(&gpu.statistics);
             }
             return Ok(result);
         }

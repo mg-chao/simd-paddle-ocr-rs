@@ -415,7 +415,8 @@ fn gpu_hardware_counter_snapshots_match_resident_hybrid_and_trace() {
     let context = GpuContext::new().unwrap();
     assert!(matches!(
         context.adapter_info().device_type,
-        wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+        crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+            | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
     ));
     let compiler = Arc::new(Compiler::new(CompilerOptions {
         gpu: Some(context),
@@ -484,7 +485,9 @@ fn gpu_hardware_counter_snapshots_match_resident_hybrid_and_trace() {
                 .stages
                 .values()
                 .flatten()
-                .any(|s| s.diagnostic_readbacks > 0)
+                .any(|s| s.diagnostic_readbacks > 0),
+            "trace stage counters ({recognizer_target:?}): {:?}",
+            request.latest_run().unwrap().stages
         );
         // A retained resident pipeline now coexists with primary trace sessions.
         // The comparison exercises the diagnostic-only first-session merge.

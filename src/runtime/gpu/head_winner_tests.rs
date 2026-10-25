@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn parallel_head_winner_admission_is_half_logit_native_and_bounded() {
-    let limits = wgpu::Limits::default();
+    let limits = crate::runtime::gpu::GpuLimits::default();
     for dimensions in [[32, 32], [160, 108], [144, 293], [136, 293], [32, 512]] {
         assert!(eligible(true, false, dimensions, &limits));
     }
@@ -40,24 +40,6 @@ fn parallel_head_winner_admission_is_half_logit_native_and_bounded() {
     }
 }
 
-#[test]
-fn parallel_head_winner_is_exact_qualified_logit_source() {
-    // Independent fingerprint of the frozen, GPU-qualified reports candidate.
-    assert_eq!(SOURCE.len(), 1614);
-    assert_eq!(
-        SOURCE.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
-        }),
-        0xf9620138f111090d
-    );
-    assert!(SOURCE.contains("var maximum=-3.402823e38;"));
-    assert!(SOURCE.contains("a.x==b.x && a.z<b.z"));
-    assert!(SOURCE.contains("choice.w=a.w|b.w"));
-    assert!(!SOURCE.contains("exp("));
-    assert!(!SOURCE.contains("factors"));
-    assert_ne!(NAME, "projection_winners");
-}
-
 fn hardware() -> Arc<GpuContext> {
     GpuContext::new_with_options(GpuContextOptions::default()).unwrap()
 }
@@ -79,7 +61,7 @@ fn serial(items: &[[u32; 4]]) -> [u32; 4] {
 }
 
 #[test]
-#[ignore = "requires physical Metal; actual partial protocol, Metal compile fallback and guards"]
+#[ignore = "requires a physical GPU; actual partial protocol, Metal compile fallback and guards"]
 fn gpu_parallel_head_winner_protocol_and_pre_admission() {
     let context = hardware();
     let [rows, tiles] = [35usize, 293usize];
@@ -110,13 +92,13 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
         .create_buffer_init(
             "head partial protocol",
             bytemuck::cast_slice(&items),
-            wgpu::BufferUsages::STORAGE,
+            BufferUsage::STORAGE,
         )
         .unwrap();
     let candidate = kernel(&context, true, false, [rows, tiles])
         .unwrap()
         .expect("native reducer must be admitted");
-    let baseline = format!("{PARAMETERS}{}", include_str!("head_reduce.wgsl"));
+    let baseline = KernelKey::new(KernelId::HeadReduce);
     let sentinel = [0xdeadbeefu32; 4];
     for parallel in [false, true] {
         let mut initial = vec![sentinel; rows + 3];
@@ -124,7 +106,7 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
             .create_buffer_init(
                 "head protocol and suffix guards",
                 bytemuck::cast_slice(&initial),
-                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                BufferUsage::STORAGE | BufferUsage::COPY_SRC,
             )
             .unwrap();
         let mut batch = Batch::new(context.clone()).unwrap();
@@ -143,7 +125,7 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
             batch
                 .dispatch(
                     "projection_winners",
-                    &baseline,
+                    baseline,
                     &[(&input, true), (&output, false)],
                     &words,
                     [(rows as u32).div_ceil(64), 1, 1],
@@ -159,7 +141,7 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
     }
     for kind in [ErrorKind::Unsupported, ErrorKind::GpuValidation] {
         assert!(
-            kernel_with(&context, true, false, [rows, tiles], |_, _, _, _| Err(
+            kernel_with(&context, true, false, [rows, tiles], |_, _, _| Err(
                 RuntimeError::with_kind(kind, "scoped compiler rejection")
             ))
             .unwrap()
@@ -167,13 +149,13 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
         );
     }
     assert!(
-        kernel_with(&context, true, false, [rows, tiles], |ctx, _, _, layout| {
-            Kernel::get(ctx, "parallel_head_invalid_source", "invalid WGSL", layout)
-        })
+        kernel_with(&context, true, false, [rows, tiles], |_, _, _| Err(
+            RuntimeError::with_kind(ErrorKind::GpuValidation, "rejected shader interface")
+        ))
         .unwrap()
         .is_none()
     );
-    let error = kernel_with(&context, true, false, [rows, tiles], |_, _, _, _| {
+    let error = kernel_with(&context, true, false, [rows, tiles], |_, _, _| {
         Err(RuntimeError::with_kind(
             ErrorKind::Allocation,
             "fatal allocation",
@@ -183,14 +165,14 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
     .unwrap();
     assert_eq!(error.kind(), ErrorKind::Allocation);
     assert!(
-        kernel_with(&context, true, true, [rows, tiles], |_, _, _, _| panic!(
+        kernel_with(&context, true, true, [rows, tiles], |_, _, _| panic!(
             "Probability must not compile the candidate"
         ))
         .unwrap()
         .is_none()
     );
     assert!(
-        kernel_with(&context, false, false, [rows, tiles], |_, _, _, _| panic!(
+        kernel_with(&context, false, false, [rows, tiles], |_, _, _| panic!(
             "strict head must not compile the candidate"
         ))
         .unwrap()

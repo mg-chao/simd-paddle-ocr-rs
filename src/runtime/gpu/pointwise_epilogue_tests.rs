@@ -1,6 +1,7 @@
 use super::super::tests::{integers, model, node, tensor};
 use super::*;
 use crate::runtime::CompileOptions;
+use backend::test_support::MetalTestBatch;
 use resident::Batch;
 
 const STORAGE: [GpuPrecision; 6] = [GpuPrecision::MixedF16; 6];
@@ -466,9 +467,9 @@ fn gpu_hardware_known_pointwise_epilogue_packets_tails_and_offsets() {
                 .upload_resident(&output, &GpuPrecision::MixedF16.encode(&values))
                 .unwrap();
             batch
-                .dispatch_native(
+                .dispatch_msl(
                     "known_pointwise_contract",
-                    resident::NativeShader {
+                    backend::test_support::MetalTestShader {
                         source: &source,
                         entry_point: "pointwise_mpp64",
                         workgroup_size: [128, 1, 1],

@@ -101,7 +101,7 @@ fn image_pixel_dispatch_maps_2d_tails_once_to_each_nchw_channel() {
     for [height, width] in [[1, 1], [3, 5], [7, 13], [3, 2051], [80, 160], [1, 70005]] {
         let plane = height * width;
         let prefix = 3 * plane;
-        let limits = wgpu::Limits {
+        let limits = crate::runtime::gpu::GpuLimits {
             max_compute_workgroups_per_dimension: if plane > 17 * 17 * 64 { 127 } else { 17 },
             ..Default::default()
         };

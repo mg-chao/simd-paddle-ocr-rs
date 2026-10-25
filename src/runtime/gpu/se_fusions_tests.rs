@@ -68,9 +68,15 @@ fn excitation_bias_add_fusion_preserves_gate_rounding_and_rejects_escaping_gate(
     for scalar in [false, true] {
         let program = Program::compile(fixture(scalar, false)).unwrap();
         let plan = bind_program(&program, &[2, 5, 3, 17], ExecutionLimits::default()).unwrap();
-        let recipe = replacement(&program, &plan, 1, program.output, &wgpu::Limits::default())
-            .unwrap()
-            .unwrap();
+        let recipe = replacement(
+            &program,
+            &plan,
+            1,
+            program.output,
+            &crate::runtime::gpu::GpuLimits::default(),
+        )
+        .unwrap()
+        .unwrap();
         assert!(matches!(
             recipe.kind,
             RecipeKind::Compute(ShaderKind::SqueezeExcite)
@@ -89,7 +95,7 @@ fn excitation_bias_add_fusion_preserves_gate_rounding_and_rejects_escaping_gate(
                 &plan,
                 1,
                 program.instructions[3].output,
-                &wgpu::Limits::default()
+                &crate::runtime::gpu::GpuLimits::default()
             )
             .unwrap()
             .is_none()
@@ -98,9 +104,15 @@ fn excitation_bias_add_fusion_preserves_gate_rounding_and_rejects_escaping_gate(
         let program = Program::compile(fixture(scalar, true)).unwrap();
         let mut plan = bind_program(&program, &[2, 5, 3, 17], ExecutionLimits::default()).unwrap();
         assert!(
-            replacement(&program, &plan, 1, program.output, &wgpu::Limits::default())
-                .unwrap()
-                .is_none()
+            replacement(
+                &program,
+                &plan,
+                1,
+                program.output,
+                &crate::runtime::gpu::GpuLimits::default()
+            )
+            .unwrap()
+            .is_none()
         );
         let mut descriptors = plan
             .shapes
@@ -111,7 +123,7 @@ fn excitation_bias_add_fusion_preserves_gate_rounding_and_rejects_escaping_gate(
             &program,
             &mut plan,
             program.output,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,

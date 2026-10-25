@@ -8,7 +8,7 @@ pub(super) fn replacement(
     plan: &ShapePlan,
     start: usize,
     selected: TensorId,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> RuntimeResult<Option<Recipe>> {
     let count = plan.steps.len();
     let n = &program.instructions;

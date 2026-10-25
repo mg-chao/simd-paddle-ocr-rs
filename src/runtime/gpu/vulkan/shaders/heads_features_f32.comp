@@ -1,0 +1,27 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_3_block_0Compute { STORAGE_0 _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) buffer type_3_block_1Compute { float _group_0_binding_1_cs[]; };
+
+layout(std140, set = 0, binding = 2) uniform Params_block_2Compute { Params _group_0_binding_2_cs; };
+
+void main() {
+    uvec3 position = gl_GlobalInvocationID;
+    uint _e7 = _group_0_binding_2_cs.words[0].y;
+    uint index = (position.x + (position.y * _e7));
+    uint _e14 = _group_0_binding_2_cs.words[0].x;
+    if ((index < _e14)) {
+        float _e20 = _group_0_binding_0_cs[index];
+        _group_0_binding_1_cs[index] = float(_e20);
+        return;
+    } else {
+        return;
+    }
+}
+

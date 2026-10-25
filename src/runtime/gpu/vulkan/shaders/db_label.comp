@@ -1,0 +1,893 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_4_block_0Compute { STORAGE_0 _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) buffer type_5_block_1Compute { uint _group_0_binding_1_cs[]; };
+
+layout(std430, set = 0, binding = 2) buffer type_7_block_2Compute { uint _group_0_binding_2_cs[]; };
+
+layout(std430, set = 0, binding = 3) buffer type_7_block_3Compute { uint _group_0_binding_3_cs[]; };
+
+layout(std430, set = 0, binding = 4) buffer type_5_block_4Compute { uint _group_0_binding_4_cs[]; };
+
+layout(std430, set = 0, binding = 5) buffer type_5_block_5Compute { uint _group_0_binding_5_cs[]; };
+
+layout(std430, set = 0, binding = 6) buffer type_7_block_6Compute { uint _group_0_binding_6_cs[]; };
+
+layout(std140, set = 0, binding = 7) uniform Params_block_7Compute { Params _group_0_binding_7_cs; };
+
+shared uint tile_parents[64];
+
+shared uint scan_fg[64];
+
+shared uint scan_bg[64];
+
+uint p(uint i) {
+    uint _e9 = _group_0_binding_7_cs.words[(i / 4u)][(i % 4u)];
+    return _e9;
+}
+
+uint root(uint value) {
+    uint v = 0u;
+    v = value;
+    while(true) {
+        uint _e3 = v;
+        uint next = atomicOr(_group_0_binding_2_cs[_e3], 0u);
+        uint _e6 = v;
+        if ((next == _e6)) {
+            break;
+        }
+        v = next;
+    }
+    uint _e8 = v;
+    return _e8;
+}
+
+void join(uint a_2, uint b_3) {
+    uint left = 0u;
+    uint right = 0u;
+    uint _e2 = root(a_2);
+    left = _e2;
+    uint _e4 = root(b_3);
+    right = _e4;
+    while(true) {
+        uint _e6 = left;
+        uint _e7 = right;
+        if ((_e6 == _e7)) {
+            break;
+        }
+        uint _e9 = left;
+        uint _e10 = right;
+        uint hi = max(_e9, _e10);
+        uint _e12 = left;
+        uint _e13 = right;
+        uint lo = min(_e12, _e13);
+        uint _e17 = atomicMin(_group_0_binding_2_cs[hi], lo);
+        if ((_e17 == hi)) {
+            break;
+        }
+        uint _e19 = root(_e17);
+        left = _e19;
+        uint _e20 = root(lo);
+        right = _e20;
+    }
+    return;
+}
+
+bool is_foreground(uint i_1) {
+    float _e3 = _group_0_binding_0_cs[i_1];
+    uint _e6 = p(2u);
+    return (float(_e3) > uintBitsToFloat(_e6));
+}
+
+uint qualifier(uint i_2) {
+    bool local_35 = false;
+    uint _e3 = atomicOr(_group_0_binding_2_cs[i_2], 0u);
+    if ((_e3 != i_2)) {
+        return 0u;
+    }
+    uint count = atomicOr(_group_0_binding_3_cs[i_2], 0u);
+    if (!((count < 3u))) {
+        local_35 = ((count & 2147483648u) != 0u);
+    } else {
+        local_35 = true;
+    }
+    bool _e19 = local_35;
+    if (_e19) {
+        return 0u;
+    }
+    uint _e25 = _group_0_binding_1_cs[i_2];
+    return ((_e25 != 0u) ? 1u : 2u);
+}
+
+uint tile_root(uint i_3) {
+    uint r = 0u;
+    r = i_3;
+    while(true) {
+        uint _e3 = r;
+        uint next_1 = atomicOr(tile_parents[_e3], 0u);
+        uint _e6 = r;
+        if ((next_1 == _e6)) {
+            break;
+        }
+        r = next_1;
+    }
+    uint _e8 = r;
+    return _e8;
+}
+
+void tile_join(uint a_3, uint b_4) {
+    uint x = 0u;
+    uint y = 0u;
+    uint _e2 = tile_root(a_3);
+    x = _e2;
+    uint _e4 = tile_root(b_4);
+    y = _e4;
+    while(true) {
+        uint _e6 = x;
+        uint _e7 = y;
+        if ((_e6 == _e7)) {
+            break;
+        }
+        uint _e9 = x;
+        uint _e10 = y;
+        uint hi_1 = max(_e9, _e10);
+        uint _e12 = x;
+        uint _e13 = y;
+        uint lo_1 = min(_e12, _e13);
+        uint _e17 = atomicMin(tile_parents[hi_1], lo_1);
+        if ((_e17 == hi_1)) {
+            break;
+        }
+        uint _e19 = tile_root(_e17);
+        x = _e19;
+        uint _e20 = tile_root(lo_1);
+        y = _e20;
+    }
+    return;
+}
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        tile_parents = uint[64](0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u);
+        scan_fg = uint[64](0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u);
+        scan_bg = uint[64](0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u);
+    }
+    memoryBarrierShared();
+    barrier();
+    uint lane = gl_LocalInvocationIndex;
+    uvec3 group = gl_WorkGroupID;
+    uvec3 grid = gl_NumWorkGroups;
+    bool local = false;
+    bool local_1 = false;
+    bool local_2 = false;
+    bool local_3 = false;
+    bool local_4 = false;
+    bool local_5 = false;
+    bool local_6 = false;
+    bool local_7 = false;
+    uint kind = 0u;
+    uint d = 1u;
+    uint a = 0u;
+    uint b = 0u;
+    uint fg = 0u;
+    uint bg = 0u;
+    uint d_1 = 1u;
+    uint a_1 = 0u;
+    uint b_1 = 0u;
+    uint fg_1 = 0u;
+    uint bg_1 = 0u;
+    uint b_2 = 0u;
+    uint c = 0u;
+    uint rows = 0u;
+    uint c_1 = 0u;
+    bool local_8 = false;
+    bool yes = false;
+    bool local_9 = false;
+    bool local_10 = false;
+    bool local_11 = false;
+    bool local_12 = false;
+    bool local_13 = false;
+    bool local_14 = false;
+    bool local_15 = false;
+    bool local_16 = false;
+    bool local_17 = false;
+    bool local_18 = false;
+    bool local_19 = false;
+    bool local_20 = false;
+    bool local_21 = false;
+    bool local_22 = false;
+    bool local_23 = false;
+    bool local_24 = false;
+    uint boundary = 0u;
+    bool local_25 = false;
+    bool local_26 = false;
+    bool local_27 = false;
+    bool edge = false;
+    int dy = -1;
+    int dx = 0;
+    bool local_28 = false;
+    bool local_29 = false;
+    bool local_30 = false;
+    bool local_31 = false;
+    bool local_32 = false;
+    bool local_33 = false;
+    bool local_34 = false;
+    uint block = (group.x + (group.y * grid.x));
+    uint i_4 = ((block * 64u) + lane);
+    uint _e12 = p(0u);
+    uint _e14 = p(1u);
+    uint n = (_e12 * _e14);
+    uint _e17 = p(4u);
+    if ((_e17 == 1u)) {
+        uint columns = ((_e12 + 7u) / 8u);
+        uint bx = ((block % columns) * 8u);
+        uint by = ((block / columns) * 8u);
+        atomicExchange(tile_parents[lane], lane);
+        memoryBarrierShared();
+        barrier();
+        uint x_1 = (bx + (lane % 8u));
+        uint y_1 = (by + (lane / 8u));
+        if ((x_1 < _e12)) {
+            local = (y_1 < _e14);
+        } else {
+            local = false;
+        }
+        bool _e43 = local;
+        if (_e43) {
+            uint pixel = ((y_1 * _e12) + x_1);
+            uint fg_2 = _group_0_binding_1_cs[pixel];
+            if (((lane % 8u) < 7u)) {
+                local_1 = ((x_1 + 1u) < _e12);
+            } else {
+                local_1 = false;
+            }
+            bool _e59 = local_1;
+            if (_e59) {
+                uint _e66 = _group_0_binding_1_cs[(pixel + 1u)];
+                local_2 = (_e66 == fg_2);
+            } else {
+                local_2 = false;
+            }
+            bool _e69 = local_2;
+            if (_e69) {
+                tile_join(lane, (lane + 1u));
+            }
+            if (((lane / 8u) < 7u)) {
+                local_3 = ((y_1 + 1u) < _e14);
+            } else {
+                local_3 = false;
+            }
+            bool _e82 = local_3;
+            if (_e82) {
+                uint _e86 = _group_0_binding_1_cs[(pixel + _e12)];
+                if ((_e86 == fg_2)) {
+                    tile_join(lane, (lane + 8u));
+                }
+                if ((fg_2 != 0u)) {
+                    if (((lane % 8u) > 0u)) {
+                        uint _e103 = _group_0_binding_1_cs[((pixel + _e12) - 1u)];
+                        local_4 = (_e103 != 0u);
+                    } else {
+                        local_4 = false;
+                    }
+                    bool _e107 = local_4;
+                    if (_e107) {
+                        tile_join(lane, (lane + 7u));
+                    }
+                    if (((lane % 8u) < 7u)) {
+                        local_5 = ((x_1 + 1u) < _e12);
+                    } else {
+                        local_5 = false;
+                    }
+                    bool _e120 = local_5;
+                    if (_e120) {
+                        uint _e128 = _group_0_binding_1_cs[((pixel + _e12) + 1u)];
+                        local_6 = (_e128 != 0u);
+                    } else {
+                        local_6 = false;
+                    }
+                    bool _e132 = local_6;
+                    if (_e132) {
+                        tile_join(lane, (lane + 9u));
+                    }
+                }
+            }
+        }
+        memoryBarrierShared();
+        barrier();
+        if ((x_1 < _e12)) {
+            local_7 = (y_1 < _e14);
+        } else {
+            local_7 = false;
+        }
+        bool _e140 = local_7;
+        if (_e140) {
+            uint _e141 = tile_root(lane);
+            atomicExchange(_group_0_binding_2_cs[((y_1 * _e12) + x_1)], ((((by + (_e141 / 8u)) * _e12) + bx) + (_e141 % 8u)));
+        }
+        return;
+    }
+    if ((_e17 == 4u)) {
+        if ((block >= ((n + 63u) / 64u))) {
+            return;
+        }
+        if ((i_4 < n)) {
+            uint _e164 = qualifier(i_4);
+            kind = _e164;
+        }
+        uint _e167 = kind;
+        scan_fg[lane] = uint((_e167 == 1u));
+        uint _e173 = kind;
+        scan_bg[lane] = uint((_e173 == 2u));
+        memoryBarrierShared();
+        barrier();
+        bool loop_init = true;
+        while(true) {
+            if (!loop_init) {
+                uint _e208 = d;
+                d = (_e208 * 2u);
+            }
+            loop_init = false;
+            uint _e179 = d;
+            if ((_e179 < 64u)) {
+            } else {
+                break;
+            }
+            {
+                a = 0u;
+                b = 0u;
+                uint _e186 = d;
+                if ((lane >= _e186)) {
+                    uint _e189 = d;
+                    uint _e192 = scan_fg[(lane - _e189)];
+                    a = _e192;
+                    uint _e194 = d;
+                    uint _e197 = scan_bg[(lane - _e194)];
+                    b = _e197;
+                }
+                memoryBarrierShared();
+                barrier();
+                uint _e200 = scan_fg[lane];
+                uint _e201 = a;
+                scan_fg[lane] = (_e200 + _e201);
+                uint _e205 = scan_bg[lane];
+                uint _e206 = b;
+                scan_bg[lane] = (_e205 + _e206);
+                memoryBarrierShared();
+                barrier();
+            }
+        }
+        if ((i_4 < n)) {
+            uint _e216 = scan_bg[lane];
+            uint _e219 = scan_fg[lane];
+            uint _e220 = kind;
+            _group_0_binding_4_cs[i_4] = ((_e220 == 1u) ? _e219 : _e216);
+        }
+        if ((lane == 63u)) {
+            uint _e232 = scan_fg[63];
+            _group_0_binding_5_cs[(block * 4u)] = _e232;
+            uint _e241 = scan_bg[63];
+            _group_0_binding_5_cs[((block * 4u) + 1u)] = _e241;
+        }
+        return;
+    }
+    if ((_e17 == 9u)) {
+        uint block_count = ((n + 63u) / 64u);
+        if ((block >= ((block_count + 63u) / 64u))) {
+            return;
+        }
+        if ((i_4 < block_count)) {
+            uint _e262 = _group_0_binding_5_cs[(i_4 * 4u)];
+            fg = _e262;
+            uint _e269 = _group_0_binding_5_cs[((i_4 * 4u) + 1u)];
+            bg = _e269;
+        }
+        uint _e272 = fg;
+        scan_fg[lane] = _e272;
+        uint _e275 = bg;
+        scan_bg[lane] = _e275;
+        memoryBarrierShared();
+        barrier();
+        bool loop_init_1 = true;
+        while(true) {
+            if (!loop_init_1) {
+                uint _e307 = d_1;
+                d_1 = (_e307 * 2u);
+            }
+            loop_init_1 = false;
+            uint _e278 = d_1;
+            if ((_e278 < 64u)) {
+            } else {
+                break;
+            }
+            {
+                a_1 = 0u;
+                b_1 = 0u;
+                uint _e285 = d_1;
+                if ((lane >= _e285)) {
+                    uint _e288 = d_1;
+                    uint _e291 = scan_fg[(lane - _e288)];
+                    a_1 = _e291;
+                    uint _e293 = d_1;
+                    uint _e296 = scan_bg[(lane - _e293)];
+                    b_1 = _e296;
+                }
+                memoryBarrierShared();
+                barrier();
+                uint _e299 = scan_fg[lane];
+                uint _e300 = a_1;
+                scan_fg[lane] = (_e299 + _e300);
+                uint _e304 = scan_bg[lane];
+                uint _e305 = b_1;
+                scan_bg[lane] = (_e304 + _e305);
+                memoryBarrierShared();
+                barrier();
+            }
+        }
+        if ((i_4 < block_count)) {
+            uint _e319 = scan_fg[lane];
+            uint _e320 = fg;
+            _group_0_binding_5_cs[((i_4 * 4u) + 2u)] = (_e319 - _e320);
+            uint _e330 = scan_bg[lane];
+            uint _e331 = bg;
+            _group_0_binding_5_cs[((i_4 * 4u) + 3u)] = (_e330 - _e331);
+        }
+        if ((lane == 63u)) {
+            uint base = ((block_count + block) * 4u);
+            uint _e342 = scan_fg[63];
+            _group_0_binding_5_cs[base] = _e342;
+            uint _e349 = scan_bg[63];
+            _group_0_binding_5_cs[(base + 1u)] = _e349;
+        }
+        return;
+    }
+    if ((_e17 == 5u)) {
+        if ((i_4 != 0u)) {
+            return;
+        }
+        uint block_count_1 = ((n + 63u) / 64u);
+        bool loop_init_2 = true;
+        while(true) {
+            if (!loop_init_2) {
+                uint _e397 = b_2;
+                b_2 = (_e397 + 1u);
+            }
+            loop_init_2 = false;
+            uint _e364 = b_2;
+            if ((_e364 < ((block_count_1 + 63u) / 64u))) {
+            } else {
+                break;
+            }
+            {
+                uint _e370 = b_2;
+                uint base_1 = ((block_count_1 + _e370) * 4u);
+                uint _e378 = fg_1;
+                _group_0_binding_5_cs[(base_1 + 2u)] = _e378;
+                uint _e383 = bg_1;
+                _group_0_binding_5_cs[(base_1 + 3u)] = _e383;
+                uint _e384 = fg_1;
+                uint _e387 = _group_0_binding_5_cs[base_1];
+                fg_1 = (_e384 + _e387);
+                uint _e389 = bg_1;
+                uint _e394 = _group_0_binding_5_cs[(base_1 + 1u)];
+                bg_1 = (_e389 + _e394);
+            }
+        }
+        uint _e401 = fg_1;
+        uint _e403 = p(3u);
+        atomicExchange(_group_0_binding_6_cs[0], min(_e401, _e403));
+        uint _e407 = fg_1;
+        uint _e408 = bg_1;
+        uint _e411 = p(3u);
+        atomicExchange(_group_0_binding_6_cs[1], min((_e407 + _e408), _e411));
+        bool loop_init_3 = true;
+        while(true) {
+            if (!loop_init_3) {
+                uint _e437 = c;
+                c = (_e437 + 1u);
+            }
+            loop_init_3 = false;
+            uint _e415 = c;
+            uint _e416 = fg_1;
+            uint _e417 = bg_1;
+            uint _e420 = p(3u);
+            if ((_e415 < min((_e416 + _e417), _e420))) {
+            } else {
+                break;
+            }
+            {
+                uint _e424 = c;
+                uint base_2 = (16u + (_e424 * 8u));
+                atomicExchange(_group_0_binding_6_cs[(base_2 + 1u)], _e12);
+                atomicExchange(_group_0_binding_6_cs[(base_2 + 2u)], _e14);
+            }
+        }
+        return;
+    }
+    if ((_e17 == 8u)) {
+        if ((i_4 != 0u)) {
+            return;
+        }
+        bool loop_init_4 = true;
+        while(true) {
+            if (!loop_init_4) {
+                uint _e478 = c_1;
+                c_1 = (_e478 + 1u);
+            }
+            loop_init_4 = false;
+            uint _e447 = c_1;
+            uint _e450 = atomicOr(_group_0_binding_6_cs[1], 0u);
+            if ((_e447 < _e450)) {
+            } else {
+                break;
+            }
+            {
+                uint _e453 = c_1;
+                uint base_3 = (16u + (_e453 * 8u));
+                uint _e461 = rows;
+                atomicExchange(_group_0_binding_6_cs[(base_3 + 5u)], _e461);
+                uint _e462 = rows;
+                uint _e467 = atomicOr(_group_0_binding_6_cs[(base_3 + 4u)], 0u);
+                uint _e472 = atomicOr(_group_0_binding_6_cs[(base_3 + 2u)], 0u);
+                rows = (_e462 + ((_e467 - _e472) + 1u));
+            }
+        }
+        uint _e482 = rows;
+        atomicExchange(_group_0_binding_6_cs[3], _e482);
+        return;
+    }
+    if ((i_4 >= n)) {
+        return;
+    }
+    uint x_2 = (i_4 % _e12);
+    uint y_2 = (i_4 / _e12);
+    if ((_e17 == 0u)) {
+        float _e490 = _group_0_binding_0_cs[i_4];
+        float value_1 = float(_e490);
+        if ((value_1 <= 3.402823e38)) {
+            local_8 = (value_1 >= -3.402823e38);
+        } else {
+            local_8 = false;
+        }
+        bool _e499 = local_8;
+        if (!(_e499)) {
+            uint _e504 = atomicOr(_group_0_binding_6_cs[2], 1u);
+        }
+        bool _e505 = is_foreground(i_4);
+        yes = _e505;
+        uint _e508 = p(5u);
+        if ((_e508 != 0u)) {
+            if (((x_2 + 1u) < _e12)) {
+                bool _e514 = yes;
+                if (!(_e514)) {
+                    bool _e520 = is_foreground((i_4 + 1u));
+                    local_9 = _e520;
+                } else {
+                    local_9 = true;
+                }
+                bool _e522 = local_9;
+                yes = _e522;
+            }
+            if (((y_2 + 1u) < _e14)) {
+                bool _e526 = yes;
+                if (!(_e526)) {
+                    bool _e531 = is_foreground((i_4 + _e12));
+                    local_10 = _e531;
+                } else {
+                    local_10 = true;
+                }
+                bool _e533 = local_10;
+                yes = _e533;
+                if (((x_2 + 1u) < _e12)) {
+                    bool _e537 = yes;
+                    if (!(_e537)) {
+                        bool _e544 = is_foreground(((i_4 + _e12) + 1u));
+                        local_11 = _e544;
+                    } else {
+                        local_11 = true;
+                    }
+                    bool _e546 = local_11;
+                    yes = _e546;
+                }
+            }
+        }
+        bool _e549 = yes;
+        _group_0_binding_1_cs[i_4] = uint(_e549);
+        atomicExchange(_group_0_binding_2_cs[i_4], i_4);
+        atomicExchange(_group_0_binding_3_cs[i_4], 0u);
+        return;
+    }
+    if ((_e17 == 2u)) {
+        uint fg_3 = _group_0_binding_1_cs[i_4];
+        uint _e562 = p(6u);
+        if (!((_e562 == 0u))) {
+            local_12 = ((x_2 % 8u) == 7u);
+        } else {
+            local_12 = true;
+        }
+        bool _e573 = local_12;
+        if (_e573) {
+            local_13 = ((x_2 + 1u) < _e12);
+        } else {
+            local_13 = false;
+        }
+        bool _e580 = local_13;
+        if (_e580) {
+            uint _e587 = _group_0_binding_1_cs[(i_4 + 1u)];
+            local_14 = (_e587 == fg_3);
+        } else {
+            local_14 = false;
+        }
+        bool _e590 = local_14;
+        if (_e590) {
+            join(i_4, (i_4 + 1u));
+        }
+        if (((y_2 + 1u) < _e14)) {
+            uint _e597 = p(6u);
+            if (!((_e597 == 0u))) {
+                local_15 = ((y_2 % 8u) == 7u);
+            } else {
+                local_15 = true;
+            }
+            bool _e608 = local_15;
+            if (_e608) {
+                uint _e614 = _group_0_binding_1_cs[(i_4 + _e12)];
+                local_16 = (_e614 == fg_3);
+            } else {
+                local_16 = false;
+            }
+            bool _e617 = local_16;
+            if (_e617) {
+                join(i_4, (i_4 + _e12));
+            }
+            if ((fg_3 != 0u)) {
+                uint _e622 = p(6u);
+                if (!((_e622 == 0u))) {
+                    local_17 = ((y_2 % 8u) == 7u);
+                } else {
+                    local_17 = true;
+                }
+                bool _e633 = local_17;
+                if (!(_e633)) {
+                    local_18 = ((x_2 % 8u) == 0u);
+                } else {
+                    local_18 = true;
+                }
+                bool _e642 = local_18;
+                if (_e642) {
+                    local_19 = (x_2 > 0u);
+                } else {
+                    local_19 = false;
+                }
+                bool _e648 = local_19;
+                if (_e648) {
+                    uint _e656 = _group_0_binding_1_cs[((i_4 + _e12) - 1u)];
+                    local_20 = (_e656 != 0u);
+                } else {
+                    local_20 = false;
+                }
+                bool _e660 = local_20;
+                if (_e660) {
+                    join(i_4, ((i_4 + _e12) - 1u));
+                }
+                uint _e665 = p(6u);
+                if (!((_e665 == 0u))) {
+                    local_21 = ((y_2 % 8u) == 7u);
+                } else {
+                    local_21 = true;
+                }
+                bool _e676 = local_21;
+                if (!(_e676)) {
+                    local_22 = ((x_2 % 8u) == 7u);
+                } else {
+                    local_22 = true;
+                }
+                bool _e685 = local_22;
+                if (_e685) {
+                    local_23 = ((x_2 + 1u) < _e12);
+                } else {
+                    local_23 = false;
+                }
+                bool _e692 = local_23;
+                if (_e692) {
+                    uint _e700 = _group_0_binding_1_cs[((i_4 + _e12) + 1u)];
+                    local_24 = (_e700 != 0u);
+                } else {
+                    local_24 = false;
+                }
+                bool _e704 = local_24;
+                if (_e704) {
+                    join(i_4, ((i_4 + _e12) + 1u));
+                }
+            }
+        }
+        return;
+    }
+    if ((_e17 == 3u)) {
+        uint _e710 = root(i_4);
+        atomicExchange(_group_0_binding_2_cs[i_4], _e710);
+        uint _e717 = _group_0_binding_1_cs[i_4];
+        if ((_e717 != 0u)) {
+            if (!((x_2 == 0u))) {
+                local_25 = (y_2 == 0u);
+            } else {
+                local_25 = true;
+            }
+            bool _e728 = local_25;
+            if (!(_e728)) {
+                local_26 = ((x_2 + 1u) == _e12);
+            } else {
+                local_26 = true;
+            }
+            bool _e736 = local_26;
+            if (!(_e736)) {
+                local_27 = ((y_2 + 1u) == _e14);
+            } else {
+                local_27 = true;
+            }
+            bool _e744 = local_27;
+            edge = _e744;
+            bool loop_init_5 = true;
+            while(true) {
+                if (!loop_init_5) {
+                    int _e801 = dy;
+                    dy = (_e801 + 1);
+                }
+                loop_init_5 = false;
+                int _e748 = dy;
+                if ((_e748 <= 1)) {
+                } else {
+                    break;
+                }
+                {
+                    dx = -1;
+                    bool loop_init_6 = true;
+                    while(true) {
+                        if (!loop_init_6) {
+                            int _e798 = dx;
+                            dx = (_e798 + 1);
+                        }
+                        loop_init_6 = false;
+                        int _e753 = dx;
+                        if ((_e753 <= 1)) {
+                        } else {
+                            break;
+                        }
+                        {
+                            int _e757 = dx;
+                            int nx = (int(x_2) + _e757);
+                            int _e760 = dy;
+                            int ny = (int(y_2) + _e760);
+                            if ((nx >= 0)) {
+                                local_28 = (ny >= 0);
+                            } else {
+                                local_28 = false;
+                            }
+                            bool _e769 = local_28;
+                            if (_e769) {
+                                local_29 = (nx < int(_e12));
+                            } else {
+                                local_29 = false;
+                            }
+                            bool _e775 = local_29;
+                            if (_e775) {
+                                local_30 = (ny < int(_e14));
+                            } else {
+                                local_30 = false;
+                            }
+                            bool _e781 = local_30;
+                            if (_e781) {
+                                bool _e782 = edge;
+                                if (!(_e782)) {
+                                    uint _e792 = _group_0_binding_1_cs[((uint(ny) * _e12) + uint(nx))];
+                                    local_31 = (_e792 == 0u);
+                                } else {
+                                    local_31 = true;
+                                }
+                                bool _e796 = local_31;
+                                edge = _e796;
+                            }
+                        }
+                    }
+                }
+            }
+            bool _e803 = edge;
+            boundary = uint(_e803);
+        } else {
+            if (!((x_2 == 0u))) {
+                local_32 = (y_2 == 0u);
+            } else {
+                local_32 = true;
+            }
+            bool _e813 = local_32;
+            if (!(_e813)) {
+                local_33 = ((x_2 + 1u) == _e12);
+            } else {
+                local_33 = true;
+            }
+            bool _e821 = local_33;
+            if (!(_e821)) {
+                local_34 = ((y_2 + 1u) == _e14);
+            } else {
+                local_34 = true;
+            }
+            bool _e829 = local_34;
+            if (_e829) {
+                uint _e833 = atomicOr(_group_0_binding_3_cs[_e710], 2147483648u);
+            }
+            if ((x_2 > 0u)) {
+                uint _e836 = boundary;
+                uint _e841 = _group_0_binding_1_cs[(i_4 - 1u)];
+                boundary = (_e836 + _e841);
+            }
+            if (((x_2 + 1u) < _e12)) {
+                uint _e846 = boundary;
+                uint _e851 = _group_0_binding_1_cs[(i_4 + 1u)];
+                boundary = (_e846 + _e851);
+            }
+            if ((y_2 > 0u)) {
+                uint _e855 = boundary;
+                uint _e859 = _group_0_binding_1_cs[(i_4 - _e12)];
+                boundary = (_e855 + _e859);
+            }
+            if (((y_2 + 1u) < _e14)) {
+                uint _e864 = boundary;
+                uint _e868 = _group_0_binding_1_cs[(i_4 + _e12)];
+                boundary = (_e864 + _e868);
+            }
+        }
+        uint _e870 = boundary;
+        if ((_e870 != 0u)) {
+            uint _e875 = boundary;
+            uint _e876 = atomicAdd(_group_0_binding_3_cs[_e710], _e875);
+        }
+        return;
+    }
+    if ((_e17 == 6u)) {
+        uint _e879 = qualifier(i_4);
+        if ((_e879 == 0u)) {
+            _group_0_binding_4_cs[i_4] = 4294967295u;
+            return;
+        }
+        uint upper = ((((n + 63u) / 64u) + (block / 64u)) * 4u);
+        uint _e900 = _group_0_binding_5_cs[((block * 4u) + 3u)];
+        uint _e905 = _group_0_binding_5_cs[(upper + 3u)];
+        uint _e909 = atomicOr(_group_0_binding_6_cs[0], 0u);
+        uint _e917 = _group_0_binding_5_cs[((block * 4u) + 2u)];
+        uint _e922 = _group_0_binding_5_cs[(upper + 2u)];
+        uint offset = ((_e879 == 1u) ? (_e917 + _e922) : ((_e900 + _e905) + _e909));
+        uint _e929 = _group_0_binding_4_cs[i_4];
+        uint rank = ((_e929 + offset) - 1u);
+        uint _e937 = p(3u);
+        _group_0_binding_4_cs[i_4] = ((rank < _e937) ? rank : 4294967295u);
+        uint _e941 = p(3u);
+        if ((rank < _e941)) {
+            uint base_4 = (16u + (rank * 8u));
+            atomicExchange(_group_0_binding_6_cs[base_4], i_4);
+            atomicExchange(_group_0_binding_6_cs[(base_4 + 6u)], _e879);
+        }
+        return;
+    }
+    if ((_e17 == 7u)) {
+        uint _e958 = atomicOr(_group_0_binding_2_cs[i_4], 0u);
+        uint rank_1 = _group_0_binding_4_cs[_e958];
+        if ((rank_1 == 4294967295u)) {
+            return;
+        }
+        uint base_5 = (16u + (rank_1 * 8u));
+        uint _e971 = atomicMin(_group_0_binding_6_cs[(base_5 + 1u)], x_2);
+        uint _e976 = atomicMin(_group_0_binding_6_cs[(base_5 + 2u)], y_2);
+        uint _e981 = atomicMax(_group_0_binding_6_cs[(base_5 + 3u)], x_2);
+        uint _e986 = atomicMax(_group_0_binding_6_cs[(base_5 + 4u)], y_2);
+        return;
+    } else {
+        return;
+    }
+}
+

@@ -18,12 +18,16 @@ pub(super) fn supports_kind(kind: ShaderKind) -> bool {
     )
 }
 
+#[cfg(target_os = "macos")]
+
 fn half_storage(source: String) -> String {
     source
         .replace("device const float*", "device const half*")
         .replace("device float*", "device half*")
         .replace("tensor<device float,", "tensor<device half,")
 }
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn pointwise_source() -> String {
     // Scalar fallback products need explicit promotion after the storage
@@ -60,6 +64,8 @@ pub(super) fn known_pointwise_epilogue(
         && (1..=3).contains(&words[64])
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn pointwise_epilogue_source() -> String {
     pointwise_source()
         .replace(
@@ -79,6 +85,8 @@ pub(super) fn pointwise_epilogue_source() -> String {
         )
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn fixed_pointwise_epilogue(
     kind: ShaderKind,
     storage: [GpuPrecision; 6],
@@ -93,6 +101,8 @@ pub(super) fn fixed_pointwise_epilogue(
         && words[74] == 7
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn fixed_pointwise_bias_gelu(
     kind: ShaderKind,
     storage: [GpuPrecision; 6],
@@ -106,6 +116,8 @@ pub(super) fn fixed_pointwise_bias_gelu(
         && words[71] == 7
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn fixed_pointwise_adds(
     kind: ShaderKind,
     storage: [GpuPrecision; 6],
@@ -118,6 +130,8 @@ pub(super) fn fixed_pointwise_adds(
         && words[71] == 2
         && words[72] == 2
 }
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn pointwise_adds_source() -> String {
     pointwise_source()
@@ -138,6 +152,8 @@ pub(super) fn pointwise_adds_source() -> String {
         )
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn pointwise_bias_gelu_source() -> String {
     pointwise_source()
         .replace(
@@ -156,6 +172,8 @@ pub(super) fn pointwise_bias_gelu_source() -> String {
             "epilogue_fixed_bg(accum[i], index, row, raw_d, raw_e, params)",
         )
 }
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn pointwise_fixed_epilogue_source() -> String {
     pointwise_source()
@@ -176,12 +194,15 @@ pub(super) fn pointwise_fixed_epilogue_source() -> String {
         )
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn depthwise_source(kernel: u32) -> String {
     half_storage(depthwise_native::source(kernel)).replace("packed_float4", "packed_half4")
 }
 
 /// Native Half DW3 already knows the output channel. Only the complete
 /// bias-only signature can bypass the shared dynamic epilogue.
+#[cfg(target_os = "macos")]
 pub(super) fn fixed_depthwise_bias(
     kind: ShaderKind,
     storage: [GpuPrecision; 6],
@@ -201,6 +222,8 @@ pub(super) fn fixed_depthwise_bias(
             .is_some_and(|plane| plane != 0 && words[66] == plane)
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn depthwise_bias_source() -> String {
     depthwise_source(3)
         .replace(
@@ -213,6 +236,8 @@ pub(super) fn depthwise_bias_source() -> String {
         )
 }
 
+#[cfg(target_os = "macos")]
+
 fn depthwise_1x7_source() -> String {
     half_storage(format!(
         "{}\n{}",
@@ -220,6 +245,8 @@ fn depthwise_1x7_source() -> String {
         include_str!("depthwise_1x7.metal")
     ))
 }
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn source(kind: ShaderKind) -> RuntimeResult<(String, &'static str, [u32; 3])> {
     match kind {
@@ -239,10 +266,12 @@ pub(super) fn source(kind: ShaderKind) -> RuntimeResult<(String, &'static str, [
 }
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 #[path = "pointwise_epilogue_tests.rs"]
 mod epilogue_tests;
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 #[path = "depthwise_bias_tests.rs"]
 mod depthwise_bias_tests;
 
@@ -251,7 +280,7 @@ mod depthwise_bias_tests;
 pub(super) fn select(
     recipes: &mut [Recipe],
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     matrix_precision: GpuMatrixPrecision,
 ) -> RuntimeResult<usize> {
     if matrix_precision != GpuMatrixPrecision::F16 {
@@ -470,6 +499,7 @@ fn depthwise_geometry(words: &[u32; 128]) -> bool {
 }
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 #[path = "depthwise7_tests.rs"]
 mod depthwise7_tests;
 
@@ -572,7 +602,7 @@ mod tests {
             select(
                 &mut selected,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -590,7 +620,7 @@ mod tests {
                 select(
                     &mut [recipe.clone()],
                     &changed,
-                    &wgpu::Limits::default(),
+                    &crate::runtime::gpu::GpuLimits::default(),
                     GpuMatrixPrecision::F16
                 )
                 .unwrap(),
@@ -601,7 +631,7 @@ mod tests {
             select(
                 &mut [recipe],
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F32
             )
             .unwrap(),
@@ -609,6 +639,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn half_native_depthwise_retains_offsets_and_scalar_fallback_uses_float_products() {
         for kernel in [3, 5, 9] {
@@ -619,7 +650,7 @@ mod tests {
                 select(
                     &mut selected,
                     &descriptors,
-                    &wgpu::Limits::default(),
+                    &crate::runtime::gpu::GpuLimits::default(),
                     GpuMatrixPrecision::F16
                 )
                 .unwrap(),

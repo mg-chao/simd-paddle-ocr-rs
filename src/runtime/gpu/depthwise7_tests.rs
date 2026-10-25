@@ -2,7 +2,9 @@
 use super::super::tests::{bind_program, integer, integers, model, node, tensor};
 use super::*;
 use crate::runtime::CompileOptions;
-use resident::{Batch, NativeShader};
+use backend::test_support::MetalTestBatch;
+use backend::test_support::MetalTestShader;
+use resident::Batch;
 
 #[derive(Clone, Copy)]
 struct Case {
@@ -115,7 +117,7 @@ fn fixture(case: Case) -> (Recipe, Vec<GpuTensorDescriptor>) {
         .iter()
         .map(|&shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::MixedF16))
         .collect();
-    let recipe = operators::recipes(&program, &plan, &wgpu::Limits::default())
+    let recipe = operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default())
         .unwrap()
         .remove(0);
     (recipe, descriptors)
@@ -136,7 +138,7 @@ fn unchanged(actual: &Recipe, original: &Recipe) {
 
 #[test]
 fn half_depthwise7_actual_detector_recipes_preserve_storage_and_strict_policy() {
-    let limits = wgpu::Limits::default();
+    let limits = crate::runtime::gpu::GpuLimits::default();
     for side in [16, 32, 64, 128] {
         let case = Case {
             shape: [1, 96, side, side],
@@ -223,7 +225,7 @@ fn half_depthwise7_actual_detector_recipes_preserve_storage_and_strict_policy() 
         );
         unchanged(&recipes[0], &recipe);
     }
-    let limited = wgpu::Limits {
+    let limited = crate::runtime::gpu::GpuLimits {
         max_compute_invocations_per_workgroup: 63,
         ..limits
     };
@@ -448,25 +450,21 @@ fn gpu_hardware_half_depthwise7_raw_nan_padding_scalar_and_guards() {
             .create_buffer_init(label, &GpuPrecision::MixedF16.encode(values), usage)
             .unwrap()
     };
-    let a = upload("DW7 Half input", &input, wgpu::BufferUsages::STORAGE);
+    let a = upload("DW7 Half input", &input, BufferUsage::STORAGE);
     let b = upload(
         "DW7 invalid-tap NaN weights",
         &weights,
-        wgpu::BufferUsages::STORAGE,
+        BufferUsage::STORAGE,
     );
-    let c = upload("DW7 initial bias", &bias, wgpu::BufferUsages::STORAGE);
-    let unused = upload(
-        "DW7 unused NaN",
-        &[f32::NAN; 8],
-        wgpu::BufferUsages::STORAGE,
-    );
+    let c = upload("DW7 initial bias", &bias, BufferUsage::STORAGE);
+    let unused = upload("DW7 unused NaN", &[f32::NAN; 8], BufferUsage::STORAGE);
     let prefix = 7;
     let guarded = vec![-777.; prefix + expected.len() + 11];
     for forced in [false, true] {
         let output = upload(
             "DW7 guarded output",
             &guarded,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            BufferUsage::STORAGE | BufferUsage::COPY_SRC,
         );
         let (mut source, entry, workgroup_size) = source(ShaderKind::DepthwiseNative7).unwrap();
         if forced {
@@ -479,13 +477,13 @@ fn gpu_hardware_half_depthwise7_raw_nan_padding_scalar_and_guards() {
         words[60] = prefix as u32;
         let mut batch = Batch::new(context.clone()).unwrap();
         batch
-            .dispatch_native(
+            .dispatch_msl(
                 if forced {
                     "DW7 forced scalar"
                 } else {
                     "DW7 complete windows"
                 },
-                NativeShader {
+                MetalTestShader {
                     source: &source,
                     entry_point: entry,
                     workgroup_size,

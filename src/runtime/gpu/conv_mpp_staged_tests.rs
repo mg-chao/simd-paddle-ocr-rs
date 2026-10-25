@@ -1,5 +1,6 @@
 //! Cin-only staged K2 admission and physical Metal numerical qualification.
 use super::*;
+use backend::test_support::MetalTestBatch;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
 fn dyadic(count: usize, seed: usize, denominator: f32) -> Vec<f32> {
@@ -81,7 +82,8 @@ fn fixture() -> (Program, ShapePlan, Vec<GpuTensorDescriptor>, Vec<Recipe>) {
         .iter()
         .map(|&shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::MixedF16))
         .collect();
-    let recipes = operators::recipes(&program, &plan, &wgpu::Limits::default()).unwrap();
+    let recipes =
+        operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default()).unwrap();
     (program, plan, descriptors, recipes)
 }
 
@@ -95,7 +97,7 @@ fn staged_k2_admission_uses_canonical_input_without_pack() {
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |candidate| {
             probed.push(candidate.kind.clone());
@@ -128,7 +130,7 @@ fn staged_k2_unsupported_compilation_keeps_fullview_and_its_pack() {
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |candidate| {
             let RecipeKind::Compute(kind) = candidate.kind else {
@@ -170,7 +172,7 @@ fn staged_k2_rejection_and_resource_failures_publish_no_temporary() {
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16,
             &mut |_| {
                 failure.map_or(Ok(false), |kind| {
@@ -202,7 +204,7 @@ fn staged_k2_rejection_and_resource_failures_publish_no_temporary() {
 fn staged_k2_capacity_precision_and_matrix_policy_retain_existing_paths() {
     for case in 0..4 {
         let (program, mut plan, mut descriptors, recipes) = fixture();
-        let mut limits = wgpu::Limits::default();
+        let mut limits = crate::runtime::gpu::GpuLimits::default();
         let matrix = if case == 2 {
             GpuMatrixPrecision::F32
         } else {
@@ -457,7 +459,8 @@ fn gpu_hardware_staged_k2_width_cache_reuses_pipeline() {
 #[test]
 #[ignore = "requires physical Metal GPU; force the production alternate-width scalar branch over canonical NCHW with Half HWIO weights and sentinels"]
 fn gpu_hardware_staged_k2_alternate_simd_fallback_and_sentinels() {
-    use resident::{Batch, NativeShader};
+    use backend::test_support::MetalTestShader;
+    use resident::Batch;
     let context = context();
     let shape = [2, 9, 9, 17];
     let graph = graph(shape, 33, [1, 1, 0, 0], false, false);
@@ -492,27 +495,23 @@ fn gpu_hardware_staged_k2_alternate_simd_fallback_and_sentinels() {
             .create_buffer_init(label, &precision.encode(values), usage)
             .unwrap()
     };
-    let a = make("canonical Half NCHW", &input, wgpu::BufferUsages::STORAGE);
+    let a = make("canonical Half NCHW", &input, BufferUsage::STORAGE);
     let weights = dyadic(33 * 9 * 4, 0, 64.);
     let weights = conv_weight_pack::pack_hwio(&weights, 33, 9, 2, 2).unwrap();
-    let b = make("Half HWIO", &weights, wgpu::BufferUsages::STORAGE);
-    let c = make(
-        "Half bias",
-        &dyadic(33, 2, 16.),
-        wgpu::BufferUsages::STORAGE,
-    );
-    let dummy = make("Half dummy", &[0.], wgpu::BufferUsages::STORAGE);
+    let b = make("Half HWIO", &weights, BufferUsage::STORAGE);
+    let c = make("Half bias", &dyadic(33, 2, 16.), BufferUsage::STORAGE);
+    let dummy = make("Half dummy", &[0.], BufferUsage::STORAGE);
     let initial = vec![-777.; prefix + oracle.len() + suffix];
     let output = make(
         "Half sentinel output",
         &initial,
-        wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        BufferUsage::STORAGE | BufferUsage::COPY_SRC,
     );
     let mut batch = Batch::new(context).unwrap();
     batch
-        .dispatch_native(
+        .dispatch_msl(
             "staged_k2_alternate_simd",
-            NativeShader {
+            MetalTestShader {
                 source: &source,
                 entry_point: conv_mpp_staged::ENTRY,
                 workgroup_size: conv_mpp_staged::WORKGROUP,
@@ -546,5 +545,6 @@ fn gpu_hardware_staged_k2_alternate_simd_fallback_and_sentinels() {
     );
 }
 
+#[cfg(target_os = "macos")]
 #[path = "conv_mpp_staged_rgb_tests.rs"]
 mod rgb;

@@ -69,9 +69,15 @@ fn standalone_activation_matches_private_chains_and_four_element_tails() {
     for mode in [1, 2, 3] {
         let program = Program::compile(fixture(mode, false)).unwrap();
         let plan = bind_program(&program, &[1, 1, 1, 67], ExecutionLimits::default()).unwrap();
-        let recipe = replacement(&program, &plan, 0, program.output, &wgpu::Limits::default())
-            .unwrap()
-            .unwrap();
+        let recipe = replacement(
+            &program,
+            &plan,
+            0,
+            program.output,
+            &crate::runtime::gpu::GpuLimits::default(),
+        )
+        .unwrap()
+        .unwrap();
         assert_eq!(recipe.words[0..4], [67, 64, 25, mode]);
         assert_eq!((recipe.x, recipe.y), (1, 1));
         assert_eq!(recipe.nodes.len(), if mode == 1 { 5 } else { 2 });
@@ -84,7 +90,7 @@ fn standalone_activation_matches_private_chains_and_four_element_tails() {
                 &plan,
                 0,
                 program.instructions[0].output,
-                &wgpu::Limits::default()
+                &crate::runtime::gpu::GpuLimits::default()
             )
             .unwrap()
             .is_none()
@@ -93,9 +99,15 @@ fn standalone_activation_matches_private_chains_and_four_element_tails() {
         let program = Program::compile(fixture(mode, true)).unwrap();
         let plan = bind_program(&program, &[1, 1, 1, 67], ExecutionLimits::default()).unwrap();
         assert!(
-            replacement(&program, &plan, 0, program.output, &wgpu::Limits::default())
-                .unwrap()
-                .is_none()
+            replacement(
+                &program,
+                &plan,
+                0,
+                program.output,
+                &crate::runtime::gpu::GpuLimits::default()
+            )
+            .unwrap()
+            .is_none()
         );
     }
 }

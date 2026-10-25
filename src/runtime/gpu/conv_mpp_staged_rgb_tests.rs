@@ -1,5 +1,6 @@
 //! Measured stride-two staging preserves the original full-view fallback.
 use super::*;
+use backend::test_support::MetalTestBatch;
 
 fn rgb_graph(
     input: [usize; 4],
@@ -81,7 +82,8 @@ fn rgb_fixture(
         .iter()
         .map(|&shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::MixedF16))
         .collect();
-    let recipes = operators::recipes(&program, &plan, &wgpu::Limits::default()).unwrap();
+    let recipes =
+        operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default()).unwrap();
     (program, plan, descriptors, recipes)
 }
 
@@ -98,7 +100,7 @@ fn staged_rgb_k3s2_admission_preserves_canonical_operands_and_checked_grid() {
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16,
             &mut |recipe| {
                 probed.push(recipe.kind.clone());
@@ -137,7 +139,7 @@ fn staged_rgb_k3s2_rejected_compilation_retains_fullview_pack_or_original() {
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16,
             &mut |recipe| {
                 let RecipeKind::Compute(kind) = recipe.kind else {
@@ -199,7 +201,7 @@ fn staged_rgb_k3s2_rejected_compilation_retains_fullview_pack_or_original() {
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16,
             &mut |_| {
                 Err(RuntimeError::with_kind(
@@ -229,7 +231,7 @@ fn staged_rgb_k3s2_guards_preserve_default_precision_capacity_and_wide_fallbacks
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16,
             &mut |recipe| {
                 probed.push(recipe.kind.clone());
@@ -248,7 +250,7 @@ fn staged_rgb_k3s2_guards_preserve_default_precision_capacity_and_wide_fallbacks
     }
     for (input_channels, case) in (0..7).flat_map(|case| [(3, case), (24, case)]) {
         let (program, mut plan, mut descriptors, recipes) = rgb_fixture(input_channels, 48);
-        let mut limits = wgpu::Limits::default();
+        let mut limits = crate::runtime::gpu::GpuLimits::default();
         let matrix = if case == 0 {
             GpuMatrixPrecision::F32
         } else {
@@ -314,7 +316,7 @@ fn staged_rgb_k3s2_guards_preserve_default_precision_capacity_and_wide_fallbacks
 fn staged_c24_k3s2_shared_capacity_boundary_is_exact() {
     for shared_bytes in [7343, 7344] {
         let (program, mut plan, mut descriptors, recipes) = rgb_fixture(24, 48);
-        let limits = wgpu::Limits {
+        let limits = crate::runtime::gpu::GpuLimits {
             max_compute_workgroup_storage_size: shared_bytes,
             ..Default::default()
         };
@@ -356,15 +358,19 @@ fn staged_c24_k3s2_shared_capacity_boundary_is_exact() {
 fn staged_rgb_k3s2_specialization_excludes_runtime_shape_and_rejects_other_families() {
     let (_, _, descriptors, recipes) = rgb_fixture(3, 48);
     let mut candidate = recipes[0].clone();
-    let kernel = conv_mpp::prepare_recipe(&mut candidate, &descriptors, &wgpu::Limits::default())
-        .unwrap()
-        .unwrap();
+    let kernel = conv_mpp::prepare_recipe(
+        &mut candidate,
+        &descriptors,
+        &crate::runtime::gpu::GpuLimits::default(),
+    )
+    .unwrap()
+    .unwrap();
     candidate.kind = RecipeKind::Compute(kernel.shader());
     candidate.words[37..39].copy_from_slice(&[1, 1]);
     assert!(conv_mpp_staged::prepare_recipe(
         &mut candidate,
         &descriptors,
-        &wgpu::Limits::default()
+        &crate::runtime::gpu::GpuLimits::default()
     ));
     let mut words = candidate.words;
     let specialization =
@@ -396,15 +402,19 @@ fn staged_rgb_k3s2_specialization_excludes_runtime_shape_and_rejects_other_famil
 fn staged_c24_k3s2_specialization_is_shared_across_runtime_widths() {
     let (_, _, descriptors, recipes) = rgb_fixture(24, 48);
     let mut candidate = recipes[0].clone();
-    let kernel = conv_mpp::prepare_recipe(&mut candidate, &descriptors, &wgpu::Limits::default())
-        .unwrap()
-        .unwrap();
+    let kernel = conv_mpp::prepare_recipe(
+        &mut candidate,
+        &descriptors,
+        &crate::runtime::gpu::GpuLimits::default(),
+    )
+    .unwrap()
+    .unwrap();
     candidate.kind = RecipeKind::Compute(kernel.shader());
     candidate.words[37..39].copy_from_slice(&[1, 1]);
     assert!(conv_mpp_staged::prepare_recipe(
         &mut candidate,
         &descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
     ));
     let specialization =
         conv_mpp_staged::Specialization::for_shader(ShaderKind::ConvMpp3s2Staged, &candidate.words)
@@ -612,7 +622,8 @@ fn gpu_hardware_staged_rgb_k3s2_width_cache_reuses_pipeline() {
 #[test]
 #[ignore = "requires physical Metal GPU; force production RGB/Cin24 staged alternate-SIMD scalar branches and validate output-offset sentinels"]
 fn gpu_hardware_staged_rgb_k3s2_alternate_simd_fallback_and_sentinels() {
-    use resident::{Batch, NativeShader};
+    use backend::test_support::MetalTestShader;
+    use resident::Batch;
     let context = context();
     for input_channels in [3, 24] {
         let shape = [2, input_channels, 9, 17];
@@ -648,11 +659,7 @@ fn gpu_hardware_staged_rgb_k3s2_alternate_simd_fallback_and_sentinels() {
                 .create_buffer_init(label, &precision.encode(values), usage)
                 .unwrap()
         };
-        let a = make(
-            "canonical Half RGB NCHW",
-            &input,
-            wgpu::BufferUsages::STORAGE,
-        );
+        let a = make("canonical Half RGB NCHW", &input, BufferUsage::STORAGE);
         let weights = conv_weight_pack::pack_hwio(
             &dyadic(48 * input_channels * 9, 0, 64.),
             48,
@@ -661,25 +668,21 @@ fn gpu_hardware_staged_rgb_k3s2_alternate_simd_fallback_and_sentinels() {
             3,
         )
         .unwrap();
-        let b = make("Half RGB HWIO", &weights, wgpu::BufferUsages::STORAGE);
-        let c = make(
-            "Half RGB bias",
-            &dyadic(48, 2, 16.),
-            wgpu::BufferUsages::STORAGE,
-        );
-        let dummy = make("Half dummy", &[0.], wgpu::BufferUsages::STORAGE);
+        let b = make("Half RGB HWIO", &weights, BufferUsage::STORAGE);
+        let c = make("Half RGB bias", &dyadic(48, 2, 16.), BufferUsage::STORAGE);
+        let dummy = make("Half dummy", &[0.], BufferUsage::STORAGE);
         let initial = vec![-777.; prefix + oracle.len() + suffix];
         let output = make(
             "Half RGB sentinel output",
             &initial,
-            wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            BufferUsage::STORAGE | BufferUsage::COPY_SRC,
         );
         let mut batch = Batch::new(context.clone()).unwrap();
         let label = format!("staged_rgb_alternate_simd_c{input_channels}");
         batch
-            .dispatch_native(
+            .dispatch_msl(
                 &label,
-                NativeShader {
+                MetalTestShader {
                     source: &source,
                     entry_point: specialization.entry(),
                     workgroup_size: conv_mpp_staged::WORKGROUP,

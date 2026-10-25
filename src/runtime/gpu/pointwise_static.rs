@@ -135,5 +135,6 @@ pub(super) fn source(
 }
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 #[path = "pointwise_static_tests.rs"]
 mod tests;

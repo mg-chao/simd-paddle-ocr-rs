@@ -4,6 +4,7 @@ use super::super::tests::{
 use super::*;
 use crate::runtime::CompileOptions;
 
+#[cfg(target_os = "macos")]
 include!("attention_native_graph_tests.rs");
 
 #[derive(Clone, Copy)]
@@ -183,7 +184,7 @@ fn lowered(
         program,
         &mut plan,
         program.output,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         precision,
         &mut descriptors,
         matrix,
@@ -242,7 +243,7 @@ fn packed_attention_proves_shared_views_scale_binding_and_output_order() {
         &plan,
         start,
         program.output,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F32,
     )
     .unwrap()
@@ -285,7 +286,7 @@ fn packed_attention_proves_shared_views_scale_binding_and_output_order() {
         &prefix_plan,
         start,
         base.output,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
     )
     .unwrap()

@@ -118,7 +118,7 @@ impl GpuCompiledModel {
             self.context.create_buffer_init(
                 "GPU packed immutable weights",
                 &encoded,
-                wgpu::BufferUsages::STORAGE,
+                BufferUsage::STORAGE,
             )
         })?;
         // Failed allocation/upload never publishes an entry. Holding the shared
@@ -132,7 +132,7 @@ fn pack_values(
     source: &[f32],
     dimensions: &[usize],
     packing: WeightPacking,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> RuntimeResult<Vec<f32>> {
     let [rows, inner, kh, kw] = dimensions else {
         return Err(RuntimeError::new(
@@ -179,8 +179,13 @@ mod tests {
         let dimensions = [5, 3, 1, 1];
         let source: Vec<_> = (0..15).map(|i| (i as f32 - 7.) / 13.).collect();
         for (packing, padded) in [(WeightPacking::PointwiseF16, 64)] {
-            let packed =
-                pack_values(&source, &dimensions, packing, &wgpu::Limits::default()).unwrap();
+            let packed = pack_values(
+                &source,
+                &dimensions,
+                packing,
+                &crate::runtime::gpu::GpuLimits::default(),
+            )
+            .unwrap();
             assert_eq!(packed.len(), 3 * padded);
             for k in 0..3 {
                 for row in 0..padded {
@@ -208,8 +213,13 @@ mod tests {
         let dimensions = [3, 2, 2, 3];
         let source: Vec<_> = (0..36).map(|i| (i as f32 - 17.) / 19.).collect();
         for packing in [WeightPacking::SpatialF16] {
-            let packed =
-                pack_values(&source, &dimensions, packing, &wgpu::Limits::default()).unwrap();
+            let packed = pack_values(
+                &source,
+                &dimensions,
+                packing,
+                &crate::runtime::gpu::GpuLimits::default(),
+            )
+            .unwrap();
             assert_eq!(packed.len(), 2 * 3 * 2 * 32);
             for y in 0..2 {
                 for x in 0..3 {
@@ -231,7 +241,7 @@ mod tests {
 
     #[test]
     fn packing_rejects_inconsistent_geometry_and_binding_overflow_before_allocation() {
-        let limits = wgpu::Limits::default();
+        let limits = crate::runtime::gpu::GpuLimits::default();
         assert!(pack_values(&[1.; 6], &[2, 3, 1], WeightPacking::PointwiseF16, &limits).is_err());
         assert!(
             pack_values(
@@ -243,7 +253,7 @@ mod tests {
             .is_err()
         );
         assert!(pack_values(&[1.; 6], &[2, 3, 1, 2], WeightPacking::SpatialF16, &limits).is_err());
-        let small = wgpu::Limits {
+        let small = crate::runtime::gpu::GpuLimits {
             max_buffer_size: 128,
             max_storage_buffer_binding_size: 128,
             ..limits

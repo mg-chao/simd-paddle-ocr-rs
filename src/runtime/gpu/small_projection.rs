@@ -6,7 +6,7 @@ pub(super) fn select(
     program: &Program,
     recipes: &mut [Recipe],
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     matrix_precision: GpuMatrixPrecision,
 ) -> RuntimeResult<usize> {
     if matrix_precision != GpuMatrixPrecision::F16

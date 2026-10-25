@@ -5,6 +5,7 @@ use crate::runtime::{
 };
 use std::sync::OnceLock;
 
+#[cfg(target_os = "macos")]
 #[path = "half_native_tests.rs"]
 mod half_native_tests;
 #[path = "library_tests.rs"]
@@ -12,6 +13,7 @@ mod library_tests;
 #[cfg(target_os = "macos")]
 #[path = "metal_execution_tests.rs"]
 mod metal_execution_tests;
+#[cfg(target_os = "macos")]
 #[path = "pointwise_f16_tests.rs"]
 mod pointwise_f16_tests;
 
@@ -167,7 +169,8 @@ fn hardware() -> Arc<GpuContext> {
             assert!(
                 matches!(
                     adapter.device_type,
-                    wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+                    crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+                        | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
                 ),
                 "hardware tests require a physical GPU, got {adapter:?}",
             );
@@ -657,10 +660,15 @@ fn gpu_hardware_profile_and_warmed_shape_bindings_are_bounded() {
             profile
                 .kernels
                 .iter()
-                .all(|kernel| kernel.device_ns.is_none()
-                    && kernel.granularity == GpuTimingGranularity::Unavailable)
+                .all(|kernel| if cfg!(target_os = "macos") {
+                    kernel.device_ns.is_none()
+                        && kernel.granularity == GpuTimingGranularity::Unavailable
+                } else {
+                    kernel.device_ns.is_some()
+                        && kernel.granularity == GpuTimingGranularity::Dispatch
+                })
         );
-        assert!(profile.compute_ns().is_none());
+        assert_eq!(profile.compute_ns().is_some(), !cfg!(target_os = "macos"));
         assert_eq!(session.retained_device_bytes(), retained);
         session.run(&values(256, 2)).unwrap();
         assert!(session.last_gpu_profile().is_none());
@@ -941,7 +949,7 @@ fn gpu_binding_rejects_incompatible_broadcast_and_convolution_geometry() {
 fn gpu_plan_validates_device_storage_and_activation_limits_without_allocating() {
     let program = Program::compile(branch_model()).unwrap();
     let plan = bind_program(&program, &[1, 2, 5, 7], ExecutionLimits::default()).unwrap();
-    validate_plan(&program, &plan, &wgpu::Limits::default()).unwrap();
+    validate_plan(&program, &plan, &crate::runtime::gpu::GpuLimits::default()).unwrap();
     assert!(
         bind_program(
             &program,
@@ -962,21 +970,27 @@ fn gpu_plan_validates_device_storage_and_activation_limits_without_allocating() 
         )
         .is_err()
     );
-    let limits = wgpu::Limits {
+    let limits = crate::runtime::gpu::GpuLimits {
         max_storage_buffer_binding_size: 16,
         max_buffer_size: 16,
         ..Default::default()
     };
     assert!(validate_plan(&program, &plan, &limits).is_err());
-    let limits = wgpu::Limits {
+    let limits = crate::runtime::gpu::GpuLimits {
         max_storage_buffer_binding_size: 64,
         max_buffer_size: 64,
         ..Default::default()
     };
     assert_eq!(checked_storage_bytes(16, &limits).unwrap(), 64);
     assert!(checked_storage_bytes(17, &limits).is_err());
-    assert!(checked_storage_bytes(usize::MAX, &wgpu::Limits::default()).is_err());
-    assert!(checked_storage_bytes(u32::MAX as usize + 1, &wgpu::Limits::default()).is_err());
+    assert!(checked_storage_bytes(usize::MAX, &crate::runtime::gpu::GpuLimits::default()).is_err());
+    assert!(
+        checked_storage_bytes(
+            u32::MAX as usize + 1,
+            &crate::runtime::gpu::GpuLimits::default()
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -992,7 +1006,7 @@ fn gpu_large_shape_index_range_is_rejected_without_allocating() {
         },
     )
     .unwrap();
-    assert!(validate_plan(&program, &plan, &wgpu::Limits::default()).is_err());
+    assert!(validate_plan(&program, &plan, &crate::runtime::gpu::GpuLimits::default()).is_err());
 }
 
 #[test]
@@ -1078,7 +1092,7 @@ fn gpu_hardware_nonfinite_output_is_an_error_and_session_remains_usable() {
 
 #[test]
 fn gpu_dispatch_grid_covers_tails_and_rejects_device_dimension_overflow() {
-    let limits = wgpu::Limits {
+    let limits = crate::runtime::gpu::GpuLimits {
         max_compute_workgroups_per_dimension: 2,
         ..Default::default()
     };
@@ -1807,7 +1821,7 @@ fn gpu_hardware_strict_auto_callbacks_and_concurrent_sessions() {
         .is_err()
     );
     assert_eq!(auto.execution_backend(), ExecutionBackend::Gpu);
-    context.fail("injected loss".into());
+    context.inject_failure_for_test(ErrorKind::DeviceLost);
     assert_eq!(
         strict.run(&input).unwrap_err().kind(),
         ErrorKind::DeviceLost
@@ -1818,7 +1832,7 @@ fn gpu_hardware_strict_auto_callbacks_and_concurrent_sessions() {
         auto.fallback_error()
             .unwrap()
             .to_string()
-            .contains("injected loss")
+            .contains("injected resident failure")
     );
     assert!(
         compiler.cached_packed_weight_bytes() > 0,
@@ -1912,8 +1926,10 @@ fn gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back()
     tensor.run(&values(70, 1)).unwrap();
 }
 
+#[cfg(target_os = "macos")]
 #[path = "conv_mpp_tests.rs"]
 mod conv_mpp_tests;
 
+#[cfg(target_os = "macos")]
 #[path = "conv_mpp_staged_tests.rs"]
 mod conv_mpp_staged_tests;

@@ -972,9 +972,7 @@ impl Recognizer {
         )?;
         if PROFILE {
             let statistics = &self.gpu.as_ref().unwrap().statistics;
-            profile.gpu_submission_ns += statistics.submission_ns;
-            profile.gpu_completion_wait_ns += statistics.completion_wait_ns;
-            profile.gpu_readback_ns += statistics.readback_ns;
+            profile.record_gpu(statistics);
             profile.projection_ns += statistics.projection_encoding_ns;
             profile.recognized_lines += images.len();
         }
@@ -1151,18 +1149,28 @@ impl Recognizer {
         &self.plan.compiled
     }
     pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
+        let mut primary = self.session.counter_snapshot();
+        if let Some(diagnostic) = &self.diagnostic {
+            primary.add_diagnostics(diagnostic.counter_snapshot());
+        }
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
-            return gpu.counter_snapshot();
+            let mut counters = gpu.counter_snapshot();
+            counters.add_diagnostics(primary);
+            return counters;
         }
-        self.session.counter_snapshot()
+        primary
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
-            return gpu.execution_statistics();
+            return gpu
+                .execution_statistics()
+                .with_diagnostics(self.counter_snapshot());
         }
-        self.session.statistics()
+        self.session
+            .statistics()
+            .with_diagnostics(self.counter_snapshot())
     }
     pub fn execution_limits(&self) -> ExecutionLimits {
         self.plan.limits

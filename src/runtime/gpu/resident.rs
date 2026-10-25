@@ -1,7 +1,7 @@
 //! Device-resident composition. A batch owns every allocation it records until completion.
 use super::*;
 use crate::image::{ImageView, PixelFormat};
-mod schedule;
+pub(super) mod schedule;
 use schedule::{Operation, Schedule};
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -127,7 +127,7 @@ impl GpuContext {
             ));
         }
         self.checked("resident tensor upload", || {
-            self.queue.write_buffer(buffer, 0, bytes);
+            self.upload(buffer, 0, bytes)?;
             Ok(())
         })
     }
@@ -147,7 +147,7 @@ impl Image {
             batch.context.create_buffer_init(
                 "source pixels",
                 &aligned,
-                wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                BufferUsage::STORAGE | BufferUsage::COPY_SRC,
             )
         })?;
         batch.statistics.uploaded_bytes += bytes as u64;
@@ -178,9 +178,7 @@ pub(crate) fn storage(context: &GpuContext, label: &str, bytes: usize) -> Runtim
         context.create_buffer(
             label,
             bytes as u64,
-            wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::COPY_SRC,
+            BufferUsage::STORAGE | BufferUsage::COPY_DST | BufferUsage::COPY_SRC,
         )
     })
 }
@@ -191,74 +189,22 @@ pub(super) struct Kernel {
     read_only: Box<[bool]>,
 }
 
-/// Embedded native compute shader using contiguous buffer bindings: storage
-/// operands first, followed by the same 1 KiB uniform packet as WGSL dispatches.
-#[derive(Clone, Copy)]
-pub(crate) struct NativeShader<'a> {
-    pub source: &'a str,
-    pub entry_point: &'a str,
-    pub workgroup_size: [u32; 3],
-}
-
-#[derive(Clone, Copy)]
-enum KernelSource<'a> {
-    Wgsl(&'a str),
-    Native(NativeShader<'a>),
-}
-
 impl Kernel {
+    #[cfg(all(test, target_os = "macos"))]
+    pub(super) fn test_pipeline(
+        context: &GpuContext,
+        pipeline: Arc<executor::NativePipeline>,
+        buffers: &[(&GpuBuffer, bool)],
+    ) -> Self {
+        Self {
+            ledger: context.ledger.clone(),
+            pipeline,
+            read_only: buffers.iter().map(|b| b.1).collect(),
+        }
+    }
     pub(super) fn get(
         context: &GpuContext,
-        name: &str,
-        source: &str,
-        read_only: &[bool],
-    ) -> RuntimeResult<Arc<Self>> {
-        use std::hash::{Hash, Hasher};
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
-        source.hash(&mut hash);
-        Self::get_source(
-            context,
-            &format!("wgsl/{name}/{:016x}", hash.finish()),
-            name,
-            KernelSource::Wgsl(source),
-            read_only,
-        )
-    }
-
-    fn get_native(
-        context: &GpuContext,
-        name: &str,
-        shader: NativeShader<'_>,
-        read_only: &[bool],
-    ) -> RuntimeResult<Arc<Self>> {
-        let [x, y, z] = shader.workgroup_size;
-        if shader.workgroup_size.contains(&0)
-            || x > context.limits.max_compute_workgroup_size_x
-            || y > context.limits.max_compute_workgroup_size_y
-            || z > context.limits.max_compute_workgroup_size_z
-            || x.checked_mul(y)
-                .and_then(|n| n.checked_mul(z))
-                .is_none_or(|n| n > context.limits.max_compute_invocations_per_workgroup)
-        {
-            return Err(resource("native resident workgroup exceeds GPU limits"));
-        }
-        // Source identity keeps native/WGSL variants and development reloads
-        // separate even when callers use the same descriptive dispatch name.
-        use std::hash::{Hash, Hasher};
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
-        shader.source.hash(&mut hash);
-        shader.entry_point.hash(&mut hash);
-        shader.workgroup_size.hash(&mut hash);
-        read_only.hash(&mut hash);
-        let key = format!("native/{name}/{:016x}", hash.finish());
-        Self::get_source(context, &key, name, KernelSource::Native(shader), read_only)
-    }
-
-    fn get_source(
-        context: &GpuContext,
-        key: &str,
-        _name: &str,
-        source: KernelSource<'_>,
+        key: KernelKey,
         read_only: &[bool],
     ) -> RuntimeResult<Arc<Self>> {
         context.check_alive()?;
@@ -266,48 +212,30 @@ impl Kernel {
             .resident_pipelines
             .lock()
             .map_err(|_| RuntimeError::new("resident pipeline cache poisoned"))?;
-        if let Some(kernel) = cache.get(key) {
+        if let Some(kernel) = cache.get(&key) {
             if kernel.read_only.as_ref() != read_only {
                 return Err(RuntimeError::with_kind(
                     ErrorKind::InvalidInput,
-                    "resident kernel bindings differ from the cached layout",
+                    "cached kernel binding layout differs",
                 ));
             }
             return Ok(kernel.clone());
         }
-        if read_only.len() >= 30 {
-            return Err(RuntimeError::with_kind(
-                ErrorKind::InvalidInput,
-                "resident shader storage binding count exceeds its ABI",
-            ));
-        }
-        let pipeline = match source {
-            KernelSource::Wgsl(source) => {
-                validate_wgsl_layout(source, read_only)?;
-                executor::compile_wgsl(context, source, "main", [0; 3])?
-            }
-            KernelSource::Native(shader) => executor::compile_resident_msl(
-                context,
-                shader.source,
-                shader.entry_point,
-                shader.workgroup_size,
-                read_only.len() + 1,
-            )?,
-        };
+        let pipeline = backend::compile_resident(context, key, read_only)?;
         let kernel = Arc::new(Self {
             ledger: context.ledger.clone(),
             pipeline,
             read_only: read_only.into(),
         });
-        cache.insert(key.into(), kernel.clone());
+        cache.insert(key, kernel.clone());
         Ok(kernel)
     }
-
     fn validate_native_bindings(
         &self,
         context: &GpuContext,
         buffers: &[(&GpuBuffer, bool)],
         params: &GpuBuffer,
+        offset: u64,
     ) -> RuntimeResult<()> {
         context.check_alive()?;
         if buffers.len() != self.read_only.len()
@@ -325,7 +253,7 @@ impl Kernel {
             // Reservations are private and created only with their context's
             // actual device, so ledger identity also proves device identity.
             if !Arc::ptr_eq(&buffer.reservation.ledger, &context.ledger)
-                || !buffer.usage().contains(wgpu::BufferUsages::STORAGE)
+                || !buffer.usage().contains(BufferUsage::STORAGE)
             {
                 return Err(RuntimeError::with_kind(
                     ErrorKind::InvalidInput,
@@ -357,9 +285,12 @@ impl Kernel {
             }
         }
         if !Arc::ptr_eq(&params.reservation.ledger, &context.ledger)
-            || !params.usage().contains(wgpu::BufferUsages::UNIFORM)
-            || params.size() != 1024
-            || params.size() > context.limits.max_uniform_buffer_binding_size
+            || !params.usage().contains(BufferUsage::UNIFORM)
+            || offset
+                .checked_add(1024)
+                .is_none_or(|end| end > params.size())
+            || !offset.is_multiple_of(context.limits.min_uniform_buffer_offset_alignment as u64)
+            || context.limits.max_uniform_buffer_binding_size < 1024
         {
             return Err(RuntimeError::with_kind(
                 ErrorKind::InvalidInput,
@@ -373,44 +304,12 @@ impl Kernel {
         Ok(())
     }
 }
-
-fn validate_wgsl_layout(source: &str, read_only: &[bool]) -> RuntimeResult<()> {
-    let module = naga::front::wgsl::parse_str(source).map_err(|error| {
-        RuntimeError::with_kind(ErrorKind::GpuValidation, error.emit_to_string(source))
-    })?;
-    for (_, global) in module.global_variables.iter() {
-        let Some(binding) = global.binding else {
-            continue;
-        };
-        let valid = binding.group == 0
-            && match global.space {
-                naga::AddressSpace::Storage { access } => read_only
-                    .get(binding.binding as usize)
-                    .is_some_and(|&read| read == !access.contains(naga::StorageAccess::STORE)),
-                naga::AddressSpace::Uniform => binding.binding as usize == read_only.len(),
-                _ => false,
-            };
-        if !valid {
-            return Err(RuntimeError::with_kind(
-                ErrorKind::InvalidInput,
-                "resident WGSL buffer declarations differ from the declared storage/uniform ABI",
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Compile once before admitting a native resident operation. Unsupported
-/// compiler/shader capabilities retain the generic native GPU kernel; device loss,
-/// allocation failures and poisoned state remain visible to the caller.
-pub(crate) fn probe_native(
+pub(super) fn probe_native(
     context: &GpuContext,
-    name: &str,
-    shader: NativeShader<'_>,
+    key: KernelKey,
     read_only: &[bool],
 ) -> RuntimeResult<bool> {
-    context.check_alive()?;
-    match Kernel::get_native(context, name, shader, read_only) {
+    match Kernel::get(context, key, read_only) {
         Ok(_) => Ok(true),
         Err(error)
             if matches!(
@@ -428,10 +327,10 @@ pub(crate) fn probe_native(
 pub(crate) struct Batch {
     graphs: Vec<Arc<AtomicUsize>>,
     pub context: Arc<GpuContext>,
-    encoder: Option<wgpu::CommandEncoder>,
     schedule: Schedule,
     graph_parameters: std::collections::HashSet<usize>,
     held: Vec<GpuBuffer>,
+    parameters: Option<(GpuBuffer, u64)>,
     pub statistics: GpuPipelineStatistics,
     pub profiling: bool,
     profile: GpuExecutionProfile,
@@ -443,28 +342,17 @@ pub(crate) struct PendingRead<'a> {
     batch: Batch,
     readback: GpuBuffer,
     bytes: usize,
-    submission: Option<wgpu::SubmissionIndex>,
-    mapping_requested: bool,
-    receive: mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+    submission: Option<backend::Submission>,
     _gate: &'a Gate<'a>,
 }
 impl PendingRead<'_> {
     fn wait(&mut self) -> RuntimeResult<()> {
-        let Some(submission) = self.submission.take() else {
-            return Ok(());
-        };
         let timer = self.batch.profiling.then(std::time::Instant::now);
-        let result = self.batch.context.device.poll(wgpu::PollType::Wait {
-            submission_index: Some(submission),
-            timeout: Some(std::time::Duration::from_secs(60)),
-        });
+        if let Some(submission) = &mut self.submission {
+            submission.wait()?;
+        }
         if let Some(timer) = timer {
             self.batch.statistics.completion_wait_ns += timer.elapsed().as_nanos() as u64;
-        }
-        if let Err(error) = result {
-            let message = format!("GPU completion wait failed: {error}");
-            self.batch.context.fail(message.clone());
-            return Err(RuntimeError::with_kind(ErrorKind::DeviceLost, message));
         }
         self.batch.context.check_alive()
     }
@@ -476,37 +364,21 @@ impl PendingRead<'_> {
         consume: impl FnOnce(&[u8]) -> RuntimeResult<T>,
     ) -> RuntimeResult<(T, GpuPipelineStatistics)> {
         self.wait()?;
-        self.receive
-            .try_recv()
-            .map_err(|e| {
-                RuntimeError::caused_by(
-                    ErrorKind::GpuMapping,
-                    "resident mapping callback unavailable",
-                    e,
-                )
-            })?
-            .map_err(|e| {
-                RuntimeError::caused_by(ErrorKind::GpuMapping, "resident output mapping failed", e)
-            })?;
         let timer = self.batch.profiling.then(std::time::Instant::now);
-        let result = {
-            let view = self
-                .readback
-                .slice(..self.bytes as u64)
-                .get_mapped_range()
-                .map_err(|e| {
-                    RuntimeError::caused_by(
-                        ErrorKind::GpuMapping,
-                        "resident mapped output access failed",
-                        e,
-                    )
-                })?;
-            consume(&view)?
-        };
+        let result = self.readback.buffer.read(self.bytes, consume)?;
         if let Some(timer) = timer {
             self.batch.statistics.readback_ns += timer.elapsed().as_nanos() as u64;
         }
         if self.batch.profiling {
+            if let Some(submission) = &self.submission {
+                for (index, ns) in submission.timestamps()? {
+                    if let Some(kernel) = self.batch.profile.kernels.get_mut(index) {
+                        kernel.device_ns = Some(ns);
+                        kernel.granularity = GpuTimingGranularity::Dispatch;
+                    }
+                    self.batch.statistics.profiling_readback_bytes += 16;
+                }
+            }
             self.batch.statistics.profile = Some(std::mem::take(&mut self.batch.profile));
         }
         self.batch.statistics.peak_device_bytes = self.batch.context.memory_statistics().peak_bytes;
@@ -515,23 +387,12 @@ impl PendingRead<'_> {
 }
 impl Drop for PendingRead<'_> {
     fn drop(&mut self) {
-        // Normal early returns drain their submission. Native resources also
-        // have a queue-completion owner, so a poll timeout cannot release
-        // resources still referenced by an unretained Metal command buffer.
         let _ = self.wait();
-        if self.mapping_requested {
-            self.readback.unmap();
-        }
     }
 }
 impl Batch {
     pub fn new(context: Arc<GpuContext>) -> RuntimeResult<Self> {
         context.check_alive()?;
-        let encoder = context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("resident OCR"),
-            });
         let statistics = GpuPipelineStatistics {
             adapter: context.info.name.clone(),
             backend: format!("{:?}", context.info.backend),
@@ -542,10 +403,10 @@ impl Batch {
         Ok(Self {
             context,
             graphs: Vec::new(),
-            encoder: Some(encoder),
             schedule: Schedule::default(),
             graph_parameters: std::collections::HashSet::new(),
             held: Vec::new(),
+            parameters: None,
             statistics,
             profiling: false,
             profile: GpuExecutionProfile::default(),
@@ -566,10 +427,10 @@ impl Batch {
         self.statistics.scratch_allocated_bytes += buffer.bytes() as u64;
         Ok(buffer)
     }
-    pub fn dispatch(
+    pub(super) fn dispatch(
         &mut self,
         name: &str,
-        source: &str,
+        key: KernelKey,
         buffers: &[(&GpuBuffer, bool)],
         words: &[u32],
         groups: [u32; 3],
@@ -580,8 +441,7 @@ impl Batch {
         }
         let kernel = Kernel::get(
             &self.context,
-            name,
-            source,
+            key,
             &buffers.iter().map(|b| b.1).collect::<Vec<_>>(),
         )?;
         self.dispatch_kernel(name, &kernel, buffers, words, groups, timer)
@@ -622,30 +482,6 @@ impl Batch {
         self.dispatch_kernel(name, kernel, buffers, words, groups, timer)
     }
 
-    /// Record native Metal work over the existing resident buffers. This shares
-    /// parameter packets, binding ownership, hazards, profiling and submission
-    /// with `dispatch`; it introduces no activation copy or intermediate tensor.
-    pub fn dispatch_native(
-        &mut self,
-        name: &str,
-        shader: NativeShader<'_>,
-        buffers: &[(&GpuBuffer, bool)],
-        words: &[u32],
-        groups: [u32; 3],
-    ) -> RuntimeResult<()> {
-        let timer = self.profiling.then(std::time::Instant::now);
-        if !self.validate_dispatch(words, groups)? {
-            return Ok(());
-        }
-        let kernel = Kernel::get_native(
-            &self.context,
-            name,
-            shader,
-            &buffers.iter().map(|b| b.1).collect::<Vec<_>>(),
-        )?;
-        self.dispatch_kernel(name, &kernel, buffers, words, groups, timer)
-    }
-
     fn validate_dispatch(&self, words: &[u32], groups: [u32; 3]) -> RuntimeResult<bool> {
         if groups.contains(&0) {
             return Ok(false);
@@ -673,12 +509,38 @@ impl Batch {
         let mut packet = [0u32; 256];
         packet[..words.len()].copy_from_slice(words);
         packet[255] = u32::MAX;
-        let params = self.context.create_buffer_init(
-            "resident parameters",
-            bytemuck::cast_slice(&packet),
-            wgpu::BufferUsages::UNIFORM,
-        )?;
-        kernel.validate_native_bindings(&self.context, buffers, &params)?;
+        let stride = 1024u64
+            .div_ceil(self.context.limits.min_uniform_buffer_offset_alignment as u64)
+            * self.context.limits.min_uniform_buffer_offset_alignment as u64;
+        if self
+            .parameters
+            .as_ref()
+            .is_none_or(|(buffer, offset)| buffer.size() - offset < 1024)
+        {
+            let packets =
+                if cfg!(target_os = "macos") || self.context.options.max_device_bytes.is_some() {
+                    1
+                } else {
+                    16
+                };
+            self.parameters = Some((
+                self.context.create_buffer(
+                    "resident parameter arena",
+                    stride * packets,
+                    BufferUsage::UNIFORM,
+                )?,
+                0,
+            ));
+        }
+        let (params, offset) = self.parameters.as_mut().unwrap();
+        let parameter_offset = *offset;
+        self.context
+            .upload(params, parameter_offset, bytemuck::cast_slice(&packet))?;
+        let params = params.clone();
+        *offset += stride;
+        kernel.validate_native_bindings(&self.context, buffers, &params, parameter_offset)?;
+        let mut offsets = vec![0; buffers.len() + 1];
+        offsets[buffers.len()] = parameter_offset;
         let native = executor::NativeDispatch::prepare(
             kernel.pipeline.clone(),
             buffers
@@ -686,7 +548,7 @@ impl Batch {
                 .map(|(buffer, _)| (*buffer).clone())
                 .chain(std::iter::once(params.clone()))
                 .collect(),
-            vec![0; buffers.len() + 1],
+            offsets,
             groups,
             &kernel.read_only,
         )?;
@@ -718,6 +580,8 @@ impl Batch {
         self.schedule.push_prepared(
             Operation::Compute {
                 native: native.clone(),
+                #[cfg(not(target_os = "macos"))]
+                profile_index: self.profile.kernels.len().saturating_sub(1),
             },
             native.hazards(),
         );
@@ -783,8 +647,7 @@ impl Batch {
                 ));
             }
             self.context
-                .queue
-                .write_buffer(&session.parameters, 0, &session.parameter_data);
+                .upload(&session.parameters, 0, &session.parameter_data)?;
             session.parameters_dirty = false;
         }
         self.graph_parameters
@@ -805,6 +668,8 @@ impl Batch {
                     self.schedule.push_prepared(
                         Operation::Compute {
                             native: native.clone(),
+                            #[cfg(not(target_os = "macos"))]
+                            profile_index: self.profile.kernels.len(),
                         },
                         native.hazards(),
                     );
@@ -922,7 +787,7 @@ impl Batch {
         let readback = self.context.create_buffer(
             "resident compact readback",
             bytes as u64,
-            wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            BufferUsage::COPY_DST | BufferUsage::MAP_READ,
         )?;
         self.submit_with_readback(source, readback, bytes, control, gate)
     }
@@ -960,50 +825,23 @@ impl Batch {
             || bytes as u64 > readback.size()
             || !readback
                 .usage()
-                .contains(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ)
+                .contains(BufferUsage::COPY_DST | BufferUsage::MAP_READ)
         {
             return Err(resource("invalid resident readback size or usage"));
         }
         self.copy(source, 0, &readback, 0, bytes as u64);
-        let encoding = self.profiling.then(std::time::Instant::now);
-        let mut commands = self.schedule.encode(
+        let operations = self.schedule.take();
+        let submission = backend::submit(
             &self.context,
-            self.encoder.as_mut().unwrap(),
-            self.graphs.len() == 1,
+            operations,
+            self.profiling,
+            self.graphs.len() <= 1,
         )?;
-        if let Some(timer) = encoding {
-            self.statistics.encoding_ns += timer.elapsed().as_nanos() as u64;
-        }
-        let context = self.context.clone();
-        let encoder = self.encoder.take().unwrap();
-        let timer = self.profiling.then(std::time::Instant::now);
-        let (send, receive) = mpsc::sync_channel(1);
-        // Preserve the submission before checking error scopes. If validation
-        // fails, install the owner before propagating the error so Drop drains it.
-        let mut submission = None;
-        let mut mapping_requested = false;
-        let submitted = context.checked("resident submission", || {
-            for graph in &self.graphs {
-                graph.fetch_add(1, Ordering::Relaxed);
-            }
-            commands.push(encoder.finish());
-            submission = Some(context.queue.submit(commands));
-            let native = self.schedule.take_native_resources();
-            let held = std::mem::take(&mut self.held);
-            context.queue.on_submitted_work_done(move || {
-                drop(native);
-                drop(held);
-            });
-            readback
-                .slice(..bytes as u64)
-                .map_async(wgpu::MapMode::Read, move |result| {
-                    let _ = send.send(result);
-                });
-            mapping_requested = true;
-            Ok(())
-        });
-        if let Some(timer) = timer {
-            self.statistics.submission_ns = timer.elapsed().as_nanos() as u64;
+        let (encoding_ns, submission_ns) = submission.host_timings();
+        self.statistics.encoding_ns += encoding_ns;
+        self.statistics.submission_ns += submission_ns;
+        for graph in &self.graphs {
+            graph.fetch_add(1, Ordering::Relaxed);
         }
         self.statistics.submissions += 1;
         if control {
@@ -1011,17 +849,13 @@ impl Batch {
         } else {
             self.statistics.output_readback_bytes += bytes as u64;
         }
-        let pending = PendingRead {
+        Ok(PendingRead {
             batch: self,
             readback,
             bytes,
-            submission,
-            mapping_requested,
-            receive,
+            submission: Some(submission),
             _gate: gate,
-        };
-        submitted?;
-        Ok(pending)
+        })
     }
 }
 
@@ -1046,23 +880,6 @@ impl GpuSession {
         self.resident_tensor(self.compiled.program.input)
     }
 }
-
-/// Runtime shader reload is restricted to explicit physical-device development tests.
-pub(crate) fn shader(name: &str, embedded: &'static str) -> std::borrow::Cow<'static, str> {
-    #[cfg(test)]
-    if std::env::var("SIMD_OCR_GPU_SHADER_RELOAD").as_deref() == Ok("1") {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("src/runtime/gpu")
-            .join(name);
-        return std::fs::read_to_string(path)
-            .expect("developer shader source")
-            .into();
-    }
-    let _ = name;
-    embedded.into()
-}
-
-pub(crate) const PARAMETERS: &str = "struct Params { words: array<vec4<u32>,64> };\n";
 
 pub(super) struct Normalization {
     buffers: [GpuBuffer; 2],
@@ -1095,7 +912,7 @@ impl Normalization {
                 context.create_buffer_init(
                     "normalization constants",
                     bytemuck::cast_slice(&values),
-                    wgpu::BufferUsages::STORAGE,
+                    BufferUsage::STORAGE,
                 )
             })
         };
@@ -1143,26 +960,6 @@ pub(crate) fn preprocess_at(
         ));
     }
     let precision = output.descriptor.precision;
-    let output_type = if precision == GpuPrecision::MixedF16 {
-        "f16"
-    } else {
-        "f32"
-    };
-    let store = if precision == GpuPrecision::MixedF16 {
-        "f16(round_to_half(value))"
-    } else {
-        "value"
-    };
-    let source_code = format!(
-        "{}{PARAMETERS}{}\nfn normalize_store(value:f32)->{output_type} {{ return {store}; }}\n{}",
-        if precision == GpuPrecision::MixedF16 {
-            "enable f16;\n"
-        } else {
-            ""
-        },
-        include_str!("round_f16.wgsl"),
-        shader("image.wgsl", include_str!("image.wgsl")).replace("$OUT", output_type)
-    );
     let constants = Normalization::shared(&batch.context)?;
     let lut = &constants.buffers[usize::from(detector)];
     let words = [
@@ -1187,7 +984,7 @@ pub(crate) fn preprocess_at(
     let (x, y) = dispatch_grid(shape[2] * shape[3], &batch.context.limits)?;
     batch.dispatch(
         &format!("image_normalize_{precision:?}"),
-        &source_code,
+        KernelKey::storage(KernelId::Image, precision),
         &[(&image.buffer, true), (lut, true), (&output.buffer, false)],
         &words,
         [x, y, 1],
@@ -1203,35 +1000,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_resident_wgsl_layout_validates_declared_access_and_uniform_slots() {
-        let source = "@group(0) @binding(0) var<storage,read> a:array<u32>; @group(0) @binding(1) var<storage,read_write> b:array<u32>; @group(0) @binding(2) var<uniform> p:vec4<u32>; @compute @workgroup_size(1) fn main(){b[0]=a[0]+p.x;}";
-        validate_wgsl_layout(source, &[true, false]).unwrap();
-        for invalid in [
-            source.to_owned(),
-            source.replace("@binding(2)", "@binding(3)"),
-            source.replace("@group(0)", "@group(1)"),
-        ] {
-            let read_only = if invalid == source {
-                &[false, false][..]
-            } else {
-                &[true, false][..]
-            };
-            assert_eq!(
-                validate_wgsl_layout(&invalid, read_only)
-                    .unwrap_err()
-                    .kind(),
-                ErrorKind::InvalidInput
-            );
-        }
-        assert_eq!(
-            validate_wgsl_layout("invalid source", &[false])
-                .unwrap_err()
-                .kind(),
-            ErrorKind::GpuValidation
-        );
-    }
-
-    #[test]
     #[ignore = "requires physical Metal; reused readback, once-only consumers and foreign context validation"]
     fn gpu_resident_native_read_into_reuses_storage_and_recovers_after_consumer_error() {
         let context = GpuContext::new().unwrap();
@@ -1241,12 +1009,12 @@ mod tests {
             .create_buffer(
                 "reused host readback",
                 64,
-                wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                BufferUsage::COPY_DST | BufferUsage::MAP_READ,
             )
             .unwrap();
         let identity = readback.reservation.clone();
         let used = context.memory_statistics().used_bytes;
-        let source = "@group(0) @binding(0) var<storage,read_write> value:array<u32>; @compute @workgroup_size(1) fn main(){value[0]+=1u;}";
+        let source = KernelKey::new(KernelId::CounterProbe);
         let gate = context.acquire_gate().unwrap();
         for value in [23u32, 41] {
             context
@@ -1271,8 +1039,14 @@ mod tests {
             assert_eq!(actual, value + 1);
             assert_eq!(statistics.native_resident_dispatches, 1);
             assert_eq!(statistics.output_readback_bytes, 4);
-            assert_eq!(statistics.profiling_readback_bytes, 0);
-            assert!(statistics.profile.unwrap().compute_ns().is_none());
+            assert_eq!(
+                statistics.profiling_readback_bytes,
+                if cfg!(target_os = "macos") { 0 } else { 16 }
+            );
+            assert_eq!(
+                statistics.profile.unwrap().compute_ns().is_some(),
+                !cfg!(target_os = "macos")
+            );
             assert!(Arc::ptr_eq(&identity, &readback.reservation));
             assert_eq!(context.memory_statistics().used_bytes, used);
         }
@@ -1303,7 +1077,7 @@ mod tests {
                 .unwrap_err()
                 .kind(),
             ErrorKind::InvalidInput,
-            "uploads must not trust colliding wgpu device IDs",
+            "uploads must not trust colliding device resource IDs",
         );
         let mut batch = Batch::new(context.clone()).unwrap();
         assert_eq!(
@@ -1332,7 +1106,7 @@ mod tests {
             .create_buffer(
                 "foreign readback",
                 4,
-                wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                BufferUsage::COPY_DST | BufferUsage::MAP_READ,
             )
             .unwrap();
         assert_eq!(
@@ -1347,26 +1121,30 @@ mod tests {
     #[test]
     #[ignore = "requires a physical GPU"]
     fn gpu_resident_pending_readbacks_hold_admission_and_reservations() {
+        let transfer_bytes = if cfg!(target_os = "macos") { 0 } else { 2048 };
         let context = GpuContext::new_with_options(GpuContextOptions {
             max_in_flight: 1,
-            max_device_bytes: Some(4096),
+            max_device_bytes: Some(4096 + transfer_bytes),
             ..Default::default()
         })
         .unwrap();
         let gate = context.acquire_gate().unwrap();
         let source = storage(&context, "pending source", 1024).unwrap();
-        context.queue.write_buffer(&source, 0, &[7; 1024]);
+        context.upload(&source, 0, &[7; 1024]).unwrap();
         let first = Batch::new(context.clone())
             .unwrap()
             .submit(&source, 1024, false, &gate)
             .unwrap();
-        context.queue.write_buffer(&source, 0, &[8; 1024]);
+        context.upload(&source, 0, &[8; 1024]).unwrap();
         let second = Batch::new(context.clone())
             .unwrap()
             .submit(&source, 1024, false, &gate)
             .unwrap();
         drop(source);
-        assert_eq!(context.memory_statistics().used_bytes, 3072);
+        assert_eq!(
+            context.memory_statistics().used_bytes,
+            3072 + transfer_bytes
+        );
         assert_eq!(
             storage(&context, "over quota while pending", 2048)
                 .err()
@@ -1388,7 +1166,7 @@ mod tests {
         let early_error = (|| -> RuntimeResult<()> {
             let source = storage(&context, "abandoned source", 1024)?;
             let _pending = Batch::new(context.clone())?.submit(&source, 1024, false, &gate)?;
-            storage(&context, "intentional quota error", 4096)?;
+            storage(&context, "intentional quota error", 4096 + transfer_bytes)?;
             Ok(())
         })();
         assert_eq!(early_error.unwrap_err().kind(), ErrorKind::ResourceLimit);
@@ -1407,7 +1185,7 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        let source = "@group(0) @binding(0) var<storage,read_write> value:array<u32>; @compute @workgroup_size(1) fn main(){value[0]+=1u;}";
+        let source = KernelKey::new(KernelId::CounterProbe);
         for profiling in [true, false] {
             let mut batch = Batch::new(context.clone()).unwrap();
             batch.profiling = profiling;
@@ -1432,10 +1210,26 @@ mod tests {
             if profiling {
                 let profile = statistics.profile.unwrap();
                 assert_eq!(profile.kernels.len(), 260);
-                assert!(profile.kernels.iter().all(|entry| entry.device_ns.is_none()
-                    && entry.granularity == GpuTimingGranularity::Unavailable));
-                assert_eq!(statistics.profiling_readback_bytes, 0);
-                assert!(profile.compute_ns().is_none());
+                assert!(
+                    profile
+                        .kernels
+                        .iter()
+                        .all(|entry| if cfg!(target_os = "macos") {
+                            entry.device_ns.is_none()
+                        } else {
+                            entry.device_ns.is_some()
+                                && entry.granularity == GpuTimingGranularity::Dispatch
+                        })
+                );
+                assert_eq!(
+                    statistics.profiling_readback_bytes,
+                    if cfg!(target_os = "macos") {
+                        0
+                    } else {
+                        260 * 16
+                    }
+                );
+                assert_eq!(profile.compute_ns().is_some(), !cfg!(target_os = "macos"));
             } else {
                 assert!(statistics.profile.is_none());
                 assert_eq!(statistics.profiling_readback_bytes, 0);

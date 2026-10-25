@@ -21,7 +21,7 @@ fn attention_simd_requires_the_explicit_fast_closed_packed_recipe() {
                         kind,
                         [precision; 6],
                         &recipe.words,
-                        &wgpu::Limits::default(),
+                        &crate::runtime::gpu::GpuLimits::default(),
                     ),
                     _ => false,
                 })

@@ -1,0 +1,426 @@
+#version 450 core
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_3_block_0Compute { uint _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) buffer type_3_block_1Compute { uint _group_0_binding_1_cs[]; };
+
+layout(std140, set = 0, binding = 2) uniform Params_block_2Compute { Params _group_0_binding_2_cs; };
+
+uint p(uint i_2) {
+    uint _e9 = _group_0_binding_2_cs.words[(i_2 / 4u)][(i_2 % 4u)];
+    return _e9;
+}
+
+void swap(uint a, uint b) {
+    uint k_1 = 0u;
+    bool loop_init = true;
+    while(true) {
+        if (!loop_init) {
+            uint _e42 = k_1;
+            k_1 = (_e42 + 1u);
+        }
+        loop_init = false;
+        uint _e4 = k_1;
+        if ((_e4 < 16u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e12 = k_1;
+            uint v = _group_0_binding_1_cs[(((a + 1u) * 16u) + _e12)];
+            uint _e21 = k_1;
+            uint _e29 = k_1;
+            uint _e32 = _group_0_binding_1_cs[(((b + 1u) * 16u) + _e29)];
+            _group_0_binding_1_cs[(((a + 1u) * 16u) + _e21)] = _e32;
+            uint _e38 = k_1;
+            _group_0_binding_1_cs[(((b + 1u) * 16u) + _e38)] = v;
+        }
+    }
+    return;
+}
+
+vec2 point(uint i_3) {
+    uint _e7 = _group_0_binding_1_cs[((i_3 + 1u) * 16u)];
+    uint _e17 = _group_0_binding_1_cs[(((i_3 + 1u) * 16u) + 1u)];
+    return vec2(uintBitsToFloat(_e7), uintBitsToFloat(_e17));
+}
+
+bool less(vec2 a_1, vec2 b_1) {
+    bool local_1 = false;
+    bool local_2 = false;
+    if (!((a_1.y < b_1.y))) {
+        if ((a_1.y == b_1.y)) {
+            local_2 = (a_1.x < b_1.x);
+        } else {
+            local_2 = false;
+        }
+        bool _e17 = local_2;
+        local_1 = _e17;
+    } else {
+        local_1 = true;
+    }
+    bool _e19 = local_1;
+    return _e19;
+}
+
+void swap_greater(uint a_2, uint b_2) {
+    vec2 _e2 = point(b_2);
+    vec2 _e3 = point(a_2);
+    bool _e4 = less(_e2, _e3);
+    if (_e4) {
+        swap(a_2, b_2);
+        return;
+    } else {
+        return;
+    }
+}
+
+void down_heap(uint base, uint start, uint n) {
+    uint i_4 = 0u;
+    uint child = 0u;
+    bool local_3 = false;
+    i_4 = start;
+    while(true) {
+        uint _e4 = i_4;
+        if ((_e4 > (n / 2u))) {
+            break;
+        }
+        uint _e9 = i_4;
+        child = (2u * _e9);
+        uint _e12 = child;
+        if ((_e12 < n)) {
+            uint _e16 = child;
+            vec2 _e20 = point(((base + _e16) - 1u));
+            uint _e21 = child;
+            vec2 _e23 = point((base + _e21));
+            bool _e24 = less(_e20, _e23);
+            local_3 = _e24;
+        } else {
+            local_3 = false;
+        }
+        bool _e26 = local_3;
+        if (_e26) {
+            uint _e28 = child;
+            child = (_e28 + 1u);
+        }
+        uint _e30 = i_4;
+        vec2 _e34 = point(((base + _e30) - 1u));
+        uint _e35 = child;
+        vec2 _e39 = point(((base + _e35) - 1u));
+        bool _e40 = less(_e34, _e39);
+        if (!(_e40)) {
+            break;
+        }
+        uint _e42 = i_4;
+        uint _e46 = child;
+        swap(((base + _e42) - 1u), ((base + _e46) - 1u));
+        uint _e50 = child;
+        i_4 = _e50;
+    }
+    return;
+}
+
+void canonical_sort(uint count_1) {
+    uvec3 stack[64] = uvec3[64](uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u), uvec3(0u));
+    uint top = 1u;
+    uint i_5 = 0u;
+    uint j_1 = 0u;
+    bool local_4 = false;
+    uint i_6 = 0u;
+    uint i_7 = 0u;
+    uint left = 0u;
+    uint right = 0u;
+    if ((count_1 < 2u)) {
+        return;
+    }
+    stack[0] = uvec3(0u, count_1, (2u * (32u - uint(31 - findMSB(count_1)))));
+    while(true) {
+        uint _e14 = top;
+        if ((_e14 == 0u)) {
+            break;
+        }
+        uint _e18 = top;
+        top = (_e18 - 1u);
+        uint _e20 = top;
+        uvec3 entry = stack[_e20];
+        uint base_1 = entry.x;
+        uint n_1 = entry.y;
+        uint depth = entry.z;
+        if ((n_1 < 2u)) {
+            continue;
+        }
+        if ((n_1 <= 16u)) {
+            if ((n_1 == 2u)) {
+                swap_greater(base_1, (base_1 + 1u));
+            } else {
+                if ((n_1 == 3u)) {
+                    swap_greater(base_1, (base_1 + 1u));
+                    swap_greater(base_1, (base_1 + 2u));
+                    swap_greater((base_1 + 1u), (base_1 + 2u));
+                } else {
+                    i_5 = 1u;
+                    bool loop_init_1 = true;
+                    while(true) {
+                        if (!loop_init_1) {
+                            uint _e76 = i_5;
+                            i_5 = (_e76 + 1u);
+                        }
+                        loop_init_1 = false;
+                        uint _e46 = i_5;
+                        if ((_e46 < n_1)) {
+                        } else {
+                            break;
+                        }
+                        {
+                            uint _e48 = i_5;
+                            j_1 = _e48;
+                            while(true) {
+                                uint _e50 = j_1;
+                                if ((_e50 > 0u)) {
+                                    uint _e55 = j_1;
+                                    vec2 _e57 = point((base_1 + _e55));
+                                    uint _e58 = j_1;
+                                    vec2 _e62 = point(((base_1 + _e58) - 1u));
+                                    bool _e63 = less(_e57, _e62);
+                                    local_4 = _e63;
+                                } else {
+                                    local_4 = false;
+                                }
+                                bool _e65 = local_4;
+                                if (_e65) {
+                                } else {
+                                    break;
+                                }
+                                {
+                                    uint _e66 = j_1;
+                                    uint _e68 = j_1;
+                                    swap((base_1 + _e66), ((base_1 + _e68) - 1u));
+                                    uint _e73 = j_1;
+                                    j_1 = (_e73 - 1u);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        if ((depth == 0u)) {
+            i_6 = (n_1 / 2u);
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e88 = i_6;
+                    i_6 = (_e88 - 1u);
+                }
+                loop_init_2 = false;
+                uint _e83 = i_6;
+                if ((_e83 > 0u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e86 = i_6;
+                    down_heap(base_1, _e86, n_1);
+                }
+            }
+            i_7 = n_1;
+            bool loop_init_3 = true;
+            while(true) {
+                if (!loop_init_3) {
+                    uint _e103 = i_7;
+                    i_7 = (_e103 - 1u);
+                }
+                loop_init_3 = false;
+                uint _e91 = i_7;
+                if ((_e91 > 1u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e94 = i_7;
+                    swap(base_1, ((base_1 + _e94) - 1u));
+                    uint _e99 = i_7;
+                    down_heap(base_1, 1u, (_e99 - 1u));
+                }
+            }
+            continue;
+        }
+        uint hi = (n_1 - 1u);
+        uint middle = (hi >> 1u);
+        swap_greater(base_1, (base_1 + middle));
+        swap_greater(base_1, (base_1 + hi));
+        swap_greater((base_1 + middle), (base_1 + hi));
+        vec2 _e114 = point((base_1 + middle));
+        swap((base_1 + middle), ((base_1 + hi) - 1u));
+        left = 0u;
+        right = (hi - 1u);
+        while(true) {
+            uint _e125 = left;
+            left = (_e125 + 1u);
+            while(true) {
+                uint _e127 = left;
+                vec2 _e129 = point((base_1 + _e127));
+                bool _e130 = less(_e129, _e114);
+                if (_e130) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e132 = left;
+                    left = (_e132 + 1u);
+                }
+            }
+            uint _e135 = right;
+            right = (_e135 - 1u);
+            while(true) {
+                uint _e137 = right;
+                vec2 _e139 = point((base_1 + _e137));
+                bool _e140 = less(_e114, _e139);
+                if (_e140) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e142 = right;
+                    right = (_e142 - 1u);
+                }
+            }
+            uint _e144 = left;
+            uint _e145 = right;
+            if ((_e144 >= _e145)) {
+                break;
+            }
+            uint _e147 = left;
+            uint _e149 = right;
+            swap((base_1 + _e147), (base_1 + _e149));
+        }
+        uint _e151 = left;
+        if ((_e151 != (hi - 1u))) {
+            uint _e155 = left;
+            swap((base_1 + _e155), ((base_1 + hi) - 1u));
+        }
+        uint _e160 = top;
+        uint _e162 = left;
+        stack[_e160] = uvec3(base_1, _e162, (depth - 1u));
+        uint _e167 = top;
+        top = (_e167 + 1u);
+        uint _e169 = top;
+        uint _e171 = left;
+        uint _e175 = left;
+        stack[_e169] = uvec3(((base_1 + _e171) + 1u), ((n_1 - _e175) - 1u), (depth - 1u));
+        uint _e183 = top;
+        top = (_e183 + 1u);
+    }
+    return;
+}
+
+void main() {
+    uint count = 0u;
+    uint i = 0u;
+    uint k = 0u;
+    uint i_1 = 1u;
+    uint j = 0u;
+    bool local = false;
+    bool loop_init_4 = true;
+    while(true) {
+        if (!loop_init_4) {
+            uint _e47 = i;
+            i = (_e47 + 1u);
+        }
+        loop_init_4 = false;
+        uint _e4 = i;
+        uint _e6 = p(0u);
+        if ((_e4 < _e6)) {
+        } else {
+            break;
+        }
+        {
+            uint _e9 = i;
+            uint _e15 = _group_0_binding_0_cs[((_e9 * 16u) + 9u)];
+            if ((_e15 == 0u)) {
+                continue;
+            }
+            k = 0u;
+            bool loop_init_5 = true;
+            while(true) {
+                if (!loop_init_5) {
+                    uint _e41 = k;
+                    k = (_e41 + 1u);
+                }
+                loop_init_5 = false;
+                uint _e20 = k;
+                if ((_e20 < 16u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e24 = count;
+                    uint _e29 = k;
+                    uint _e33 = i;
+                    uint _e36 = k;
+                    uint _e39 = _group_0_binding_0_cs[((_e33 * 16u) + _e36)];
+                    _group_0_binding_1_cs[(((_e24 + 1u) * 16u) + _e29)] = _e39;
+                }
+            }
+            uint _e44 = count;
+            count = (_e44 + 1u);
+        }
+    }
+    uint _e49 = count;
+    canonical_sort(_e49);
+    bool loop_init_6 = true;
+    while(true) {
+        if (!loop_init_6) {
+            uint _e88 = i_1;
+            i_1 = (_e88 + 1u);
+        }
+        loop_init_6 = false;
+        uint _e52 = i_1;
+        uint _e53 = count;
+        if ((_e52 < _e53)) {
+        } else {
+            break;
+        }
+        {
+            uint _e55 = i_1;
+            j = _e55;
+            while(true) {
+                uint _e57 = j;
+                if ((_e57 > 0u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e60 = j;
+                    vec2 _e63 = point((_e60 - 1u));
+                    uint _e64 = j;
+                    vec2 _e65 = point(_e64);
+                    if (!((abs((_e65.y - _e63.y)) >= 10.0))) {
+                        local = (_e65.x >= _e63.x);
+                    } else {
+                        local = true;
+                    }
+                    bool _e79 = local;
+                    if (_e79) {
+                        break;
+                    }
+                    uint _e80 = j;
+                    uint _e81 = j;
+                    swap(_e80, (_e81 - 1u));
+                    uint _e85 = j;
+                    j = (_e85 - 1u);
+                }
+            }
+        }
+    }
+    uint _e92 = count;
+    _group_0_binding_1_cs[0] = _e92;
+    return;
+}
+

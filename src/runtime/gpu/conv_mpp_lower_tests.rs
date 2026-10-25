@@ -39,7 +39,8 @@ fn fixture() -> (
         .iter()
         .map(|&shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::F32))
         .collect();
-    let recipes = operators::recipes(&program, &plan, &wgpu::Limits::default()).unwrap();
+    let recipes =
+        operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default()).unwrap();
     (program, plan, descriptors, recipes)
 }
 
@@ -53,7 +54,7 @@ fn mpp_convolution_lowering_reuses_one_half_operand_pack_for_siblings() {
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |_| Ok(true),
     )
@@ -114,7 +115,7 @@ fn mpp_convolution_lowering_strict_matrix_policy_preserves_f32_and_half_storage(
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F32,
             &mut |_| Ok(true),
         )
@@ -137,7 +138,7 @@ fn mpp_convolution_lowering_strict_matrix_policy_preserves_f32_and_half_storage(
 fn mpp_convolution_lowering_checks_pack_binding_limit_before_publishing_temp() {
     let (program, mut plan, mut descriptors, recipes) = fixture();
     let original_count = plan.shapes.len();
-    let limits = wgpu::Limits {
+    let limits = crate::runtime::gpu::GpuLimits {
         max_storage_buffer_binding_size: 64,
         max_buffer_size: 64,
         ..Default::default()
@@ -223,7 +224,7 @@ fn mpp_convolution_rejected_admission_preserves_original_recipe_and_tensor_metad
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |candidate| {
             assert!(matches!(
@@ -258,7 +259,7 @@ fn mpp_convolution_admission_error_propagates_before_temporary_publication() {
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |_| {
             calls += 1;
@@ -344,11 +345,12 @@ fn pointwise_fixture() -> (
         .iter()
         .map(|&shape| GpuTensorDescriptor::canonical(shape, GpuPrecision::F32))
         .collect();
-    let mut recipes: Vec<_> = operators::recipes(&program, &plan, &wgpu::Limits::default())
-        .unwrap()
-        .into_iter()
-        .filter(|recipe| matches!(recipe.kind, RecipeKind::Compute(ShaderKind::Convolution)))
-        .collect();
+    let mut recipes: Vec<_> =
+        operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default())
+            .unwrap()
+            .into_iter()
+            .filter(|recipe| matches!(recipe.kind, RecipeKind::Compute(ShaderKind::Convolution)))
+            .collect();
     assert_eq!(recipes.len(), 3);
     // Represent the physical prescale fold, which removes the two Mul kernels
     // and binds their channel scales at either available residual operand slot.
@@ -380,7 +382,7 @@ fn matrix_f16_spatial_policy_packs_half_inputs_without_enabling_f32_spatial() {
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |candidate| {
             assert_eq!(candidate.words[36], 32);
@@ -438,7 +440,7 @@ fn matrix_f16_pointwise_folds_both_prescale_slots_and_reuses_identical_packs() {
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |candidate| {
             assert!(matches!(
@@ -518,7 +520,7 @@ fn matrix_pointwise_f32_and_noncanonical_source_retain_original_schedule() {
             &mut plan,
             recipes,
             &mut descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             matrix_precision,
             &mut |_| {
                 calls += 1;
@@ -552,7 +554,7 @@ fn matrix_f16_rejected_pointwise_admission_preserves_prescale_and_grid_metadata(
         &mut plan,
         recipes,
         &mut descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuMatrixPrecision::F16,
         &mut |candidate| {
             assert!(matches!(

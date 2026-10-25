@@ -2,6 +2,7 @@
 use super::super::tests::{bind_program, integer, integers, model, node, tensor};
 use super::*;
 use crate::runtime::CompileOptions;
+use backend::test_support::MetalTestBatch;
 use resident::Batch;
 
 const STORAGE: [GpuPrecision; 6] = [GpuPrecision::MixedF16; 6];
@@ -281,14 +282,20 @@ fn half_depthwise_bias_physical_prefix_escape_and_f32_matrix_remain_generic() {
                 &program,
                 &mut plan,
                 program.output,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuPrecision::MixedF16,
                 &mut descriptors,
                 matrix,
                 &mut |_| Ok(false),
             )
             .unwrap();
-            select(&mut recipes, &descriptors, &wgpu::Limits::default(), matrix).unwrap();
+            select(
+                &mut recipes,
+                &descriptors,
+                &crate::runtime::gpu::GpuLimits::default(),
+                matrix,
+            )
+            .unwrap();
             let dw = recipes.iter().find(|r| r.nodes.contains(&0)).unwrap();
             let admitted = matches!(usage, Usage::Bias) && matrix == GpuMatrixPrecision::F16;
             let RecipeKind::Compute(kind) = dw.kind else {
@@ -324,7 +331,7 @@ fn half_depthwise_bias_physical_prefix_escape_and_f32_matrix_remain_generic() {
             &program,
             &mut prefix,
             conv,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,
@@ -334,7 +341,7 @@ fn half_depthwise_bias_physical_prefix_escape_and_f32_matrix_remain_generic() {
         select(
             &mut recipes,
             &descriptors,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16,
         )
         .unwrap();
@@ -502,9 +509,9 @@ fn gpu_hardware_half_depthwise_bias_raw_offsets_and_scalar_windows() {
             .upload_resident(&output, &GpuPrecision::MixedF16.encode(&initial))
             .unwrap();
         batch
-            .dispatch_native(
+            .dispatch_msl(
                 "half_dw3_bias_contract",
-                resident::NativeShader {
+                backend::test_support::MetalTestShader {
                     source: &source,
                     entry_point: "depthwise_native",
                     workgroup_size: [64, 1, 1],

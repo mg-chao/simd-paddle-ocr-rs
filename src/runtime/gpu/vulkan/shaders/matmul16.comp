@@ -1,0 +1,438 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+const uint TILE = 16u;
+const bool CONV = false;
+
+shared float left[256];
+
+shared float right[256];
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        left = float[256](0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        right = float[256](0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    }
+    memoryBarrierShared();
+    barrier();
+    uvec3 group = gl_WorkGroupID;
+    uint lane = gl_LocalInvocationIndex;
+    uint rows = 0u;
+    uint inner = 0u;
+    uint columns = 0u;
+    uint ai = 0u;
+    uint bi = 0u;
+    uint remaining = 0u;
+    uint axis = 0u;
+    float sum0_ = 0.0;
+    bool local = false;
+    bool local_1 = false;
+    float sum1_ = 0.0;
+    bool local_2 = false;
+    bool local_3 = false;
+    float sum2_ = 0.0;
+    bool local_4 = false;
+    bool local_5 = false;
+    float sum3_ = 0.0;
+    bool local_6 = false;
+    bool local_7 = false;
+    uint base = 0u;
+    uint t = 0u;
+    float value = 0.0;
+    bool local_8 = false;
+    bool local_9 = false;
+    bool local_10 = false;
+    bool local_11 = false;
+    bool local_12 = false;
+    uint k = 0u;
+    bool local_13 = false;
+    bool local_14 = false;
+    bool local_15 = false;
+    bool local_16 = false;
+    uint _e5 = p(34u);
+    uint block = (group.x + (group.y * _e5));
+    uint _e9 = p(32u);
+    uint _e11 = p(33u);
+    uint batch = (block / (_e9 * _e11));
+    uint _e15 = p(35u);
+    if ((batch >= _e15)) {
+        return;
+    }
+    uint _e18 = p(33u);
+    uint _e21 = p(32u);
+    uint mr = (((block / _e18) % _e21) * TILE);
+    uint _e26 = p(33u);
+    uint nc = ((block % _e26) * TILE);
+    uint _e31 = p(3u);
+    rows = _e31;
+    uint _e34 = p(4u);
+    inner = _e34;
+    uint _e37 = p(5u);
+    columns = _e37;
+    if (CONV) {
+        uint _e45 = p(4u);
+        rows = _e45;
+        uint _e47 = p(9u);
+        uint _e49 = p(11u);
+        uint _e52 = p(12u);
+        inner = ((_e47 * _e49) * _e52);
+        uint _e55 = p(7u);
+        uint _e57 = p(8u);
+        columns = (_e55 * _e57);
+    } else {
+        remaining = batch;
+        uint _e61 = p(6u);
+        axis = _e61;
+        while(true) {
+            uint _e63 = axis;
+            if ((_e63 == 0u)) {
+                break;
+            }
+            uint _e67 = axis;
+            axis = (_e67 - 1u);
+            uint _e69 = remaining;
+            uint _e71 = axis;
+            uint _e73 = p((8u + _e71));
+            uint coordinate = (_e69 % _e73);
+            uint _e75 = remaining;
+            uint _e77 = axis;
+            uint _e79 = p((8u + _e77));
+            remaining = (_e75 / _e79);
+            uint _e81 = ai;
+            uint _e83 = axis;
+            uint _e85 = p((16u + _e83));
+            ai = (_e81 + (coordinate * _e85));
+            uint _e88 = bi;
+            uint _e90 = axis;
+            uint _e92 = p((24u + _e90));
+            bi = (_e88 + (coordinate * _e92));
+        }
+    }
+    uint local_row = (lane / TILE);
+    uint local_column = (lane % TILE);
+    if (CONV) {
+        uint _e105 = p(19u);
+        local = (_e105 != 0u);
+    } else {
+        local = false;
+    }
+    bool _e109 = local;
+    if (_e109) {
+        uint _e115 = rows;
+        local_1 = (((mr + local_row) + 0u) < _e115);
+    } else {
+        local_1 = false;
+    }
+    bool _e118 = local_1;
+    if (_e118) {
+        float _e122 = load_c(((mr + local_row) + 0u));
+        sum0_ = _e122;
+    }
+    if (CONV) {
+        uint _e129 = p(19u);
+        local_2 = (_e129 != 0u);
+    } else {
+        local_2 = false;
+    }
+    bool _e133 = local_2;
+    if (_e133) {
+        uint _e139 = rows;
+        local_3 = (((mr + local_row) + 4u) < _e139);
+    } else {
+        local_3 = false;
+    }
+    bool _e142 = local_3;
+    if (_e142) {
+        float _e146 = load_c(((mr + local_row) + 4u));
+        sum1_ = _e146;
+    }
+    if (CONV) {
+        uint _e153 = p(19u);
+        local_4 = (_e153 != 0u);
+    } else {
+        local_4 = false;
+    }
+    bool _e157 = local_4;
+    if (_e157) {
+        uint _e163 = rows;
+        local_5 = (((mr + local_row) + 8u) < _e163);
+    } else {
+        local_5 = false;
+    }
+    bool _e166 = local_5;
+    if (_e166) {
+        float _e170 = load_c(((mr + local_row) + 8u));
+        sum2_ = _e170;
+    }
+    if (CONV) {
+        uint _e177 = p(19u);
+        local_6 = (_e177 != 0u);
+    } else {
+        local_6 = false;
+    }
+    bool _e181 = local_6;
+    if (_e181) {
+        uint _e187 = rows;
+        local_7 = (((mr + local_row) + 12u) < _e187);
+    } else {
+        local_7 = false;
+    }
+    bool _e190 = local_7;
+    if (_e190) {
+        float _e194 = load_c(((mr + local_row) + 12u));
+        sum3_ = _e194;
+    }
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e413 = base;
+            base = (_e413 + 16u);
+        }
+        loop_init_1 = false;
+        uint _e197 = base;
+        uint _e198 = inner;
+        if ((_e197 < _e198)) {
+        } else {
+            break;
+        }
+        {
+            t = lane;
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e343 = t;
+                    t = (_e343 + 64u);
+                }
+                loop_init_2 = false;
+                uint _e201 = t;
+                if ((_e201 < 256u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e204 = t;
+                    uint row = (mr + (_e204 / 16u));
+                    uint _e208 = base;
+                    uint _e209 = t;
+                    uint k_1 = (_e208 + (_e209 % 16u));
+                    value = 0.0;
+                    uint _e215 = rows;
+                    if ((row < _e215)) {
+                        uint _e219 = inner;
+                        local_8 = (k_1 < _e219);
+                    } else {
+                        local_8 = false;
+                    }
+                    bool _e222 = local_8;
+                    if (_e222) {
+                        if (CONV) {
+                            uint _e224 = inner;
+                            float _e227 = load_b(((row * _e224) + k_1));
+                            value = _e227;
+                        } else {
+                            uint _e228 = ai;
+                            uint _e229 = inner;
+                            float _e233 = load_a(((_e228 + (row * _e229)) + k_1));
+                            value = _e233;
+                        }
+                    }
+                    uint _e235 = t;
+                    float _e237 = value;
+                    left[_e235] = _e237;
+                    uint _e238 = t;
+                    uint col = (nc + (_e238 % TILE));
+                    uint _e242 = base;
+                    uint _e243 = t;
+                    uint rk = (_e242 + (_e243 / TILE));
+                    value = 0.0;
+                    uint _e248 = columns;
+                    if ((col < _e248)) {
+                        uint _e252 = inner;
+                        local_9 = (rk < _e252);
+                    } else {
+                        local_9 = false;
+                    }
+                    bool _e255 = local_9;
+                    if (_e255) {
+                        if (CONV) {
+                            uint _e258 = p(11u);
+                            uint _e260 = p(12u);
+                            uint kernel = (_e258 * _e260);
+                            uint ci = (rk / kernel);
+                            uint _e264 = p(8u);
+                            uint _e267 = p(13u);
+                            uint _e271 = p(12u);
+                            uint _e276 = p(17u);
+                            int iy = (int((((col / _e264) * _e267) + ((rk % kernel) / _e271))) - int(_e276));
+                            uint _e280 = p(8u);
+                            uint _e283 = p(14u);
+                            uint _e286 = p(12u);
+                            uint _e291 = p(18u);
+                            int ix = (int((((col % _e280) * _e283) + (rk % _e286))) - int(_e291));
+                            if ((iy >= 0)) {
+                                local_10 = (ix >= 0);
+                            } else {
+                                local_10 = false;
+                            }
+                            bool _e301 = local_10;
+                            if (_e301) {
+                                uint _e305 = p(5u);
+                                local_11 = (iy < int(_e305));
+                            } else {
+                                local_11 = false;
+                            }
+                            bool _e309 = local_11;
+                            if (_e309) {
+                                uint _e313 = p(6u);
+                                local_12 = (ix < int(_e313));
+                            } else {
+                                local_12 = false;
+                            }
+                            bool _e317 = local_12;
+                            if (_e317) {
+                                uint _e319 = p(3u);
+                                uint _e323 = p(5u);
+                                uint _e328 = p(6u);
+                                float _e332 = load_a(((((((batch * _e319) + ci) * _e323) + uint(iy)) * _e328) + uint(ix)));
+                                value = _e332;
+                            }
+                        } else {
+                            uint _e333 = bi;
+                            uint _e334 = columns;
+                            float _e338 = load_b(((_e333 + (rk * _e334)) + col));
+                            value = _e338;
+                        }
+                    }
+                    uint _e340 = t;
+                    float _e342 = value;
+                    right[_e340] = _e342;
+                }
+            }
+            memoryBarrierShared();
+            barrier();
+            k = 0u;
+            bool loop_init_3 = true;
+            while(true) {
+                if (!loop_init_3) {
+                    uint _e411 = k;
+                    k = (_e411 + 1u);
+                }
+                loop_init_3 = false;
+                uint _e348 = k;
+                uint _e350 = inner;
+                uint _e351 = base;
+                if ((_e348 < min(16u, (_e350 - _e351)))) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e356 = k;
+                    float right_value = right[((_e356 * TILE) + local_column)];
+                    float _e362 = sum0_;
+                    uint _e368 = k;
+                    float _e371 = left[(((local_row + 0u) * 16u) + _e368)];
+                    sum0_ = (_e362 + (_e371 * right_value));
+                    float _e374 = sum1_;
+                    uint _e380 = k;
+                    float _e383 = left[(((local_row + 4u) * 16u) + _e380)];
+                    sum1_ = (_e374 + (_e383 * right_value));
+                    float _e386 = sum2_;
+                    uint _e392 = k;
+                    float _e395 = left[(((local_row + 8u) * 16u) + _e392)];
+                    sum2_ = (_e386 + (_e395 * right_value));
+                    float _e398 = sum3_;
+                    uint _e404 = k;
+                    float _e407 = left[(((local_row + 12u) * 16u) + _e404)];
+                    sum3_ = (_e398 + (_e407 * right_value));
+                }
+            }
+            memoryBarrierShared();
+            barrier();
+        }
+    }
+    {
+        uint row_1 = ((mr + local_row) + 0u);
+        uint col_1 = (nc + local_column);
+        uint _e420 = rows;
+        if ((row_1 < _e420)) {
+            uint _e424 = columns;
+            local_13 = (col_1 < _e424);
+        } else {
+            local_13 = false;
+        }
+        bool _e427 = local_13;
+        if (_e427) {
+            uint _e428 = rows;
+            uint _e431 = columns;
+            uint index_1 = ((((batch * _e428) + row_1) * _e431) + col_1);
+            float _e434 = sum0_;
+            float _e435 = epilogue(_e434, index_1);
+            store_output(index_1, _e435);
+        }
+    }
+    {
+        uint row_2 = ((mr + local_row) + 4u);
+        uint col_2 = (nc + local_column);
+        uint _e440 = rows;
+        if ((row_2 < _e440)) {
+            uint _e444 = columns;
+            local_14 = (col_2 < _e444);
+        } else {
+            local_14 = false;
+        }
+        bool _e447 = local_14;
+        if (_e447) {
+            uint _e448 = rows;
+            uint _e451 = columns;
+            uint index_2 = ((((batch * _e448) + row_2) * _e451) + col_2);
+            float _e454 = sum1_;
+            float _e455 = epilogue(_e454, index_2);
+            store_output(index_2, _e455);
+        }
+    }
+    {
+        uint row_3 = ((mr + local_row) + 8u);
+        uint col_3 = (nc + local_column);
+        uint _e460 = rows;
+        if ((row_3 < _e460)) {
+            uint _e464 = columns;
+            local_15 = (col_3 < _e464);
+        } else {
+            local_15 = false;
+        }
+        bool _e467 = local_15;
+        if (_e467) {
+            uint _e468 = rows;
+            uint _e471 = columns;
+            uint index_3 = ((((batch * _e468) + row_3) * _e471) + col_3);
+            float _e474 = sum2_;
+            float _e475 = epilogue(_e474, index_3);
+            store_output(index_3, _e475);
+        }
+    }
+    {
+        uint row_4 = ((mr + local_row) + 12u);
+        uint col_4 = (nc + local_column);
+        uint _e480 = rows;
+        if ((row_4 < _e480)) {
+            uint _e484 = columns;
+            local_16 = (col_4 < _e484);
+        } else {
+            local_16 = false;
+        }
+        bool _e487 = local_16;
+        if (_e487) {
+            uint _e488 = rows;
+            uint _e491 = columns;
+            uint index_4 = ((((batch * _e488) + row_4) * _e491) + col_4);
+            float _e494 = sum3_;
+            float _e495 = epilogue(_e494, index_4);
+            store_output(index_4, _e495);
+            return;
+        } else {
+            return;
+        }
+    }
+}
+

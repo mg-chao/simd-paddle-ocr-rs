@@ -654,6 +654,7 @@ impl Session {
         if PROFILE && let SessionKind::Gpu(s) = &self.inner {
             let t = s.gpu_execution_timings();
             profile.gpu_admission_wait_ns += t.admission_wait_ns;
+            profile.gpu_encoding_ns += t.encoding_ns;
             profile.gpu_submission_ns += t.submission_ns;
             profile.gpu_completion_wait_ns += t.completion_wait_ns;
             profile.gpu_readback_ns += t.readback_ns;

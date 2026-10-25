@@ -167,7 +167,6 @@ pub(crate) struct StatisticsCounters {
     pub plan_cache_misses: u64,
 }
 impl StatisticsCounters {
-    #[cfg(feature = "gpu")]
     pub(crate) fn add_diagnostics(&mut self, other: Self) {
         self.diagnostic_readbacks += other.diagnostic_readbacks;
         self.diagnostic_readback_bytes += other.diagnostic_readback_bytes;
@@ -202,6 +201,14 @@ pub struct ExecutionCounters {
     pub diagnostic_readback_bytes: u64,
 }
 impl ExecutionStatistics {
+    /// Diagnostic sessions can coexist with a retained resident session.
+    /// Replace only their aggregate traffic, keeping production metadata intact.
+    pub(crate) fn with_diagnostics(mut self, counters: StatisticsCounters) -> Self {
+        self.diagnostic_readbacks = counters.diagnostic_readbacks;
+        self.diagnostic_readback_bytes = counters.diagnostic_readback_bytes;
+        self
+    }
+
     pub(crate) fn retained_bytes(&self) -> usize {
         self.effective_precision.capacity()
             + self.backend.capacity()

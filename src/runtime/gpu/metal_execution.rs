@@ -3,7 +3,7 @@
 //! Imported buffers retain one Metal resource across compute and transfer APIs. This module
 //! records every compute encoder; the bridge owns the command buffer,
 //! submission, completion, readbacks, and error scopes throughout.
-use super::buffers::NativeBuffer;
+use super::backend::buffers::NativeBuffer;
 use super::*;
 use objc2::{rc::Retained, runtime::ProtocolObject};
 use objc2_foundation::{NSError, NSString};
@@ -13,8 +13,6 @@ use objc2_metal::{
     MTLLanguageVersion, MTLLibrary, MTLSize,
 };
 use std::ptr::NonNull;
-
-pub(super) const SEPARATE_TRANSFER_ENCODERS: bool = true;
 
 const SIZES_BUFFER_SLOT: usize = 30;
 
@@ -131,6 +129,7 @@ impl NativeDispatch {
             n > pipeline
                 .owner
                 .owner_device
+                .raw
                 .limits()
                 .max_compute_workgroups_per_dimension
         }) {
@@ -138,9 +137,9 @@ impl NativeDispatch {
         }
         for (index, owner) in owners.iter().enumerate() {
             let usage = if index + 1 == owners.len() {
-                wgpu::BufferUsages::UNIFORM
+                BufferUsage::UNIFORM
             } else {
-                wgpu::BufferUsages::STORAGE
+                BufferUsage::STORAGE
             };
             if !owner.usage().contains(usage) {
                 return Err(RuntimeError::with_kind(
@@ -149,7 +148,10 @@ impl NativeDispatch {
                 ));
             }
         }
-        let buffers: Vec<_> = owners.iter().map(|buffer| buffer.native.clone()).collect();
+        let buffers: Vec<_> = owners
+            .iter()
+            .map(|buffer| buffer.buffer.native.clone())
+            .collect();
         let mut remaining = [0; SIZES_BUFFER_SLOT];
         for (index, (buffer, &offset)) in buffers.iter().zip(&offsets).enumerate() {
             // Query the actual Metal resource once. Its allocation length is
@@ -292,7 +294,7 @@ fn compile_inner(
         .try_fold(1u32, u32::checked_mul)
         .filter(|&n| n != 0)
         .ok_or_else(|| unsupported("native compute requires a nonzero workgroup size"))?;
-    let limits = context.device.limits();
+    let limits = context.backend.owner.raw.limits();
     if workgroup_size[0] > limits.max_compute_workgroup_size_x
         || workgroup_size[1] > limits.max_compute_workgroup_size_y
         || workgroup_size[2] > limits.max_compute_workgroup_size_z
@@ -303,7 +305,7 @@ fn compile_inner(
         ));
     }
     let owner = context.ledger.clone();
-    let device = native_device(&context.device)?;
+    let device = native_device(&context.backend.owner.raw)?;
     let options = MTLCompileOptions::new();
     options.setLanguageVersion(MTLLanguageVersion::Version4_0);
     // Match wgpu Metal compilation so scheduling preserves shader arithmetic.

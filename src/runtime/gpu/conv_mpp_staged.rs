@@ -3,6 +3,7 @@
 use super::*;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
+#[cfg(target_os = "macos")]
 pub(super) const ENTRY: &str = "conv_mpp2_staged";
 pub(super) const WORKGROUP: [u32; 3] = [128, 1, 1];
 const MAX_CHANNELS: u32 = 64;
@@ -41,6 +42,8 @@ impl Specialization {
         })
     }
 
+    #[cfg(target_os = "macos")]
+
     pub(super) fn for_shader(kind: ShaderKind, words: &[u32; 128]) -> Option<Self> {
         Self::from_words(words).filter(|specialization| specialization.shader() == kind)
     }
@@ -51,6 +54,8 @@ impl Specialization {
             Family::K3S2 => ShaderKind::ConvMpp3s2Staged,
         }
     }
+
+    #[cfg(target_os = "macos")]
 
     pub(super) fn entry(self) -> &'static str {
         match self.family {
@@ -68,7 +73,7 @@ impl Specialization {
         (self.channels * patch * 2).div_ceil(16) * 16
     }
 
-    fn fits(self, limits: &wgpu::Limits) -> bool {
+    fn fits(self, limits: &crate::runtime::gpu::GpuLimits) -> bool {
         limits.max_compute_invocations_per_workgroup >= WORKGROUP[0]
             && limits.max_compute_workgroup_size_x >= WORKGROUP[0]
             && self.shared_bytes() <= limits.max_compute_workgroup_storage_size
@@ -81,7 +86,7 @@ impl Specialization {
 pub(super) fn prepare_recipe(
     recipe: &mut Recipe,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> bool {
     let Some(specialization) = Specialization::from_words(&recipe.words) else {
         return false;
@@ -125,6 +130,8 @@ pub(super) fn prepare_recipe(
     true
 }
 
+#[cfg(target_os = "macos")]
+
 pub(super) fn source(
     specialization: Specialization,
     storage: [GpuPrecision; 6],
@@ -141,6 +148,8 @@ pub(super) fn source(
         .replace("device const float*", "device const half*")
         .replace("device float*", "device half*"))
 }
+
+#[cfg(target_os = "macos")]
 
 fn unsupported(message: &str) -> RuntimeError {
     RuntimeError::with_kind(ErrorKind::Unsupported, message)

@@ -287,18 +287,26 @@ impl Detector {
     }
     /// Statistics for the last bound production inference session.
     pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
+        let primary = self.session.counter_snapshot();
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
-            return gpu.session.counter_snapshot();
+            let mut counters = gpu.session.counter_snapshot();
+            counters.add_diagnostics(primary);
+            return counters;
         }
-        self.session.counter_snapshot()
+        primary
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
-            return gpu.session.statistics();
+            return gpu
+                .session
+                .statistics()
+                .with_diagnostics(self.counter_snapshot());
         }
-        self.session.statistics()
+        self.session
+            .statistics()
+            .with_diagnostics(self.counter_snapshot())
     }
 
     pub fn execution_limits(&self) -> ExecutionLimits {
@@ -464,6 +472,9 @@ impl Detector {
                     return self.detect_profiled::<PROFILE>(image, profile);
                 }
             };
+            if PROFILE {
+                profile.record_gpu(&result.statistics);
+            }
             self.db.boxes = result.boxes;
             self.gpu_statistics = result.statistics;
             return Ok(DetectionView {

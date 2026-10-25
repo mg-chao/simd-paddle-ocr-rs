@@ -2,13 +2,12 @@
 use super::*;
 
 pub(super) const NAME: &str = "projection_winners_logit_parallel";
-const SOURCE: &str = include_str!("head_reduce_parallel.wgsl");
 
 fn eligible(
     half_head: bool,
     probability: bool,
     [rows, tiles]: [usize; 2],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> bool {
     half_head
         && !probability
@@ -34,14 +33,16 @@ fn kernel_with(
     half_head: bool,
     probability: bool,
     dimensions: [usize; 2],
-    mut compile: impl FnMut(&GpuContext, &str, &str, &[bool]) -> RuntimeResult<Arc<Kernel>>,
+    mut compile: impl FnMut(&GpuContext, KernelKey, &[bool]) -> RuntimeResult<Arc<Kernel>>,
 ) -> RuntimeResult<Option<Arc<Kernel>>> {
     if !eligible(half_head, probability, dimensions, &context.limits) {
         return Ok(None);
     }
-    // Compile before recording. A missing native executable or an optional
-    // compiler rejection retains the original reducer, including in profiling.
-    match compile(context, NAME, SOURCE, &[true, false]) {
+    match compile(
+        context,
+        KernelKey::new(KernelId::HeadReduceParallel),
+        &[true, false],
+    ) {
         Ok(kernel) => Ok(Some(kernel)),
         Err(error)
             if matches!(

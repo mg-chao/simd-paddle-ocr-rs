@@ -1,0 +1,291 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_3_block_0Compute { uvec4 _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) readonly buffer type_4_block_1Compute { uint _group_0_binding_1_cs[]; };
+
+layout(std430, set = 0, binding = 2) buffer type_4_block_2Compute { uint _group_0_binding_2_cs[]; };
+
+layout(std140, set = 0, binding = 3) uniform Params_block_3Compute { Params _group_0_binding_3_cs; };
+
+shared uint scan[64];
+
+shared uint emitted;
+
+shared uint bytes;
+
+shared uint error;
+
+shared float sum;
+
+shared float correction;
+
+uint p(uint i_1) {
+    uint _e9 = _group_0_binding_3_cs.words[(i_1 / 4u)][(i_1 % 4u)];
+    return _e9;
+}
+
+float score_round(float x) {
+    uint _e3 = p(255u);
+    return uintBitsToFloat((floatBitsToUint(x) & _e3));
+}
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        scan = uint[64](0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u);
+        emitted = 0u;
+        bytes = 0u;
+        error = 0u;
+        sum = 0.0;
+        correction = 0.0;
+    }
+    memoryBarrierShared();
+    barrier();
+    uint lane = gl_LocalInvocationIndex;
+    uvec3 group = gl_WorkGroupID;
+    uint tile = 0u;
+    uvec4 item = uvec4(0u);
+    bool marked = false;
+    bool local = false;
+    uint previous = 0u;
+    bool local_1 = false;
+    bool local_2 = false;
+    uint delta = 0u;
+    uint value = 0u;
+    uint end = 0u;
+    bool local_3 = false;
+    uint i = 0u;
+    bool local_4 = false;
+    uint seq = group.x;
+    uint _e4 = p(1u);
+    uint base = ((seq * (_e4 + 1u)) * 6u);
+    if ((lane == 0u)) {
+        emitted = 0u;
+        bytes = 0u;
+        sum = 0.0;
+        correction = 0.0;
+        atomicExchange(error, 0u);
+    }
+    memoryBarrierShared();
+    barrier();
+    bool loop_init = true;
+    while(true) {
+        if (!loop_init) {
+            uint _e245 = tile;
+            tile = (_e245 + 64u);
+        }
+        loop_init = false;
+        uint _e24 = tile;
+        if ((_e24 < _e4)) {
+        } else {
+            break;
+        }
+        {
+            uint _e26 = tile;
+            uint step_ = (_e26 + lane);
+            item = uvec4(0u);
+            marked = false;
+            if ((step_ < _e4)) {
+                uvec4 _e38 = _group_0_binding_0_cs[((seq * _e4) + step_)];
+                item = _e38;
+                uint _e40 = item.x;
+                uint _e42 = p(2u);
+                if (!((_e40 >= _e42))) {
+                    uint _e48 = item.w;
+                    local = (_e48 != 0u);
+                } else {
+                    local = true;
+                }
+                bool _e52 = local;
+                if (_e52) {
+                    uint _e55 = atomicOr(error, 1u);
+                }
+                previous = 0u;
+                if ((step_ > 0u)) {
+                    uint _e67 = _group_0_binding_0_cs[(((seq * _e4) + step_) - 1u)].x;
+                    previous = _e67;
+                }
+                uint _e69 = item.x;
+                if ((_e69 != 0u)) {
+                    uint _e75 = item.x;
+                    uint _e76 = previous;
+                    local_1 = (_e75 != _e76);
+                } else {
+                    local_1 = false;
+                }
+                bool _e79 = local_1;
+                if (_e79) {
+                    uint _e83 = item.x;
+                    uint _e85 = p(2u);
+                    local_2 = (_e83 < _e85);
+                } else {
+                    local_2 = false;
+                }
+                bool _e88 = local_2;
+                marked = _e88;
+            }
+            bool _e91 = marked;
+            scan[lane] = uint(_e91);
+            memoryBarrierShared();
+            barrier();
+            delta = 1u;
+            bool loop_init_1 = true;
+            while(true) {
+                if (!loop_init_1) {
+                    uint _e112 = delta;
+                    delta = (_e112 * 2u);
+                }
+                loop_init_1 = false;
+                uint _e95 = delta;
+                if ((_e95 < 64u)) {
+                } else {
+                    break;
+                }
+                {
+                    value = 0u;
+                    uint _e100 = delta;
+                    if ((lane >= _e100)) {
+                        uint _e103 = delta;
+                        uint _e106 = scan[(lane - _e103)];
+                        value = _e106;
+                    }
+                    memoryBarrierShared();
+                    barrier();
+                    uint _e109 = scan[lane];
+                    uint _e110 = value;
+                    scan[lane] = (_e109 + _e110);
+                    memoryBarrierShared();
+                    barrier();
+                }
+            }
+            bool _e115 = marked;
+            if (_e115) {
+                uint _e117 = emitted;
+                uint _e120 = scan[lane];
+                uint record = (base + ((_e117 + _e120) * 6u));
+                end = (step_ + 1u);
+                while(true) {
+                    uint _e128 = end;
+                    if ((_e128 < _e4)) {
+                        uint _e134 = end;
+                        uint _e138 = _group_0_binding_0_cs[((seq * _e4) + _e134)].x;
+                        uint _e140 = item.x;
+                        local_3 = (_e138 == _e140);
+                    } else {
+                        local_3 = false;
+                    }
+                    bool _e143 = local_3;
+                    if (_e143) {
+                    } else {
+                        break;
+                    }
+                    {
+                        uint _e145 = end;
+                        end = (_e145 + 1u);
+                    }
+                }
+                uint _e150 = item.x;
+                _group_0_binding_2_cs[record] = _e150;
+                uint _e156 = item.y;
+                _group_0_binding_2_cs[(record + 1u)] = _e156;
+                _group_0_binding_2_cs[(record + 2u)] = step_;
+                uint _e165 = end;
+                _group_0_binding_2_cs[(record + 3u)] = _e165;
+                uint _e172 = item.x;
+                uint _e174 = _group_0_binding_1_cs[_e172];
+                _group_0_binding_2_cs[(record + 4u)] = _e174;
+                _group_0_binding_2_cs[(record + 5u)] = 0u;
+            }
+            memoryBarrierBuffer();
+            barrier();
+            memoryBarrierShared();
+            barrier();
+            if ((lane == 0u)) {
+                i = 0u;
+                bool loop_init_2 = true;
+                while(true) {
+                    if (!loop_init_2) {
+                        uint _e237 = i;
+                        i = (_e237 + 1u);
+                    }
+                    loop_init_2 = false;
+                    uint _e184 = i;
+                    uint _e187 = scan[63];
+                    if ((_e184 < _e187)) {
+                    } else {
+                        break;
+                    }
+                    {
+                        uint _e190 = emitted;
+                        uint _e191 = i;
+                        uint record_1 = (base + (((_e190 + _e191) + 1u) * 6u));
+                        uint add = _group_0_binding_2_cs[(record_1 + 4u)];
+                        uint _e204 = bytes;
+                        if ((_e204 > (4294967295u - add))) {
+                            uint _e210 = atomicOr(error, 2u);
+                        } else {
+                            uint _e212 = bytes;
+                            bytes = (_e212 + add);
+                        }
+                        uint _e218 = _group_0_binding_2_cs[(record_1 + 1u)];
+                        float _e221 = correction;
+                        float _e223 = score_round((uintBitsToFloat(_e218) - _e221));
+                        float _e225 = sum;
+                        float _e227 = score_round((_e225 + _e223));
+                        float _e230 = sum;
+                        float _e232 = score_round((_e227 - _e230));
+                        float _e234 = score_round((_e232 - _e223));
+                        correction = _e234;
+                        sum = _e227;
+                    }
+                }
+                uint _e240 = emitted;
+                uint _e243 = scan[63];
+                emitted = (_e240 + _e243);
+            }
+            memoryBarrierShared();
+            barrier();
+        }
+    }
+    if ((lane == 0u)) {
+        uint _e252 = emitted;
+        uint _e254 = p(5u);
+        uint _e257 = p(3u);
+        uint span_bytes = ((_e257 != 0u) ? (_e252 * _e254) : 0u);
+        uint _e262 = bytes;
+        uint _e264 = p(4u);
+        if (!((_e262 > _e264))) {
+            uint _e270 = p(4u);
+            uint _e272 = bytes;
+            uint _e274 = p(4u);
+            local_4 = (span_bytes > (_e270 - min(_e272, _e274)));
+        } else {
+            local_4 = true;
+        }
+        bool _e279 = local_4;
+        if (_e279) {
+            uint _e282 = atomicOr(error, 2u);
+        }
+        uint _e286 = emitted;
+        _group_0_binding_2_cs[base] = _e286;
+        uint _e292 = bytes;
+        _group_0_binding_2_cs[(base + 1u)] = _e292;
+        float _e298 = sum;
+        uint _e300 = emitted;
+        uint _e306 = emitted;
+        _group_0_binding_2_cs[(base + 2u)] = floatBitsToUint(((_e306 > 0u) ? (_e298 / float(max(_e300, 1u))) : 0.0));
+        uint _e317 = atomicOr(error, 0u);
+        _group_0_binding_2_cs[(base + 3u)] = _e317;
+        _group_0_binding_2_cs[(base + 4u)] = _e4;
+        _group_0_binding_2_cs[(base + 5u)] = 0u;
+        return;
+    } else {
+        return;
+    }
+}
+

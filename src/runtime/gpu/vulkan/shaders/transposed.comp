@@ -1,0 +1,181 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+shared vec4 weights[128];
+
+shared float pixels[128];
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        weights = vec4[128](vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
+        pixels = float[128](0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    }
+    memoryBarrierShared();
+    barrier();
+    uvec3 group = gl_WorkGroupID;
+    uint lane = gl_LocalInvocationIndex;
+    vec4 sum = vec4(0.0);
+    bool local = false;
+    uint base = 0u;
+    uint i = 0u;
+    bool local_1 = false;
+    bool local_2 = false;
+    uint k = 0u;
+    bool local_3 = false;
+    uint _e5 = p(35u);
+    uint block = (group.x + (group.y * _e5));
+    uint _e9 = p(34u);
+    if ((block >= _e9)) {
+        return;
+    }
+    uint _e12 = p(32u);
+    uint _e14 = p(33u);
+    uint batch = (block / (_e12 * _e14));
+    uint _e18 = p(33u);
+    uint _e21 = p(32u);
+    uint co = ((((block / _e18) % _e21) * 8u) + (lane / 8u));
+    uint _e29 = p(33u);
+    uint pixel = (((block % _e29) * 8u) + (lane % 8u));
+    uint _e37 = p(3u);
+    uint _e39 = p(4u);
+    uint _e41 = p(5u);
+    uint _e43 = p(6u);
+    uint plane = (_e41 * _e43);
+    if ((co < _e39)) {
+        uint _e52 = p(7u);
+        local = (_e52 != 0u);
+    } else {
+        local = false;
+    }
+    bool _e56 = local;
+    if (_e56) {
+        float _e57 = load_c(co);
+        sum = vec4(_e57);
+    }
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e177 = base;
+            base = (_e177 + 16u);
+        }
+        loop_init_1 = false;
+        uint _e61 = base;
+        if ((_e61 < _e37)) {
+        } else {
+            break;
+        }
+        {
+            i = lane;
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e145 = i;
+                    i = (_e145 + 64u);
+                }
+                loop_init_2 = false;
+                uint _e64 = i;
+                if ((_e64 < 128u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e68 = p(33u);
+                    uint _e71 = p(32u);
+                    uint _e75 = i;
+                    uint row = ((((block / _e68) % _e71) * 8u) + (_e75 / 16u));
+                    uint _e79 = base;
+                    uint _e80 = i;
+                    uint ci = (_e79 + (_e80 % 16u));
+                    uint _e85 = i;
+                    weights[_e85] = vec4(0.0);
+                    if ((row < _e39)) {
+                        local_1 = (ci < _e37);
+                    } else {
+                        local_1 = false;
+                    }
+                    bool _e94 = local_1;
+                    if (_e94) {
+                        uint index_1 = (((ci * _e39) + row) * 4u);
+                        uint _e100 = i;
+                        float _e102 = load_b(index_1);
+                        float _e105 = load_b((index_1 + 1u));
+                        float _e108 = load_b((index_1 + 2u));
+                        float _e111 = load_b((index_1 + 3u));
+                        weights[_e100] = vec4(_e102, _e105, _e108, _e111);
+                    }
+                    uint _e114 = p(33u);
+                    uint _e118 = i;
+                    uint source = (((block % _e114) * 8u) + (_e118 % 8u));
+                    uint _e122 = base;
+                    uint _e123 = i;
+                    uint channel = (_e122 + (_e123 / 8u));
+                    uint _e128 = i;
+                    pixels[_e128] = 0.0;
+                    if ((source < plane)) {
+                        local_2 = (channel < _e37);
+                    } else {
+                        local_2 = false;
+                    }
+                    bool _e136 = local_2;
+                    if (_e136) {
+                        uint _e138 = i;
+                        float _e144 = load_a(((((batch * _e37) + channel) * plane) + source));
+                        pixels[_e138] = _e144;
+                    }
+                }
+            }
+            memoryBarrierShared();
+            barrier();
+            k = 0u;
+            bool loop_init_3 = true;
+            while(true) {
+                if (!loop_init_3) {
+                    uint _e175 = k;
+                    k = (_e175 + 1u);
+                }
+                loop_init_3 = false;
+                uint _e150 = k;
+                if ((_e150 < 16u)) {
+                } else {
+                    break;
+                }
+                {
+                    vec4 _e153 = sum;
+                    uint _e159 = k;
+                    vec4 _e162 = weights[(((lane / 8u) * 16u) + _e159)];
+                    uint _e164 = k;
+                    float _e171 = pixels[((_e164 * 8u) + (lane % 8u))];
+                    sum = (_e153 + (_e162 * _e171));
+                }
+            }
+            memoryBarrierShared();
+            barrier();
+        }
+    }
+    if ((co < _e39)) {
+        local_3 = (pixel < plane);
+    } else {
+        local_3 = false;
+    }
+    bool _e185 = local_3;
+    if (_e185) {
+        uint index_2 = ((((((batch * _e39) + co) * plane) * 4u) + (((pixel / _e43) * _e43) * 4u)) + ((pixel % _e43) * 2u));
+        float _e201 = sum.x;
+        float _e202 = epilogue(_e201, index_2);
+        store_output(index_2, _e202);
+        float _e206 = sum.y;
+        float _e209 = epilogue(_e206, (index_2 + 1u));
+        store_output((index_2 + 1u), _e209);
+        float _e214 = sum.z;
+        float _e218 = epilogue(_e214, (index_2 + (_e43 * 2u)));
+        store_output((index_2 + (_e43 * 2u)), _e218);
+        float _e225 = sum.w;
+        float _e231 = epilogue(_e225, ((index_2 + (_e43 * 2u)) + 1u));
+        store_output(((index_2 + (_e43 * 2u)) + 1u), _e231);
+        return;
+    } else {
+        return;
+    }
+}
+

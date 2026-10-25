@@ -1,0 +1,732 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    vec4 pooled = vec4(0.0);
+    uint component = 0u;
+    uint component_1 = 0u;
+    float value = 0.0;
+    uint component_2 = 0u;
+    float result = 0.0;
+    float gate = 0.0;
+    float value_1 = 0.0;
+    uint remaining = 0u;
+    uint ai = 0u;
+    uint bi = 0u;
+    uint axis = 0u;
+    float sum = 0.0;
+    uint ci = 0u;
+    float value_2 = 0.0;
+    float sum_1 = 0.0;
+    uint ky = 0u;
+    uint kx = 0u;
+    uint remaining_1 = 0u;
+    uint source = 0u;
+    uint axis_1 = 0u;
+    uint base = 0u;
+    uint input_stride = 1u;
+    uint axis_2 = 0u;
+    float sum_2 = 0.0;
+    uint r = 0u;
+    uint remaining_2 = 0u;
+    uint offset = 0u;
+    uint stride = 0u;
+    uint ax = 0u;
+    uint batch = 0u;
+    uint ai_1 = 0u;
+    uint bi_1 = 0u;
+    uint axis_3 = 0u;
+    float sum_3 = 0.0;
+    uint k = 0u;
+    float maximum = 0.0;
+    uint col = 1u;
+    float sum_4 = 0.0;
+    uint col_1 = 0u;
+    uint col_2 = 0u;
+    uint _e4 = p(1u);
+    uint index_1 = (id.x + (id.y * _e4));
+    uint _e8 = p(0u);
+    if ((index_1 >= _e8)) {
+        return;
+    }
+    uint _e11 = p(2u);
+    if ((_e11 == 26u)) {
+        uint _e15 = p(6u);
+        if ((index_1 >= _e15)) {
+            return;
+        }
+        uint _e18 = p(3u);
+        uint _e20 = p(4u);
+        uint _e22 = p(5u);
+        uint row = (index_1 / _e22);
+        uint _e25 = p(5u);
+        uint x_3 = ((index_1 % _e25) * 4u);
+        uint y = (row % _e18);
+        uint base_2 = ((row * _e20) + x_3);
+        if (((x_3 + 4u) < _e20)) {
+            float _e35 = load_a(base_2);
+            float _e38 = load_a((base_2 + 1u));
+            float _e41 = load_a((base_2 + 2u));
+            float _e44 = load_a((base_2 + 3u));
+            vec4 current = vec4(_e35, _e38, _e41, _e44);
+            float _e51 = load_a((base_2 + 4u));
+            pooled = max(current, vec4(current.y, current.z, current.w, _e51));
+            if (((y + 1u) < _e18)) {
+                float _e59 = load_a((base_2 + _e20));
+                float _e63 = load_a(((base_2 + _e20) + 1u));
+                float _e67 = load_a(((base_2 + _e20) + 2u));
+                float _e71 = load_a(((base_2 + _e20) + 3u));
+                vec4 next = vec4(_e59, _e63, _e67, _e71);
+                vec4 _e73 = pooled;
+                pooled = max(_e73, next);
+                vec4 _e75 = pooled;
+                float _e82 = load_a(((base_2 + _e20) + 4u));
+                pooled = max(_e75, vec4(next.y, next.z, next.w, _e82));
+            }
+            bool loop_init_1 = true;
+            while(true) {
+                if (!loop_init_1) {
+                    uint _e96 = component;
+                    component = (_e96 + 1u);
+                }
+                loop_init_1 = false;
+                uint _e87 = component;
+                if ((_e87 < 4u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e90 = component;
+                    uint _e92 = component;
+                    float _e94 = pooled[_e92];
+                    store_output((base_2 + _e90), _e94);
+                }
+            }
+        } else {
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e136 = component_1;
+                    component_1 = (_e136 + 1u);
+                }
+                loop_init_2 = false;
+                uint _e100 = component_1;
+                if ((_e100 < 4u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e103 = component_1;
+                    uint column = (x_3 + _e103);
+                    if ((column >= _e20)) {
+                        break;
+                    }
+                    uint _e106 = component_1;
+                    uint element = (base_2 + _e106);
+                    float _e108 = load_a(element);
+                    value = _e108;
+                    if (((column + 1u) < _e20)) {
+                        float _e113 = value;
+                        float _e116 = load_a((element + 1u));
+                        value = max(_e113, _e116);
+                    }
+                    if (((y + 1u) < _e18)) {
+                        float _e121 = value;
+                        float _e123 = load_a((element + _e20));
+                        value = max(_e121, _e123);
+                        if (((column + 1u) < _e20)) {
+                            float _e128 = value;
+                            float _e132 = load_a(((element + _e20) + 1u));
+                            value = max(_e128, _e132);
+                        }
+                    }
+                    float _e134 = value;
+                    store_output(element, _e134);
+                }
+            }
+        }
+        return;
+    }
+    if ((_e11 == 25u)) {
+        uint _e141 = p(0u);
+        uint _e147 = p(0u);
+        if ((index_1 >= ((_e141 / 4u) + (((_e147 % 4u) != 0u) ? 1u : 0u)))) {
+            return;
+        }
+        bool loop_init_3 = true;
+        while(true) {
+            if (!loop_init_3) {
+                uint _e219 = component_2;
+                component_2 = (_e219 + 1u);
+            }
+            loop_init_3 = false;
+            uint _e157 = component_2;
+            if ((_e157 < 4u)) {
+            } else {
+                break;
+            }
+            {
+                uint _e162 = component_2;
+                uint element_1 = ((index_1 * 4u) + _e162);
+                uint _e165 = p(0u);
+                if ((element_1 >= _e165)) {
+                    break;
+                }
+                float _e167 = load_a(element_1);
+                result = 0.0;
+                uint _e171 = p(3u);
+                if ((_e171 == 1u)) {
+                    float _e175 = load_b(0u);
+                    float _e177 = output_round((_e167 / _e175));
+                    float _e178 = erf_approx(_e177);
+                    float _e179 = output_round(_e178);
+                    float _e182 = output_round((_e179 + 1.0));
+                    float _e184 = output_round((_e182 * _e167));
+                    result = (_e184 * 0.5);
+                } else {
+                    uint _e188 = p(3u);
+                    if ((_e188 == 2u)) {
+                        float _e198 = output_round(clamp(((_e167 * 0.16666667) + 0.5), 0.0, 1.0));
+                        result = (_e167 * _e198);
+                    } else {
+                        gate = 0.0;
+                        if ((_e167 >= 0.0)) {
+                            gate = (1.0 / (1.0 + exp(-(_e167))));
+                        } else {
+                            float exponent = exp(_e167);
+                            gate = (exponent / (1.0 + exponent));
+                        }
+                        float _e214 = gate;
+                        float _e215 = output_round(_e214);
+                        result = (_e167 * _e215);
+                    }
+                }
+                float _e217 = result;
+                store_output(element_1, _e217);
+            }
+        }
+        return;
+    }
+    if ((_e11 == 24u)) {
+        uint _e224 = p(3u);
+        uint _e226 = p(4u);
+        uint _e228 = p(5u);
+        uint channel = (index_1 % _e228);
+        uint pixel = ((index_1 / _e228) % _e226);
+        uint batch_1 = (index_1 / (_e228 * _e226));
+        if ((channel < _e224)) {
+            float _e241 = load_a(((((batch_1 * _e224) + channel) * _e226) + pixel));
+            value_1 = _e241;
+        }
+        float _e242 = value_1;
+        store_output(index_1, _e242);
+        return;
+    }
+    if ((_e11 == 22u)) {
+        uint _e246 = p(4u);
+        uint _e249 = p(3u);
+        float _e251 = load_a((index_1 + _e249));
+        store_output((index_1 + _e246), _e251);
+        return;
+    }
+    if ((_e11 == 23u)) {
+        uint _e255 = p(3u);
+        uint _e257 = p(4u);
+        uint _e259 = p(5u);
+        uint oh = (_e255 * _e259);
+        uint ow = (_e257 * _e259);
+        uint x_4 = (index_1 % ow);
+        uint y_1 = ((index_1 / ow) % oh);
+        uint plane = (((index_1 / (oh * ow)) * _e255) * _e257);
+        float _e274 = load_a(((plane + ((y_1 / _e259) * _e257)) + (x_4 / _e259)));
+        float _e275 = load_b(index_1);
+        store_output(index_1, (_e274 + _e275));
+        return;
+    }
+    if ((_e11 <= 3u)) {
+        remaining = index_1;
+        uint _e285 = p(3u);
+        axis = _e285;
+        while(true) {
+            uint _e287 = axis;
+            if ((_e287 == 0u)) {
+                break;
+            }
+            uint _e291 = axis;
+            axis = (_e291 - 1u);
+            uint _e293 = remaining;
+            uint _e295 = axis;
+            uint _e297 = p((4u + _e295));
+            uint coordinate = (_e293 % _e297);
+            uint _e299 = remaining;
+            uint _e301 = axis;
+            uint _e303 = p((4u + _e301));
+            remaining = (_e299 / _e303);
+            uint _e305 = ai;
+            uint _e307 = axis;
+            uint _e309 = p((12u + _e307));
+            ai = (_e305 + (coordinate * _e309));
+            uint _e312 = bi;
+            uint _e314 = axis;
+            uint _e316 = p((20u + _e314));
+            bi = (_e312 + (coordinate * _e316));
+        }
+        if ((_e11 == 0u)) {
+            uint _e321 = ai;
+            float _e322 = load_a(_e321);
+            uint _e323 = bi;
+            float _e324 = load_b(_e323);
+            store_output(index_1, (_e322 + _e324));
+        } else {
+            if ((_e11 == 1u)) {
+                uint _e328 = ai;
+                float _e329 = load_a(_e328);
+                uint _e330 = bi;
+                float _e331 = load_b(_e330);
+                store_output(index_1, (_e329 * _e331));
+            } else {
+                if ((_e11 == 2u)) {
+                    uint _e335 = ai;
+                    float _e336 = load_a(_e335);
+                    uint _e337 = bi;
+                    float _e338 = load_b(_e337);
+                    store_output(index_1, (_e336 / _e338));
+                } else {
+                    uint _e340 = ai;
+                    float _e341 = load_a(_e340);
+                    uint _e342 = bi;
+                    float _e343 = load_b(_e342);
+                    store_output(index_1, (_e341 - _e343));
+                }
+            }
+        }
+        return;
+    }
+    if ((_e11 == 4u)) {
+        float _e347 = load_a(index_1);
+        float _e348 = load_a(index_1);
+        store_output(index_1, (_e347 * _e348));
+        return;
+    }
+    if ((_e11 == 5u)) {
+        float _e352 = load_a(index_1);
+        store_output(index_1, sqrt(_e352));
+        return;
+    }
+    if ((_e11 == 6u)) {
+        float _e356 = load_a(index_1);
+        float _e357 = load_a(index_1);
+        store_output(index_1, ((_e357 > 0.0) ? _e356 : 0.0));
+        return;
+    }
+    if ((_e11 == 7u)) {
+        float _e364 = load_a(index_1);
+        float _e365 = erf_approx(_e364);
+        store_output(index_1, _e365);
+        return;
+    }
+    if ((_e11 == 8u)) {
+        float _e368 = load_a(index_1);
+        if ((_e368 >= 0.0)) {
+            store_output(index_1, (1.0 / (1.0 + exp(-(_e368)))));
+        } else {
+            float exponent_1 = exp(_e368);
+            store_output(index_1, (exponent_1 / (1.0 + exponent_1)));
+        }
+        return;
+    }
+    if ((_e11 == 9u)) {
+        float _e383 = load_a(index_1);
+        uint _e385 = p(3u);
+        uint _e389 = p(4u);
+        store_output(index_1, clamp(((_e383 * uintBitsToFloat(_e385)) + uintBitsToFloat(_e389)), 0.0, 1.0));
+        return;
+    }
+    if ((_e11 == 11u)) {
+        uint _e398 = p(3u);
+        uint _e400 = p(4u);
+        uint _e402 = p(5u);
+        uint _e404 = p(6u);
+        uint ow_1 = (_e404 * 2u);
+        uint oh_1 = (_e402 * 2u);
+        uint x_5 = (index_1 % ow_1);
+        uint y_2 = ((index_1 / ow_1) % oh_1);
+        uint co = ((index_1 / (ow_1 * oh_1)) % _e400);
+        uint batch_2 = (index_1 / ((ow_1 * oh_1) * _e400));
+        uint _e421 = p(7u);
+        if ((_e421 != 0u)) {
+            float _e424 = load_c(co);
+            sum = _e424;
+        }
+        bool loop_init_4 = true;
+        while(true) {
+            if (!loop_init_4) {
+                uint _e459 = ci;
+                ci = (_e459 + 1u);
+            }
+            loop_init_4 = false;
+            uint _e427 = ci;
+            if ((_e427 < _e398)) {
+            } else {
+                break;
+            }
+            {
+                uint _e430 = ci;
+                uint source_1 = ((((((batch_2 * _e398) + _e430) * _e402) + (y_2 / 2u)) * _e404) + (x_5 / 2u));
+                uint _e440 = ci;
+                uint weight = (((((_e440 * _e400) + co) * 4u) + ((y_2 % 2u) * 2u)) + (x_5 % 2u));
+                float _e453 = sum;
+                float _e454 = load_a(source_1);
+                float _e455 = load_b(weight);
+                sum = (_e453 + (_e454 * _e455));
+            }
+        }
+        float _e461 = sum;
+        float _e462 = epilogue(_e461, index_1);
+        store_output(index_1, _e462);
+        return;
+    }
+    if ((_e11 == 12u)) {
+        uint _e466 = p(3u);
+        uint _e468 = p(4u);
+        uint x_6 = (index_1 % _e468);
+        uint y_3 = ((index_1 / _e468) % _e466);
+        uint plane_1 = (((index_1 / (_e466 * _e468)) * _e466) * _e468);
+        float _e476 = load_a(index_1);
+        value_2 = _e476;
+        if (((x_6 + 1u) < _e468)) {
+            float _e481 = value_2;
+            float _e484 = load_a((index_1 + 1u));
+            value_2 = max(_e481, _e484);
+        }
+        if (((y_3 + 1u) < _e466)) {
+            float _e489 = value_2;
+            float _e495 = load_a(((plane_1 + ((y_3 + 1u) * _e468)) + x_6));
+            value_2 = max(_e489, _e495);
+            if (((x_6 + 1u) < _e468)) {
+                float _e500 = value_2;
+                float _e508 = load_a((((plane_1 + ((y_3 + 1u) * _e468)) + x_6) + 1u));
+                value_2 = max(_e500, _e508);
+            }
+        }
+        float _e510 = value_2;
+        store_output(index_1, _e510);
+        return;
+    }
+    if ((_e11 == 13u)) {
+        uint _e514 = p(3u);
+        uint _e516 = p(4u);
+        uint _e518 = p(5u);
+        uint _e520 = p(6u);
+        uint x_7 = (index_1 % _e520);
+        uint y_4 = ((index_1 / _e520) % _e518);
+        uint plane_2 = (((index_1 / (_e518 * _e520)) * _e514) * _e516);
+        bool loop_init_5 = true;
+        while(true) {
+            if (!loop_init_5) {
+                uint _e558 = ky;
+                ky = (_e558 + 1u);
+            }
+            loop_init_5 = false;
+            uint _e532 = ky;
+            if ((_e532 < 3u)) {
+            } else {
+                break;
+            }
+            {
+                kx = 0u;
+                bool loop_init_6 = true;
+                while(true) {
+                    if (!loop_init_6) {
+                        uint _e555 = kx;
+                        kx = (_e555 + 1u);
+                    }
+                    loop_init_6 = false;
+                    uint _e537 = kx;
+                    if ((_e537 < 2u)) {
+                    } else {
+                        break;
+                    }
+                    {
+                        float _e540 = sum_1;
+                        uint _e543 = ky;
+                        uint _e550 = kx;
+                        float _e552 = load_a((((plane_2 + (((y_4 * 3u) + _e543) * _e516)) + (x_7 * 2u)) + _e550));
+                        sum_1 = (_e540 + _e552);
+                    }
+                }
+            }
+        }
+        float _e560 = sum_1;
+        store_output(index_1, (_e560 / 6.0));
+        return;
+    }
+    if ((_e11 == 14u)) {
+        uint _e566 = p(4u);
+        uint _e569 = p(3u);
+        uint channel_1 = ((index_1 / _e566) % _e569);
+        float _e571 = load_b(channel_1);
+        float _e572 = load_e(channel_1);
+        uint _e574 = p(5u);
+        float multiplier = (_e571 / sqrt((_e572 + uintBitsToFloat(_e574))));
+        float _e579 = load_a(index_1);
+        float _e580 = load_d(channel_1);
+        float _e583 = load_c(channel_1);
+        store_output(index_1, (((_e579 - _e580) * multiplier) + _e583));
+        return;
+    }
+    if ((_e11 == 15u)) {
+        remaining_1 = index_1;
+        uint _e589 = p(4u);
+        source = _e589;
+        uint _e592 = p(3u);
+        axis_1 = _e592;
+        while(true) {
+            uint _e594 = axis_1;
+            if ((_e594 == 0u)) {
+                break;
+            }
+            uint _e598 = axis_1;
+            axis_1 = (_e598 - 1u);
+            uint _e600 = remaining_1;
+            uint _e602 = axis_1;
+            uint _e604 = p((8u + _e602));
+            uint coordinate_1 = (_e600 % _e604);
+            uint _e606 = remaining_1;
+            uint _e608 = axis_1;
+            uint _e610 = p((8u + _e608));
+            remaining_1 = (_e606 / _e610);
+            uint _e612 = source;
+            uint _e614 = axis_1;
+            uint _e616 = p((16u + _e614));
+            source = (_e612 + (coordinate_1 * _e616));
+        }
+        uint _e619 = source;
+        float _e620 = load_a(_e619);
+        store_output(index_1, _e620);
+        return;
+    }
+    if ((_e11 == 17u)) {
+        uint _e624 = p(3u);
+        uint _e626 = p(4u);
+        uint _e628 = p(5u);
+        uint oh_2 = (_e624 * _e628);
+        uint ow_2 = (_e626 * _e628);
+        uint x_8 = (index_1 % ow_2);
+        uint y_5 = ((index_1 / ow_2) % oh_2);
+        uint plane_3 = (((index_1 / (oh_2 * ow_2)) * _e624) * _e626);
+        float _e643 = load_a(((plane_3 + ((y_5 / _e628) * _e626)) + (x_8 / _e628)));
+        store_output(index_1, _e643);
+        return;
+    }
+    if ((_e11 == 18u)) {
+        uint _e647 = p(3u);
+        uint _e649 = p(4u);
+        axis_2 = _e647;
+        while(true) {
+            uint _e655 = axis_2;
+            if ((_e655 == 0u)) {
+                break;
+            }
+            uint _e659 = axis_2;
+            axis_2 = (_e659 - 1u);
+            uint _e662 = axis_2;
+            uint _e664 = p((8u + _e662));
+            uint _e666 = axis_2;
+            uint _e668 = p((16u + _e666));
+            if ((_e668 != 0u)) {
+                uint _e671 = base;
+                uint _e674 = input_stride;
+                base = (_e671 + (((index_1 / _e668) % _e664) * _e674));
+            }
+            uint _e677 = input_stride;
+            input_stride = (_e677 * _e664);
+        }
+        bool loop_init_7 = true;
+        while(true) {
+            if (!loop_init_7) {
+                uint _e723 = r;
+                r = (_e723 + 1u);
+            }
+            loop_init_7 = false;
+            uint _e683 = r;
+            if ((_e683 < _e649)) {
+            } else {
+                break;
+            }
+            {
+                uint _e685 = r;
+                remaining_2 = _e685;
+                uint _e687 = base;
+                offset = _e687;
+                stride = 1u;
+                ax = _e647;
+                while(true) {
+                    uint _e692 = ax;
+                    if ((_e692 == 0u)) {
+                        break;
+                    }
+                    uint _e696 = ax;
+                    ax = (_e696 - 1u);
+                    uint _e699 = ax;
+                    uint _e701 = p((8u + _e699));
+                    uint _e703 = ax;
+                    uint _e705 = p((16u + _e703));
+                    if ((_e705 == 0u)) {
+                        uint _e708 = offset;
+                        uint _e709 = remaining_2;
+                        uint _e711 = stride;
+                        offset = (_e708 + ((_e709 % _e701) * _e711));
+                        uint _e714 = remaining_2;
+                        remaining_2 = (_e714 / _e701);
+                    }
+                    uint _e716 = stride;
+                    stride = (_e716 * _e701);
+                }
+                float _e718 = sum_2;
+                uint _e719 = offset;
+                float _e720 = load_a(_e719);
+                sum_2 = (_e718 + _e720);
+            }
+        }
+        float _e725 = sum_2;
+        store_output(index_1, (_e725 / float(_e649)));
+        return;
+    }
+    if ((_e11 == 20u)) {
+        uint _e731 = p(3u);
+        uint _e733 = p(4u);
+        uint _e735 = p(5u);
+        uint matrix = (_e731 * _e735);
+        uint row_1 = ((index_1 / _e735) % _e731);
+        uint column_1 = (index_1 % _e735);
+        batch = (index_1 / matrix);
+        uint _e747 = p(6u);
+        axis_3 = _e747;
+        while(true) {
+            uint _e749 = axis_3;
+            if ((_e749 == 0u)) {
+                break;
+            }
+            uint _e753 = axis_3;
+            axis_3 = (_e753 - 1u);
+            uint _e755 = batch;
+            uint _e757 = axis_3;
+            uint _e759 = p((8u + _e757));
+            uint coordinate_2 = (_e755 % _e759);
+            uint _e761 = batch;
+            uint _e763 = axis_3;
+            uint _e765 = p((8u + _e763));
+            batch = (_e761 / _e765);
+            uint _e767 = ai_1;
+            uint _e769 = axis_3;
+            uint _e771 = p((16u + _e769));
+            ai_1 = (_e767 + (coordinate_2 * _e771));
+            uint _e774 = bi_1;
+            uint _e776 = axis_3;
+            uint _e778 = p((24u + _e776));
+            bi_1 = (_e774 + (coordinate_2 * _e778));
+        }
+        bool loop_init_8 = true;
+        while(true) {
+            if (!loop_init_8) {
+                uint _e803 = k;
+                k = (_e803 + 1u);
+            }
+            loop_init_8 = false;
+            uint _e785 = k;
+            if ((_e785 < _e733)) {
+            } else {
+                break;
+            }
+            {
+                float _e787 = sum_3;
+                uint _e788 = ai_1;
+                uint _e791 = k;
+                float _e793 = load_a(((_e788 + (row_1 * _e733)) + _e791));
+                uint _e794 = bi_1;
+                uint _e795 = k;
+                float _e799 = load_b(((_e794 + (_e795 * _e735)) + column_1));
+                sum_3 = (_e787 + (_e793 * _e799));
+            }
+        }
+        float _e805 = sum_3;
+        float _e806 = epilogue(_e805, index_1);
+        store_output(index_1, _e806);
+        return;
+    }
+    if ((_e11 == 21u)) {
+        uint _e810 = p(3u);
+        uint start = (index_1 * _e810);
+        float _e812 = load_a(start);
+        maximum = _e812;
+        bool loop_init_9 = true;
+        while(true) {
+            if (!loop_init_9) {
+                uint _e824 = col;
+                col = (_e824 + 1u);
+            }
+            loop_init_9 = false;
+            uint _e816 = col;
+            if ((_e816 < _e810)) {
+            } else {
+                break;
+            }
+            {
+                float _e818 = maximum;
+                uint _e819 = col;
+                float _e821 = load_a((start + _e819));
+                maximum = max(_e818, _e821);
+            }
+        }
+        bool loop_init_10 = true;
+        while(true) {
+            if (!loop_init_10) {
+                uint _e843 = col_1;
+                col_1 = (_e843 + 1u);
+            }
+            loop_init_10 = false;
+            uint _e830 = col_1;
+            if ((_e830 < _e810)) {
+            } else {
+                break;
+            }
+            {
+                uint _e832 = col_1;
+                float _e834 = load_a((start + _e832));
+                float _e835 = maximum;
+                float value_6 = exp((_e834 - _e835));
+                uint _e838 = col_1;
+                store_output((start + _e838), value_6);
+                float _e840 = sum_4;
+                sum_4 = (_e840 + value_6);
+            }
+        }
+        bool loop_init_11 = true;
+        while(true) {
+            if (!loop_init_11) {
+                uint _e857 = col_2;
+                col_2 = (_e857 + 1u);
+            }
+            loop_init_11 = false;
+            uint _e847 = col_2;
+            if ((_e847 < _e810)) {
+            } else {
+                break;
+            }
+            {
+                uint _e849 = col_2;
+                uint _e851 = col_2;
+                float _e853 = load_output((start + _e851));
+                float _e854 = sum_4;
+                store_output((start + _e849), (_e853 / _e854));
+            }
+        }
+        return;
+    } else {
+        return;
+    }
+}
+

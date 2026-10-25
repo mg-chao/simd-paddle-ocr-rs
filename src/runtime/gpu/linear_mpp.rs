@@ -2,8 +2,11 @@
 use super::*;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
+#[cfg(target_os = "macos")]
 pub(super) const ENTRY: &str = "linear_mpp";
 pub(super) const WORKGROUP_SIZE: [u32; 3] = [128, 1, 1];
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
     if storage != [GpuPrecision::MixedF16; 6] {
@@ -24,7 +27,7 @@ pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
 pub(super) fn candidate(
     manual: &Recipe,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     matrix_precision: GpuMatrixPrecision,
 ) -> Option<Recipe> {
     let p = &manual.words;
@@ -84,7 +87,7 @@ pub(super) fn candidate(
 pub(super) fn admitted(
     manual: Recipe,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     matrix_precision: GpuMatrixPrecision,
     admit: &mut dyn FnMut(&Recipe) -> RuntimeResult<bool>,
 ) -> RuntimeResult<Option<Recipe>> {
@@ -97,5 +100,6 @@ pub(super) fn admitted(
 }
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 #[path = "linear_mpp_tests.rs"]
 mod tests;

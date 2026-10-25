@@ -8,7 +8,7 @@ pub(super) fn replacement(
     plan: &ShapePlan,
     start: usize,
     selected: TensorId,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     matrix_precision: GpuMatrixPrecision,
 ) -> RuntimeResult<Option<Recipe>> {
     if let Some(recipe) =

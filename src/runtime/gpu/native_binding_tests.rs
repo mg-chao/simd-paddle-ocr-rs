@@ -201,7 +201,9 @@ fn gpu_hardware_prepared_native_bindings_lifetime_and_profile() {
     );
     assert_eq!(stats.native_graph_dispatches, 1);
     context
-        .device
+        .backend
+        .owner
+        .raw
         .poll(wgpu::PollType::Wait {
             submission_index: None,
             timeout: None,
@@ -380,7 +382,7 @@ fn gpu_hardware_prepared_native_metadata_validation() {
         .create_buffer(
             "too short native uniform",
             16,
-            wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            BufferUsage::UNIFORM | BufferUsage::COPY_DST,
         )
         .unwrap();
     assert_eq!(
@@ -416,11 +418,14 @@ fn gpu_hardware_prepared_native_metadata_validation() {
         "pipeline owner device must match even when all buffers share one foreign ledger"
     );
 
-    let mut encoder = context
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("native depth validation only"),
-        });
+    let mut encoder =
+        context
+            .backend
+            .owner
+            .raw
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("native depth validation only"),
+            });
     assert_eq!(
         executor::encode(&context, &mut encoder, &[(1, &native), (0, &native)], false)
             .unwrap_err()
@@ -429,7 +434,9 @@ fn gpu_hardware_prepared_native_metadata_validation() {
     );
     let mut foreign_encoder =
         foreign
-            .device
+            .backend
+            .owner
+            .raw
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("foreign native encoder validation only"),
             });

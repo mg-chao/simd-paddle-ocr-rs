@@ -1,6 +1,8 @@
 use super::super::tests::{bind_program, integers, model, node, tensor};
 use super::*;
+#[cfg(target_os = "macos")]
 use crate::runtime::CompileOptions;
+#[cfg(target_os = "macos")]
 use resident::Batch;
 
 const N: usize = 2;
@@ -93,7 +95,7 @@ fn lower(
         program,
         &mut plan,
         selected,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         precision,
         &mut descriptors,
         matrix,
@@ -199,6 +201,7 @@ fn tail_projection_keeps_escaping_values_and_default_precision() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
 fn tail_projection_source_changes_exactly_the_two_qualified_indices() {
     let original = half_native::pointwise_epilogue_source();
     let source = source([GpuPrecision::MixedF16; 6]).unwrap();
@@ -241,7 +244,7 @@ fn tail_projection_rejection_is_atomic_and_near_miss_packets_keep_originals() {
                 program.output,
                 &wrong,
                 &descriptors,
-                &wgpu::Limits::default()
+                &crate::runtime::gpu::GpuLimits::default()
             )
             .unwrap()
             .is_none(),
@@ -257,7 +260,7 @@ fn tail_projection_rejection_is_atomic_and_near_miss_packets_keep_originals() {
             program.output,
             base,
             &wrong,
-            &wgpu::Limits::default()
+            &crate::runtime::gpu::GpuLimits::default()
         )
         .unwrap()
         .is_none()
@@ -270,7 +273,7 @@ fn tail_projection_rejection_is_atomic_and_near_miss_packets_keep_originals() {
         program.output,
         &mut recipes,
         &descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         &mut |_| {
             calls += 1;
             Ok(false)
@@ -291,7 +294,7 @@ fn tail_projection_rejection_is_atomic_and_near_miss_packets_keep_originals() {
         program.output,
         &mut recipes,
         &descriptors,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         &mut |_| {
             Err(RuntimeError::with_kind(
                 ErrorKind::ResourceLimit,
@@ -304,6 +307,7 @@ fn tail_projection_rejection_is_atomic_and_near_miss_packets_keep_originals() {
     assert_eq!(recipes.len(), baseline.len());
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 #[ignore = "requires a physical Metal device"]
 fn gpu_hardware_tail_projection_native_closed_graph() {

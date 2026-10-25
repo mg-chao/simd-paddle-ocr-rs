@@ -3,8 +3,12 @@ use super::*;
 use crate::runtime::graph_patterns as patterns;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
+#[cfg(target_os = "macos")]
 pub(super) const ENTRY: &str = "pointwise_mpp64";
+#[cfg(target_os = "macos")]
 pub(super) const WORKGROUP: [u32; 3] = [128, 1, 1];
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
     if storage != [GpuPrecision::MixedF16; 6] {
@@ -41,7 +45,7 @@ fn candidate(
     selected: TensorId,
     base: &Recipe,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> RuntimeResult<Option<Recipe>> {
     let mut recipe = base.clone();
     half_native::select(
@@ -147,7 +151,7 @@ pub(super) fn select(
     selected: TensorId,
     recipes: &mut Vec<Recipe>,
     descriptors: &[GpuTensorDescriptor],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     admit: &mut dyn FnMut(&Recipe) -> RuntimeResult<bool>,
 ) -> RuntimeResult<()> {
     let mut i = 0;

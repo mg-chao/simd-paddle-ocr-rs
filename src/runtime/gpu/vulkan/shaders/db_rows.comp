@@ -1,0 +1,58 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_3_block_0Compute { uint _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) readonly buffer type_3_block_1Compute { uint _group_0_binding_1_cs[]; };
+
+layout(std430, set = 0, binding = 2) readonly buffer type_3_block_2Compute { uint _group_0_binding_2_cs[]; };
+
+layout(std430, set = 0, binding = 3) buffer type_5_block_3Compute { uint _group_0_binding_3_cs[]; };
+
+layout(std140, set = 0, binding = 4) uniform Params_block_4Compute { Params _group_0_binding_4_cs; };
+
+uint p(uint i) {
+    uint _e9 = _group_0_binding_4_cs.words[(i / 4u)][(i % 4u)];
+    return _e9;
+}
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    uvec3 grid = gl_NumWorkGroups;
+    uint i_1 = (id.x + ((id.y * grid.x) * 64u));
+    uint _e10 = p(2u);
+    if ((_e10 == 0u)) {
+        uint _e15 = _group_0_binding_2_cs[3];
+        if ((i_1 < _e15)) {
+            uint _e22 = p(0u);
+            atomicExchange(_group_0_binding_3_cs[(i_1 * 2u)], _e22);
+            atomicExchange(_group_0_binding_3_cs[((i_1 * 2u) + 1u)], 0u);
+        }
+        return;
+    }
+    uint _e31 = p(0u);
+    uint _e33 = p(1u);
+    if ((i_1 >= (_e31 * _e33))) {
+        return;
+    }
+    uint _e39 = _group_0_binding_0_cs[i_1];
+    uint rank = _group_0_binding_1_cs[_e39];
+    if ((rank == 4294967295u)) {
+        return;
+    }
+    uint base = (16u + (rank * 8u));
+    uint _e52 = _group_0_binding_2_cs[(base + 5u)];
+    uint _e54 = p(0u);
+    uint _e61 = _group_0_binding_2_cs[(base + 2u)];
+    uint row = ((_e52 + (i_1 / _e54)) - _e61);
+    uint _e68 = p(0u);
+    uint _e70 = atomicMin(_group_0_binding_3_cs[(row * 2u)], (i_1 % _e68));
+    uint _e78 = p(0u);
+    uint _e80 = atomicMax(_group_0_binding_3_cs[((row * 2u) + 1u)], (i_1 % _e78));
+    return;
+}
+

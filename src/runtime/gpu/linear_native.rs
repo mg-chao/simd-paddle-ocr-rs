@@ -11,8 +11,11 @@ use operators::{Recipe, RecipeKind, ShaderKind};
 #[path = "linear_native_tests.rs"]
 mod tests;
 
+#[cfg(target_os = "macos")]
 pub(super) const ENTRY: &str = "linear_native";
 pub(super) const WORKGROUP_SIZE: [u32; 3] = [256, 1, 1];
+
+#[cfg(target_os = "macos")]
 
 pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
     if storage != [GpuPrecision::F32; 6] && storage != [GpuPrecision::MixedF16; 6] {
@@ -53,7 +56,7 @@ pub(super) fn replacement(
     plan: &ShapePlan,
     start: usize,
     selected: TensorId,
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
     descriptors: &[GpuTensorDescriptor],
     matrix_precision: GpuMatrixPrecision,
 ) -> RuntimeResult<Option<Recipe>> {

@@ -196,7 +196,7 @@ fn lower_case(
         &program,
         &mut plan,
         program.output,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         precision,
         &mut descriptors,
         matrix,
@@ -252,7 +252,7 @@ fn excitation_parallel_admission_requires_explicit_fast_policy_and_large_private
                 &plan,
                 0,
                 selected,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap()
@@ -413,16 +413,7 @@ fn hardware() {
 
         // The same production WGSL and admitted packet must honor nonzero p60
         // without touching guards; this also verifies raw native translation.
-        let mut source = format!(
-            "{}\n{}",
-            ShaderKind::SqueezeExcite.common_source(),
-            ShaderKind::SqueezeExcite.source()
-        )
-        .replace("$ENABLE", "enable f16;")
-        .replace("$HALF_OUTPUT", "true");
-        for token in ["$A", "$B", "$C", "$D", "$E", "$O"] {
-            source = source.replace(token, "f16");
-        }
+        let source = KernelKey::storage(KernelId::SqueezeExcite, GpuPrecision::MixedF16);
         let mut batch = Batch::new(context.clone()).unwrap();
         let mut operands = Vec::new();
         for values in [
@@ -454,8 +445,8 @@ fn hardware() {
         words[60] = prefix as u32;
         batch
             .dispatch(
-                "parallel_se_production_wgsl",
-                &source,
+                "parallel_se_production_kernel",
+                source,
                 &[
                     (&operands[0], true),
                     (&operands[1], true),

@@ -1,0 +1,72 @@
+#version 450 core
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_KHR_cooperative_matrix : require
+#extension GL_KHR_memory_scope_semantics : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+
+// Each subgroup owns a 16x16 product. Explicitly padded shared tiles make
+// all three matrix tails safe without robust-buffer-access dependencies.
+layout(local_size_x=256) in;
+layout(constant_id=0) const uint TILE=16;
+layout(set=0,binding=0,std430) readonly buffer Features {float16_t features[];};
+layout(set=0,binding=1,std430) readonly buffer Weights {float16_t weights[];};
+layout(set=0,binding=2,std430) readonly buffer Bias {float bias[];};
+layout(set=0,binding=3,std430) buffer Partials {uvec4 partials[];};
+layout(set=0,binding=4,std140) uniform Params {uvec4 words[64];};
+shared float16_t tile_a[8*256];
+shared float16_t tile_b[8*256];
+shared float scores[32*64];
+
+void main() {
+    uint rows=words[0].x, inner=words[0].y, classes=words[0].z, tiles=words[0].w;
+    uint first_row=gl_WorkGroupID.y*32, first_class=gl_WorkGroupID.x*64;
+    uint lane=gl_SubgroupInvocationID, scratch=gl_SubgroupID*256;
+    for(uint tile=gl_SubgroupID;tile<8;tile+=gl_NumSubgroups) {
+        uint row0=(tile/4)*16, col0=(tile%4)*16;
+        // All invocations of this subgroup skip a wholly padded row tile.
+        if(first_row+row0>=rows) continue;
+        coopmat<float,gl_ScopeSubgroup,TILE,TILE,gl_MatrixUseAccumulator> acc=coopmat<float,gl_ScopeSubgroup,TILE,TILE,gl_MatrixUseAccumulator>(0.0);
+        for(uint k0=0;k0<inner;k0+=16) {
+            for(uint i=lane;i<256;i+=gl_SubgroupSize) {
+                uint r=first_row+row0+i/16, k=k0+i%16;
+                tile_a[scratch+i]=(r<rows && k<inner)?features[r*inner+k]:float16_t(0.0);
+                k=k0+i/16; uint c=first_class+col0+i%16;
+                tile_b[scratch+i]=(k<inner && c<classes)?weights[k*classes+c]:float16_t(0.0);
+            }
+            subgroupMemoryBarrierShared(); subgroupBarrier();
+            coopmat<float16_t,gl_ScopeSubgroup,TILE,TILE,gl_MatrixUseA> a;
+            coopmat<float16_t,gl_ScopeSubgroup,TILE,TILE,gl_MatrixUseB> b;
+            coopMatLoad(a,tile_a,scratch,16,gl_CooperativeMatrixLayoutRowMajor);
+            coopMatLoad(b,tile_b,scratch,16,gl_CooperativeMatrixLayoutRowMajor);
+            acc=coopMatMulAdd(a,b,acc);
+            subgroupMemoryBarrierShared(); subgroupBarrier();
+        }
+        coopMatStore(acc,scores,row0*64+col0,64,gl_CooperativeMatrixLayoutRowMajor);
+    }
+    memoryBarrierShared(); barrier();
+    for(uint row=gl_SubgroupID;row<32 && first_row+row<rows;row+=gl_NumSubgroups) {
+        float maximum=-3.402823e38; uint winner=0xffffffffu, invalid=0;
+        for(uint c=lane;c<64;c+=gl_SubgroupSize) {
+            uint column=first_class+c;
+            if(column<classes) {
+                float value=scores[row*64+c]+bias[column];
+                scores[row*64+c]=value;
+                invalid|=uint(!(value<=3.402823e38 && value>=-3.402823e38));
+                if(value>maximum || (value==maximum && column<winner)){maximum=value;winner=column;}
+            }
+        }
+        float best=subgroupMax(maximum);
+        winner=subgroupMin(maximum==best?winner:0xffffffffu);
+        invalid=subgroupOr(invalid);
+        float sum=0.0;
+        if(words[1].x!=0u) {
+            for(uint c=lane;c<64;c+=gl_SubgroupSize) {
+                if(first_class+c<classes) sum+=exp(scores[row*64+c]-best);
+            }
+            sum=subgroupAdd(sum);
+        }
+        if(lane==0 && first_row+row<rows) partials[(first_row+row)*tiles+gl_WorkGroupID.x]=uvec4(winner,floatBitsToUint(best),floatBitsToUint(sum),invalid);
+    }
+}

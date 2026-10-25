@@ -20,7 +20,7 @@ pub(in crate::runtime::gpu) fn eligible(
     kind: ShaderKind,
     storage: [GpuPrecision; 6],
     words: &[u32; 128],
-    limits: &wgpu::Limits,
+    limits: &crate::runtime::gpu::GpuLimits,
 ) -> bool {
     if kind != ShaderKind::AttentionViews
         || storage != [GpuPrecision::MixedF16; 6]
@@ -59,6 +59,7 @@ pub(in crate::runtime::gpu) fn eligible(
     })
 }
 
+#[cfg(target_os = "macos")]
 pub(in crate::runtime::gpu) fn compile(
     context: &GpuContext,
 ) -> RuntimeResult<Arc<executor::NativePipeline>> {
@@ -74,5 +75,6 @@ pub(in crate::runtime::gpu) fn compile(
 }
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 #[path = "attention_native_tests.rs"]
 mod tests;

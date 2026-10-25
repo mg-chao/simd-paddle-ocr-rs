@@ -17,6 +17,7 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
         cls_head_ns: 11,
         cls_rotation_ns: 13,
         gpu_admission_wait_ns: u64::MAX - 1,
+        gpu_encoding_ns: 73,
         gpu_submission_ns: 31,
         gpu_completion_wait_ns: 37,
         gpu_readback_ns: 41,
@@ -33,6 +34,7 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
         cls_head_ns: 23,
         cls_rotation_ns: 29,
         gpu_admission_wait_ns: 2,
+        gpu_encoding_ns: 79,
         gpu_submission_ns: 43,
         gpu_completion_wait_ns: 47,
         gpu_readback_ns: 53,
@@ -50,6 +52,7 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
     assert_eq!(json["cls_head_ns"], 34);
     assert_eq!(json["cls_rotation_ns"], 42);
     assert_eq!(json["gpu_admission_wait_ns"], u64::MAX);
+    assert_eq!(json["gpu_encoding_ns"], 152);
     assert_eq!(json["gpu_submission_ns"], 74);
     assert_eq!(json["gpu_completion_wait_ns"], 84);
     assert_eq!(json["gpu_readback_ns"], 94);

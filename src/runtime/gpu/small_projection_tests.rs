@@ -178,7 +178,7 @@ fn classifier_recipes(case: &Case) -> (Program, Vec<Recipe>, Vec<GpuTensorDescri
         &program,
         &mut plan,
         program.output,
-        &wgpu::Limits::default(),
+        &crate::runtime::gpu::GpuLimits::default(),
         GpuPrecision::MixedF16,
         &mut descriptors,
         GpuMatrixPrecision::F16,
@@ -217,7 +217,7 @@ fn small_projection_admits_actual_classifier_conv16_and_retains_scoped_fallback(
                 &program,
                 &mut candidate,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -250,7 +250,7 @@ fn small_projection_admits_actual_classifier_conv16_and_retains_scoped_fallback(
         for descriptor in &mut storage {
             descriptor.precision = precision;
         }
-        let limits = wgpu::Limits {
+        let limits = crate::runtime::gpu::GpuLimits {
             max_compute_workgroups_per_dimension: if too_small { 1 } else { 65535 },
             ..Default::default()
         };
@@ -277,7 +277,8 @@ fn small_projection_admits_actual_classifier_conv16_and_retains_scoped_fallback(
 fn fixture_recipes(case: &Case) -> (Program, Vec<Recipe>, Vec<GpuTensorDescriptor>) {
     let program = Program::compile(case.graph(false, true)).unwrap();
     let plan = bind_program(&program, &case.shape(), ExecutionLimits::default()).unwrap();
-    let recipes = operators::recipes(&program, &plan, &wgpu::Limits::default()).unwrap();
+    let recipes =
+        operators::recipes(&program, &plan, &crate::runtime::gpu::GpuLimits::default()).unwrap();
     let descriptors = plan
         .shapes
         .iter()
@@ -308,7 +309,7 @@ fn small_projection_selection_is_explicit_canonical_half_and_preserves_packets()
                         &program,
                         &mut candidate,
                         &storage,
-                        &wgpu::Limits::default(),
+                        &crate::runtime::gpu::GpuLimits::default(),
                         matrix
                     )
                     .unwrap(),
@@ -339,7 +340,7 @@ fn small_projection_selection_is_explicit_canonical_half_and_preserves_packets()
                 &program,
                 &mut candidate,
                 &descriptors,
-                &wgpu::Limits::default(),
+                &crate::runtime::gpu::GpuLimits::default(),
                 GpuMatrixPrecision::F16
             )
             .unwrap(),
@@ -348,7 +349,7 @@ fn small_projection_selection_is_explicit_canonical_half_and_preserves_packets()
         );
     }
     let mut candidate = recipes.clone();
-    let limits = wgpu::Limits {
+    let limits = crate::runtime::gpu::GpuLimits {
         max_compute_workgroups_per_dimension: 1,
         ..Default::default()
     };
@@ -375,7 +376,7 @@ fn small_projection_selection_is_explicit_canonical_half_and_preserves_packets()
             &program,
             &mut candidate,
             &noncanonical,
-            &wgpu::Limits::default(),
+            &crate::runtime::gpu::GpuLimits::default(),
             GpuMatrixPrecision::F16
         )
         .unwrap(),
@@ -473,13 +474,7 @@ fn hardware() {
         );
 
         // Execute the same production WGSL with poisoned guards and p60=7.
-        let kind = ShaderKind::SmallProjection;
-        let mut source = format!("{}\n{}", kind.common_source(), kind.source())
-            .replace("$ENABLE", "enable f16;")
-            .replace("$HALF_OUTPUT", "true");
-        for name in ["$A", "$B", "$C", "$D", "$E", "$O"] {
-            source = source.replace(name, "f16");
-        }
+        let source = KernelKey::storage(KernelId::SmallProjection, GpuPrecision::MixedF16);
         let mut batch = Batch::new(context.clone()).unwrap();
         let dummy = vec![0.0; 2];
         let mut operands = Vec::new();
@@ -514,8 +509,8 @@ fn hardware() {
         words[60] = prefix as u32;
         batch
             .dispatch(
-                "small_projection_production_wgsl",
-                &source,
+                "small_projection_production_kernel",
+                source,
                 &[
                     (&operands[0], true),
                     (&operands[1], true),
@@ -610,13 +605,7 @@ fn classifier_hardware() {
     // Run the same production source with an offset, stale output guards,
     // unused NaN C/D/E operands, and three extra workgroups. This checks the
     // all-Half common ABI independently of the graph's slot allocation.
-    let kind = ShaderKind::SmallProjection;
-    let mut source = format!("{}\n{}", kind.common_source(), kind.source())
-        .replace("$ENABLE", "enable f16;")
-        .replace("$HALF_OUTPUT", "true");
-    for token in ["$A", "$B", "$C", "$D", "$E", "$O"] {
-        source = source.replace(token, "f16");
-    }
+    let source = KernelKey::storage(KernelId::SmallProjection, GpuPrecision::MixedF16);
     let mut batch = Batch::new(context.clone()).unwrap();
     let mut operands = Vec::new();
     let poison = vec![f32::NAN; 2];
@@ -643,8 +632,8 @@ fn classifier_hardware() {
     words[60] = prefix as u32;
     batch
         .dispatch(
-            "classifier_pooled_projection_production_wgsl_half",
-            &source,
+            "classifier_pooled_projection_production_kernel_half",
+            source,
             &[
                 (&operands[0], true),
                 (&operands[1], true),

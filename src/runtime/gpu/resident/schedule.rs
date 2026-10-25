@@ -7,9 +7,11 @@ struct Access {
     write: Option<usize>,
     read: Option<usize>,
 }
-pub(super) enum Operation {
+pub(in crate::runtime::gpu) enum Operation {
     Compute {
         native: Arc<executor::NativeDispatch>,
+        #[cfg(not(target_os = "macos"))]
+        profile_index: usize,
     },
     Copy {
         source: GpuBuffer,
@@ -28,15 +30,6 @@ pub(super) fn identity(buffer: &GpuBuffer) -> usize {
     Arc::as_ptr(&buffer.reservation) as usize
 }
 impl Schedule {
-    pub fn take_native_resources(&mut self) -> Vec<Arc<executor::NativeDispatch>> {
-        std::mem::take(&mut self.operations)
-            .into_iter()
-            .filter_map(|(_, operation)| match operation {
-                Operation::Compute { native } => Some(native),
-                _ => None,
-            })
-            .collect()
-    }
     pub fn push(&mut self, operation: Operation, buffers: &[(&GpuBuffer, bool)]) {
         let depth = self.record(
             buffers
@@ -75,84 +68,11 @@ impl Schedule {
             .max()
             .map_or(0, |depth| depth + 1)
     }
-    pub fn encode(
-        &mut self,
-        context: &GpuContext,
-        encoder: &mut wgpu::CommandEncoder,
-        prefer_serial: bool,
-    ) -> RuntimeResult<Vec<wgpu::CommandBuffer>> {
-        for (_, operation) in &self.operations {
-            if let Operation::Copy { source, output, .. } = operation
-                && (!Arc::ptr_eq(&source.reservation.ledger, &context.ledger)
-                    || !Arc::ptr_eq(&output.reservation.ledger, &context.ledger))
-            {
-                return Err(RuntimeError::with_kind(
-                    ErrorKind::InvalidInput,
-                    "native transfer buffers belong to another GPU context",
-                ));
-            }
-        }
-        let device = &context.device;
-        sort_by_depth(&mut self.operations);
-        let mut completed = Vec::new();
-        let mut transfers_dirty = false;
-        let mut index = 0;
-        while index < self.operations.len() {
-            if matches!(self.operations[index].1, Operation::Compute { .. }) {
-                let mut dispatches = Vec::new();
-                while let Some((depth, Operation::Compute { native })) = self.operations.get(index)
-                {
-                    dispatches.push((*depth, native.as_ref()));
-                    index += 1;
-                }
-                // Vulkan's managed encoder tracks transfer/compute hazards.
-                // Keep the entire batch in one command buffer, including copies;
-                // only the raw Metal bridge requires separate encoders.
-                if !executor::SEPARATE_TRANSFER_ENCODERS {
-                    executor::encode(context, encoder, &dispatches, prefer_serial)?;
-                    continue;
-                }
-                if transfers_dirty {
-                    let preceding = std::mem::replace(
-                        encoder,
-                        device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                            label: Some("resident transfer continuation"),
-                        }),
-                    );
-                    completed.push(preceding.finish());
-                    transfers_dirty = false;
-                }
-                // Raw compute encoders never share a command encoder with the
-                // resource/queue bridge's copy recording API.
-                let mut raw = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("native dependency chunk"),
-                });
-                executor::encode(context, &mut raw, &dispatches, prefer_serial)?;
-                completed.push(raw.finish());
-                continue;
-            }
-            transfers_dirty = true;
-            match &self.operations[index].1 {
-                Operation::Copy {
-                    source,
-                    output,
-                    source_offset,
-                    output_offset,
-                    bytes,
-                } => encoder.copy_buffer_to_buffer(
-                    source,
-                    *source_offset,
-                    output,
-                    *output_offset,
-                    *bytes,
-                ),
-                Operation::Compute { .. } => unreachable!(),
-            }
-            index += 1;
-        }
-        Ok(completed)
+    pub fn take(&mut self) -> Vec<(usize, Operation)> {
+        std::mem::take(&mut self.operations)
     }
 }
+#[cfg(test)]
 fn sort_by_depth<T>(operations: &mut [(usize, T)]) {
     operations.sort_by_key(|(depth, _)| *depth);
 }

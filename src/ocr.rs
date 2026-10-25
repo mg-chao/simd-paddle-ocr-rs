@@ -1338,9 +1338,7 @@ impl OcrRequest {
             let pipeline = self.execution.resident().unwrap();
             if PROFILE {
                 profile.recognized_lines += self.result.lines.len();
-                profile.gpu_submission_ns += pipeline.statistics.submission_ns;
-                profile.gpu_completion_wait_ns += pipeline.statistics.completion_wait_ns;
-                profile.gpu_readback_ns += pipeline.statistics.readback_ns;
+                profile.record_gpu(&pipeline.statistics);
                 profile.projection_ns += pipeline.statistics.projection_encoding_ns;
             }
             return Ok(());

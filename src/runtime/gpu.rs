@@ -9,34 +9,43 @@ use crate::{
     model::{Model, TensorId},
     tensor::{DType, Shape, TensorData, TensorView},
 };
+#[cfg(test)]
+use std::sync::mpsc;
 use std::{
     cell::RefCell,
     collections::VecDeque,
-    ops::Deref,
     sync::{
         Arc, Condvar, Mutex,
         atomic::{AtomicUsize, Ordering},
-        mpsc,
     },
 };
+mod api;
 mod attention_packed;
+use api::BufferUsage;
+pub use api::{GpuAdapterInfo, GpuApi, GpuDeviceType, GpuLimits};
+mod kernel;
 #[cfg(target_os = "macos")]
-#[path = "gpu/metal_buffers.rs"]
-mod buffers;
+mod metal_resident_sources;
+#[cfg(target_os = "macos")]
+mod metal_sources;
+use kernel::{KernelId, KernelKey};
 #[cfg(not(target_os = "macos"))]
-#[path = "gpu/vulkan_buffers.rs"]
-mod buffers;
+#[path = "gpu/vulkan.rs"]
+mod backend;
+#[cfg(target_os = "macos")]
+#[path = "gpu/metal.rs"]
+mod backend;
 mod conv_mpp;
 mod conv_mpp_lower;
 mod conv_mpp_staged;
 mod conv_weight_pack;
+#[cfg(target_os = "macos")]
 mod depthwise_native;
 #[cfg(target_os = "macos")]
 #[path = "gpu/metal_execution.rs"]
 mod executor;
 #[cfg(not(target_os = "macos"))]
-#[path = "gpu/vulkan_execution.rs"]
-mod executor;
+use backend as executor;
 mod fused_activation;
 mod fusions;
 mod half_native;
@@ -48,9 +57,16 @@ mod max_pool;
 mod native_binding_tests;
 mod operators;
 mod physical;
+#[cfg(target_os = "macos")]
+#[path = "gpu/metal_pipelines.rs"]
 mod pipelines;
+#[cfg(not(target_os = "macos"))]
+mod pipelines;
+#[cfg(target_os = "macos")]
 mod pointwise_f16;
+#[cfg(target_os = "macos")]
 mod pointwise_mpp64;
+#[cfg(target_os = "macos")]
 mod pointwise_static;
 mod profile;
 pub(crate) mod resident;
@@ -76,6 +92,7 @@ const PLAN_CACHE_CAPACITY: usize = 8;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct GpuExecutionTimings {
     pub admission_wait_ns: u64,
+    pub encoding_ns: u64,
     pub submission_ns: u64,
     pub completion_wait_ns: u64,
     pub readback_ns: u64,
@@ -124,12 +141,45 @@ impl Default for GpuContextOptions {
 pub struct GpuDeviceMemoryStatistics {
     pub used_bytes: usize,
     pub peak_bytes: usize,
+    pub committed_bytes: usize,
+    pub peak_committed_bytes: usize,
 }
 struct Ledger {
-    owner_device: wgpu::Device,
+    owner_device: Arc<backend::Device>,
     used: AtomicUsize,
     peak: AtomicUsize,
     limit: Option<usize>,
+}
+impl Ledger {
+    fn reserve(self: &Arc<Self>, bytes: usize) -> RuntimeResult<Arc<Reservation>> {
+        let mut previous = self.used.load(Ordering::Acquire);
+        loop {
+            let next = previous
+                .checked_add(bytes)
+                .ok_or_else(|| resource("GPU allocation count overflow"))?;
+            if self.limit.is_some_and(|limit| next > limit) {
+                return Err(resource(format!(
+                    "GPU device allocations need {next} bytes, context limit is {}",
+                    self.limit.unwrap()
+                )));
+            }
+            match self.used.compare_exchange_weak(
+                previous,
+                next,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    self.peak.fetch_max(next, Ordering::AcqRel);
+                    return Ok(Arc::new(Reservation {
+                        ledger: self.clone(),
+                        bytes,
+                    }));
+                }
+                Err(actual) => previous = actual,
+            }
+        }
+    }
 }
 struct Reservation {
     ledger: Arc<Ledger>,
@@ -142,18 +192,16 @@ impl Drop for Reservation {
 }
 #[derive(Clone)]
 pub(crate) struct GpuBuffer {
-    pub(super) buffer: wgpu::Buffer,
-    #[cfg(target_os = "macos")]
-    native: buffers::NativeBuffer,
+    buffer: backend::Buffer,
     reservation: Arc<Reservation>,
 }
-impl Deref for GpuBuffer {
-    type Target = wgpu::Buffer;
-    fn deref(&self) -> &Self::Target {
-        &self.buffer
-    }
-}
 impl GpuBuffer {
+    fn size(&self) -> u64 {
+        self.buffer.size()
+    }
+    fn usage(&self) -> BufferUsage {
+        self.buffer.usage()
+    }
     fn bytes(&self) -> usize {
         self.reservation.bytes
     }
@@ -177,19 +225,18 @@ impl Drop for Gate<'_> {
     }
 }
 pub struct GpuContext {
-    pub(super) device: wgpu::Device,
-    pub(super) queue: wgpu::Queue,
-    info: wgpu::AdapterInfo,
-    limits: wgpu::Limits,
+    backend: backend::Context,
+    info: GpuAdapterInfo,
+    limits: crate::runtime::gpu::GpuLimits,
     failure: Arc<Mutex<Option<RuntimeError>>>,
     ledger: Arc<Ledger>,
     in_flight: Mutex<usize>,
-    available: Condvar,
+    available: Arc<Condvar>,
     #[cfg(test)]
     waiting: AtomicUsize,
     options: GpuContextOptions,
     pipelines: Mutex<Option<Arc<pipelines::Pipelines>>>,
-    resident_pipelines: Mutex<std::collections::HashMap<String, Arc<resident::Kernel>>>,
+    resident_pipelines: Mutex<std::collections::HashMap<KernelKey, Arc<resident::Kernel>>>,
     normalization: Mutex<std::sync::Weak<resident::Normalization>>,
     weights: Mutex<std::collections::HashMap<(usize, GpuPrecision), std::sync::Weak<GpuWeights>>>,
 }
@@ -213,116 +260,23 @@ impl GpuContext {
                 "GPU limits must be positive; recognition_wave_size and classification_batch_size must be within 1..=16",
             ));
         }
-        #[cfg(target_os = "macos")]
-        if !objc2::available!(macos = 26.0) {
-            return Err(RuntimeError::with_kind(
-                ErrorKind::Unsupported,
-                "native Metal GPU execution requires macOS 26 or newer",
-            ));
-        }
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: if cfg!(target_os = "macos") {
-                wgpu::Backends::METAL
-            } else {
-                wgpu::Backends::VULKAN
-            },
-            ..wgpu::InstanceDescriptor::new_without_display_handle()
-        });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-            apply_limit_buckets: false,
-        }))
-        .map_err(|error| {
-            RuntimeError::caused_by(
-                ErrorKind::Unsupported,
-                "GPU adapter initialization failed",
-                error,
-            )
-        })?;
-        let info = adapter.get_info();
-        if info.backend
-            != if cfg!(target_os = "macos") {
-                wgpu::Backend::Metal
-            } else {
-                wgpu::Backend::Vulkan
-            }
-            || !matches!(
-                info.device_type,
-                wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
-            )
-        {
-            return Err(RuntimeError::with_kind(
-                ErrorKind::Unsupported,
-                "GPU execution requires a physical GPU",
-            ));
-        }
-        let available = adapter.limits();
-        let requested = wgpu::Limits {
-            max_buffer_size: available.max_buffer_size,
-            max_storage_buffer_binding_size: available.max_storage_buffer_binding_size,
-            max_compute_workgroups_per_dimension: available.max_compute_workgroups_per_dimension,
-            max_compute_workgroup_storage_size: available.max_compute_workgroup_storage_size,
-            max_compute_invocations_per_workgroup: available.max_compute_invocations_per_workgroup,
-            max_compute_workgroup_size_x: available.max_compute_workgroup_size_x,
-            max_compute_workgroup_size_y: available.max_compute_workgroup_size_y,
-            max_compute_workgroup_size_z: available.max_compute_workgroup_size_z,
-            ..Default::default()
-        };
-        if !requested.check_limits(&available) {
-            return Err(RuntimeError::with_kind(
-                ErrorKind::Unsupported,
-                "GPU adapter cannot satisfy allocation and dispatch limits",
-            ));
-        }
-        // Metal uses a native compute bridge; Vulkan uses managed compute.
-        // Both share device admission, buffers, transfers and completion.
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("simd-paddle-ocr GPU resources"),
-            required_features: if cfg!(target_os = "macos") {
-                wgpu::Features::empty()
-            } else {
-                adapter.features() & wgpu::Features::SHADER_F16
-            },
-            required_limits: requested,
-            ..Default::default()
-        }))
-        .map_err(|error| RuntimeError::new(format!("GPU device initialization failed: {error}")))?;
         let failure = Arc::new(Mutex::new(None));
-        let lost = failure.clone();
-        device.set_device_lost_callback(move |reason, message| {
-            if let Ok(mut value) = lost.lock() {
-                *value = Some(RuntimeError::with_kind(
-                    ErrorKind::DeviceLost,
-                    format!("GPU device lost ({reason:?}): {message}"),
-                ));
-            }
+        let available = Arc::new(Condvar::new());
+        let (backend, info, limits) = backend::Context::new(failure.clone(), available.clone())?;
+        let ledger = Arc::new(Ledger {
+            owner_device: backend.owner.clone(),
+            used: AtomicUsize::new(0),
+            peak: AtomicUsize::new(0),
+            limit: options.max_device_bytes,
         });
-        let uncaptured = failure.clone();
-        device.on_uncaptured_error(Arc::new(move |error| {
-            if let Ok(mut value) = uncaptured.lock() {
-                *value = Some(RuntimeError::with_kind(
-                    ErrorKind::GpuValidation,
-                    format!("GPU asynchronous error: {error}"),
-                ));
-            }
-        }));
-        let limits = device.limits();
         Ok(Arc::new(Self {
-            device: device.clone(),
-            queue,
+            backend,
             info,
             limits,
             failure,
-            ledger: Arc::new(Ledger {
-                owner_device: device,
-                used: AtomicUsize::new(0),
-                peak: AtomicUsize::new(0),
-                limit: options.max_device_bytes,
-            }),
+            ledger,
             in_flight: Mutex::new(0),
-            available: Condvar::new(),
+            available,
             #[cfg(test)]
             waiting: AtomicUsize::new(0),
             options,
@@ -338,20 +292,23 @@ impl GpuContext {
             Some(RuntimeError::with_kind(kind, "injected resident failure"));
         self.available.notify_all();
     }
-    pub fn adapter_info(&self) -> &wgpu::AdapterInfo {
+    pub fn adapter_info(&self) -> &GpuAdapterInfo {
         &self.info
     }
     pub fn options(&self) -> GpuContextOptions {
         self.options
     }
     /// Limits used by schedule validation and buffer allocation on this device.
-    pub fn limits(&self) -> &wgpu::Limits {
+    pub fn limits(&self) -> &crate::runtime::gpu::GpuLimits {
         &self.limits
     }
     pub fn memory_statistics(&self) -> GpuDeviceMemoryStatistics {
+        self.backend.collect_garbage();
         GpuDeviceMemoryStatistics {
             used_bytes: self.ledger.used.load(Ordering::Acquire),
             peak_bytes: self.ledger.peak.load(Ordering::Acquire),
+            committed_bytes: self.backend.owner.committed_bytes(),
+            peak_committed_bytes: self.backend.owner.peak_committed_bytes(),
         }
     }
     fn check_alive(&self) -> RuntimeResult<()> {
@@ -363,12 +320,6 @@ impl GpuContext {
             Some(error) => Err(error.clone()),
             None => Ok(()),
         }
-    }
-    fn fail(&self, message: String) {
-        if let Ok(mut value) = self.failure.lock() {
-            *value = Some(RuntimeError::with_kind(ErrorKind::DeviceLost, message));
-        }
-        self.available.notify_all();
     }
     pub(crate) fn acquire_gate(&self) -> RuntimeResult<Gate<'_>> {
         self.check_alive()?;
@@ -385,10 +336,16 @@ impl GpuContext {
         while *count >= self.options.max_in_flight {
             #[cfg(test)]
             self.waiting.fetch_add(1, Ordering::AcqRel);
-            let waited = self.available.wait(count);
+            // Device failures originate outside the admission mutex. A bounded
+            // wait also observes a failure notification racing the check above.
+            let waited = self
+                .available
+                .wait_timeout(count, std::time::Duration::from_millis(100));
             #[cfg(test)]
             self.waiting.fetch_sub(1, Ordering::AcqRel);
-            count = waited.map_err(|_| RuntimeError::new("GPU admission state poisoned"))?;
+            count = waited
+                .map_err(|_| RuntimeError::new("GPU admission state poisoned"))?
+                .0;
             self.check_alive()?;
         }
         self.check_alive()?;
@@ -402,39 +359,14 @@ impl GpuContext {
     }
     fn reserve(&self, bytes: usize) -> RuntimeResult<Arc<Reservation>> {
         self.check_alive()?;
-        let mut previous = self.ledger.used.load(Ordering::Acquire);
-        loop {
-            let next = previous
-                .checked_add(bytes)
-                .ok_or_else(|| resource("GPU allocation count overflow"))?;
-            if self.ledger.limit.is_some_and(|limit| next > limit) {
-                return Err(resource(format!(
-                    "GPU device allocations need {next} bytes, context limit is {}",
-                    self.ledger.limit.unwrap()
-                )));
-            }
-            match self.ledger.used.compare_exchange_weak(
-                previous,
-                next,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => {
-                    self.ledger.peak.fetch_max(next, Ordering::AcqRel);
-                    return Ok(Arc::new(Reservation {
-                        ledger: self.ledger.clone(),
-                        bytes,
-                    }));
-                }
-                Err(actual) => previous = actual,
-            }
-        }
+        self.backend.collect_garbage();
+        self.ledger.reserve(bytes)
     }
-    pub(super) fn create_buffer(
+    fn create_buffer(
         &self,
         label: &str,
         size: u64,
-        usage: wgpu::BufferUsages,
+        usage: BufferUsage,
     ) -> RuntimeResult<GpuBuffer> {
         if size == 0 || size > self.limits.max_buffer_size {
             return Err(resource("GPU allocation exceeds device buffer limit"));
@@ -442,33 +374,47 @@ impl GpuContext {
         let reservation = self.reserve(
             usize::try_from(size).map_err(|_| resource("GPU buffer exceeds host index range"))?,
         )?;
-        let (buffer, _native) = buffers::allocate(&self.device, label, size, usage, None)?;
+        let buffer = self.backend.allocate(label, size, usage)?;
         Ok(GpuBuffer {
             buffer,
-            #[cfg(target_os = "macos")]
-            native: _native,
             reservation,
         })
     }
-    pub(super) fn create_buffer_init(
+    fn create_buffer_init(
         &self,
         label: &str,
         contents: &[u8],
-        usage: wgpu::BufferUsages,
+        usage: BufferUsage,
     ) -> RuntimeResult<GpuBuffer> {
         let size = contents.len().max(4).div_ceil(4) * 4;
         if size as u64 > self.limits.max_buffer_size {
             return Err(resource("GPU allocation exceeds device buffer limit"));
         }
         let reservation = self.reserve(size)?;
-        let (buffer, _native) =
-            buffers::allocate(&self.device, label, size as u64, usage, Some(contents))?;
-        Ok(GpuBuffer {
+        let buffer = self.backend.allocate(label, size as u64, usage)?;
+        let buffer = GpuBuffer {
             buffer,
-            #[cfg(target_os = "macos")]
-            native: _native,
             reservation,
-        })
+        };
+        let mut padded = vec![0; size];
+        padded[..contents.len()].copy_from_slice(contents);
+        self.upload(&buffer, 0, &padded)?;
+        Ok(buffer)
+    }
+    pub(super) fn upload(
+        &self,
+        buffer: &GpuBuffer,
+        offset: u64,
+        bytes: &[u8],
+    ) -> RuntimeResult<()> {
+        self.check_alive()?;
+        if !Arc::ptr_eq(&buffer.reservation.ledger, &self.ledger) {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::InvalidInput,
+                "foreign GPU upload",
+            ));
+        }
+        self.backend.upload(buffer, offset, bytes)
     }
     pub(super) fn checked<T>(
         &self,
@@ -476,25 +422,9 @@ impl GpuContext {
         operation: impl FnOnce() -> RuntimeResult<T>,
     ) -> RuntimeResult<T> {
         self.check_alive()?;
-        let oom = self.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
-        let internal = self.device.push_error_scope(wgpu::ErrorFilter::Internal);
-        let validation = self.device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let result = operation();
-        // Pop in stack order, then prioritize fatal scopes. Optional native
-        // admission may recover from validation, never from OOM/internal errors.
-        let validation = pollster::block_on(validation.pop());
-        let internal = pollster::block_on(internal.pop());
-        let oom = pollster::block_on(oom.pop());
-        if let Some(error) = oom.or(internal).or(validation) {
-            let kind = match error {
-                wgpu::Error::OutOfMemory { .. } => ErrorKind::Allocation,
-                wgpu::Error::Internal { .. } => ErrorKind::Execution,
-                wgpu::Error::Validation { .. } => ErrorKind::GpuValidation,
-            };
-            return Err(RuntimeError::caused_by(kind, stage, error));
-        }
+        let result = self.backend.checked(stage, operation);
         self.check_alive()?;
-        result.map_err(|e| e.context(stage))
+        result
     }
 }
 struct GpuWeights {
@@ -626,16 +556,10 @@ impl GpuCompiledModel {
         precision: GpuPrecision,
         matrix_precision: GpuMatrixPrecision,
     ) -> RuntimeResult<Self> {
-        if context.info.backend != wgpu::Backend::Metal
-            && precision == GpuPrecision::MixedF16
-            && !context
-                .device
-                .features()
-                .contains(wgpu::Features::SHADER_F16)
-        {
+        if precision == GpuPrecision::MixedF16 && !context.backend.supports_half() {
             return Err(RuntimeError::with_kind(
                 ErrorKind::Unsupported,
-                "MixedF16 storage requires shader F16 support on this Vulkan device",
+                "MixedF16 requires native half storage support",
             ));
         }
         let model = &program.model;
@@ -667,7 +591,7 @@ impl GpuCompiledModel {
                                 .create_buffer_init(
                                     "GPU constant",
                                     &precision.encode(values.data()),
-                                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                                    BufferUsage::STORAGE | BufferUsage::COPY_SRC,
                                 )
                                 .map(Some),
                             _ => Ok(None),
@@ -676,7 +600,7 @@ impl GpuCompiledModel {
                     let dummy = context.create_buffer_init(
                         "GPU absent operand",
                         &[0; 4],
-                        wgpu::BufferUsages::STORAGE,
+                        BufferUsage::STORAGE,
                     )?;
                     Ok((constants, dummy))
                 })?;
@@ -1253,9 +1177,7 @@ impl GpuSession {
                         context.create_buffer(
                             "GPU activation slot",
                             bytes,
-                            wgpu::BufferUsages::STORAGE
-                                | wgpu::BufferUsages::COPY_DST
-                                | wgpu::BufferUsages::COPY_SRC,
+                            BufferUsage::STORAGE | BufferUsage::COPY_DST | BufferUsage::COPY_SRC,
                         )?
                     },
                 );
@@ -1270,7 +1192,7 @@ impl GpuSession {
                         context.create_buffer(
                             "GPU output readback",
                             output_bytes as u64,
-                            wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                            BufferUsage::MAP_READ | BufferUsage::COPY_DST,
                         )?
                     },
                 )
@@ -1294,7 +1216,7 @@ impl GpuSession {
                 context.create_buffer(
                     "GPU parameter arena",
                     parameter_bytes as u64,
-                    wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    BufferUsage::UNIFORM | BufferUsage::COPY_DST,
                 )?
             };
             let mut parameter_data = vec![0u8; parameter_bytes];
@@ -1908,14 +1830,13 @@ impl GpuSession {
     pub fn stats(&self) -> ExecutionStatistics {
         self.statistics()
     }
-    fn resolve(&self, id: TensorId) -> &wgpu::Buffer {
+    fn resolve(&self, id: TensorId) -> &GpuBuffer {
         self.compiled
             .weights
             .constants
             .get(id.0)
             .and_then(Option::as_ref)
-            .map(|b| &b.buffer)
-            .unwrap_or_else(|| &self.buffers[self.plan.slots[id.0]].buffer)
+            .unwrap_or_else(|| &self.buffers[self.plan.slots[id.0]])
     }
     pub fn last_gpu_profile(&self) -> Option<&GpuExecutionProfile> {
         self.gpu_profile.as_ref()
@@ -1985,11 +1906,11 @@ impl GpuSession {
         self.execution_timings.admission_wait_ns = admission.elapsed();
         let recording = Timer::<PROFILE>::start();
         context.checked("GPU input upload", || {
-            context.queue.write_buffer(
+            context.upload(
                 self.resolve(self.compiled.program.input),
                 0,
                 &self.transfers.upload,
-            );
+            )?;
             Ok(())
         })?;
         self.uploaded_bytes += self.transfers.upload.len() as u64;
@@ -2014,9 +1935,9 @@ impl GpuSession {
         match result {
             Ok(((), statistics)) => {
                 self.readbacks += 1;
-                self.execution_timings.submission_ns = upload_ns
-                    .saturating_add(statistics.encoding_ns)
-                    .saturating_add(statistics.submission_ns);
+                self.execution_timings.encoding_ns =
+                    upload_ns.saturating_add(statistics.encoding_ns);
+                self.execution_timings.submission_ns = statistics.submission_ns;
                 self.execution_timings.completion_wait_ns = statistics.completion_wait_ns;
                 self.execution_timings.readback_ns = statistics.readback_ns;
                 self.gpu_profile = statistics.profile;
@@ -2118,7 +2039,7 @@ impl GpuSession {
                     context.create_buffer(
                         "GPU trace readback",
                         bytes as u64,
-                        wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                        BufferUsage::MAP_READ | BufferUsage::COPY_DST,
                     )?,
                     allocate_f32(maximum)?,
                 ))
@@ -2144,15 +2065,13 @@ impl GpuSession {
             let _gate = context.acquire_gate()?;
             context.checked("GPU trace input", || {
                 if self.parameters_dirty {
-                    context
-                        .queue
-                        .write_buffer(&self.parameters, 0, &self.parameter_data);
+                    context.upload(&self.parameters, 0, &self.parameter_data)?;
                 }
-                context.queue.write_buffer(
+                context.upload(
                     self.resolve(self.compiled.program.input),
                     0,
                     &self.transfers.upload,
-                );
+                )?;
                 Ok(())
             })?;
         }
@@ -2318,7 +2237,10 @@ fn validate_supported(program: &Program) -> RuntimeResult<()> {
         ))
     }
 }
-fn checked_storage_bytes(elements: usize, limits: &wgpu::Limits) -> RuntimeResult<u64> {
+fn checked_storage_bytes(
+    elements: usize,
+    limits: &crate::runtime::gpu::GpuLimits,
+) -> RuntimeResult<u64> {
     if elements == 0 || u32::try_from(elements).is_err() {
         return Err(resource(
             "GPU tensor element count must be positive and fit U32",
@@ -2334,7 +2256,10 @@ fn checked_storage_bytes(elements: usize, limits: &wgpu::Limits) -> RuntimeResul
     }
     Ok(bytes)
 }
-fn dispatch_grid(elements: usize, limits: &wgpu::Limits) -> RuntimeResult<(u32, u32)> {
+fn dispatch_grid(
+    elements: usize,
+    limits: &crate::runtime::gpu::GpuLimits,
+) -> RuntimeResult<(u32, u32)> {
     if elements == 0 || u32::try_from(elements).is_err() {
         return Err(resource(
             "GPU dispatch element count must be positive and fit U32",
@@ -2358,7 +2283,11 @@ fn dispatch_grid(elements: usize, limits: &wgpu::Limits) -> RuntimeResult<(u32, 
     }
     Ok((x as u32, y as u32))
 }
-fn validate_plan(program: &Program, plan: &ShapePlan, limits: &wgpu::Limits) -> RuntimeResult<()> {
+fn validate_plan(
+    program: &Program,
+    plan: &ShapePlan,
+    limits: &crate::runtime::gpu::GpuLimits,
+) -> RuntimeResult<()> {
     for &length in &plan.lengths {
         checked_storage_bytes(length, limits)?;
     }

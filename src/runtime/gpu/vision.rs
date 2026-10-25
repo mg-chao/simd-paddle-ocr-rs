@@ -236,11 +236,6 @@ impl Crops {
                 .checked_mul(4)
                 .ok_or_else(|| resource("crop storage overflow"))?,
         )?;
-        let shader = format!(
-            "{PARAMETERS}{}{}",
-            shader("precise.wgsl", include_str!("precise.wgsl")),
-            shader("crop.wgsl", include_str!("crop.wgsl"))
-        );
         let (x, y) = dispatch_grid(pixels, &batch.context.limits)?;
         let swap = matches!(
             source.format,
@@ -248,7 +243,7 @@ impl Crops {
         );
         batch.dispatch(
             "perspective_bicubic",
-            &shader,
+            KernelKey::new(KernelId::Crop),
             &[
                 (&source.buffer, true),
                 (&self.transforms, true),
@@ -282,14 +277,9 @@ fn record_crop_transforms(
     capacity: usize,
     header_count: bool,
 ) -> RuntimeResult<()> {
-    let source = format!(
-        "{PARAMETERS}{}{}",
-        shader("precise.wgsl", include_str!("precise.wgsl")),
-        shader("crop_meta.wgsl", include_str!("crop_meta.wgsl"))
-    );
     batch.dispatch(
         "perspective_transform",
-        &source,
+        KernelKey::new(KernelId::CropMeta),
         &[(boxes, true), (transforms, false)],
         &[capacity as u32, u32::from(header_count)],
         [(capacity as u32).div_ceil(64), 1, 1],
@@ -340,14 +330,10 @@ fn parse_crop_metadata(
 pub(crate) fn pack_bgr(batch: &mut Batch, image: &Image) -> RuntimeResult<GpuBuffer> {
     let bytes = image.width * image.height * 3;
     let output = batch.storage("requested BGR crop", bytes)?;
-    let source = format!(
-        "{PARAMETERS}{}",
-        shader("pack_bgr.wgsl", include_str!("pack_bgr.wgsl"))
-    );
     let (x, y) = dispatch_grid(bytes.div_ceil(4), &batch.context.limits)?;
     batch.dispatch(
         "image_pack_bgr",
-        &source,
+        KernelKey::new(KernelId::PackBgr),
         &[(&image.buffer, true), (&output, false)],
         &[bytes as u32],
         [x, y, 1],
@@ -378,14 +364,10 @@ pub(crate) fn orient_at(
         return Err(RuntimeError::new("classifier winner row out of range"));
     }
     let output = batch.storage("oriented crop", image.width * image.height * 4)?;
-    let source = format!(
-        "{PARAMETERS}{}",
-        shader("rotate.wgsl", include_str!("rotate.wgsl"))
-    );
     let (x, y) = dispatch_grid(image.width * image.height, &batch.context.limits)?;
     batch.dispatch(
         "classifier_rotation",
-        &source,
+        KernelKey::new(KernelId::Rotate),
         &[(&image.buffer, true), (winners, true), (&output, false)],
         &[
             (image.width * image.height) as u32,
@@ -479,34 +461,6 @@ fn native_trig_eligible(
         && (0.25..=2.0).contains(&ratio)
 }
 
-fn geometry_source(precision: GpuPrecision, native_trig: bool) -> String {
-    format!(
-        "{}{}{}{}",
-        if precision == GpuPrecision::MixedF16 {
-            "enable f16;\n"
-        } else {
-            ""
-        },
-        PARAMETERS,
-        if native_trig {
-            shader(
-                "precise_native_trig.wgsl",
-                include_str!("precise_native_trig.wgsl"),
-            )
-        } else {
-            shader("precise.wgsl", include_str!("precise.wgsl"))
-        },
-        shader("db_geometry.wgsl", include_str!("db_geometry.wgsl")).replace(
-            "$INPUT",
-            if precision == GpuPrecision::MixedF16 {
-                "f16"
-            } else {
-                "f32"
-            }
-        ),
-    )
-}
-
 fn geometry_kernel(
     context: &GpuContext,
     precision: GpuPrecision,
@@ -514,45 +468,39 @@ fn geometry_kernel(
 ) -> RuntimeResult<(String, Arc<Kernel>)> {
     geometry_kernel_with(context, precision, native_trig, Kernel::get)
 }
-
 fn geometry_kernel_with(
     context: &GpuContext,
     precision: GpuPrecision,
     native_trig: bool,
-    mut compile: impl FnMut(&GpuContext, &str, &str, &[bool]) -> RuntimeResult<Arc<Kernel>>,
+    mut compile: impl FnMut(&GpuContext, KernelKey, &[bool]) -> RuntimeResult<Arc<Kernel>>,
 ) -> RuntimeResult<(String, Arc<Kernel>)> {
-    let read_only = [true, true, true, false, false];
+    let layout = &[true, true, true, false, false];
     if native_trig {
-        let name = format!("db_geometry_native_trig_{precision:?}");
-        // Optional admission happens before parameter allocation or recording.
-        // A failed native compiler must retain the original precise GPU source,
-        // rather than executing the new arithmetic through a generic native fallback.
         match compile(
             context,
-            &name,
-            &geometry_source(precision, true),
-            &read_only,
+            KernelKey::storage(KernelId::DbGeometryFast, precision),
+            layout,
         ) {
-            Ok(kernel) => return Ok((name, kernel)),
+            Ok(kernel) => return Ok((format!("db_geometry_native_trig_{precision:?}"), kernel)),
             Err(error)
                 if matches!(
                     error.kind(),
                     ErrorKind::Unsupported | ErrorKind::GpuValidation
                 ) =>
             {
-                context.check_alive()?;
+                context.check_alive()?
             }
             Err(error) => return Err(error),
         }
     }
-    let name = format!("db_geometry_{precision:?}");
-    let kernel = compile(
-        context,
-        &name,
-        &geometry_source(precision, false),
-        &read_only,
-    )?;
-    Ok((name, kernel))
+    Ok((
+        format!("db_geometry_{precision:?}"),
+        compile(
+            context,
+            KernelKey::storage(KernelId::DbGeometry, precision),
+            layout,
+        )?,
+    ))
 }
 
 fn postprocess_with_math(
@@ -584,23 +532,6 @@ fn postprocess_with_math(
     )?;
     let meta = batch.storage("DB candidate extents", (16 + candidates * 8) * 4)?;
     let precision = prediction.descriptor.precision;
-    let source = format!(
-        "{}{}{}",
-        if precision == GpuPrecision::MixedF16 {
-            "enable f16;\n"
-        } else {
-            ""
-        },
-        PARAMETERS,
-        shader("db_label.wgsl", include_str!("db_label.wgsl")).replace(
-            "$INPUT",
-            if precision == GpuPrecision::MixedF16 {
-                "f16"
-            } else {
-                "f32"
-            }
-        )
-    );
     let tiled = true;
     let (gx, gy) = dispatch_grid(pixels, &context.limits)?;
     for mode in [0, 1, 2, 3, 4, 9, 5, 6, 7, 8] {
@@ -620,7 +551,7 @@ fn postprocess_with_math(
         };
         batch.dispatch(
             &format!("db_label_{precision:?}"),
-            &source,
+            KernelKey::storage(KernelId::DbLabel, precision),
             &[
                 (&prediction.buffer, true),
                 (&mask, false),
@@ -676,15 +607,11 @@ fn postprocess_with_math(
         (row_count * 4 + count * 1024) * 8,
     )?;
     let raw_boxes = batch.storage("DB candidate boxes", count * 64)?;
-    let source = format!(
-        "{PARAMETERS}{}",
-        shader("db_rows.wgsl", include_str!("db_rows.wgsl"))
-    );
     for (mode, length) in [(0, row_count), (1, pixels)] {
         let (x, y) = dispatch_grid(length, &context.limits)?;
         batch.dispatch(
             "db_row_extremes",
-            &source,
+            KernelKey::new(KernelId::DbRows),
             &[
                 (&parents, true),
                 (&ranks, true),
@@ -731,13 +658,9 @@ fn postprocess_with_math(
         ],
         [count as u32, 1, 1],
     )?;
-    let source = format!(
-        "{PARAMETERS}{}",
-        shader("db_sort.wgsl", include_str!("db_sort.wgsl"))
-    );
     batch.dispatch(
         "db_reading_order",
-        &source,
+        KernelKey::new(KernelId::DbSort),
         &[(&raw_boxes, true), (&compact, false)],
         &[count as u32],
         [1, 1, 1],
@@ -957,41 +880,13 @@ mod tests {
         {
             let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
             for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
-                // Resident WGSL kernels are cached by name. Each storage ABI
-                // needs its own key, as in production postprocess_inner.
-                let dispatch_name = format!("db_label_nonzero_boundary_test_{precision:?}");
-                let body = include_str!("db_label.wgsl");
-                let marker = "atomicAdd(&counts[r],boundary);";
-                assert_eq!(body.matches(marker).count(), 1);
-                // Metadata[3] is unused through mode3. Count the actual executed
-                // additions in this test-only source, without changing the ABI.
-                // The old unconditional zero-add implementation fails blank
-                // and sparse fixtures even though its final counts are equal.
-                let body = body.replace(
-                    marker,
-                    "atomicAdd(&counts[r],boundary);atomicAdd(&metadata[3],1u);",
-                );
-                let source = format!(
-                    "{}{PARAMETERS}{}",
-                    if precision == GpuPrecision::MixedF16 {
-                        "enable f16;\n"
-                    } else {
-                        ""
-                    },
-                    body.replace(
-                        "$INPUT",
-                        if precision == GpuPrecision::MixedF16 {
-                            "f16"
-                        } else {
-                            "f32"
-                        }
-                    )
-                );
+                let dispatch_name = format!("db_label_boundary_{precision:?}");
+                let source = KernelKey::storage(KernelId::DbLabel, precision);
                 for case in 0..7 {
                     for dilation in [false, true] {
                         let original = count_fixture(case, w, h, false);
                         let mask = count_fixture(case, w, h, dilation);
-                        let (parents, counts, additions) = count_reference(&mask, w, h, true);
+                        let (parents, counts, _additions) = count_reference(&mask, w, h, true);
                         let map: Vec<f32> = original
                             .iter()
                             .map(|&yes| if yes { 0.75 } else { 0.0 })
@@ -1000,7 +895,7 @@ mod tests {
                             .create_buffer_init(
                                 "DB boundary probability fixture",
                                 &precision.encode(&map),
-                                wgpu::BufferUsages::STORAGE,
+                                BufferUsage::STORAGE,
                             )
                             .unwrap();
                         let mut batch = Batch::new(context.clone()).unwrap();
@@ -1022,7 +917,7 @@ mod tests {
                             batch
                                 .dispatch(
                                     &dispatch_name,
-                                    &source,
+                                    source,
                                     &buffers,
                                     &[
                                         w as u32,
@@ -1089,8 +984,8 @@ mod tests {
                         );
                         assert_eq!(
                             actual[pixels * 3 + 3] as usize,
-                            additions,
-                            "add traffic precision={precision:?} case={case} dilation={dilation}"
+                            0,
+                            "unused metadata precision={precision:?} case={case} dilation={dilation}"
                         );
                     }
                 }
@@ -1102,7 +997,8 @@ mod tests {
         let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
         assert!(matches!(
             context.adapter_info().device_type,
-            wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+            crate::runtime::gpu::GpuDeviceType::DiscreteGpu
+                | crate::runtime::gpu::GpuDeviceType::IntegratedGpu
         ));
         context
     }
@@ -1132,7 +1028,7 @@ mod tests {
                 .create_buffer_init(
                     "sort fixtures",
                     bytemuck::cast_slice(&words),
-                    wgpu::BufferUsages::STORAGE,
+                    BufferUsage::STORAGE,
                 )
                 .unwrap();
             let mut batch = Batch::new(context.clone()).unwrap();
@@ -1140,7 +1036,7 @@ mod tests {
             batch
                 .dispatch(
                     "db_reading_order",
-                    &format!("{PARAMETERS}{}", include_str!("db_sort.wgsl")),
+                    KernelKey::new(KernelId::DbSort),
                     &[(&raw, true), (&output, false)],
                     &[count as u32],
                     [1, 1, 1],
@@ -1205,8 +1101,8 @@ mod tests {
                     )
                     .unwrap();
                     context
-                        .queue
-                        .write_buffer(&tensor.buffer, 0, bytemuck::cast_slice(&map));
+                        .upload(&tensor.buffer, 0, bytemuck::cast_slice(&map))
+                        .unwrap();
                     let (actual, _, statistics) = postprocess(
                         Batch::new(context.clone()).unwrap(),
                         &tensor,
@@ -1273,7 +1169,7 @@ mod tests {
                     .create_buffer_init(
                         "test boxes",
                         bytemuck::cast_slice(&words),
-                        wgpu::BufferUsages::STORAGE,
+                        BufferUsage::STORAGE,
                     )
                     .unwrap();
                 let detection = Detection {
