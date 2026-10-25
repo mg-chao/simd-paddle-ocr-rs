@@ -210,16 +210,12 @@ fn fallback_allowed(error: &RuntimeError) -> bool {
 pub(crate) struct RequestSettings {
     pub cpu: Arc<CpuContext>,
     pub threads: usize,
-    #[cfg(feature = "gpu")]
-    pub gpu_mode: super::gpu::GpuPipelineMode,
 }
 impl Default for RequestSettings {
     fn default() -> Self {
         Self {
             cpu: CpuContext::serial(),
             threads: 1,
-            #[cfg(feature = "gpu")]
-            gpu_mode: Default::default(),
         }
     }
 }
@@ -328,17 +324,6 @@ impl Session {
             *self = ready;
         }
         Ok(())
-    }
-    /// Drop tensor transfers and activations when selecting resident execution.
-    #[cfg(feature = "gpu")]
-    pub(crate) fn release_gpu_storage(&mut self) {
-        if matches!(self.inner, SessionKind::Gpu(_)) {
-            self.inner = SessionKind::Pending(PendingSession {
-                input: self.input_shape(),
-                output: self.output_shape(),
-                limits: self.execution_limits(),
-            });
-        }
     }
     pub(crate) fn is_gpu(&self) -> bool {
         matches!(self.execution_backend(), ExecutionBackend::Gpu)
@@ -635,6 +620,14 @@ impl Session {
             SessionKind::Pending(_) | SessionKind::Cpu(_) => 0,
             #[cfg(feature = "gpu")]
             SessionKind::Gpu(s) => s.retained_device_bytes(),
+        }
+    }
+    pub(crate) fn counter_snapshot(&self) -> super::StatisticsCounters {
+        match &self.inner {
+            SessionKind::Pending(_) => super::StatisticsCounters::default(),
+            SessionKind::Cpu(s) => s.counter_snapshot(),
+            #[cfg(feature = "gpu")]
+            SessionKind::Gpu(s) => s.counter_snapshot(),
         }
     }
     pub fn statistics(&self) -> ExecutionStatistics {

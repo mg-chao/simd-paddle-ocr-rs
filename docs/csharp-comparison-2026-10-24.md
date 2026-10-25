@@ -1,15 +1,19 @@
-C# 与当前 Rust 实现的本机性能对比 — 2026-10-24
+C# 与 Rust 的历史本机性能对比 — 2026-10-24
 
-这次实测中，父目录 C# 的原生 Metal 路径比当前 Rust Full GPU 快
+本页保留单一原生 Metal 实现重构之前的历史测量，尤其保留 CPU 对比证据。
+下述 GPU 数据属于已移除的旧实现，不代表当前性能或当前 API；当前说明见
+[Metal 性能证据](gpu-performance.md)。
+
+这次历史实测中，父目录 C# 的原生 Metal 路径比当时 Rust Full GPU 快
 **3.20 / 4.17 / 3.67 倍**，分别对应 Tiny / Small / Medium。
 CPU 路径则是 Rust 更快，C# 耗时分别为 Rust 的 **1.07 / 1.61 / 2.40 倍**。
-这是当前实现和默认精度策略的对比，不能解释成语言本身的性能差距。
+这是当时实现和默认精度策略的对比，不能解释成语言本身的性能差距。
 
 全部运行在物理 Mac mini：Apple M4、10 核 GPU、16 GiB 统一内存、macOS 27。
 没有使用 CI、远程执行或父库文档中的虚拟机成绩。
 C# 来源为父目录 `SimdPaddleOCR`，版本
 `33ff8a81672452041d110e8ba52dcd2639e54228`，源代码工作区保持干净。
-Rust 为当前优化后的工作区，包含共享 pointwise 权重打包和选型改进。
+Rust 为当时优化后的工作区，包含共享 pointwise 权重打包和选型改进。
 
 两边使用相同 ONNX 模型、字典和解码后的 RGB 字节：仓库样本的
 500×500 图片，共识别出 16 行。配置均为单请求、识别 batch=2、输出 CTC spans；
@@ -84,7 +88,7 @@ Rust 的正式测量仍使用 Rust CPU oracle。
 C# Metal 的 [GEMM shader](../../SimdPaddleOCR/src/Sdcb.SimdPaddleOCR/Backends/Metal/Shaders/gemm.metal)
 包含 `simdgroup_half8x8` 与 `simdgroup_multiply_accumulate` 矩阵路径；
 其 [Metal session](../../SimdPaddleOCR/src/Sdcb.SimdPaddleOCR/Backends/Metal/MetalSession.cs)
-仍有 CPU staging/CTC 等工作。Rust 当前使用 wgpu WGSL 的 FP32 普通计算内核，
+仍有 CPU staging/CTC 等工作。当时 Rust 使用 wgpu WGSL 的 FP32 普通计算内核，
 Full 模式把图像处理、投影和 CTC 保留在 GPU。精度、矩阵内核、布局、调度及 CPU/GPU
 分工都不同。本次不是逐项消融实验，不能把全部速度差归给其中某一项。
 结果说明，若继续缩小 Rust GPU 差距，原生矩阵路径与经过准确率验证的混合精度
@@ -97,15 +101,18 @@ Full 模式把图像处理、投影和 CTC 保留在 GPU。精度、矩阵内核
 默认公共 oracle 行为保留。父目录 C# 生产代码和 Rust 推理代码均未因这次对比而修改。
 Release 构建与 Python 语法检查通过，全部 12 个正式配置的运行状态和语义字段已检查。
 
-完整证据位于忽略目录 `reports/csharp-comparison-2026-10-24/`：
+历史数据记录位于忽略目录 `reports/csharp-comparison-2026-10-24/`。
+旧实现的冻结可执行文件和源码归档属于清理范围，不再承诺保留；JSON 中的
+旧路径和哈希仅表示当时的来源，不是当前可执行文件或可用下载链接。
 
-- `performance/`：两边冻结的可执行文件、完整源码归档、模型/字典/输入哈希、
-  精确命令、36 个普通热运行样本和 12 个独立 profile。
+- `performance/`：模型/字典/输入哈希、精确命令、36 个普通热运行样本和
+  12 个历史独立 profile 的数据记录。
 - `qualification/`：C# 对 Rust 公共 oracle 的初始预检结果及原始错误列表。
 - `csharp-references/`：用于稳定性验证的各实现/后端固定输出。
 - `summary.json`：耗时和三个方向的输出比较，包含 C# GPU 对 C# CPU。
-- `validation.json`：164 个 Rust 构建输入、234 个 C# 构建输入、冻结二进制、
-  模型/字典和源码归档的核对结果；父库 Git 状态保持干净。
+- `validation.json`：当时 164 个 Rust 构建输入、234 个 C# 构建输入、二进制、
+  模型/字典和源码归档的历史核对结果，不表示旧实现文件仍被保留；当时父库
+  Git 状态保持干净。
 - `performance-budget.json`：累计执行时间和复现命令。
 
 本次只测一张图片、一个并发配置和这台物理 M4。没有验证其他图片、其他 GPU、

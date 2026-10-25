@@ -1,0 +1,995 @@
+{
+  "schema": 1,
+  "source_version": "0badef5b4d61e8be",
+  "deleted": [
+    {
+      "path": "reports/csharp-comparison-2026-10-24/performance/csharp",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 9,
+      "bytes": 2908869
+    },
+    {
+      "path": "reports/csharp-comparison-2026-10-24/performance/gpu_ocr_bench",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 1,
+      "bytes": 12724512
+    },
+    {
+      "path": "reports/csharp-comparison-2026-10-24/performance/source.zip",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 1,
+      "bytes": 1575438
+    },
+    {
+      "path": "reports/gpu-analysis-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 93,
+      "bytes": 65396010
+    },
+    {
+      "path": "reports/gpu-backend-evaluation-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 83,
+      "bytes": 66568110
+    },
+    {
+      "path": "reports/gpu-cross-backend-analysis-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 7,
+      "bytes": 89841
+    },
+    {
+      "path": "reports/gpu-current-review-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 92,
+      "bytes": 97386882
+    },
+    {
+      "path": "reports/gpu-matrix-extension-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 93,
+      "bytes": 83459728
+    },
+    {
+      "path": "reports/gpu-matrix-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 126,
+      "bytes": 169332451
+    },
+    {
+      "path": "reports/gpu-native-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 380,
+      "bytes": 128596461
+    },
+    {
+      "path": "reports/gpu-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 161,
+      "bytes": 73123747
+    },
+    {
+      "path": "reports/gpu-recognition-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 246,
+      "bytes": 220458174
+    },
+    {
+      "path": "reports/gpu-refactor-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 4378,
+      "bytes": 1976432158
+    },
+    {
+      "path": "reports/gpu-register-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 204,
+      "bytes": 137654744
+    },
+    {
+      "path": "reports/gpu-stage-audit-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 88,
+      "bytes": 81704582
+    },
+    {
+      "path": "reports/gpu-throughput-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container",
+      "files": 219,
+      "bytes": 89819894
+    },
+    {
+      "path": "target/arm64-pointwise-optimization-20261017/schedule-probe/target/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 8,
+      "bytes": 12263559
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 29,
+      "bytes": 35026595
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_adoption_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 3665648
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_adoption_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 7971
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_benchmark",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5241792
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_benchmark.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 8531
+    },
+    {
+      "path": "target/debug/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 634,
+      "bytes": 45864293
+    },
+    {
+      "path": "target/debug/incremental/cpu_adoption_probe-1g7w38rwmrkk6",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2171710
+    },
+    {
+      "path": "target/debug/incremental/cpu_adoption_probe-2g51fqbtruij9",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2384364
+    },
+    {
+      "path": "target/debug/incremental/cpu_adoption_probe-2wwn2j2ctxkn7",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2281460
+    },
+    {
+      "path": "target/debug/incremental/cpu_baseline-2nkoyhr9uizx7",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 9374823
+    },
+    {
+      "path": "target/debug/incremental/cpu_baseline-2qj2zha59dn53",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 9039552
+    },
+    {
+      "path": "target/debug/incremental/cpu_baseline-2szixkadmbxt8",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 9137355
+    },
+    {
+      "path": "target/debug/incremental/cpu_benchmark-0e6ctthi52job",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 13534341
+    },
+    {
+      "path": "target/debug/incremental/cpu_benchmark-0kd2gfizl93zk",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 13371953
+    },
+    {
+      "path": "target/debug/incremental/cpu_benchmark-370qvcsshqw0x",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 13883723
+    },
+    {
+      "path": "target/debug/incremental/cpu_profile-20894961y3ype",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 10592137
+    },
+    {
+      "path": "target/debug/incremental/cpu_profile-38jg94kvwe8jg",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 11684056
+    },
+    {
+      "path": "target/debug/incremental/cpu_profile-3mzms9gaj7p8b",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 11277913
+    },
+    {
+      "path": "target/debug/incremental/cpu_qualify-1rzblsbtiuobo",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 12684265
+    },
+    {
+      "path": "target/debug/incremental/cpu_qualify-21wyfezbn2ehk",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 12327112
+    },
+    {
+      "path": "target/debug/incremental/cpu_qualify-3j0relap3j77k",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 12252505
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-0uwfijontwklg",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 3736492
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-1pv4ixvxpukbg",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2671486
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-1qonwsaoj37n4",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2769784
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-1x4msapxzhuyj",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 3813325
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-3avnd566mi3fi",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1800335
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-3w4kc8k0rktcm",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2625950
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-00jmxa8l8giuk",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 6158754
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-0v723p5whwh2d",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 4976239
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-17g991p4637lk",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 6927689
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-1rqbsa0xtluce",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 2256322
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-22mh78416tl1v",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 4815374
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-390sh2ogck1un",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 4643788
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-03wjjkt1tbtok",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1408202
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-0u7hzyz4irgxj",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2875362
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-0ufh606i0iqsa",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2493250
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-1i9hl5gyud1rw",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2493250
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-1upjbsuf596ry",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2486430
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-360mjtclmr80d",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2845254
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-0trnectlk5r6r",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1475538
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-1g6zk58rp3qj9",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 3018944
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-1hk2vx5zkcp1v",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2529744
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-2aoljpmt4vye9",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2536228
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-2knsf2p1w2bza",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2963720
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-2za34naqcq40r",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2537154
+    },
+    {
+      "path": "target/debug/incremental/ocr-0c16t4215qpxq",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 1631247
+    },
+    {
+      "path": "target/debug/incremental/ocr-1876jwb5nsjr2",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 1781880
+    },
+    {
+      "path": "target/debug/incremental/ocr-1fwmwjmg90g6a",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 862514
+    },
+    {
+      "path": "target/debug/incremental/ocr-1uilcornkplfg",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 3011791
+    },
+    {
+      "path": "target/debug/incremental/ocr-2e96hy2qv3aq0",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1461369
+    },
+    {
+      "path": "target/debug/incremental/ocr-2t89srjruoy3a",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2887621
+    },
+    {
+      "path": "target/debug/incremental/ocr-2ye5h09zrvcz2",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 1710002
+    },
+    {
+      "path": "target/debug/incremental/ocr-30uiu2xb4q4kg",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2851825
+    },
+    {
+      "path": "target/debug/incremental/ocr-392yuncy1tuad",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 3057189
+    },
+    {
+      "path": "target/debug/incremental/ocr-3m48sxqlq4bn1",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 2889150
+    },
+    {
+      "path": "target/debug/incremental/ocr-3v35dthkf3odp",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 1557995
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-02ktxumz7f5vu",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 92220767
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-08asx69twj8ab",
+      "reason": "project-only incremental compilation state",
+      "files": 9,
+      "bytes": 185931747
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-0ctefmxvmguzb",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 68585863
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-0rm0ypo1up63u",
+      "reason": "project-only incremental compilation state",
+      "files": 2,
+      "bytes": 23710399
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-0zkxeh2n76s58",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 105691014
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1b89hkznekd71",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 138482579
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1di7cg5p4p5df",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 69048858
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1emcguzmwk98r",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 100583123
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1hcl57xesfkg5",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 73143802
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1hnf7vwn3ipdf",
+      "reason": "project-only incremental compilation state",
+      "files": 5,
+      "bytes": 47721433
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1ncq1wfulz7cn",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 94170151
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-22zddyz8tlulr",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 67431811
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-26il46hshlyt8",
+      "reason": "project-only incremental compilation state",
+      "files": 9,
+      "bytes": 180299568
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2h0354bvf5sm3",
+      "reason": "project-only incremental compilation state",
+      "files": 11,
+      "bytes": 132571146
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2mwajbfrw0deb",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 96951415
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2qthqxciv8204",
+      "reason": "project-only incremental compilation state",
+      "files": 5,
+      "bytes": 50092752
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2rtxpkf7e4yul",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 48919380
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2rxnwxr8ter9z",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 153098781
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2vudu7dawbxv5",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 102261623
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-31tqzr5pbh508",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 69022433
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-37hc1r5vzt0wl",
+      "reason": "project-only incremental compilation state",
+      "files": 10,
+      "bytes": 113369824
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3h132uvqhqewq",
+      "reason": "project-only incremental compilation state",
+      "files": 2,
+      "bytes": 27123271
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3jj2b2cg78k4y",
+      "reason": "project-only incremental compilation state",
+      "files": 2,
+      "bytes": 15836864
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3n21oq0ccfl6v",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 88688415
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3t7jjpdgxp6ae",
+      "reason": "project-only incremental compilation state",
+      "files": 8,
+      "bytes": 165626606
+    },
+    {
+      "path": "target/release/adapter_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 3918208
+    },
+    {
+      "path": "target/release/adapter_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 229
+    },
+    {
+      "path": "target/release/build/ocr-gpu-capability-probe",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 7,
+      "bytes": 3919247
+    },
+    {
+      "path": "target/release/build/simd-paddle-half-coop-probe",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 7,
+      "bytes": 5571891
+    },
+    {
+      "path": "target/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 501,
+      "bytes": 385250482
+    },
+    {
+      "path": "target/release/examples/cpu_adoption_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 3912048
+    },
+    {
+      "path": "target/release/examples/cpu_adoption_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5596
+    },
+    {
+      "path": "target/release/examples/cpu_baseline",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5442768
+    },
+    {
+      "path": "target/release/examples/cpu_baseline.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5763
+    },
+    {
+      "path": "target/release/examples/cpu_benchmark",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5507584
+    },
+    {
+      "path": "target/release/examples/cpu_benchmark.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5952
+    },
+    {
+      "path": "target/release/examples/cpu_owner_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5122016
+    },
+    {
+      "path": "target/release/examples/cpu_owner_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5867
+    },
+    {
+      "path": "target/release/examples/cpu_profile",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5480656
+    },
+    {
+      "path": "target/release/examples/cpu_profile.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5859
+    },
+    {
+      "path": "target/release/examples/cpu_qualify",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5595760
+    },
+    {
+      "path": "target/release/examples/cpu_qualify.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5856
+    },
+    {
+      "path": "target/release/examples/cpu_scheduling_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5099984
+    },
+    {
+      "path": "target/release/examples/cpu_scheduling_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5877
+    },
+    {
+      "path": "target/release/examples/gpu_compare",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 9779520
+    },
+    {
+      "path": "target/release/examples/gpu_compare.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 14265
+    },
+    {
+      "path": "target/release/examples/gpu_ocr_bench",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 12369184
+    },
+    {
+      "path": "target/release/examples/gpu_ocr_bench.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 14369
+    },
+    {
+      "path": "target/release/examples/gpu_projection_bench",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5576672
+    },
+    {
+      "path": "target/release/examples/gpu_projection_bench.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 15743
+    },
+    {
+      "path": "target/release/examples/gpu_shader_check",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5643088
+    },
+    {
+      "path": "target/release/examples/gpu_shader_check.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 15735
+    },
+    {
+      "path": "target/release/examples/ocr",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 11559280
+    },
+    {
+      "path": "target/release/examples/ocr.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 14249
+    },
+    {
+      "path": "target/release/simd-paddle-half-coop-probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 5570704
+    },
+    {
+      "path": "target/release/simd-paddle-half-coop-probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata",
+      "files": 1,
+      "bytes": 157
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 280,
+      "bytes": 7573688
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_adoption_probe-1cgi3gh8pzt1g",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1110240
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_adoption_probe-22ni7uu4pv51o",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1055591
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_adoption_probe-2kmzeup9ax8e0",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 1059211
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_baseline-0qi64rvi50okm",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 4516503
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_baseline-2bob7kuefq6y4",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 4468267
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_baseline-3m55f18bd2984",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 4424208
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_benchmark-07yj3gxr3bbe2",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 6514760
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_benchmark-1ychmvb3v9qib",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 6652384
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_benchmark-241kcsmbbe1u1",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 6586582
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_profile-0jync1k21d2uw",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 5265737
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_profile-0r29mev89zq03",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 5537953
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_profile-2lhansc2f00fk",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 5677704
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_qualify-23ytif735mxc8",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 6058102
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_qualify-2kpyrtbaeemb8",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 6011868
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_qualify-3gvpwqjthr3ew",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 6123063
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/ocr-0n759soh5xd10",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 766707
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/ocr-2uz88kh3wvm7w",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 757662
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/ocr-38ej622cb5qio",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 802165
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-0lpp2xs89pz3n",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 44852005
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-1f8wg5pa4udg7",
+      "reason": "project-only incremental compilation state",
+      "files": 5,
+      "bytes": 34596843
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-1gok85nq2kixo",
+      "reason": "project-only incremental compilation state",
+      "files": 5,
+      "bytes": 33751992
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-1kkdtvpzubddz",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 46780624
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-3h32su9t63o2i",
+      "reason": "project-only incremental compilation state",
+      "files": 4,
+      "bytes": 45894415
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-3uflfiknu5vr3",
+      "reason": "project-only incremental compilation state",
+      "files": 5,
+      "bytes": 33166786
+    },
+    {
+      "path": "target/x86_64-apple-darwin/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants",
+      "files": 224,
+      "bytes": 7758165
+    },
+    {
+      "path": "tools/__pycache__",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 1,
+      "bytes": 17322
+    },
+    {
+      "path": "tools/csharp-benchmark",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 5,
+      "bytes": 76664
+    },
+    {
+      "path": "tools/csharp-profile",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 5,
+      "bytes": 76826
+    },
+    {
+      "path": "tools/csharp-qualification",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 5,
+      "bytes": 76736
+    },
+    {
+      "path": "tools/csharp-reference",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 5,
+      "bytes": 76664
+    },
+    {
+      "path": "tools/reference/bin",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 9,
+      "bytes": 2908869
+    },
+    {
+      "path": "tools/reference/obj",
+      "reason": "retired local source archive, adapter/probe build, or Python cache",
+      "files": 22,
+      "bytes": 285452
+    }
+  ],
+  "files_deleted": 8619,
+  "bytes_deleted": 6683168448,
+  "retained_current_aliases": [
+    {
+      "path": "target/release/examples/gpu_compare",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_ocr_bench",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/ocr",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    }
+  ],
+  "dependencies_and_cpu_history_data_preserved": true
+}

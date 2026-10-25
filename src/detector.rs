@@ -123,16 +123,6 @@ pub struct DetectorPlan {
     limits: ExecutionLimits,
 }
 impl DetectorPlan {
-    #[cfg(feature = "gpu")]
-    pub fn with_gpu_pipeline_mode(
-        self: &Arc<Self>,
-        mode: crate::runtime::gpu::GpuPipelineMode,
-    ) -> Arc<Self> {
-        let mut plan = self.as_ref().clone();
-        plan.execution.gpu_mode = mode;
-        Arc::new(plan)
-    }
-
     pub fn execution_limits(&self) -> ExecutionLimits {
         self.limits
     }
@@ -169,7 +159,6 @@ impl Detector {
     #[cfg(feature = "gpu")]
     pub(crate) fn is_full_gpu(&self) -> bool {
         self.session.is_gpu()
-            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
     }
     #[cfg(feature = "gpu")]
     pub(crate) fn detect_resident(
@@ -194,14 +183,6 @@ impl Detector {
     #[cfg(feature = "gpu")]
     pub(crate) fn reset_run_statistics(&mut self) {
         self.gpu_statistics = Default::default();
-    }
-    #[cfg(feature = "gpu")]
-    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
-        if self.plan.execution.gpu_mode != mode {
-            self.gpu = None;
-            self.session.release_gpu_storage();
-            Arc::make_mut(&mut self.plan).execution.gpu_mode = mode;
-        }
     }
     #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
@@ -305,6 +286,13 @@ impl Detector {
         &self.plan.compiled
     }
     /// Statistics for the last bound production inference session.
+    pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            return gpu.session.counter_snapshot();
+        }
+        self.session.counter_snapshot()
+    }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
@@ -318,18 +306,20 @@ impl Detector {
     }
     pub fn activation_bytes(&self) -> usize {
         #[cfg(feature = "gpu")]
-        let resident = self.gpu.as_ref().map_or(0, |g| {
-            g.scratch.retained_bytes() + g.session.activation_bytes()
-        });
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.activation_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.activation_bytes()
     }
     pub fn retained_activation_bytes(&self) -> usize {
         #[cfg(feature = "gpu")]
-        let resident = self.gpu.as_ref().map_or(0, |g| {
-            g.scratch.retained_bytes() + g.session.retained_activation_bytes()
-        });
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_activation_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.retained_activation_bytes()
@@ -351,9 +341,10 @@ impl Detector {
     /// Retained kernel buffers, already included in retained workspace bytes.
     pub(crate) fn retained_device_bytes(&self) -> usize {
         #[cfg(feature = "gpu")]
-        let resident = self.gpu.as_ref().map_or(0, |g| {
-            g.scratch.retained_bytes() + g.session.retained_device_bytes()
-        });
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_device_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.retained_device_bytes()
@@ -384,9 +375,7 @@ impl Detector {
             ));
         }
         #[cfg(feature = "gpu")]
-        if self.session.is_gpu()
-            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
-        {
+        if self.session.is_gpu() {
             use crate::runtime::gpu::{
                 GpuPrecision,
                 resident::{Batch, Tensor},
@@ -451,9 +440,7 @@ impl Detector {
     ) -> ImageResult<DetectionView<'_>> {
         let cpu = self.session.cpu_context().clone();
         #[cfg(feature = "gpu")]
-        if self.session.is_gpu()
-            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
-        {
+        if self.session.is_gpu() {
             let result = (|| -> crate::runtime::RuntimeResult<_> {
                 if self.gpu.is_none() {
                     self.gpu = Some(crate::runtime::gpu::vision::Detector::new(

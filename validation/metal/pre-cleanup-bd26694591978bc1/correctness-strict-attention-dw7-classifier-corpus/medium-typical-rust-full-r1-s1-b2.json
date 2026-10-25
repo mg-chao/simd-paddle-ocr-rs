@@ -1,0 +1,2604 @@
+{
+  "accuracy_contract": {
+    "bbox_absolute_tolerance": 0.5,
+    "bbox_min_polygon_iou": null,
+    "bbox_tolerance_metric": "per coordinate",
+    "ctc_columns": "exact when capture is enabled",
+    "metadata": "exact",
+    "name": "fp32",
+    "score_absolute_tolerance": 0.001,
+    "score_comparison": "numeric gate",
+    "score_relative_tolerance": 0.001,
+    "text": "exact"
+  },
+  "accuracy_differences": [],
+  "adapter": "AdapterInfo { name: \"Apple M4\", vendor: 0, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"\", driver_info: \"\", backend: Metal, subgroup_min_size: 4, subgroup_max_size: 64, transient_saves_memory: Some(true), limit_bucket: None }",
+  "batch": 2,
+  "capture": true,
+  "classification_batch_size": 4,
+  "cold_run_ms": 354.92675,
+  "cold_run_statistics": [
+    {
+      "execution": "Resident",
+      "gpu": {
+        "adapter": "Apple M4",
+        "admission_wait_ns": 0,
+        "backend": "Metal",
+        "completion_wait_ns": 0,
+        "control_readback_bytes": 400,
+        "cpu_compute_stages": [],
+        "decoding": "Gpu",
+        "diagnostic_readback_bytes": 0,
+        "dispatches": 2035,
+        "driver": "",
+        "driver_info": "",
+        "encoding_ns": 0,
+        "geometry": "Gpu",
+        "image_processing": "Gpu",
+        "kernels": [
+          "image_normalize_F32",
+          "db_label_F32",
+          "db_row_extremes",
+          "db_geometry_F32",
+          "db_reading_order",
+          "perspective_transform",
+          "perspective_bicubic",
+          "projection_tiles1_F32",
+          "projection_winners",
+          "classifier_rotation",
+          "projection_mpp32_F32",
+          "ctc_compaction"
+        ],
+        "layout_conversions": 0,
+        "mode": "Full",
+        "native_graph_dispatches": 0,
+        "native_resident_dispatches": 0,
+        "output_readback_bytes": 29184,
+        "peak_device_bytes": 258763960,
+        "profiling_readback_bytes": 0,
+        "projection": "Gpu",
+        "projection_encoding_ns": 0,
+        "readback_ns": 0,
+        "scratch_allocated_bytes": 10534944,
+        "scratch_allocations": 102,
+        "scratch_reuses": 0,
+        "submission_ns": 0,
+        "submissions": 15,
+        "uploaded_bytes": 750000
+      },
+      "stages": {
+        "classifier": [
+          {
+            "activation_bytes": 1553408,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 66,
+            "layout_conversions": 0,
+            "nhwc_values": 0,
+            "normalized_nodes": 103,
+            "original_weight_bytes": 971640,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 0,
+            "physical_steps": 36,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 4,
+            "retained_activation_bytes": 1553408,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_generic",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 6
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native5",
+                "packed": false,
+                "steps": 7
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_direct32",
+                "packed": false,
+                "steps": 6
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_nchw16",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 3
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "conv_generic",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native5",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 7,
+                "store_fused": true
+              },
+              {
+                "family": "pointwise_direct32",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "pointwise_nchw16",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "portable_F32",
+                "operator": "GlobalAveragePool",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Mul",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 32,
+            "uploaded_bytes": 0
+          }
+        ],
+        "detector": [
+          {
+            "activation_bytes": 87147520,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 114,
+            "layout_conversions": 0,
+            "nhwc_values": 0,
+            "normalized_nodes": 228,
+            "original_weight_bytes": 61460884,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 0,
+            "physical_steps": 113,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 87147520,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_generic",
+                "packed": false,
+                "steps": 10
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_implicit16",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_implicit32",
+                "packed": false,
+                "steps": 30
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_transpose_tile8",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native9",
+                "packed": false,
+                "steps": 8
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 8
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_direct32",
+                "packed": false,
+                "steps": 9
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 18
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_finish",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_partial",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "conv_generic",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "conv_generic",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "conv_implicit16",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "conv_implicit16",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_implicit32",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 11,
+                "store_fused": false
+              },
+              {
+                "family": "conv_implicit32",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 19,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": false
+              },
+              {
+                "family": "depthwise_native9",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_direct32",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_direct32",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 4,
+                "store_fused": true
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "conv_transpose_tile8",
+                "isa": "portable_F32",
+                "operator": "ConvTranspose",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "ConvTranspose",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "portable_F32",
+                "operator": "ReduceMean",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_finish",
+                "isa": "portable_F32",
+                "operator": "ReduceMean",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_partial",
+                "isa": "portable_F32",
+                "operator": "ReduceMean",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Resize",
+                "steps": 6,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 46,
+            "uploaded_bytes": 0
+          }
+        ],
+        "recognizer": [
+          {
+            "activation_bytes": 17157120,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 206,
+            "layout_conversions": 0,
+            "nhwc_values": 0,
+            "normalized_nodes": 349,
+            "original_weight_bytes": 76534924,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 0,
+            "physical_steps": 127,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 14,
+            "production_readbacks": 0,
+            "production_submissions": 13,
+            "retained_activation_bytes": 17157120,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_online",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_generic",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_implicit16",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_implicit32",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 14
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 48
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "matmul_tile16",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 31
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 6
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Add",
+                "steps": 14,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_generic",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_generic",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "conv_implicit16",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_implicit32",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 14,
+                "store_fused": true
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "portable_F32",
+                "operator": "Conv",
+                "steps": 29,
+                "store_fused": true
+              },
+              {
+                "family": "attention_online",
+                "isa": "portable_F32",
+                "operator": "MatMul",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "matmul_tile16",
+                "isa": "portable_F32",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Mul",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "portable_F32",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "portable_F32",
+                "operator": "ReduceMean",
+                "steps": 6,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Sigmoid",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Slice",
+                "steps": 6,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "portable_F32",
+                "operator": "Transpose",
+                "steps": 9,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 59,
+            "uploaded_bytes": 0
+          }
+        ]
+      },
+      "succeeded": true
+    }
+  ],
+  "cold_statistics": [
+    {
+      "adapter": "Apple M4",
+      "admission_wait_ns": 0,
+      "backend": "Metal",
+      "completion_wait_ns": 0,
+      "control_readback_bytes": 400,
+      "cpu_compute_stages": [],
+      "decoding": "Gpu",
+      "diagnostic_readback_bytes": 0,
+      "dispatches": 2035,
+      "driver": "",
+      "driver_info": "",
+      "encoding_ns": 0,
+      "geometry": "Gpu",
+      "image_processing": "Gpu",
+      "kernels": [
+        "image_normalize_F32",
+        "db_label_F32",
+        "db_row_extremes",
+        "db_geometry_F32",
+        "db_reading_order",
+        "perspective_transform",
+        "perspective_bicubic",
+        "projection_tiles1_F32",
+        "projection_winners",
+        "classifier_rotation",
+        "projection_mpp32_F32",
+        "ctc_compaction"
+      ],
+      "layout_conversions": 0,
+      "mode": "Full",
+      "native_graph_dispatches": 0,
+      "native_resident_dispatches": 0,
+      "output_readback_bytes": 29184,
+      "peak_device_bytes": 258763960,
+      "profiling_readback_bytes": 0,
+      "projection": "Gpu",
+      "projection_encoding_ns": 0,
+      "readback_ns": 0,
+      "scratch_allocated_bytes": 10534944,
+      "scratch_allocations": 102,
+      "scratch_reuses": 0,
+      "submission_ns": 0,
+      "submissions": 15,
+      "uploaded_bytes": 750000
+    }
+  ],
+  "cpu_options": {
+    "detector_threads": 8,
+    "line_workers": 4,
+    "preprocess_workers": 16
+  },
+  "errors": [],
+  "failed_outputs": [],
+  "host_cpu_contract": "process CPU clock across execute including owned copy; excludes validation and serialization; requires macOS and the profiling feature, otherwise null",
+  "image": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/reports/gpu-native-optimization-2026-10-24/qualification/corpus/typical.png",
+  "images_per_second": null,
+  "matrix_precision": "f32",
+  "median_group_ms": null,
+  "native_graph_execution": false,
+  "native_metal_kernels": true,
+  "native_pointwise_direct": true,
+  "native_pointwise_large": true,
+  "native_projection": true,
+  "native_spatial_convolution": false,
+  "outputs": [
+    {
+      "detected_count": 16,
+      "detector_resized_height": 512,
+      "detector_resized_width": 512,
+      "height_ratio": 1.0240000486373901,
+      "lines": [
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999380111694336,
+          "ctc_spans": [
+            {
+              "end_column": 5,
+              "score": 17.18233299255371,
+              "start_column": 4,
+              "text": "纯"
+            },
+            {
+              "end_column": 11,
+              "score": 11.854901313781738,
+              "start_column": 10,
+              "text": "臻"
+            },
+            {
+              "end_column": 17,
+              "score": 19.41250228881836,
+              "start_column": 16,
+              "text": "营"
+            },
+            {
+              "end_column": 24,
+              "score": 21.43636131286621,
+              "start_column": 23,
+              "text": "养"
+            },
+            {
+              "end_column": 30,
+              "score": 18.53567123413086,
+              "start_column": 29,
+              "text": "护"
+            },
+            {
+              "end_column": 37,
+              "score": 23.20977020263672,
+              "start_column": 36,
+              "text": "发"
+            },
+            {
+              "end_column": 43,
+              "score": 19.00192642211914,
+              "start_column": 42,
+              "text": "素"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                35.0
+              ],
+              [
+                304.0,
+                35.0
+              ],
+              [
+                304.0,
+                72.0
+              ],
+              [
+                24.0,
+                72.0
+              ]
+            ],
+            "score": 0.9033071994781494
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 364,
+          "recognition_score": 18.661924362182617,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "text": "纯臻营养护发素"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999992847442627,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 23.898664474487305,
+              "start_column": 3,
+              "text": "产"
+            },
+            {
+              "end_column": 9,
+              "score": 26.156869888305664,
+              "start_column": 8,
+              "text": "品"
+            },
+            {
+              "end_column": 15,
+              "score": 25.685205459594727,
+              "start_column": 14,
+              "text": "信"
+            },
+            {
+              "end_column": 20,
+              "score": 24.886089324951172,
+              "start_column": 19,
+              "text": "息"
+            },
+            {
+              "end_column": 24,
+              "score": 22.590316772460938,
+              "start_column": 23,
+              "text": "/"
+            },
+            {
+              "end_column": 28,
+              "score": 24.647171020507812,
+              "start_column": 27,
+              "text": "参"
+            },
+            {
+              "end_column": 34,
+              "score": 21.366561889648438,
+              "start_column": 33,
+              "text": "数"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                79.0
+              ],
+              [
+                173.0,
+                79.0
+              ],
+              [
+                173.0,
+                104.0
+              ],
+              [
+                24.0,
+                104.0
+              ]
+            ],
+            "score": 0.8734238743782043
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 287,
+          "recognition_score": 24.175840377807617,
+          "recognition_tensor_width": 288,
+          "recognition_time_steps": 36,
+          "text": "产品信息/参数"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999996542930603,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 23.221050262451172,
+              "start_column": 2,
+              "text": "("
+            },
+            {
+              "end_column": 5,
+              "score": 24.075809478759766,
+              "start_column": 4,
+              "text": "4"
+            },
+            {
+              "end_column": 8,
+              "score": 25.162439346313477,
+              "start_column": 7,
+              "text": "5"
+            },
+            {
+              "end_column": 13,
+              "score": 23.893877029418945,
+              "start_column": 12,
+              "text": "元"
+            },
+            {
+              "end_column": 17,
+              "score": 23.14348602294922,
+              "start_column": 16,
+              "text": "/"
+            },
+            {
+              "end_column": 21,
+              "score": 22.442720413208008,
+              "start_column": 20,
+              "text": "每"
+            },
+            {
+              "end_column": 27,
+              "score": 21.978843688964844,
+              "start_column": 26,
+              "text": "公"
+            },
+            {
+              "end_column": 32,
+              "score": 19.970014572143555,
+              "start_column": 31,
+              "text": "斤"
+            },
+            {
+              "end_column": 38,
+              "score": 22.189186096191406,
+              "start_column": 37,
+              "text": "，"
+            },
+            {
+              "end_column": 43,
+              "score": 23.66927146911621,
+              "start_column": 42,
+              "text": "1"
+            },
+            {
+              "end_column": 46,
+              "score": 25.293554306030273,
+              "start_column": 45,
+              "text": "0"
+            },
+            {
+              "end_column": 50,
+              "score": 24.766464233398438,
+              "start_column": 49,
+              "text": "0"
+            },
+            {
+              "end_column": 54,
+              "score": 21.249975204467773,
+              "start_column": 53,
+              "text": "公"
+            },
+            {
+              "end_column": 60,
+              "score": 19.04899024963379,
+              "start_column": 59,
+              "text": "斤"
+            },
+            {
+              "end_column": 66,
+              "score": 23.17070960998535,
+              "start_column": 65,
+              "text": "起"
+            },
+            {
+              "end_column": 71,
+              "score": 21.572036743164062,
+              "start_column": 70,
+              "text": "订"
+            },
+            {
+              "end_column": 76,
+              "score": 21.13283348083496,
+              "start_column": 75,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                110.0
+              ],
+              [
+                334.0,
+                110.0
+              ],
+              [
+                334.0,
+                134.0
+              ],
+              [
+                24.0,
+                134.0
+              ]
+            ],
+            "score": 0.8513661623001099
+          },
+          "emitted_count": 17,
+          "recognition_content_width": 620,
+          "recognition_score": 22.70478057861328,
+          "recognition_tensor_width": 640,
+          "recognition_time_steps": 80,
+          "text": "(45元/每公斤，100公斤起订)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999998927116394,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 23.01673126220703,
+              "start_column": 3,
+              "text": "每"
+            },
+            {
+              "end_column": 10,
+              "score": 22.2036075592041,
+              "start_column": 9,
+              "text": "瓶"
+            },
+            {
+              "end_column": 15,
+              "score": 25.037179946899414,
+              "start_column": 14,
+              "text": "2"
+            },
+            {
+              "end_column": 18,
+              "score": 26.51799201965332,
+              "start_column": 17,
+              "text": "2"
+            },
+            {
+              "end_column": 23,
+              "score": 23.203609466552734,
+              "start_column": 22,
+              "text": "元"
+            },
+            {
+              "end_column": 29,
+              "score": 22.6213321685791,
+              "start_column": 28,
+              "text": "，"
+            },
+            {
+              "end_column": 34,
+              "score": 25.29801368713379,
+              "start_column": 33,
+              "text": "1"
+            },
+            {
+              "end_column": 38,
+              "score": 26.640592575073242,
+              "start_column": 37,
+              "text": "0"
+            },
+            {
+              "end_column": 41,
+              "score": 26.459718704223633,
+              "start_column": 40,
+              "text": "0"
+            },
+            {
+              "end_column": 45,
+              "score": 25.13519859313965,
+              "start_column": 44,
+              "text": "0"
+            },
+            {
+              "end_column": 50,
+              "score": 20.14330291748047,
+              "start_column": 49,
+              "text": "瓶"
+            },
+            {
+              "end_column": 56,
+              "score": 21.754467010498047,
+              "start_column": 55,
+              "text": "起"
+            },
+            {
+              "end_column": 61,
+              "score": 21.33547592163086,
+              "start_column": 60,
+              "text": "订"
+            },
+            {
+              "end_column": 67,
+              "score": 19.09248924255371,
+              "start_column": 66,
+              "text": "）"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                142.0
+              ],
+              [
+                283.0,
+                142.0
+              ],
+              [
+                283.0,
+                165.0
+              ],
+              [
+                24.0,
+                165.0
+              ]
+            ],
+            "score": 0.8736417293548584
+          },
+          "emitted_count": 14,
+          "recognition_content_width": 541,
+          "recognition_score": 23.461408615112305,
+          "recognition_tensor_width": 544,
+          "recognition_time_steps": 68,
+          "text": "每瓶22元，1000瓶起订）"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9992982149124146,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 20.868303298950195,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 8,
+              "score": 23.57936668395996,
+              "start_column": 7,
+              "text": "品"
+            },
+            {
+              "end_column": 14,
+              "score": 21.452781677246094,
+              "start_column": 13,
+              "text": "牌"
+            },
+            {
+              "end_column": 19,
+              "score": 21.167789459228516,
+              "start_column": 18,
+              "text": "】"
+            },
+            {
+              "end_column": 27,
+              "score": 18.977628707885742,
+              "start_column": 26,
+              "text": ":"
+            },
+            {
+              "end_column": 33,
+              "score": 22.077726364135742,
+              "start_column": 32,
+              "text": "代"
+            },
+            {
+              "end_column": 40,
+              "score": 21.144723892211914,
+              "start_column": 39,
+              "text": "加"
+            },
+            {
+              "end_column": 46,
+              "score": 21.440229415893555,
+              "start_column": 45,
+              "text": "工"
+            },
+            {
+              "end_column": 52,
+              "score": 22.095157623291016,
+              "start_column": 51,
+              "text": "方"
+            },
+            {
+              "end_column": 59,
+              "score": 20.847627639770508,
+              "start_column": 58,
+              "text": "式"
+            },
+            {
+              "end_column": 64,
+              "score": 23.298686981201172,
+              "start_column": 63,
+              "text": "/"
+            },
+            {
+              "end_column": 67,
+              "score": 21.521007537841797,
+              "start_column": 66,
+              "text": "O"
+            },
+            {
+              "end_column": 72,
+              "score": 23.861303329467773,
+              "start_column": 71,
+              "text": "E"
+            },
+            {
+              "end_column": 77,
+              "score": 21.899900436401367,
+              "start_column": 76,
+              "text": "M"
+            },
+            {
+              "end_column": 81,
+              "score": 18.297210693359375,
+              "start_column": 80,
+              "text": " "
+            },
+            {
+              "end_column": 85,
+              "score": 21.924579620361328,
+              "start_column": 84,
+              "text": "O"
+            },
+            {
+              "end_column": 89,
+              "score": 24.05454444885254,
+              "start_column": 88,
+              "text": "D"
+            },
+            {
+              "end_column": 95,
+              "score": 22.96728515625,
+              "start_column": 94,
+              "text": "M"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                177.0
+              ],
+              [
+                299.0,
+                177.0
+              ],
+              [
+                299.0,
+                194.0
+              ],
+              [
+                25.0,
+                194.0
+              ]
+            ],
+            "score": 0.9072766304016113
+          },
+          "emitted_count": 18,
+          "recognition_content_width": 774,
+          "recognition_score": 21.748659133911133,
+          "recognition_tensor_width": 800,
+          "recognition_time_steps": 100,
+          "text": "【品牌】:代加工方式/OEM ODM"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9998505115509033,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 21.385339736938477,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 8,
+              "score": 25.302019119262695,
+              "start_column": 7,
+              "text": "品"
+            },
+            {
+              "end_column": 13,
+              "score": 22.8149356842041,
+              "start_column": 12,
+              "text": "名"
+            },
+            {
+              "end_column": 18,
+              "score": 22.665443420410156,
+              "start_column": 17,
+              "text": "】"
+            },
+            {
+              "end_column": 25,
+              "score": 20.657325744628906,
+              "start_column": 24,
+              "text": "："
+            },
+            {
+              "end_column": 31,
+              "score": 19.836702346801758,
+              "start_column": 30,
+              "text": "纯"
+            },
+            {
+              "end_column": 36,
+              "score": 14.630534172058105,
+              "start_column": 35,
+              "text": "臻"
+            },
+            {
+              "end_column": 42,
+              "score": 20.464385986328125,
+              "start_column": 41,
+              "text": "营"
+            },
+            {
+              "end_column": 48,
+              "score": 23.58603286743164,
+              "start_column": 47,
+              "text": "养"
+            },
+            {
+              "end_column": 53,
+              "score": 19.068044662475586,
+              "start_column": 52,
+              "text": "护"
+            },
+            {
+              "end_column": 59,
+              "score": 23.182357788085938,
+              "start_column": 58,
+              "text": "发"
+            },
+            {
+              "end_column": 65,
+              "score": 18.414888381958008,
+              "start_column": 64,
+              "text": "素"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                22.905216217041016,
+                208.00045776367188
+              ],
+              [
+                234.00001525878906,
+                207.00001525878906
+              ],
+              [
+                234.09478759765625,
+                226.99957275390625
+              ],
+              [
+                23.0,
+                228.00001525878906
+              ]
+            ],
+            "score": 0.8851863145828247
+          },
+          "emitted_count": 12,
+          "recognition_content_width": 534,
+          "recognition_score": 21.000667572021484,
+          "recognition_tensor_width": 544,
+          "recognition_time_steps": 68,
+          "text": "【品名】：纯臻营养护发素"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999943971633911,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 22.297237396240234,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 23.675537109375,
+              "start_column": 6,
+              "text": "产"
+            },
+            {
+              "end_column": 14,
+              "score": 25.482423782348633,
+              "start_column": 13,
+              "text": "品"
+            },
+            {
+              "end_column": 20,
+              "score": 20.3116512298584,
+              "start_column": 19,
+              "text": "编"
+            },
+            {
+              "end_column": 26,
+              "score": 24.05111312866211,
+              "start_column": 25,
+              "text": "号"
+            },
+            {
+              "end_column": 31,
+              "score": 20.998306274414062,
+              "start_column": 30,
+              "text": "】"
+            },
+            {
+              "end_column": 38,
+              "score": 20.23532485961914,
+              "start_column": 37,
+              "text": "："
+            },
+            {
+              "end_column": 43,
+              "score": 25.045164108276367,
+              "start_column": 42,
+              "text": "Y"
+            },
+            {
+              "end_column": 47,
+              "score": 23.321331024169922,
+              "start_column": 46,
+              "text": "M"
+            },
+            {
+              "end_column": 52,
+              "score": 23.599702835083008,
+              "start_column": 51,
+              "text": "-"
+            },
+            {
+              "end_column": 55,
+              "score": 22.577051162719727,
+              "start_column": 54,
+              "text": "X"
+            },
+            {
+              "end_column": 58,
+              "score": 25.14984130859375,
+              "start_column": 57,
+              "text": "-"
+            },
+            {
+              "end_column": 62,
+              "score": 25.80332374572754,
+              "start_column": 61,
+              "text": "3"
+            },
+            {
+              "end_column": 65,
+              "score": 27.106752395629883,
+              "start_column": 64,
+              "text": "0"
+            },
+            {
+              "end_column": 68,
+              "score": 24.643522262573242,
+              "start_column": 67,
+              "text": "1"
+            },
+            {
+              "end_column": 72,
+              "score": 24.14576530456543,
+              "start_column": 71,
+              "text": "1"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                239.0
+              ],
+              [
+                242.0,
+                239.0
+              ],
+              [
+                242.0,
+                257.0
+              ],
+              [
+                24.0,
+                257.0
+              ]
+            ],
+            "score": 0.8666965365409851
+          },
+          "emitted_count": 16,
+          "recognition_content_width": 582,
+          "recognition_score": 23.652753829956055,
+          "recognition_tensor_width": 608,
+          "recognition_time_steps": 76,
+          "text": "【产品编号】：YM-X-3011"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9958264827728271,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 19.54926872253418,
+              "start_column": 3,
+              "text": "O"
+            },
+            {
+              "end_column": 8,
+              "score": 23.224212646484375,
+              "start_column": 7,
+              "text": "D"
+            },
+            {
+              "end_column": 13,
+              "score": 18.130552291870117,
+              "start_column": 12,
+              "text": "M"
+            },
+            {
+              "end_column": 17,
+              "score": 19.129255294799805,
+              "start_column": 16,
+              "text": " "
+            },
+            {
+              "end_column": 20,
+              "score": 16.035545349121094,
+              "start_column": 19,
+              "text": "O"
+            },
+            {
+              "end_column": 24,
+              "score": 17.19284439086914,
+              "start_column": 23,
+              "text": "E"
+            },
+            {
+              "end_column": 28,
+              "score": 20.315858840942383,
+              "start_column": 27,
+              "text": "M"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                414.0,
+                233.0
+              ],
+              [
+                428.0,
+                233.0
+              ],
+              [
+                428.0,
+                303.0
+              ],
+              [
+                414.0,
+                303.0
+              ]
+            ],
+            "score": 0.937155544757843
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 240,
+          "recognition_score": 19.082508087158203,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "text": "ODM OEM"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999855637550354,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 20.966108322143555,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 23.141799926757812,
+              "start_column": 6,
+              "text": "净"
+            },
+            {
+              "end_column": 12,
+              "score": 28.295791625976562,
+              "start_column": 11,
+              "text": "含"
+            },
+            {
+              "end_column": 18,
+              "score": 23.1163330078125,
+              "start_column": 17,
+              "text": "量"
+            },
+            {
+              "end_column": 22,
+              "score": 20.861324310302734,
+              "start_column": 21,
+              "text": "】"
+            },
+            {
+              "end_column": 29,
+              "score": 22.446043014526367,
+              "start_column": 28,
+              "text": ":"
+            },
+            {
+              "end_column": 33,
+              "score": 26.93074607849121,
+              "start_column": 32,
+              "text": "2"
+            },
+            {
+              "end_column": 36,
+              "score": 26.725849151611328,
+              "start_column": 35,
+              "text": "2"
+            },
+            {
+              "end_column": 40,
+              "score": 26.527795791625977,
+              "start_column": 39,
+              "text": "0"
+            },
+            {
+              "end_column": 44,
+              "score": 23.20950698852539,
+              "start_column": 43,
+              "text": "m"
+            },
+            {
+              "end_column": 47,
+              "score": 22.688051223754883,
+              "start_column": 46,
+              "text": "l"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                23.0,
+                270.0
+              ],
+              [
+                180.0,
+                270.0
+              ],
+              [
+                180.0,
+                290.0
+              ],
+              [
+                23.0,
+                290.0
+              ]
+            ],
+            "score": 0.8440626859664917
+          },
+          "emitted_count": 11,
+          "recognition_content_width": 377,
+          "recognition_score": 24.082670211791992,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "text": "【净含量】:220ml"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999982118606567,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 21.002531051635742,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 8,
+              "score": 24.845197677612305,
+              "start_column": 7,
+              "text": "适"
+            },
+            {
+              "end_column": 14,
+              "score": 23.744741439819336,
+              "start_column": 13,
+              "text": "用"
+            },
+            {
+              "end_column": 20,
+              "score": 23.01792335510254,
+              "start_column": 19,
+              "text": "人"
+            },
+            {
+              "end_column": 27,
+              "score": 24.86525535583496,
+              "start_column": 26,
+              "text": "群"
+            },
+            {
+              "end_column": 32,
+              "score": 21.91737174987793,
+              "start_column": 31,
+              "text": "】"
+            },
+            {
+              "end_column": 40,
+              "score": 22.102842330932617,
+              "start_column": 39,
+              "text": "："
+            },
+            {
+              "end_column": 47,
+              "score": 23.41616439819336,
+              "start_column": 46,
+              "text": "适"
+            },
+            {
+              "end_column": 53,
+              "score": 25.080848693847656,
+              "start_column": 52,
+              "text": "合"
+            },
+            {
+              "end_column": 59,
+              "score": 23.859264373779297,
+              "start_column": 58,
+              "text": "所"
+            },
+            {
+              "end_column": 66,
+              "score": 24.61277961730957,
+              "start_column": 65,
+              "text": "有"
+            },
+            {
+              "end_column": 72,
+              "score": 18.884031295776367,
+              "start_column": 71,
+              "text": "肤"
+            },
+            {
+              "end_column": 78,
+              "score": 21.317655563354492,
+              "start_column": 77,
+              "text": "质"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                303.0
+              ],
+              [
+                252.0,
+                303.0
+              ],
+              [
+                252.0,
+                320.0
+              ],
+              [
+                24.0,
+                320.0
+              ]
+            ],
+            "score": 0.885783851146698
+          },
+          "emitted_count": 13,
+          "recognition_content_width": 644,
+          "recognition_score": 22.974353790283203,
+          "recognition_tensor_width": 672,
+          "recognition_time_steps": 84,
+          "text": "【适用人群】：适合所有肤质"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999995231628418,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 19.63031768798828,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 24.454011917114258,
+              "start_column": 6,
+              "text": "主"
+            },
+            {
+              "end_column": 14,
+              "score": 19.73319435119629,
+              "start_column": 13,
+              "text": "要"
+            },
+            {
+              "end_column": 20,
+              "score": 22.828922271728516,
+              "start_column": 19,
+              "text": "成"
+            },
+            {
+              "end_column": 25,
+              "score": 22.902498245239258,
+              "start_column": 24,
+              "text": "分"
+            },
+            {
+              "end_column": 31,
+              "score": 20.711938858032227,
+              "start_column": 30,
+              "text": "】"
+            },
+            {
+              "end_column": 38,
+              "score": 21.610239028930664,
+              "start_column": 37,
+              "text": "："
+            },
+            {
+              "end_column": 44,
+              "score": 14.974924087524414,
+              "start_column": 43,
+              "text": "鲸"
+            },
+            {
+              "end_column": 50,
+              "score": 15.593058586120605,
+              "start_column": 49,
+              "text": "蜡"
+            },
+            {
+              "end_column": 56,
+              "score": 21.449012756347656,
+              "start_column": 55,
+              "text": "硬"
+            },
+            {
+              "end_column": 62,
+              "score": 20.66048240661621,
+              "start_column": 61,
+              "text": "脂"
+            },
+            {
+              "end_column": 68,
+              "score": 15.547221183776855,
+              "start_column": 67,
+              "text": "醇"
+            },
+            {
+              "end_column": 72,
+              "score": 21.557079315185547,
+              "start_column": 71,
+              "text": "、"
+            },
+            {
+              "end_column": 81,
+              "score": 17.366470336914062,
+              "start_column": 80,
+              "text": "燕"
+            },
+            {
+              "end_column": 86,
+              "score": 19.621681213378906,
+              "start_column": 85,
+              "text": "麦"
+            },
+            {
+              "end_column": 91,
+              "score": 16.064197540283203,
+              "start_column": 90,
+              "text": "β"
+            },
+            {
+              "end_column": 94,
+              "score": 19.832204818725586,
+              "start_column": 93,
+              "text": "-"
+            },
+            {
+              "end_column": 99,
+              "score": 16.995908737182617,
+              "start_column": 98,
+              "text": "葡"
+            },
+            {
+              "end_column": 105,
+              "score": 19.744264602661133,
+              "start_column": 104,
+              "text": "聚"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                334.0
+              ],
+              [
+                343.0,
+                334.0
+              ],
+              [
+                343.0,
+                352.0
+              ],
+              [
+                24.0,
+                352.0
+              ]
+            ],
+            "score": 0.8765711784362793
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 851,
+          "recognition_score": 19.54092788696289,
+          "recognition_tensor_width": 864,
+          "recognition_time_steps": 108,
+          "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999998927116394,
+          "ctc_spans": [
+            {
+              "end_column": 5,
+              "score": 14.469780921936035,
+              "start_column": 4,
+              "text": "糖"
+            },
+            {
+              "end_column": 9,
+              "score": 21.036685943603516,
+              "start_column": 8,
+              "text": "、"
+            },
+            {
+              "end_column": 17,
+              "score": 13.534423828125,
+              "start_column": 16,
+              "text": "椰"
+            },
+            {
+              "end_column": 23,
+              "score": 20.487350463867188,
+              "start_column": 22,
+              "text": "油"
+            },
+            {
+              "end_column": 29,
+              "score": 13.707498550415039,
+              "start_column": 28,
+              "text": "酰"
+            },
+            {
+              "end_column": 35,
+              "score": 15.059850692749023,
+              "start_column": 34,
+              "text": "胺"
+            },
+            {
+              "end_column": 41,
+              "score": 20.39288330078125,
+              "start_column": 40,
+              "text": "丙"
+            },
+            {
+              "end_column": 47,
+              "score": 19.975021362304688,
+              "start_column": 46,
+              "text": "基"
+            },
+            {
+              "end_column": 53,
+              "score": 19.737689971923828,
+              "start_column": 52,
+              "text": "甜"
+            },
+            {
+              "end_column": 59,
+              "score": 19.23576545715332,
+              "start_column": 58,
+              "text": "菜"
+            },
+            {
+              "end_column": 66,
+              "score": 15.91518783569336,
+              "start_column": 65,
+              "text": "碱"
+            },
+            {
+              "end_column": 70,
+              "score": 21.963899612426758,
+              "start_column": 69,
+              "text": "、"
+            },
+            {
+              "end_column": 78,
+              "score": 19.938783645629883,
+              "start_column": 77,
+              "text": "泛"
+            },
+            {
+              "end_column": 84,
+              "score": 10.65776252746582,
+              "start_column": 83,
+              "text": "醌"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                365.0
+              ],
+              [
+                282.0,
+                365.0
+              ],
+              [
+                282.0,
+                383.0
+              ],
+              [
+                25.0,
+                383.0
+              ]
+            ],
+            "score": 0.8578735589981079
+          },
+          "emitted_count": 14,
+          "recognition_content_width": 686,
+          "recognition_score": 17.579471588134766,
+          "recognition_tensor_width": 704,
+          "recognition_time_steps": 88,
+          "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999364614486694,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 19.436880111694336,
+              "start_column": 1,
+              "text": "("
+            },
+            {
+              "end_column": 8,
+              "score": 22.620882034301758,
+              "start_column": 7,
+              "text": "成"
+            },
+            {
+              "end_column": 13,
+              "score": 25.644643783569336,
+              "start_column": 12,
+              "text": "品"
+            },
+            {
+              "end_column": 18,
+              "score": 23.46277618408203,
+              "start_column": 17,
+              "text": "包"
+            },
+            {
+              "end_column": 24,
+              "score": 20.93810272216797,
+              "start_column": 23,
+              "text": "材"
+            },
+            {
+              "end_column": 29,
+              "score": 18.9785099029541,
+              "start_column": 28,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                368.0,
+                366.0
+              ],
+              [
+                476.0,
+                366.0
+              ],
+              [
+                476.0,
+                388.0
+              ],
+              [
+                368.0,
+                388.0
+              ]
+            ],
+            "score": 0.9039833545684814
+          },
+          "emitted_count": 6,
+          "recognition_content_width": 236,
+          "recognition_score": 21.846965789794922,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "text": "(成品包材)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999411106109619,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 18.905336380004883,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 24.023860931396484,
+              "start_column": 6,
+              "text": "主"
+            },
+            {
+              "end_column": 14,
+              "score": 23.858379364013672,
+              "start_column": 13,
+              "text": "要"
+            },
+            {
+              "end_column": 20,
+              "score": 24.389711380004883,
+              "start_column": 19,
+              "text": "功"
+            },
+            {
+              "end_column": 27,
+              "score": 21.58158302307129,
+              "start_column": 26,
+              "text": "能"
+            },
+            {
+              "end_column": 32,
+              "score": 20.474925994873047,
+              "start_column": 31,
+              "text": "】"
+            },
+            {
+              "end_column": 40,
+              "score": 21.4783992767334,
+              "start_column": 39,
+              "text": "："
+            },
+            {
+              "end_column": 46,
+              "score": 23.282611846923828,
+              "start_column": 45,
+              "text": "可"
+            },
+            {
+              "end_column": 53,
+              "score": 18.615991592407227,
+              "start_column": 52,
+              "text": "紧"
+            },
+            {
+              "end_column": 59,
+              "score": 21.184423446655273,
+              "start_column": 58,
+              "text": "致"
+            },
+            {
+              "end_column": 65,
+              "score": 25.304718017578125,
+              "start_column": 64,
+              "text": "头"
+            },
+            {
+              "end_column": 72,
+              "score": 22.613313674926758,
+              "start_column": 71,
+              "text": "发"
+            },
+            {
+              "end_column": 78,
+              "score": 13.374358177185059,
+              "start_column": 77,
+              "text": "磷"
+            },
+            {
+              "end_column": 85,
+              "score": 20.435832977294922,
+              "start_column": 83,
+              "text": "层"
+            },
+            {
+              "end_column": 91,
+              "score": 21.49941635131836,
+              "start_column": 90,
+              "text": "，"
+            },
+            {
+              "end_column": 97,
+              "score": 21.679187774658203,
+              "start_column": 96,
+              "text": "从"
+            },
+            {
+              "end_column": 104,
+              "score": 22.020055770874023,
+              "start_column": 103,
+              "text": "而"
+            },
+            {
+              "end_column": 110,
+              "score": 21.456167221069336,
+              "start_column": 109,
+              "text": "达"
+            },
+            {
+              "end_column": 117,
+              "score": 21.068073272705078,
+              "start_column": 116,
+              "text": "到"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                396.0
+              ],
+              [
+                361.0,
+                396.0
+              ],
+              [
+                361.0,
+                413.0
+              ],
+              [
+                25.0,
+                413.0
+              ]
+            ],
+            "score": 0.980333685874939
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 949,
+          "recognition_score": 21.434017181396484,
+          "recognition_tensor_width": 960,
+          "recognition_time_steps": 120,
+          "text": "【主要功能】：可紧致头发磷层，从而达到"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999983310699463,
+          "ctc_spans": [
+            {
+              "end_column": 5,
+              "score": 21.5832576751709,
+              "start_column": 4,
+              "text": "即"
+            },
+            {
+              "end_column": 11,
+              "score": 21.284006118774414,
+              "start_column": 10,
+              "text": "时"
+            },
+            {
+              "end_column": 17,
+              "score": 21.93692970275879,
+              "start_column": 16,
+              "text": "持"
+            },
+            {
+              "end_column": 23,
+              "score": 22.985733032226562,
+              "start_column": 22,
+              "text": "久"
+            },
+            {
+              "end_column": 30,
+              "score": 25.886905670166016,
+              "start_column": 29,
+              "text": "改"
+            },
+            {
+              "end_column": 37,
+              "score": 21.502649307250977,
+              "start_column": 36,
+              "text": "善"
+            },
+            {
+              "end_column": 43,
+              "score": 24.507112503051758,
+              "start_column": 42,
+              "text": "头"
+            },
+            {
+              "end_column": 49,
+              "score": 21.866235733032227,
+              "start_column": 48,
+              "text": "发"
+            },
+            {
+              "end_column": 56,
+              "score": 22.926252365112305,
+              "start_column": 55,
+              "text": "光"
+            },
+            {
+              "end_column": 62,
+              "score": 18.69179916381836,
+              "start_column": 61,
+              "text": "泽"
+            },
+            {
+              "end_column": 69,
+              "score": 24.371374130249023,
+              "start_column": 68,
+              "text": "的"
+            },
+            {
+              "end_column": 75,
+              "score": 20.607772827148438,
+              "start_column": 74,
+              "text": "效"
+            },
+            {
+              "end_column": 81,
+              "score": 23.475971221923828,
+              "start_column": 80,
+              "text": "果"
+            },
+            {
+              "end_column": 88,
+              "score": 22.116575241088867,
+              "start_column": 87,
+              "text": "，"
+            },
+            {
+              "end_column": 94,
+              "score": 20.157773971557617,
+              "start_column": 93,
+              "text": "给"
+            },
+            {
+              "end_column": 101,
+              "score": 17.88377571105957,
+              "start_column": 100,
+              "text": "干"
+            },
+            {
+              "end_column": 108,
+              "score": 12.425479888916016,
+              "start_column": 107,
+              "text": "燥"
+            },
+            {
+              "end_column": 114,
+              "score": 24.320905685424805,
+              "start_column": 113,
+              "text": "的"
+            },
+            {
+              "end_column": 120,
+              "score": 24.665800094604492,
+              "start_column": 119,
+              "text": "头"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                26.0,
+                428.0
+              ],
+              [
+                372.0,
+                428.0
+              ],
+              [
+                372.0,
+                445.0
+              ],
+              [
+                26.0,
+                445.0
+              ]
+            ],
+            "score": 0.8732805252075195
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 977,
+          "recognition_score": 21.747175216674805,
+          "recognition_tensor_width": 992,
+          "recognition_time_steps": 124,
+          "text": "即时持久改善头发光泽的效果，给干燥的头"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999988079071045,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 22.24079132080078,
+              "start_column": 3,
+              "text": "发"
+            },
+            {
+              "end_column": 9,
+              "score": 19.783470153808594,
+              "start_column": 8,
+              "text": "足"
+            },
+            {
+              "end_column": 15,
+              "score": 22.340852737426758,
+              "start_column": 14,
+              "text": "够"
+            },
+            {
+              "end_column": 20,
+              "score": 24.53018569946289,
+              "start_column": 19,
+              "text": "的"
+            },
+            {
+              "end_column": 25,
+              "score": 21.409719467163086,
+              "start_column": 24,
+              "text": "滋"
+            },
+            {
+              "end_column": 30,
+              "score": 22.07914161682129,
+              "start_column": 29,
+              "text": "养"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                457.0
+              ],
+              [
+                136.0,
+                457.0
+              ],
+              [
+                136.0,
+                478.0
+              ],
+              [
+                25.0,
+                478.0
+              ]
+            ],
+            "score": 0.9578193426132202
+          },
+          "emitted_count": 6,
+          "recognition_content_width": 254,
+          "recognition_score": 22.06402587890625,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "text": "发足够的滋养"
+        }
+      ],
+      "text": "纯臻营养护发素\n产品信息/参数\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订）\n【品牌】:代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【产品编号】：YM-X-3011\nODM OEM\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养",
+      "width_ratio": 1.0240000486373901
+    }
+  ],
+  "peak_device_bytes": 258763960,
+  "pipeline": "full",
+  "profiles": [],
+  "profiling_execution": null,
+  "qualified": true,
+  "recognition_wave_size": 1,
+  "requests": 1,
+  "retained_device_bytes": 244671896,
+  "sample_run_statistics": [],
+  "sample_statistics": [],
+  "slots": 1,
+  "startup_ms": 89.622417,
+  "statistics": [
+    {
+      "adapter": "Apple M4",
+      "admission_wait_ns": 0,
+      "backend": "Metal",
+      "completion_wait_ns": 0,
+      "control_readback_bytes": 400,
+      "cpu_compute_stages": [],
+      "decoding": "Gpu",
+      "diagnostic_readback_bytes": 0,
+      "dispatches": 2035,
+      "driver": "",
+      "driver_info": "",
+      "encoding_ns": 0,
+      "geometry": "Gpu",
+      "image_processing": "Gpu",
+      "kernels": [
+        "image_normalize_F32",
+        "db_label_F32",
+        "db_row_extremes",
+        "db_geometry_F32",
+        "db_reading_order",
+        "perspective_transform",
+        "perspective_bicubic",
+        "projection_tiles1_F32",
+        "projection_winners",
+        "classifier_rotation",
+        "projection_mpp32_F32",
+        "ctc_compaction"
+      ],
+      "layout_conversions": 0,
+      "mode": "Full",
+      "native_graph_dispatches": 0,
+      "native_resident_dispatches": 0,
+      "output_readback_bytes": 29184,
+      "peak_device_bytes": 258763960,
+      "profiling_readback_bytes": 0,
+      "projection": "Gpu",
+      "projection_encoding_ns": 0,
+      "readback_ns": 0,
+      "scratch_allocated_bytes": 10534944,
+      "scratch_allocations": 102,
+      "scratch_reuses": 0,
+      "submission_ns": 0,
+      "submissions": 15,
+      "uploaded_bytes": 750000
+    }
+  ],
+  "storage_precision": "F32",
+  "timing_contract": "group start through last inference return; excludes decode, owned copy, validation, serialization and profile calls",
+  "warm_group_ms": [],
+  "warm_process_cpu_ms": []
+}

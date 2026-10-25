@@ -12,34 +12,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     if measure && !cfg!(feature = "profiling") {
         return Err("measure requires the profiling Cargo feature".into());
     }
-    if args.len() < 6 {
-        return Err(
-            "usage: gpu_compare MODEL N C H W vulkan|dx12|metal [unfused] [mixed] [subgroups] [measure]"
-                .into(),
-        );
+    if args.len() < 5 {
+        return Err("usage: gpu_compare MODEL N C H W [mixed] [measure]".into());
+    }
+    if args[5..]
+        .iter()
+        .any(|arg| !matches!(arg.as_str(), "mixed" | "measure"))
+    {
+        return Err("unsupported comparison option".into());
     }
     let path = PathBuf::from(&args[0]);
     let shape = args[1..5]
         .iter()
         .map(|s| s.parse::<usize>())
         .collect::<Result<Vec<_>, _>>()?;
-    let backend = match args[5].as_str() {
-        "vulkan" => GpuBackendPreference::Vulkan,
-        "dx12" => GpuBackendPreference::Dx12,
-        "metal" => GpuBackendPreference::Metal,
-        _ => return Err("invalid native backend".into()),
-    };
     let precision = if args.iter().any(|s| s == "mixed") {
         GpuPrecision::MixedF16
     } else {
         GpuPrecision::F32
     };
-    let context = GpuContext::new_with_options(GpuContextOptions {
-        backend,
-        shader_f16: precision == GpuPrecision::MixedF16,
-        subgroups: args.iter().any(|s| s == "subgroups"),
-        ..Default::default()
-    })?;
+    let context = GpuContext::new()?;
     let model = Arc::new(Model::load_path(&path)?);
     let input: Vec<f32> = if let Ok(path) = std::env::var("SIMD_OCR_INPUT") {
         let data = std::fs::read(path)?;
@@ -60,8 +52,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         model.clone(),
         context.clone(),
         CompileOptions {
-            fusion: !args.iter().any(|s| s == "unfused"),
-            gpu: GpuCompileOptions { precision },
+            gpu: GpuCompileOptions {
+                precision,
+                ..Default::default()
+            },
             ..Default::default()
         },
     )?);

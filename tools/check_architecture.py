@@ -15,21 +15,13 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-HARDWARE = [
-    "gpu_integration_tests",
-    "gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back",
-    "gpu_hardware_strict_auto_callbacks_and_concurrent_sessions",
-    "gpu_hardware_reshape_cache_compaction_rollback_and_trace_reentry",
-    "gpu_hardware_full_precision_variant_shares_context_and_isolates_weights",
-    "gpu_resident_pending_readbacks_hold_admission_and_reservations",
-    "gpu_resident_projection_ctc_contract",
-]
+HARDWARE = ["gpu_integration_tests"]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--release", action="store_true")
-    parser.add_argument("--hardware", nargs="*", choices=["vulkan", "dx12", "metal"], default=[])
+    parser.add_argument("--hardware", action="store_true", help="run the current Metal integration contract on a physical Mac")
     parser.add_argument("--report", type=Path, default=ROOT / "target/architecture-validation")
     args = parser.parse_args()
     args.report.mkdir(parents=True, exist_ok=True)
@@ -78,11 +70,11 @@ def main():
     for name, flags in [("all", ["--all-features"]), ("serial", ["--no-default-features"])]:
         check(f"examples-{name}", ["cargo", "build", "--locked", *profile, *flags, "--examples"])
         check(f"doctests-{name}", ["cargo", "test", "--locked", *profile, *flags, "--doc"])
-    for backend in args.hardware:
-        env = dict(os.environ, SIMD_OCR_GPU_BACKEND=backend)
+    if args.hardware:
+        if sys.platform != "darwin": parser.error("Metal hardware checks require macOS")
         for test in HARDWARE:
-            check(f"{backend}-{test}", ["cargo", "test", "--locked", *profile,
-                  "--all-features", "--lib", test, "--", "--ignored", "--test-threads=1"], env, timeout=120)
+            check(f"metal-{test}", ["cargo", "test", "--locked", *profile,
+                  "--all-features", "--lib", test, "--", "--ignored", "--test-threads=1"], timeout=120)
     return 0
 
 

@@ -927,14 +927,6 @@ impl Recognizer {
         }
     }
     #[cfg(feature = "gpu")]
-    pub fn set_gpu_pipeline_mode(&mut self, mode: crate::runtime::gpu::GpuPipelineMode) {
-        if self.plan.execution.gpu_mode != mode {
-            self.gpu = None;
-            self.session.release_gpu_storage();
-            Arc::make_mut(&mut self.plan).execution.gpu_mode = mode;
-        }
-    }
-    #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu.as_ref().map(|gpu| &gpu.statistics)
     }
@@ -1158,6 +1150,13 @@ impl Recognizer {
     pub fn compiled(&self) -> &CompiledModel {
         &self.plan.compiled
     }
+    pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            return gpu.counter_snapshot();
+        }
+        self.session.counter_snapshot()
+    }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
         #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
@@ -1310,9 +1309,7 @@ impl Recognizer {
             return Ok(RecognitionBatchView { decoded: &[] });
         }
         #[cfg(feature = "gpu")]
-        if self.session.is_gpu()
-            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
-        {
+        if self.session.is_gpu() {
             let images = (0..count).map(image).collect::<ImageResult<Vec<_>>>()?;
             if let Err(error) = self.recognize_gpu::<PROFILE>(&images, capture, profile) {
                 self.resident_fallback(error)?;
@@ -1512,9 +1509,7 @@ impl Recognizer {
         profile: &mut StageProfile,
     ) -> ImageResult<RecognitionView<'_>> {
         #[cfg(feature = "gpu")]
-        if self.session.is_gpu()
-            && self.plan.execution.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
-        {
+        if self.session.is_gpu() {
             if let Err(error) = self.recognize_gpu::<PROFILE>(&[image], capture, profile) {
                 self.resident_fallback(error)?;
                 let cpu = self.session.cpu_context().clone();
@@ -1833,16 +1828,6 @@ fn probability_argmax(
 }
 
 impl RecognizerPlan {
-    #[cfg(feature = "gpu")]
-    pub fn with_gpu_pipeline_mode(
-        self: &Arc<Self>,
-        mode: crate::runtime::gpu::GpuPipelineMode,
-    ) -> Arc<Self> {
-        let mut plan = self.as_ref().clone();
-        plan.execution.gpu_mode = mode;
-        Arc::new(plan)
-    }
-
     pub fn execution_limits(&self) -> ExecutionLimits {
         self.limits
     }

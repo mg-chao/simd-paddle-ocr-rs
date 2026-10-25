@@ -112,7 +112,7 @@ fn main(@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) group:v
             if x==0u||y==0u||x+1u==w||y+1u==h{atomicOr(&counts[r],0x80000000u);}
             if x>0u{boundary+=mask[i-1u];}if x+1u<w{boundary+=mask[i+1u];}if y>0u{boundary+=mask[i-w];}if y+1u<h{boundary+=mask[i+w];}
         }
-        atomicAdd(&counts[r],boundary);return;
+        if boundary!=0u{atomicAdd(&counts[r],boundary);}return;
     }
     if mode==6u{
         let kind=qualifier(i);if kind==0u{ranks[i]=0xffffffffu;return;}

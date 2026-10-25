@@ -140,8 +140,6 @@ pub struct OcrBuilder {
     gpu: Option<Arc<crate::runtime::gpu::GpuContext>>,
     #[cfg(feature = "gpu")]
     gpu_options: crate::runtime::gpu::GpuContextOptions,
-    #[cfg(feature = "gpu")]
-    gpu_pipeline_mode: crate::runtime::gpu::GpuPipelineMode,
     cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
     detector: DetectorOptions,
@@ -165,8 +163,6 @@ impl OcrBuilder {
             gpu: None,
             #[cfg(feature = "gpu")]
             gpu_options: Default::default(),
-            #[cfg(feature = "gpu")]
-            gpu_pipeline_mode: Default::default(),
             cpu: None,
             cpu_options: CpuOptions::default(),
             detector: DetectorOptions::default(),
@@ -213,11 +209,6 @@ impl OcrBuilder {
     #[cfg(feature = "gpu")]
     pub fn gpu_options(mut self, options: crate::runtime::gpu::GpuContextOptions) -> Self {
         self.gpu_options = options;
-        self
-    }
-    #[cfg(feature = "gpu")]
-    pub fn gpu_pipeline_mode(mut self, mode: crate::runtime::gpu::GpuPipelineMode) -> Self {
-        self.gpu_pipeline_mode = mode;
         self
     }
     pub fn cpu_context(mut self, cpu: Arc<CpuContext>) -> Self {
@@ -318,8 +309,6 @@ impl OcrBuilder {
             self.cpu_options,
             self.batch_size,
         )?;
-        #[cfg(feature = "gpu")]
-        let plan = plan.with_gpu_pipeline_mode(self.gpu_pipeline_mode)?;
         Ok(plan)
     }
     pub fn build_engine(self, limits: EngineLimits) -> ImageResult<OcrEngine> {

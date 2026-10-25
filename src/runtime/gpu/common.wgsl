@@ -16,6 +16,24 @@ fn erf_approx(x:f32)->f32 {
     return select(1.0,-1.0,x<0.0)*(1.0-poly*exp(-x*x));
 }
 
+// Metal can fold float -> half -> float casts into adjacent arithmetic. Keep
+// removed tensor stores explicit with integer round-to-nearest, ties-to-even.
+fn output_round(value:f32)->f32 {
+    if !$HALF_OUTPUT {return value;}
+    let bits=bitcast<u32>(value);let sign=bits&0x80000000u;let magnitude=bits&0x7fffffffu;
+    if magnitude>=0x7f800000u {return value;}
+    if magnitude<0x38800000u {
+        if magnitude<=0x33000000u {return bitcast<f32>(sign);}
+        let shift=126u-(magnitude>>23u);
+        let mantissa=(magnitude&0x007fffffu)|0x00800000u;
+        let rounded=(mantissa+((1u<<(shift-1u))-1u)+((mantissa>>shift)&1u))>>shift;
+        return bitcast<f32>(sign|bitcast<u32>(f32(rounded)*5.960464477539063e-8));
+    }
+    let rounded=magnitude+0x00000fffu+((magnitude>>13u)&1u);
+    if rounded>=0x47800000u {return bitcast<f32>(sign|0x7f800000u);}
+    return bitcast<f32>(sign|(rounded&0xffffe000u));
+}
+
 fn epilogue(initial: f32, index: u32) -> f32 {
     var value = initial;
     for (var i=0u; i<p(64u); i++) {
@@ -30,6 +48,7 @@ fn epilogue(initial: f32, index: u32) -> f32 {
         else if op==5u { value=clamp(value*bitcast<f32>(p(base+1u))+bitcast<f32>(p(base+2u)),0.0,1.0); }
         else if op==6u { value=value*clamp(value*0.16666667+0.5,0.0,1.0); }
         else if op==7u { value=((erf_approx(value/1.4142135623730951)+1.0)*value)*0.5; }
+        else if op==8u { var gate=0.0;if value>=0.0 {gate=1.0/(1.0+exp(-value));} else {let x=exp(value);gate=x/(1.0+x);}value=value*gate; }
     }
     return value;
 }

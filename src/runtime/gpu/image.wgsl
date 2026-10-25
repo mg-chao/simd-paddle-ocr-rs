@@ -33,11 +33,14 @@ fn coefficient(position:u32,source:u32,destination:u32)->vec2<i32> {
 }
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id:vec3<u32>,@builtin(num_workgroups) grid:vec3<u32>) {
-    let index=id.x+id.y*grid.x*64u;
+    let pixel_index=id.x+id.y*grid.x*64u;
     let plane=p(8u)*p(9u);
-    if index>=3u*plane { return; }
-    let c=index/plane; let y=(index%plane)/p(9u); let x=index%p(9u);
-    if x>=p(7u) { output[index+p(12u)]=$OUT(bitcast<f32>(p(11u))); return; }
+    if pixel_index>=plane { return; }
+    let y=pixel_index/p(9u); let x=pixel_index%p(9u);
+    if x>=p(7u) {
+        for(var c=0u;c<3u;c++){output[c*plane+pixel_index+p(12u)]=$OUT(bitcast<f32>(p(11u)));}
+        return;
+    }
     var xc=coefficient(x,p(5u),p(7u));
     if xc.x<0 { xc=vec2<i32>(0,0); }
     if xc.x>=i32(p(5u))-1 { xc=vec2<i32>(i32(p(5u))-1,0); }
@@ -45,8 +48,10 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>,@builtin(num_workgroups) gri
     let x0=u32(xc.x); let x1=min(x0+1u,p(5u)-1u);
     let y0=u32(clamp(yc.x,0,i32(p(6u))-1)); let y1=u32(clamp(yc.x+1,0,i32(p(6u))-1));
     let a=2048-xc.y; let b=xc.y;
-    let h0=pixel(x0,y0,c)*a+pixel(x1,y0,c)*b;
-    let h1=pixel(x0,y1,c)*a+pixel(x1,y1,c)*b;
-    let value=clamp((((h0>>4)*(2048-yc.y)>>16)+((h1>>4)*yc.y>>16)+2)>>2,0,255);
-    output[index+p(12u)]=$OUT(lut[c*256u+u32(value)]);
+    for(var c=0u;c<3u;c++){
+        let h0=pixel(x0,y0,c)*a+pixel(x1,y0,c)*b;
+        let h1=pixel(x0,y1,c)*a+pixel(x1,y1,c)*b;
+        let value=clamp((((h0>>4)*(2048-yc.y)>>16)+((h1>>4)*yc.y>>16)+2)>>2,0,255);
+        output[c*plane+pixel_index+p(12u)]=$OUT(lut[c*256u+u32(value)]);
+    }
 }

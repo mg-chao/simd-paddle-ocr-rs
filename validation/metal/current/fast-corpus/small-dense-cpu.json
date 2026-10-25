@@ -1,0 +1,7106 @@
+{
+  "detected_count": 64,
+  "detector_resized_height": 960,
+  "detector_resized_width": 960,
+  "height_ratio": 0.9599999785423279,
+  "lines": [
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999994039535522,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 12.111913681030273,
+          "start_column": 3,
+          "text": "纯"
+        },
+        {
+          "end_column": 10,
+          "score": 1.8362998962402344,
+          "start_column": 9,
+          "text": "臻"
+        },
+        {
+          "end_column": 16,
+          "score": 10.995763778686523,
+          "start_column": 15,
+          "text": "营"
+        },
+        {
+          "end_column": 22,
+          "score": 20.85407257080078,
+          "start_column": 21,
+          "text": "养"
+        },
+        {
+          "end_column": 28,
+          "score": 15.253852844238281,
+          "start_column": 27,
+          "text": "护"
+        },
+        {
+          "end_column": 34,
+          "score": 21.9490909576416,
+          "start_column": 33,
+          "text": "发"
+        },
+        {
+          "end_column": 40,
+          "score": 13.364819526672363,
+          "start_column": 39,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            33.0
+          ],
+          [
+            305.0,
+            33.0
+          ],
+          [
+            305.0,
+            73.0
+          ],
+          [
+            23.0,
+            73.0
+          ]
+        ],
+        "score": 0.9412086606025696
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 339,
+      "recognition_score": 13.766544342041016,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999759197235107,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 12.847954750061035,
+          "start_column": 3,
+          "text": "纯"
+        },
+        {
+          "end_column": 10,
+          "score": 3.4068186283111572,
+          "start_column": 9,
+          "text": "臻"
+        },
+        {
+          "end_column": 16,
+          "score": 10.137243270874023,
+          "start_column": 15,
+          "text": "营"
+        },
+        {
+          "end_column": 22,
+          "score": 21.39164924621582,
+          "start_column": 21,
+          "text": "养"
+        },
+        {
+          "end_column": 28,
+          "score": 15.558463096618652,
+          "start_column": 27,
+          "text": "护"
+        },
+        {
+          "end_column": 34,
+          "score": 22.213388442993164,
+          "start_column": 33,
+          "text": "发"
+        },
+        {
+          "end_column": 40,
+          "score": 14.009462356567383,
+          "start_column": 39,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            33.0
+          ],
+          [
+            805.0,
+            33.0
+          ],
+          [
+            805.0,
+            73.0
+          ],
+          [
+            524.0,
+            73.0
+          ]
+        ],
+        "score": 0.9465236663818359
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 338,
+      "recognition_score": 14.2235689163208,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999998807907104,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 23.709152221679688,
+          "start_column": 3,
+          "text": "产"
+        },
+        {
+          "end_column": 9,
+          "score": 21.30276107788086,
+          "start_column": 8,
+          "text": "品"
+        },
+        {
+          "end_column": 14,
+          "score": 19.03785514831543,
+          "start_column": 13,
+          "text": "信"
+        },
+        {
+          "end_column": 19,
+          "score": 18.394441604614258,
+          "start_column": 18,
+          "text": "息"
+        },
+        {
+          "end_column": 23,
+          "score": 21.820615768432617,
+          "start_column": 22,
+          "text": "/"
+        },
+        {
+          "end_column": 27,
+          "score": 17.631206512451172,
+          "start_column": 26,
+          "text": "参"
+        },
+        {
+          "end_column": 32,
+          "score": 15.562200546264648,
+          "start_column": 31,
+          "text": "数"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            24.0,
+            78.0
+          ],
+          [
+            175.0,
+            78.0
+          ],
+          [
+            175.0,
+            104.0
+          ],
+          [
+            24.0,
+            104.0
+          ]
+        ],
+        "score": 0.8857214450836182
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 279,
+      "recognition_score": 19.636890411376953,
+      "recognition_tensor_width": 288,
+      "recognition_time_steps": 36,
+      "text": "产品信息/参数"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999998807907104,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 23.709152221679688,
+          "start_column": 3,
+          "text": "产"
+        },
+        {
+          "end_column": 9,
+          "score": 21.30276107788086,
+          "start_column": 8,
+          "text": "品"
+        },
+        {
+          "end_column": 14,
+          "score": 19.03785514831543,
+          "start_column": 13,
+          "text": "信"
+        },
+        {
+          "end_column": 19,
+          "score": 18.394441604614258,
+          "start_column": 18,
+          "text": "息"
+        },
+        {
+          "end_column": 23,
+          "score": 21.820615768432617,
+          "start_column": 22,
+          "text": "/"
+        },
+        {
+          "end_column": 27,
+          "score": 17.631206512451172,
+          "start_column": 26,
+          "text": "参"
+        },
+        {
+          "end_column": 32,
+          "score": 15.562200546264648,
+          "start_column": 31,
+          "text": "数"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            78.0
+          ],
+          [
+            675.0,
+            78.0
+          ],
+          [
+            675.0,
+            104.0
+          ],
+          [
+            524.0,
+            104.0
+          ]
+        ],
+        "score": 0.8824628591537476
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 279,
+      "recognition_score": 19.636890411376953,
+      "recognition_tensor_width": 288,
+      "recognition_time_steps": 36,
+      "text": "产品信息/参数"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999970197677612,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 24.41337013244629,
+          "start_column": 1,
+          "text": "("
+        },
+        {
+          "end_column": 5,
+          "score": 26.131336212158203,
+          "start_column": 4,
+          "text": "4"
+        },
+        {
+          "end_column": 8,
+          "score": 25.55352210998535,
+          "start_column": 7,
+          "text": "5"
+        },
+        {
+          "end_column": 13,
+          "score": 21.95198631286621,
+          "start_column": 12,
+          "text": "元"
+        },
+        {
+          "end_column": 18,
+          "score": 22.74496841430664,
+          "start_column": 17,
+          "text": "/"
+        },
+        {
+          "end_column": 22,
+          "score": 20.56995964050293,
+          "start_column": 21,
+          "text": "每"
+        },
+        {
+          "end_column": 29,
+          "score": 23.799314498901367,
+          "start_column": 28,
+          "text": "公"
+        },
+        {
+          "end_column": 35,
+          "score": 19.837770462036133,
+          "start_column": 34,
+          "text": "斤"
+        },
+        {
+          "end_column": 41,
+          "score": 22.323467254638672,
+          "start_column": 40,
+          "text": "，"
+        },
+        {
+          "end_column": 46,
+          "score": 23.94208526611328,
+          "start_column": 45,
+          "text": "1"
+        },
+        {
+          "end_column": 50,
+          "score": 26.636369705200195,
+          "start_column": 49,
+          "text": "0"
+        },
+        {
+          "end_column": 54,
+          "score": 27.006940841674805,
+          "start_column": 53,
+          "text": "0"
+        },
+        {
+          "end_column": 58,
+          "score": 22.377117156982422,
+          "start_column": 57,
+          "text": "公"
+        },
+        {
+          "end_column": 65,
+          "score": 19.664119720458984,
+          "start_column": 64,
+          "text": "斤"
+        },
+        {
+          "end_column": 71,
+          "score": 24.438255310058594,
+          "start_column": 70,
+          "text": "起"
+        },
+        {
+          "end_column": 77,
+          "score": 17.595989227294922,
+          "start_column": 76,
+          "text": "订"
+        },
+        {
+          "end_column": 83,
+          "score": 22.52484130859375,
+          "start_column": 82,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            111.0
+          ],
+          [
+            333.0,
+            111.0
+          ],
+          [
+            333.0,
+            133.0
+          ],
+          [
+            25.0,
+            133.0
+          ]
+        ],
+        "score": 0.9638659954071045
+      },
+      "emitted_count": 17,
+      "recognition_content_width": 672,
+      "recognition_score": 23.03008270263672,
+      "recognition_tensor_width": 672,
+      "recognition_time_steps": 84,
+      "text": "(45元/每公斤，100公斤起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999957084655762,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 23.71729850769043,
+          "start_column": 1,
+          "text": "("
+        },
+        {
+          "end_column": 5,
+          "score": 26.04052734375,
+          "start_column": 4,
+          "text": "4"
+        },
+        {
+          "end_column": 8,
+          "score": 25.038314819335938,
+          "start_column": 7,
+          "text": "5"
+        },
+        {
+          "end_column": 12,
+          "score": 21.838464736938477,
+          "start_column": 11,
+          "text": "元"
+        },
+        {
+          "end_column": 16,
+          "score": 22.07744789123535,
+          "start_column": 15,
+          "text": "/"
+        },
+        {
+          "end_column": 20,
+          "score": 23.498750686645508,
+          "start_column": 19,
+          "text": "每"
+        },
+        {
+          "end_column": 26,
+          "score": 22.01152992248535,
+          "start_column": 24,
+          "text": "公"
+        },
+        {
+          "end_column": 31,
+          "score": 20.093358993530273,
+          "start_column": 30,
+          "text": "斤"
+        },
+        {
+          "end_column": 37,
+          "score": 23.328018188476562,
+          "start_column": 36,
+          "text": "，"
+        },
+        {
+          "end_column": 41,
+          "score": 23.312685012817383,
+          "start_column": 40,
+          "text": "1"
+        },
+        {
+          "end_column": 44,
+          "score": 26.075864791870117,
+          "start_column": 43,
+          "text": "0"
+        },
+        {
+          "end_column": 48,
+          "score": 27.111230850219727,
+          "start_column": 47,
+          "text": "0"
+        },
+        {
+          "end_column": 52,
+          "score": 23.08446502685547,
+          "start_column": 51,
+          "text": "公"
+        },
+        {
+          "end_column": 57,
+          "score": 19.92156219482422,
+          "start_column": 56,
+          "text": "斤"
+        },
+        {
+          "end_column": 63,
+          "score": 24.244991302490234,
+          "start_column": 62,
+          "text": "起"
+        },
+        {
+          "end_column": 68,
+          "score": 17.77857208251953,
+          "start_column": 67,
+          "text": "订"
+        },
+        {
+          "end_column": 74,
+          "score": 21.177200317382812,
+          "start_column": 73,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            109.0
+          ],
+          [
+            834.0,
+            109.0
+          ],
+          [
+            834.0,
+            134.0
+          ],
+          [
+            524.0,
+            134.0
+          ]
+        ],
+        "score": 0.8802903294563293
+      },
+      "emitted_count": 17,
+      "recognition_content_width": 596,
+      "recognition_score": 22.961780548095703,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "text": "(45元/每公斤，100公斤起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999986886978149,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 20.31866455078125,
+          "start_column": 3,
+          "text": "每"
+        },
+        {
+          "end_column": 10,
+          "score": 15.2850980758667,
+          "start_column": 9,
+          "text": "瓶"
+        },
+        {
+          "end_column": 15,
+          "score": 24.36207389831543,
+          "start_column": 14,
+          "text": "2"
+        },
+        {
+          "end_column": 19,
+          "score": 26.18621253967285,
+          "start_column": 18,
+          "text": "2"
+        },
+        {
+          "end_column": 24,
+          "score": 22.237112045288086,
+          "start_column": 23,
+          "text": "元"
+        },
+        {
+          "end_column": 30,
+          "score": 23.724075317382812,
+          "start_column": 29,
+          "text": "，"
+        },
+        {
+          "end_column": 35,
+          "score": 24.62040901184082,
+          "start_column": 34,
+          "text": "1"
+        },
+        {
+          "end_column": 39,
+          "score": 26.650236129760742,
+          "start_column": 38,
+          "text": "0"
+        },
+        {
+          "end_column": 43,
+          "score": 26.42981719970703,
+          "start_column": 42,
+          "text": "0"
+        },
+        {
+          "end_column": 46,
+          "score": 27.650732040405273,
+          "start_column": 45,
+          "text": "0"
+        },
+        {
+          "end_column": 51,
+          "score": 15.350813865661621,
+          "start_column": 50,
+          "text": "瓶"
+        },
+        {
+          "end_column": 57,
+          "score": 22.764554977416992,
+          "start_column": 56,
+          "text": "起"
+        },
+        {
+          "end_column": 63,
+          "score": 17.919178009033203,
+          "start_column": 62,
+          "text": "订"
+        },
+        {
+          "end_column": 70,
+          "score": 17.87905502319336,
+          "start_column": 69,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            142.0
+          ],
+          [
+            284.0,
+            142.0
+          ],
+          [
+            284.0,
+            164.0
+          ],
+          [
+            25.0,
+            164.0
+          ]
+        ],
+        "score": 0.9442466497421265
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 566,
+      "recognition_score": 22.241287231445312,
+      "recognition_tensor_width": 576,
+      "recognition_time_steps": 72,
+      "text": "每瓶22元，1000瓶起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999986886978149,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 20.31866455078125,
+          "start_column": 3,
+          "text": "每"
+        },
+        {
+          "end_column": 10,
+          "score": 15.2850980758667,
+          "start_column": 9,
+          "text": "瓶"
+        },
+        {
+          "end_column": 15,
+          "score": 24.36207389831543,
+          "start_column": 14,
+          "text": "2"
+        },
+        {
+          "end_column": 19,
+          "score": 26.18621253967285,
+          "start_column": 18,
+          "text": "2"
+        },
+        {
+          "end_column": 24,
+          "score": 22.237112045288086,
+          "start_column": 23,
+          "text": "元"
+        },
+        {
+          "end_column": 30,
+          "score": 23.724075317382812,
+          "start_column": 29,
+          "text": "，"
+        },
+        {
+          "end_column": 35,
+          "score": 24.62040901184082,
+          "start_column": 34,
+          "text": "1"
+        },
+        {
+          "end_column": 39,
+          "score": 26.650236129760742,
+          "start_column": 38,
+          "text": "0"
+        },
+        {
+          "end_column": 43,
+          "score": 26.42981719970703,
+          "start_column": 42,
+          "text": "0"
+        },
+        {
+          "end_column": 46,
+          "score": 27.650732040405273,
+          "start_column": 45,
+          "text": "0"
+        },
+        {
+          "end_column": 51,
+          "score": 15.350813865661621,
+          "start_column": 50,
+          "text": "瓶"
+        },
+        {
+          "end_column": 57,
+          "score": 22.764554977416992,
+          "start_column": 56,
+          "text": "起"
+        },
+        {
+          "end_column": 63,
+          "score": 17.919178009033203,
+          "start_column": 62,
+          "text": "订"
+        },
+        {
+          "end_column": 70,
+          "score": 17.87905502319336,
+          "start_column": 69,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            142.0
+          ],
+          [
+            784.0,
+            142.0
+          ],
+          [
+            784.0,
+            164.0
+          ],
+          [
+            525.0,
+            164.0
+          ]
+        ],
+        "score": 0.9481412768363953
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 566,
+      "recognition_score": 22.241287231445312,
+      "recognition_tensor_width": 576,
+      "recognition_time_steps": 72,
+      "text": "每瓶22元，1000瓶起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999840259552002,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 21.718889236450195,
+          "start_column": 2,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 20.59912109375,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 13.386201858520508,
+          "start_column": 10,
+          "text": "牌"
+        },
+        {
+          "end_column": 16,
+          "score": 19.803112030029297,
+          "start_column": 15,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 21.95113754272461,
+          "start_column": 20,
+          "text": ":"
+        },
+        {
+          "end_column": 26,
+          "score": 23.9277400970459,
+          "start_column": 25,
+          "text": "代"
+        },
+        {
+          "end_column": 31,
+          "score": 21.355003356933594,
+          "start_column": 30,
+          "text": "加"
+        },
+        {
+          "end_column": 36,
+          "score": 21.13632583618164,
+          "start_column": 35,
+          "text": "工"
+        },
+        {
+          "end_column": 41,
+          "score": 20.749130249023438,
+          "start_column": 40,
+          "text": "方"
+        },
+        {
+          "end_column": 46,
+          "score": 25.523836135864258,
+          "start_column": 45,
+          "text": "式"
+        },
+        {
+          "end_column": 50,
+          "score": 22.656314849853516,
+          "start_column": 49,
+          "text": "/"
+        },
+        {
+          "end_column": 53,
+          "score": 20.46619987487793,
+          "start_column": 52,
+          "text": "O"
+        },
+        {
+          "end_column": 56,
+          "score": 21.79023551940918,
+          "start_column": 55,
+          "text": "E"
+        },
+        {
+          "end_column": 60,
+          "score": 21.34978485107422,
+          "start_column": 59,
+          "text": "M"
+        },
+        {
+          "end_column": 63,
+          "score": 20.159631729125977,
+          "start_column": 62,
+          "text": " "
+        },
+        {
+          "end_column": 66,
+          "score": 19.860986709594727,
+          "start_column": 65,
+          "text": "O"
+        },
+        {
+          "end_column": 70,
+          "score": 23.33278465270996,
+          "start_column": 69,
+          "text": "D"
+        },
+        {
+          "end_column": 74,
+          "score": 20.397600173950195,
+          "start_column": 73,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            175.0
+          ],
+          [
+            301.0,
+            175.0
+          ],
+          [
+            301.0,
+            197.0
+          ],
+          [
+            23.0,
+            197.0
+          ]
+        ],
+        "score": 0.8336092829704285
+      },
+      "emitted_count": 18,
+      "recognition_content_width": 607,
+      "recognition_score": 21.120223999023438,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "text": "【品牌】:代加工方式/OEM ODM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999920129776001,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 20.237110137939453,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 21.320926666259766,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 13.396336555480957,
+          "start_column": 10,
+          "text": "牌"
+        },
+        {
+          "end_column": 15,
+          "score": 20.68897247314453,
+          "start_column": 14,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 21.88359832763672,
+          "start_column": 20,
+          "text": ":"
+        },
+        {
+          "end_column": 26,
+          "score": 24.649259567260742,
+          "start_column": 25,
+          "text": "代"
+        },
+        {
+          "end_column": 31,
+          "score": 21.219526290893555,
+          "start_column": 30,
+          "text": "加"
+        },
+        {
+          "end_column": 36,
+          "score": 20.55999755859375,
+          "start_column": 35,
+          "text": "工"
+        },
+        {
+          "end_column": 41,
+          "score": 20.291728973388672,
+          "start_column": 40,
+          "text": "方"
+        },
+        {
+          "end_column": 46,
+          "score": 24.590961456298828,
+          "start_column": 45,
+          "text": "式"
+        },
+        {
+          "end_column": 50,
+          "score": 22.56150245666504,
+          "start_column": 49,
+          "text": "/"
+        },
+        {
+          "end_column": 53,
+          "score": 21.292163848876953,
+          "start_column": 52,
+          "text": "O"
+        },
+        {
+          "end_column": 56,
+          "score": 21.309341430664062,
+          "start_column": 55,
+          "text": "E"
+        },
+        {
+          "end_column": 59,
+          "score": 23.09455680847168,
+          "start_column": 58,
+          "text": "M"
+        },
+        {
+          "end_column": 63,
+          "score": 20.240516662597656,
+          "start_column": 62,
+          "text": " "
+        },
+        {
+          "end_column": 66,
+          "score": 19.982423782348633,
+          "start_column": 65,
+          "text": "O"
+        },
+        {
+          "end_column": 69,
+          "score": 23.45991325378418,
+          "start_column": 68,
+          "text": "D"
+        },
+        {
+          "end_column": 73,
+          "score": 22.354026794433594,
+          "start_column": 72,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            175.0
+          ],
+          [
+            801.0,
+            175.0
+          ],
+          [
+            801.0,
+            197.0
+          ],
+          [
+            524.0,
+            197.0
+          ]
+        ],
+        "score": 0.8401165008544922
+      },
+      "emitted_count": 18,
+      "recognition_content_width": 605,
+      "recognition_score": 21.285158157348633,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "text": "【品牌】:代加工方式/OEM ODM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999412298202515,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 17.042795181274414,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 19.725143432617188,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 21.898836135864258,
+          "start_column": 10,
+          "text": "名"
+        },
+        {
+          "end_column": 16,
+          "score": 19.2753963470459,
+          "start_column": 15,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 21.306476593017578,
+          "start_column": 20,
+          "text": "："
+        },
+        {
+          "end_column": 26,
+          "score": 15.096015930175781,
+          "start_column": 25,
+          "text": "纯"
+        },
+        {
+          "end_column": 31,
+          "score": 6.760178089141846,
+          "start_column": 30,
+          "text": "臻"
+        },
+        {
+          "end_column": 36,
+          "score": 16.186185836791992,
+          "start_column": 35,
+          "text": "营"
+        },
+        {
+          "end_column": 41,
+          "score": 20.27069091796875,
+          "start_column": 40,
+          "text": "养"
+        },
+        {
+          "end_column": 46,
+          "score": 16.449838638305664,
+          "start_column": 45,
+          "text": "护"
+        },
+        {
+          "end_column": 51,
+          "score": 23.637807846069336,
+          "start_column": 50,
+          "text": "发"
+        },
+        {
+          "end_column": 56,
+          "score": 13.324533462524414,
+          "start_column": 55,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            206.0
+          ],
+          [
+            235.0,
+            206.0
+          ],
+          [
+            235.0,
+            228.0
+          ],
+          [
+            23.0,
+            228.0
+          ]
+        ],
+        "score": 0.8382296562194824
+      },
+      "emitted_count": 12,
+      "recognition_content_width": 463,
+      "recognition_score": 17.581157684326172,
+      "recognition_tensor_width": 480,
+      "recognition_time_steps": 60,
+      "text": "【品名】：纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.999919056892395,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 18.3387508392334,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 20.31780242919922,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 21.595245361328125,
+          "start_column": 10,
+          "text": "名"
+        },
+        {
+          "end_column": 15,
+          "score": 20.99356460571289,
+          "start_column": 14,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 20.999052047729492,
+          "start_column": 20,
+          "text": "："
+        },
+        {
+          "end_column": 26,
+          "score": 15.147993087768555,
+          "start_column": 25,
+          "text": "纯"
+        },
+        {
+          "end_column": 31,
+          "score": 5.949082851409912,
+          "start_column": 30,
+          "text": "臻"
+        },
+        {
+          "end_column": 36,
+          "score": 15.529082298278809,
+          "start_column": 35,
+          "text": "营"
+        },
+        {
+          "end_column": 41,
+          "score": 20.00322914123535,
+          "start_column": 40,
+          "text": "养"
+        },
+        {
+          "end_column": 46,
+          "score": 16.089401245117188,
+          "start_column": 45,
+          "text": "护"
+        },
+        {
+          "end_column": 51,
+          "score": 23.684328079223633,
+          "start_column": 50,
+          "text": "发"
+        },
+        {
+          "end_column": 56,
+          "score": 13.997770309448242,
+          "start_column": 55,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            206.0
+          ],
+          [
+            735.0,
+            206.0
+          ],
+          [
+            735.0,
+            228.0
+          ],
+          [
+            524.0,
+            228.0
+          ]
+        ],
+        "score": 0.8426228761672974
+      },
+      "emitted_count": 12,
+      "recognition_content_width": 461,
+      "recognition_score": 17.720441818237305,
+      "recognition_tensor_width": 480,
+      "recognition_time_steps": 60,
+      "text": "【品名】：纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999997615814209,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 17.721372604370117,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.538862228393555,
+          "start_column": 5,
+          "text": "产"
+        },
+        {
+          "end_column": 12,
+          "score": 21.221420288085938,
+          "start_column": 11,
+          "text": "品"
+        },
+        {
+          "end_column": 17,
+          "score": 14.12994384765625,
+          "start_column": 16,
+          "text": "编"
+        },
+        {
+          "end_column": 22,
+          "score": 22.402132034301758,
+          "start_column": 21,
+          "text": "号"
+        },
+        {
+          "end_column": 27,
+          "score": 21.206138610839844,
+          "start_column": 26,
+          "text": "】"
+        },
+        {
+          "end_column": 33,
+          "score": 21.70570182800293,
+          "start_column": 32,
+          "text": ":"
+        },
+        {
+          "end_column": 37,
+          "score": 19.19748306274414,
+          "start_column": 36,
+          "text": "Y"
+        },
+        {
+          "end_column": 41,
+          "score": 22.238676071166992,
+          "start_column": 40,
+          "text": "M"
+        },
+        {
+          "end_column": 45,
+          "score": 22.318519592285156,
+          "start_column": 44,
+          "text": "-"
+        },
+        {
+          "end_column": 47,
+          "score": 19.601505279541016,
+          "start_column": 46,
+          "text": "X"
+        },
+        {
+          "end_column": 50,
+          "score": 22.623046875,
+          "start_column": 49,
+          "text": "-"
+        },
+        {
+          "end_column": 53,
+          "score": 25.989837646484375,
+          "start_column": 52,
+          "text": "3"
+        },
+        {
+          "end_column": 56,
+          "score": 26.094022750854492,
+          "start_column": 55,
+          "text": "0"
+        },
+        {
+          "end_column": 59,
+          "score": 24.69158172607422,
+          "start_column": 58,
+          "text": "1"
+        },
+        {
+          "end_column": 62,
+          "score": 24.728487014770508,
+          "start_column": 61,
+          "text": "1"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            238.0
+          ],
+          [
+            244.0,
+            238.0
+          ],
+          [
+            244.0,
+            259.0
+          ],
+          [
+            23.0,
+            259.0
+          ]
+        ],
+        "score": 0.8175390958786011
+      },
+      "emitted_count": 16,
+      "recognition_content_width": 506,
+      "recognition_score": 21.838045120239258,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "【产品编号】:YM-X-3011"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.901357114315033,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 20.041011810302734,
+          "start_column": 3,
+          "text": "O"
+        },
+        {
+          "end_column": 7,
+          "score": 21.293376922607422,
+          "start_column": 6,
+          "text": "D"
+        },
+        {
+          "end_column": 10,
+          "score": 21.945650100708008,
+          "start_column": 9,
+          "text": "M"
+        },
+        {
+          "end_column": 13,
+          "score": 21.61667823791504,
+          "start_column": 12,
+          "text": " "
+        },
+        {
+          "end_column": 16,
+          "score": 18.621379852294922,
+          "start_column": 15,
+          "text": "O"
+        },
+        {
+          "end_column": 18,
+          "score": 18.149513244628906,
+          "start_column": 17,
+          "text": "E"
+        },
+        {
+          "end_column": 21,
+          "score": 21.8582820892334,
+          "start_column": 20,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            411.0,
+            231.0
+          ],
+          [
+            430.0,
+            231.0
+          ],
+          [
+            430.0,
+            304.0
+          ],
+          [
+            411.0,
+            304.0
+          ]
+        ],
+        "score": 0.7667123675346375
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 185,
+      "recognition_score": 20.503698348999023,
+      "recognition_tensor_width": 192,
+      "recognition_time_steps": 24,
+      "text": "ODM OEM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999997615814209,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 17.721372604370117,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.538862228393555,
+          "start_column": 5,
+          "text": "产"
+        },
+        {
+          "end_column": 12,
+          "score": 21.221420288085938,
+          "start_column": 11,
+          "text": "品"
+        },
+        {
+          "end_column": 17,
+          "score": 14.12994384765625,
+          "start_column": 16,
+          "text": "编"
+        },
+        {
+          "end_column": 22,
+          "score": 22.402132034301758,
+          "start_column": 21,
+          "text": "号"
+        },
+        {
+          "end_column": 27,
+          "score": 21.206138610839844,
+          "start_column": 26,
+          "text": "】"
+        },
+        {
+          "end_column": 33,
+          "score": 21.70570182800293,
+          "start_column": 32,
+          "text": ":"
+        },
+        {
+          "end_column": 37,
+          "score": 19.19748306274414,
+          "start_column": 36,
+          "text": "Y"
+        },
+        {
+          "end_column": 41,
+          "score": 22.238676071166992,
+          "start_column": 40,
+          "text": "M"
+        },
+        {
+          "end_column": 45,
+          "score": 22.318519592285156,
+          "start_column": 44,
+          "text": "-"
+        },
+        {
+          "end_column": 47,
+          "score": 19.601505279541016,
+          "start_column": 46,
+          "text": "X"
+        },
+        {
+          "end_column": 50,
+          "score": 22.623046875,
+          "start_column": 49,
+          "text": "-"
+        },
+        {
+          "end_column": 53,
+          "score": 25.989837646484375,
+          "start_column": 52,
+          "text": "3"
+        },
+        {
+          "end_column": 56,
+          "score": 26.094022750854492,
+          "start_column": 55,
+          "text": "0"
+        },
+        {
+          "end_column": 59,
+          "score": 24.69158172607422,
+          "start_column": 58,
+          "text": "1"
+        },
+        {
+          "end_column": 62,
+          "score": 24.728487014770508,
+          "start_column": 61,
+          "text": "1"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            523.0,
+            238.0
+          ],
+          [
+            744.0,
+            238.0
+          ],
+          [
+            744.0,
+            259.0
+          ],
+          [
+            523.0,
+            259.0
+          ]
+        ],
+        "score": 0.821762204170227
+      },
+      "emitted_count": 16,
+      "recognition_content_width": 506,
+      "recognition_score": 21.838045120239258,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "【产品编号】:YM-X-3011"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.901357114315033,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 20.041011810302734,
+          "start_column": 3,
+          "text": "O"
+        },
+        {
+          "end_column": 7,
+          "score": 21.293376922607422,
+          "start_column": 6,
+          "text": "D"
+        },
+        {
+          "end_column": 10,
+          "score": 21.945650100708008,
+          "start_column": 9,
+          "text": "M"
+        },
+        {
+          "end_column": 13,
+          "score": 21.61667823791504,
+          "start_column": 12,
+          "text": " "
+        },
+        {
+          "end_column": 16,
+          "score": 18.621379852294922,
+          "start_column": 15,
+          "text": "O"
+        },
+        {
+          "end_column": 18,
+          "score": 18.149513244628906,
+          "start_column": 17,
+          "text": "E"
+        },
+        {
+          "end_column": 21,
+          "score": 21.8582820892334,
+          "start_column": 20,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            911.0,
+            231.0
+          ],
+          [
+            930.0,
+            231.0
+          ],
+          [
+            930.0,
+            304.0
+          ],
+          [
+            911.0,
+            304.0
+          ]
+        ],
+        "score": 0.7845001220703125
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 185,
+      "recognition_score": 20.503698348999023,
+      "recognition_tensor_width": 192,
+      "recognition_time_steps": 24,
+      "text": "ODM OEM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999476671218872,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.791181564331055,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.294496536254883,
+          "start_column": 5,
+          "text": "净"
+        },
+        {
+          "end_column": 11,
+          "score": 22.478557586669922,
+          "start_column": 10,
+          "text": "含"
+        },
+        {
+          "end_column": 16,
+          "score": 21.014171600341797,
+          "start_column": 15,
+          "text": "量"
+        },
+        {
+          "end_column": 21,
+          "score": 20.29393768310547,
+          "start_column": 20,
+          "text": "】"
+        },
+        {
+          "end_column": 26,
+          "score": 21.328868865966797,
+          "start_column": 25,
+          "text": ":"
+        },
+        {
+          "end_column": 30,
+          "score": 24.271602630615234,
+          "start_column": 29,
+          "text": "2"
+        },
+        {
+          "end_column": 33,
+          "score": 26.296417236328125,
+          "start_column": 32,
+          "text": "2"
+        },
+        {
+          "end_column": 36,
+          "score": 26.138595581054688,
+          "start_column": 35,
+          "text": "0"
+        },
+        {
+          "end_column": 39,
+          "score": 21.94611358642578,
+          "start_column": 38,
+          "text": "m"
+        },
+        {
+          "end_column": 43,
+          "score": 20.168048858642578,
+          "start_column": 42,
+          "text": "l"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            269.0
+          ],
+          [
+            180.0,
+            269.0
+          ],
+          [
+            180.0,
+            291.0
+          ],
+          [
+            23.0,
+            291.0
+          ]
+        ],
+        "score": 0.8702573776245117
+      },
+      "emitted_count": 11,
+      "recognition_content_width": 343,
+      "recognition_score": 22.36563491821289,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "【净含量】:220ml"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999716281890869,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 20.73971176147461,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 24.44985580444336,
+          "start_column": 5,
+          "text": "净"
+        },
+        {
+          "end_column": 11,
+          "score": 22.91761589050293,
+          "start_column": 10,
+          "text": "含"
+        },
+        {
+          "end_column": 16,
+          "score": 21.737817764282227,
+          "start_column": 15,
+          "text": "量"
+        },
+        {
+          "end_column": 20,
+          "score": 21.315898895263672,
+          "start_column": 19,
+          "text": "】"
+        },
+        {
+          "end_column": 26,
+          "score": 21.604841232299805,
+          "start_column": 25,
+          "text": ":"
+        },
+        {
+          "end_column": 30,
+          "score": 24.408422470092773,
+          "start_column": 29,
+          "text": "2"
+        },
+        {
+          "end_column": 33,
+          "score": 26.49444580078125,
+          "start_column": 32,
+          "text": "2"
+        },
+        {
+          "end_column": 36,
+          "score": 26.17452621459961,
+          "start_column": 35,
+          "text": "0"
+        },
+        {
+          "end_column": 39,
+          "score": 21.089284896850586,
+          "start_column": 38,
+          "text": "m"
+        },
+        {
+          "end_column": 43,
+          "score": 21.63282585144043,
+          "start_column": 42,
+          "text": "l"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            269.0
+          ],
+          [
+            680.0,
+            269.0
+          ],
+          [
+            680.0,
+            291.0
+          ],
+          [
+            524.0,
+            291.0
+          ]
+        ],
+        "score": 0.8768081665039062
+      },
+      "emitted_count": 11,
+      "recognition_content_width": 341,
+      "recognition_score": 22.960477828979492,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "【净含量】:220ml"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999995231628418,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.668731689453125,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 23.501440048217773,
+          "start_column": 6,
+          "text": "适"
+        },
+        {
+          "end_column": 13,
+          "score": 24.926902770996094,
+          "start_column": 12,
+          "text": "用"
+        },
+        {
+          "end_column": 19,
+          "score": 23.06318473815918,
+          "start_column": 18,
+          "text": "人"
+        },
+        {
+          "end_column": 25,
+          "score": 11.411158561706543,
+          "start_column": 24,
+          "text": "群"
+        },
+        {
+          "end_column": 30,
+          "score": 19.855365753173828,
+          "start_column": 29,
+          "text": "】"
+        },
+        {
+          "end_column": 38,
+          "score": 19.70904541015625,
+          "start_column": 37,
+          "text": "："
+        },
+        {
+          "end_column": 43,
+          "score": 22.57676887512207,
+          "start_column": 42,
+          "text": "适"
+        },
+        {
+          "end_column": 49,
+          "score": 24.217388153076172,
+          "start_column": 48,
+          "text": "合"
+        },
+        {
+          "end_column": 55,
+          "score": 25.264488220214844,
+          "start_column": 54,
+          "text": "所"
+        },
+        {
+          "end_column": 61,
+          "score": 23.4460506439209,
+          "start_column": 60,
+          "text": "有"
+        },
+        {
+          "end_column": 67,
+          "score": 16.093036651611328,
+          "start_column": 66,
+          "text": "肤"
+        },
+        {
+          "end_column": 74,
+          "score": 19.578022003173828,
+          "start_column": 73,
+          "text": "质"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            302.0
+          ],
+          [
+            252.0,
+            302.0
+          ],
+          [
+            252.0,
+            320.0
+          ],
+          [
+            25.0,
+            320.0
+          ]
+        ],
+        "score": 0.9907779097557068
+      },
+      "emitted_count": 13,
+      "recognition_content_width": 606,
+      "recognition_score": 20.947044372558594,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "text": "【适用人群】：适合所有肤质"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.99997878074646,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 19.07582664489746,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.847131729125977,
+          "start_column": 5,
+          "text": "适"
+        },
+        {
+          "end_column": 11,
+          "score": 24.447195053100586,
+          "start_column": 10,
+          "text": "用"
+        },
+        {
+          "end_column": 16,
+          "score": 22.362842559814453,
+          "start_column": 15,
+          "text": "人"
+        },
+        {
+          "end_column": 21,
+          "score": 15.654743194580078,
+          "start_column": 20,
+          "text": "群"
+        },
+        {
+          "end_column": 25,
+          "score": 20.172517776489258,
+          "start_column": 24,
+          "text": "】"
+        },
+        {
+          "end_column": 31,
+          "score": 21.704893112182617,
+          "start_column": 30,
+          "text": "："
+        },
+        {
+          "end_column": 36,
+          "score": 24.658845901489258,
+          "start_column": 35,
+          "text": "适"
+        },
+        {
+          "end_column": 41,
+          "score": 24.433061599731445,
+          "start_column": 40,
+          "text": "合"
+        },
+        {
+          "end_column": 46,
+          "score": 25.814241409301758,
+          "start_column": 45,
+          "text": "所"
+        },
+        {
+          "end_column": 51,
+          "score": 23.713043212890625,
+          "start_column": 50,
+          "text": "有"
+        },
+        {
+          "end_column": 56,
+          "score": 16.58835220336914,
+          "start_column": 55,
+          "text": "肤"
+        },
+        {
+          "end_column": 61,
+          "score": 21.812808990478516,
+          "start_column": 60,
+          "text": "质"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            300.0
+          ],
+          [
+            753.0,
+            300.0
+          ],
+          [
+            753.0,
+            322.0
+          ],
+          [
+            524.0,
+            322.0
+          ]
+        ],
+        "score": 0.8127968907356262
+      },
+      "emitted_count": 13,
+      "recognition_content_width": 500,
+      "recognition_score": 21.86811637878418,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "【适用人群】：适合所有肤质"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 1.0,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 16.903427124023438,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 22.131772994995117,
+          "start_column": 6,
+          "text": "主"
+        },
+        {
+          "end_column": 12,
+          "score": 17.61855697631836,
+          "start_column": 11,
+          "text": "要"
+        },
+        {
+          "end_column": 18,
+          "score": 20.655771255493164,
+          "start_column": 17,
+          "text": "成"
+        },
+        {
+          "end_column": 24,
+          "score": 21.16733169555664,
+          "start_column": 23,
+          "text": "分"
+        },
+        {
+          "end_column": 29,
+          "score": 20.033620834350586,
+          "start_column": 28,
+          "text": "】"
+        },
+        {
+          "end_column": 36,
+          "score": 21.109935760498047,
+          "start_column": 35,
+          "text": "："
+        },
+        {
+          "end_column": 41,
+          "score": 3.1699957847595215,
+          "start_column": 40,
+          "text": "鲸"
+        },
+        {
+          "end_column": 47,
+          "score": 1.072528600692749,
+          "start_column": 46,
+          "text": "蜡"
+        },
+        {
+          "end_column": 53,
+          "score": 8.997775077819824,
+          "start_column": 52,
+          "text": "硬"
+        },
+        {
+          "end_column": 58,
+          "score": 16.747291564941406,
+          "start_column": 57,
+          "text": "脂"
+        },
+        {
+          "end_column": 64,
+          "score": 7.796022891998291,
+          "start_column": 63,
+          "text": "醇"
+        },
+        {
+          "end_column": 69,
+          "score": 19.542627334594727,
+          "start_column": 68,
+          "text": "、"
+        },
+        {
+          "end_column": 76,
+          "score": 9.855224609375,
+          "start_column": 75,
+          "text": "燕"
+        },
+        {
+          "end_column": 81,
+          "score": 17.38404655456543,
+          "start_column": 80,
+          "text": "麦"
+        },
+        {
+          "end_column": 86,
+          "score": 17.803464889526367,
+          "start_column": 85,
+          "text": "β"
+        },
+        {
+          "end_column": 89,
+          "score": 19.126808166503906,
+          "start_column": 88,
+          "text": "-"
+        },
+        {
+          "end_column": 93,
+          "score": 11.509721755981445,
+          "start_column": 92,
+          "text": "葡"
+        },
+        {
+          "end_column": 99,
+          "score": 16.12696647644043,
+          "start_column": 98,
+          "text": "聚"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            24.0,
+            332.0
+          ],
+          [
+            344.0,
+            332.0
+          ],
+          [
+            344.0,
+            351.0
+          ],
+          [
+            24.0,
+            351.0
+          ]
+        ],
+        "score": 0.8889354467391968
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 809,
+      "recognition_score": 15.19752025604248,
+      "recognition_tensor_width": 832,
+      "recognition_time_steps": 104,
+      "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999998807907104,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.083240509033203,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 23.1318416595459,
+          "start_column": 6,
+          "text": "主"
+        },
+        {
+          "end_column": 12,
+          "score": 18.050861358642578,
+          "start_column": 11,
+          "text": "要"
+        },
+        {
+          "end_column": 18,
+          "score": 21.630573272705078,
+          "start_column": 17,
+          "text": "成"
+        },
+        {
+          "end_column": 23,
+          "score": 21.624935150146484,
+          "start_column": 22,
+          "text": "分"
+        },
+        {
+          "end_column": 29,
+          "score": 19.48963737487793,
+          "start_column": 28,
+          "text": "】"
+        },
+        {
+          "end_column": 36,
+          "score": 20.181968688964844,
+          "start_column": 35,
+          "text": "："
+        },
+        {
+          "end_column": 41,
+          "score": 2.008279800415039,
+          "start_column": 40,
+          "text": "鲸"
+        },
+        {
+          "end_column": 47,
+          "score": 1.4957329034805298,
+          "start_column": 46,
+          "text": "蜡"
+        },
+        {
+          "end_column": 52,
+          "score": 8.677654266357422,
+          "start_column": 51,
+          "text": "硬"
+        },
+        {
+          "end_column": 58,
+          "score": 15.012605667114258,
+          "start_column": 57,
+          "text": "脂"
+        },
+        {
+          "end_column": 64,
+          "score": 5.784871578216553,
+          "start_column": 63,
+          "text": "醇"
+        },
+        {
+          "end_column": 68,
+          "score": 20.71255111694336,
+          "start_column": 67,
+          "text": "、"
+        },
+        {
+          "end_column": 76,
+          "score": 10.314255714416504,
+          "start_column": 75,
+          "text": "燕"
+        },
+        {
+          "end_column": 81,
+          "score": 17.341453552246094,
+          "start_column": 80,
+          "text": "麦"
+        },
+        {
+          "end_column": 86,
+          "score": 17.488502502441406,
+          "start_column": 85,
+          "text": "β"
+        },
+        {
+          "end_column": 89,
+          "score": 17.858200073242188,
+          "start_column": 88,
+          "text": "-"
+        },
+        {
+          "end_column": 93,
+          "score": 12.237452507019043,
+          "start_column": 92,
+          "text": "葡"
+        },
+        {
+          "end_column": 98,
+          "score": 14.766898155212402,
+          "start_column": 97,
+          "text": "聚"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            332.0
+          ],
+          [
+            844.0,
+            332.0
+          ],
+          [
+            844.0,
+            351.0
+          ],
+          [
+            525.0,
+            351.0
+          ]
+        ],
+        "score": 0.8941217064857483
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 806,
+      "recognition_score": 15.046921730041504,
+      "recognition_tensor_width": 832,
+      "recognition_time_steps": 104,
+      "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999982118606567,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 9.291810035705566,
+          "start_column": 3,
+          "text": "糖"
+        },
+        {
+          "end_column": 9,
+          "score": 19.856843948364258,
+          "start_column": 8,
+          "text": "、"
+        },
+        {
+          "end_column": 16,
+          "score": 4.5665388107299805,
+          "start_column": 15,
+          "text": "椰"
+        },
+        {
+          "end_column": 22,
+          "score": 16.082069396972656,
+          "start_column": 21,
+          "text": "油"
+        },
+        {
+          "end_column": 28,
+          "score": 1.8709739446640015,
+          "start_column": 27,
+          "text": "酰"
+        },
+        {
+          "end_column": 34,
+          "score": 9.589938163757324,
+          "start_column": 33,
+          "text": "胺"
+        },
+        {
+          "end_column": 40,
+          "score": 20.190574645996094,
+          "start_column": 39,
+          "text": "丙"
+        },
+        {
+          "end_column": 46,
+          "score": 16.24041748046875,
+          "start_column": 45,
+          "text": "基"
+        },
+        {
+          "end_column": 52,
+          "score": 16.630815505981445,
+          "start_column": 51,
+          "text": "甜"
+        },
+        {
+          "end_column": 59,
+          "score": 14.67643928527832,
+          "start_column": 58,
+          "text": "菜"
+        },
+        {
+          "end_column": 65,
+          "score": 2.9111857414245605,
+          "start_column": 64,
+          "text": "碱"
+        },
+        {
+          "end_column": 69,
+          "score": 21.638134002685547,
+          "start_column": 68,
+          "text": "、"
+        },
+        {
+          "end_column": 77,
+          "score": 21.853919982910156,
+          "start_column": 76,
+          "text": "泛"
+        },
+        {
+          "end_column": 83,
+          "score": -0.5454812049865723,
+          "start_column": 82,
+          "text": "醌"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            26.0,
+            365.0
+          ],
+          [
+            282.0,
+            365.0
+          ],
+          [
+            282.0,
+            383.0
+          ],
+          [
+            26.0,
+            383.0
+          ]
+        ],
+        "score": 0.8968751430511475
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 683,
+      "recognition_score": 12.489583969116211,
+      "recognition_tensor_width": 704,
+      "recognition_time_steps": 88,
+      "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999866485595703,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 20.742565155029297,
+          "start_column": 2,
+          "text": "("
+        },
+        {
+          "end_column": 8,
+          "score": 22.367462158203125,
+          "start_column": 7,
+          "text": "成"
+        },
+        {
+          "end_column": 13,
+          "score": 21.9509220123291,
+          "start_column": 12,
+          "text": "品"
+        },
+        {
+          "end_column": 18,
+          "score": 23.123220443725586,
+          "start_column": 17,
+          "text": "包"
+        },
+        {
+          "end_column": 23,
+          "score": 20.550783157348633,
+          "start_column": 22,
+          "text": "材"
+        },
+        {
+          "end_column": 28,
+          "score": 19.993114471435547,
+          "start_column": 27,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            366.0,
+            366.0
+          ],
+          [
+            476.0,
+            366.0
+          ],
+          [
+            476.0,
+            389.0
+          ],
+          [
+            366.0,
+            389.0
+          ]
+        ],
+        "score": 0.8885238170623779
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 230,
+      "recognition_score": 21.45467758178711,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "(成品包材)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999982118606567,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 9.291810035705566,
+          "start_column": 3,
+          "text": "糖"
+        },
+        {
+          "end_column": 9,
+          "score": 19.856843948364258,
+          "start_column": 8,
+          "text": "、"
+        },
+        {
+          "end_column": 16,
+          "score": 4.5665388107299805,
+          "start_column": 15,
+          "text": "椰"
+        },
+        {
+          "end_column": 22,
+          "score": 16.082069396972656,
+          "start_column": 21,
+          "text": "油"
+        },
+        {
+          "end_column": 28,
+          "score": 1.8709739446640015,
+          "start_column": 27,
+          "text": "酰"
+        },
+        {
+          "end_column": 34,
+          "score": 9.589938163757324,
+          "start_column": 33,
+          "text": "胺"
+        },
+        {
+          "end_column": 40,
+          "score": 20.190574645996094,
+          "start_column": 39,
+          "text": "丙"
+        },
+        {
+          "end_column": 46,
+          "score": 16.24041748046875,
+          "start_column": 45,
+          "text": "基"
+        },
+        {
+          "end_column": 52,
+          "score": 16.630815505981445,
+          "start_column": 51,
+          "text": "甜"
+        },
+        {
+          "end_column": 59,
+          "score": 14.67643928527832,
+          "start_column": 58,
+          "text": "菜"
+        },
+        {
+          "end_column": 65,
+          "score": 2.9111857414245605,
+          "start_column": 64,
+          "text": "碱"
+        },
+        {
+          "end_column": 69,
+          "score": 21.638134002685547,
+          "start_column": 68,
+          "text": "、"
+        },
+        {
+          "end_column": 77,
+          "score": 21.853919982910156,
+          "start_column": 76,
+          "text": "泛"
+        },
+        {
+          "end_column": 83,
+          "score": -0.5454812049865723,
+          "start_column": 82,
+          "text": "醌"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            526.0,
+            365.0
+          ],
+          [
+            782.0,
+            365.0
+          ],
+          [
+            782.0,
+            383.0
+          ],
+          [
+            526.0,
+            383.0
+          ]
+        ],
+        "score": 0.899085283279419
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 683,
+      "recognition_score": 12.489583969116211,
+      "recognition_tensor_width": 704,
+      "recognition_time_steps": 88,
+      "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999866485595703,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 20.742565155029297,
+          "start_column": 2,
+          "text": "("
+        },
+        {
+          "end_column": 8,
+          "score": 22.367462158203125,
+          "start_column": 7,
+          "text": "成"
+        },
+        {
+          "end_column": 13,
+          "score": 21.9509220123291,
+          "start_column": 12,
+          "text": "品"
+        },
+        {
+          "end_column": 18,
+          "score": 23.123220443725586,
+          "start_column": 17,
+          "text": "包"
+        },
+        {
+          "end_column": 23,
+          "score": 20.550783157348633,
+          "start_column": 22,
+          "text": "材"
+        },
+        {
+          "end_column": 28,
+          "score": 19.993114471435547,
+          "start_column": 27,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            866.0,
+            366.0
+          ],
+          [
+            976.0,
+            366.0
+          ],
+          [
+            976.0,
+            389.0
+          ],
+          [
+            866.0,
+            389.0
+          ]
+        ],
+        "score": 0.889935314655304
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 230,
+      "recognition_score": 21.45467758178711,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "(成品包材)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 1.0,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.556949615478516,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 23.53882598876953,
+          "start_column": 6,
+          "text": "主"
+        },
+        {
+          "end_column": 12,
+          "score": 19.551679611206055,
+          "start_column": 11,
+          "text": "要"
+        },
+        {
+          "end_column": 18,
+          "score": 20.16621208190918,
+          "start_column": 17,
+          "text": "功"
+        },
+        {
+          "end_column": 24,
+          "score": 15.939824104309082,
+          "start_column": 23,
+          "text": "能"
+        },
+        {
+          "end_column": 29,
+          "score": 19.43868064880371,
+          "start_column": 28,
+          "text": "】"
+        },
+        {
+          "end_column": 36,
+          "score": 19.906368255615234,
+          "start_column": 35,
+          "text": "："
+        },
+        {
+          "end_column": 41,
+          "score": 24.46590805053711,
+          "start_column": 40,
+          "text": "可"
+        },
+        {
+          "end_column": 47,
+          "score": 17.46258544921875,
+          "start_column": 46,
+          "text": "紧"
+        },
+        {
+          "end_column": 52,
+          "score": 17.956340789794922,
+          "start_column": 51,
+          "text": "致"
+        },
+        {
+          "end_column": 58,
+          "score": 21.533008575439453,
+          "start_column": 57,
+          "text": "头"
+        },
+        {
+          "end_column": 64,
+          "score": 22.81504249572754,
+          "start_column": 63,
+          "text": "发"
+        },
+        {
+          "end_column": 70,
+          "score": 1.5661696195602417,
+          "start_column": 69,
+          "text": "磷"
+        },
+        {
+          "end_column": 75,
+          "score": 17.81705665588379,
+          "start_column": 74,
+          "text": "层"
+        },
+        {
+          "end_column": 81,
+          "score": 22.763214111328125,
+          "start_column": 80,
+          "text": "，"
+        },
+        {
+          "end_column": 87,
+          "score": 20.920663833618164,
+          "start_column": 86,
+          "text": "从"
+        },
+        {
+          "end_column": 93,
+          "score": 22.621610641479492,
+          "start_column": 92,
+          "text": "而"
+        },
+        {
+          "end_column": 98,
+          "score": 22.578535079956055,
+          "start_column": 97,
+          "text": "达"
+        },
+        {
+          "end_column": 104,
+          "score": 18.937742233276367,
+          "start_column": 103,
+          "text": "到"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            395.0
+          ],
+          [
+            361.0,
+            395.0
+          ],
+          [
+            361.0,
+            414.0
+          ],
+          [
+            25.0,
+            414.0
+          ]
+        ],
+        "score": 0.8905488848686218
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 849,
+      "recognition_score": 19.39665412902832,
+      "recognition_tensor_width": 864,
+      "recognition_time_steps": 108,
+      "text": "【主要功能】：可紧致头发磷层，从而达到"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 1.0,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.556949615478516,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 23.53882598876953,
+          "start_column": 6,
+          "text": "主"
+        },
+        {
+          "end_column": 12,
+          "score": 19.551679611206055,
+          "start_column": 11,
+          "text": "要"
+        },
+        {
+          "end_column": 18,
+          "score": 20.16621208190918,
+          "start_column": 17,
+          "text": "功"
+        },
+        {
+          "end_column": 24,
+          "score": 15.939824104309082,
+          "start_column": 23,
+          "text": "能"
+        },
+        {
+          "end_column": 29,
+          "score": 19.43868064880371,
+          "start_column": 28,
+          "text": "】"
+        },
+        {
+          "end_column": 36,
+          "score": 19.906368255615234,
+          "start_column": 35,
+          "text": "："
+        },
+        {
+          "end_column": 41,
+          "score": 24.46590805053711,
+          "start_column": 40,
+          "text": "可"
+        },
+        {
+          "end_column": 47,
+          "score": 17.46258544921875,
+          "start_column": 46,
+          "text": "紧"
+        },
+        {
+          "end_column": 52,
+          "score": 17.956340789794922,
+          "start_column": 51,
+          "text": "致"
+        },
+        {
+          "end_column": 58,
+          "score": 21.533008575439453,
+          "start_column": 57,
+          "text": "头"
+        },
+        {
+          "end_column": 64,
+          "score": 22.81504249572754,
+          "start_column": 63,
+          "text": "发"
+        },
+        {
+          "end_column": 70,
+          "score": 1.5661696195602417,
+          "start_column": 69,
+          "text": "磷"
+        },
+        {
+          "end_column": 75,
+          "score": 17.81705665588379,
+          "start_column": 74,
+          "text": "层"
+        },
+        {
+          "end_column": 81,
+          "score": 22.763214111328125,
+          "start_column": 80,
+          "text": "，"
+        },
+        {
+          "end_column": 87,
+          "score": 20.920663833618164,
+          "start_column": 86,
+          "text": "从"
+        },
+        {
+          "end_column": 93,
+          "score": 22.621610641479492,
+          "start_column": 92,
+          "text": "而"
+        },
+        {
+          "end_column": 98,
+          "score": 22.578535079956055,
+          "start_column": 97,
+          "text": "达"
+        },
+        {
+          "end_column": 104,
+          "score": 18.937742233276367,
+          "start_column": 103,
+          "text": "到"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            395.0
+          ],
+          [
+            861.0,
+            395.0
+          ],
+          [
+            861.0,
+            414.0
+          ],
+          [
+            525.0,
+            414.0
+          ]
+        ],
+        "score": 0.8926459550857544
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 849,
+      "recognition_score": 19.39665412902832,
+      "recognition_tensor_width": 864,
+      "recognition_time_steps": 108,
+      "text": "【主要功能】：可紧致头发磷层，从而达到"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999973773956299,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 21.539880752563477,
+          "start_column": 3,
+          "text": "即"
+        },
+        {
+          "end_column": 9,
+          "score": 21.477928161621094,
+          "start_column": 8,
+          "text": "时"
+        },
+        {
+          "end_column": 15,
+          "score": 17.86804962158203,
+          "start_column": 14,
+          "text": "持"
+        },
+        {
+          "end_column": 21,
+          "score": 24.780574798583984,
+          "start_column": 20,
+          "text": "久"
+        },
+        {
+          "end_column": 27,
+          "score": 24.454381942749023,
+          "start_column": 26,
+          "text": "改"
+        },
+        {
+          "end_column": 33,
+          "score": 12.4782075881958,
+          "start_column": 32,
+          "text": "善"
+        },
+        {
+          "end_column": 38,
+          "score": 20.705442428588867,
+          "start_column": 37,
+          "text": "头"
+        },
+        {
+          "end_column": 44,
+          "score": 22.265369415283203,
+          "start_column": 43,
+          "text": "发"
+        },
+        {
+          "end_column": 50,
+          "score": 22.24936866760254,
+          "start_column": 49,
+          "text": "光"
+        },
+        {
+          "end_column": 55,
+          "score": 16.946990966796875,
+          "start_column": 54,
+          "text": "泽"
+        },
+        {
+          "end_column": 61,
+          "score": 23.62062644958496,
+          "start_column": 60,
+          "text": "的"
+        },
+        {
+          "end_column": 67,
+          "score": 19.54355812072754,
+          "start_column": 66,
+          "text": "效"
+        },
+        {
+          "end_column": 73,
+          "score": 18.641666412353516,
+          "start_column": 72,
+          "text": "果"
+        },
+        {
+          "end_column": 79,
+          "score": 22.436283111572266,
+          "start_column": 78,
+          "text": "，"
+        },
+        {
+          "end_column": 84,
+          "score": 13.60668659210205,
+          "start_column": 83,
+          "text": "给"
+        },
+        {
+          "end_column": 90,
+          "score": 18.181869506835938,
+          "start_column": 89,
+          "text": "干"
+        },
+        {
+          "end_column": 96,
+          "score": -0.8905919194221497,
+          "start_column": 95,
+          "text": "燥"
+        },
+        {
+          "end_column": 101,
+          "score": 23.254770278930664,
+          "start_column": 100,
+          "text": "的"
+        },
+        {
+          "end_column": 107,
+          "score": 21.06394386291504,
+          "start_column": 106,
+          "text": "头"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            26.0,
+            426.0
+          ],
+          [
+            372.0,
+            426.0
+          ],
+          [
+            372.0,
+            445.0
+          ],
+          [
+            26.0,
+            445.0
+          ]
+        ],
+        "score": 0.8908945918083191
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 875,
+      "recognition_score": 19.169736862182617,
+      "recognition_tensor_width": 896,
+      "recognition_time_steps": 112,
+      "text": "即时持久改善头发光泽的效果，给干燥的头"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999972581863403,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 21.66777992248535,
+          "start_column": 3,
+          "text": "即"
+        },
+        {
+          "end_column": 8,
+          "score": 22.962383270263672,
+          "start_column": 7,
+          "text": "时"
+        },
+        {
+          "end_column": 14,
+          "score": 20.266626358032227,
+          "start_column": 13,
+          "text": "持"
+        },
+        {
+          "end_column": 18,
+          "score": 24.38223648071289,
+          "start_column": 17,
+          "text": "久"
+        },
+        {
+          "end_column": 23,
+          "score": 26.436758041381836,
+          "start_column": 22,
+          "text": "改"
+        },
+        {
+          "end_column": 29,
+          "score": 14.990073204040527,
+          "start_column": 28,
+          "text": "善"
+        },
+        {
+          "end_column": 34,
+          "score": 21.919509887695312,
+          "start_column": 33,
+          "text": "头"
+        },
+        {
+          "end_column": 38,
+          "score": 21.574541091918945,
+          "start_column": 37,
+          "text": "发"
+        },
+        {
+          "end_column": 43,
+          "score": 19.750261306762695,
+          "start_column": 42,
+          "text": "光"
+        },
+        {
+          "end_column": 48,
+          "score": 17.39963722229004,
+          "start_column": 47,
+          "text": "泽"
+        },
+        {
+          "end_column": 53,
+          "score": 23.857553482055664,
+          "start_column": 52,
+          "text": "的"
+        },
+        {
+          "end_column": 58,
+          "score": 18.99022674560547,
+          "start_column": 57,
+          "text": "效"
+        },
+        {
+          "end_column": 63,
+          "score": 19.163238525390625,
+          "start_column": 62,
+          "text": "果"
+        },
+        {
+          "end_column": 68,
+          "score": 23.673110961914062,
+          "start_column": 67,
+          "text": "，"
+        },
+        {
+          "end_column": 73,
+          "score": 14.979920387268066,
+          "start_column": 72,
+          "text": "给"
+        },
+        {
+          "end_column": 78,
+          "score": 19.22001075744629,
+          "start_column": 77,
+          "text": "干"
+        },
+        {
+          "end_column": 83,
+          "score": 2.6444246768951416,
+          "start_column": 82,
+          "text": "燥"
+        },
+        {
+          "end_column": 88,
+          "score": 23.40325164794922,
+          "start_column": 87,
+          "text": "的"
+        },
+        {
+          "end_column": 93,
+          "score": 22.84606170654297,
+          "start_column": 92,
+          "text": "头"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            425.0
+          ],
+          [
+            873.0,
+            425.0
+          ],
+          [
+            873.0,
+            447.0
+          ],
+          [
+            525.0,
+            447.0
+          ]
+        ],
+        "score": 0.8105021715164185
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 760,
+      "recognition_score": 20.006715774536133,
+      "recognition_tensor_width": 768,
+      "recognition_time_steps": 96,
+      "text": "即时持久改善头发光泽的效果，给干燥的头"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999994039535522,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 22.526453018188477,
+          "start_column": 3,
+          "text": "发"
+        },
+        {
+          "end_column": 9,
+          "score": 21.18552017211914,
+          "start_column": 8,
+          "text": "足"
+        },
+        {
+          "end_column": 14,
+          "score": 16.88849449157715,
+          "start_column": 13,
+          "text": "够"
+        },
+        {
+          "end_column": 18,
+          "score": 25.07017707824707,
+          "start_column": 17,
+          "text": "的"
+        },
+        {
+          "end_column": 24,
+          "score": 15.278298377990723,
+          "start_column": 23,
+          "text": "滋"
+        },
+        {
+          "end_column": 29,
+          "score": 21.067676544189453,
+          "start_column": 28,
+          "text": "养"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            456.0
+          ],
+          [
+            136.0,
+            456.0
+          ],
+          [
+            136.0,
+            478.0
+          ],
+          [
+            25.0,
+            478.0
+          ]
+        ],
+        "score": 0.9730780720710754
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 243,
+      "recognition_score": 20.336103439331055,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "发足够的滋养"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999994039535522,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 22.526453018188477,
+          "start_column": 3,
+          "text": "发"
+        },
+        {
+          "end_column": 9,
+          "score": 21.18552017211914,
+          "start_column": 8,
+          "text": "足"
+        },
+        {
+          "end_column": 14,
+          "score": 16.88849449157715,
+          "start_column": 13,
+          "text": "够"
+        },
+        {
+          "end_column": 18,
+          "score": 25.07017707824707,
+          "start_column": 17,
+          "text": "的"
+        },
+        {
+          "end_column": 24,
+          "score": 15.278298377990723,
+          "start_column": 23,
+          "text": "滋"
+        },
+        {
+          "end_column": 29,
+          "score": 21.067676544189453,
+          "start_column": 28,
+          "text": "养"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            456.0
+          ],
+          [
+            636.0,
+            456.0
+          ],
+          [
+            636.0,
+            478.0
+          ],
+          [
+            525.0,
+            478.0
+          ]
+        ],
+        "score": 0.9692493677139282
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 243,
+      "recognition_score": 20.336103439331055,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "发足够的滋养"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999994039535522,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 12.111913681030273,
+          "start_column": 3,
+          "text": "纯"
+        },
+        {
+          "end_column": 10,
+          "score": 1.8362998962402344,
+          "start_column": 9,
+          "text": "臻"
+        },
+        {
+          "end_column": 16,
+          "score": 10.995763778686523,
+          "start_column": 15,
+          "text": "营"
+        },
+        {
+          "end_column": 22,
+          "score": 20.85407257080078,
+          "start_column": 21,
+          "text": "养"
+        },
+        {
+          "end_column": 28,
+          "score": 15.253852844238281,
+          "start_column": 27,
+          "text": "护"
+        },
+        {
+          "end_column": 34,
+          "score": 21.9490909576416,
+          "start_column": 33,
+          "text": "发"
+        },
+        {
+          "end_column": 40,
+          "score": 13.364819526672363,
+          "start_column": 39,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            533.0
+          ],
+          [
+            305.0,
+            533.0
+          ],
+          [
+            305.0,
+            573.0
+          ],
+          [
+            23.0,
+            573.0
+          ]
+        ],
+        "score": 0.9339248538017273
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 339,
+      "recognition_score": 13.766544342041016,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999759197235107,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 12.847954750061035,
+          "start_column": 3,
+          "text": "纯"
+        },
+        {
+          "end_column": 10,
+          "score": 3.4068186283111572,
+          "start_column": 9,
+          "text": "臻"
+        },
+        {
+          "end_column": 16,
+          "score": 10.137243270874023,
+          "start_column": 15,
+          "text": "营"
+        },
+        {
+          "end_column": 22,
+          "score": 21.39164924621582,
+          "start_column": 21,
+          "text": "养"
+        },
+        {
+          "end_column": 28,
+          "score": 15.558463096618652,
+          "start_column": 27,
+          "text": "护"
+        },
+        {
+          "end_column": 34,
+          "score": 22.213388442993164,
+          "start_column": 33,
+          "text": "发"
+        },
+        {
+          "end_column": 40,
+          "score": 14.009462356567383,
+          "start_column": 39,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            533.0
+          ],
+          [
+            805.0,
+            533.0
+          ],
+          [
+            805.0,
+            573.0
+          ],
+          [
+            524.0,
+            573.0
+          ]
+        ],
+        "score": 0.9406128525733948
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 338,
+      "recognition_score": 14.2235689163208,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999992847442627,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 24.625289916992188,
+          "start_column": 3,
+          "text": "产"
+        },
+        {
+          "end_column": 9,
+          "score": 21.664514541625977,
+          "start_column": 8,
+          "text": "品"
+        },
+        {
+          "end_column": 15,
+          "score": 18.42147445678711,
+          "start_column": 14,
+          "text": "信"
+        },
+        {
+          "end_column": 20,
+          "score": 19.048725128173828,
+          "start_column": 19,
+          "text": "息"
+        },
+        {
+          "end_column": 24,
+          "score": 21.530292510986328,
+          "start_column": 23,
+          "text": "/"
+        },
+        {
+          "end_column": 28,
+          "score": 17.801164627075195,
+          "start_column": 27,
+          "text": "参"
+        },
+        {
+          "end_column": 33,
+          "score": 15.799650192260742,
+          "start_column": 32,
+          "text": "数"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            24.0,
+            579.0
+          ],
+          [
+            175.0,
+            579.0
+          ],
+          [
+            175.0,
+            604.0
+          ],
+          [
+            24.0,
+            604.0
+          ]
+        ],
+        "score": 0.9607757329940796
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 290,
+      "recognition_score": 19.84158706665039,
+      "recognition_tensor_width": 320,
+      "recognition_time_steps": 40,
+      "text": "产品信息/参数"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999992847442627,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 24.625289916992188,
+          "start_column": 3,
+          "text": "产"
+        },
+        {
+          "end_column": 9,
+          "score": 21.664514541625977,
+          "start_column": 8,
+          "text": "品"
+        },
+        {
+          "end_column": 15,
+          "score": 18.42147445678711,
+          "start_column": 14,
+          "text": "信"
+        },
+        {
+          "end_column": 20,
+          "score": 19.048725128173828,
+          "start_column": 19,
+          "text": "息"
+        },
+        {
+          "end_column": 24,
+          "score": 21.530292510986328,
+          "start_column": 23,
+          "text": "/"
+        },
+        {
+          "end_column": 28,
+          "score": 17.801164627075195,
+          "start_column": 27,
+          "text": "参"
+        },
+        {
+          "end_column": 33,
+          "score": 15.799650192260742,
+          "start_column": 32,
+          "text": "数"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            579.0
+          ],
+          [
+            675.0,
+            579.0
+          ],
+          [
+            675.0,
+            604.0
+          ],
+          [
+            524.0,
+            604.0
+          ]
+        ],
+        "score": 0.9587681889533997
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 290,
+      "recognition_score": 19.84158706665039,
+      "recognition_tensor_width": 320,
+      "recognition_time_steps": 40,
+      "text": "产品信息/参数"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999970197677612,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 24.41337013244629,
+          "start_column": 1,
+          "text": "("
+        },
+        {
+          "end_column": 5,
+          "score": 26.131336212158203,
+          "start_column": 4,
+          "text": "4"
+        },
+        {
+          "end_column": 8,
+          "score": 25.55352210998535,
+          "start_column": 7,
+          "text": "5"
+        },
+        {
+          "end_column": 13,
+          "score": 21.95198631286621,
+          "start_column": 12,
+          "text": "元"
+        },
+        {
+          "end_column": 18,
+          "score": 22.74496841430664,
+          "start_column": 17,
+          "text": "/"
+        },
+        {
+          "end_column": 22,
+          "score": 20.56995964050293,
+          "start_column": 21,
+          "text": "每"
+        },
+        {
+          "end_column": 29,
+          "score": 23.799314498901367,
+          "start_column": 28,
+          "text": "公"
+        },
+        {
+          "end_column": 35,
+          "score": 19.837770462036133,
+          "start_column": 34,
+          "text": "斤"
+        },
+        {
+          "end_column": 41,
+          "score": 22.323467254638672,
+          "start_column": 40,
+          "text": "，"
+        },
+        {
+          "end_column": 46,
+          "score": 23.94208526611328,
+          "start_column": 45,
+          "text": "1"
+        },
+        {
+          "end_column": 50,
+          "score": 26.636369705200195,
+          "start_column": 49,
+          "text": "0"
+        },
+        {
+          "end_column": 54,
+          "score": 27.006940841674805,
+          "start_column": 53,
+          "text": "0"
+        },
+        {
+          "end_column": 58,
+          "score": 22.377117156982422,
+          "start_column": 57,
+          "text": "公"
+        },
+        {
+          "end_column": 65,
+          "score": 19.664119720458984,
+          "start_column": 64,
+          "text": "斤"
+        },
+        {
+          "end_column": 71,
+          "score": 24.438255310058594,
+          "start_column": 70,
+          "text": "起"
+        },
+        {
+          "end_column": 77,
+          "score": 17.595989227294922,
+          "start_column": 76,
+          "text": "订"
+        },
+        {
+          "end_column": 83,
+          "score": 22.52484130859375,
+          "start_column": 82,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            611.0
+          ],
+          [
+            333.0,
+            611.0
+          ],
+          [
+            333.0,
+            633.0
+          ],
+          [
+            25.0,
+            633.0
+          ]
+        ],
+        "score": 0.9699149131774902
+      },
+      "emitted_count": 17,
+      "recognition_content_width": 672,
+      "recognition_score": 23.03008270263672,
+      "recognition_tensor_width": 672,
+      "recognition_time_steps": 84,
+      "text": "(45元/每公斤，100公斤起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999970197677612,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 24.41337013244629,
+          "start_column": 1,
+          "text": "("
+        },
+        {
+          "end_column": 5,
+          "score": 26.131336212158203,
+          "start_column": 4,
+          "text": "4"
+        },
+        {
+          "end_column": 8,
+          "score": 25.55352210998535,
+          "start_column": 7,
+          "text": "5"
+        },
+        {
+          "end_column": 13,
+          "score": 21.95198631286621,
+          "start_column": 12,
+          "text": "元"
+        },
+        {
+          "end_column": 18,
+          "score": 22.74496841430664,
+          "start_column": 17,
+          "text": "/"
+        },
+        {
+          "end_column": 22,
+          "score": 20.56995964050293,
+          "start_column": 21,
+          "text": "每"
+        },
+        {
+          "end_column": 29,
+          "score": 23.799314498901367,
+          "start_column": 28,
+          "text": "公"
+        },
+        {
+          "end_column": 35,
+          "score": 19.837770462036133,
+          "start_column": 34,
+          "text": "斤"
+        },
+        {
+          "end_column": 41,
+          "score": 22.323467254638672,
+          "start_column": 40,
+          "text": "，"
+        },
+        {
+          "end_column": 46,
+          "score": 23.94208526611328,
+          "start_column": 45,
+          "text": "1"
+        },
+        {
+          "end_column": 50,
+          "score": 26.636369705200195,
+          "start_column": 49,
+          "text": "0"
+        },
+        {
+          "end_column": 54,
+          "score": 27.006940841674805,
+          "start_column": 53,
+          "text": "0"
+        },
+        {
+          "end_column": 58,
+          "score": 22.377117156982422,
+          "start_column": 57,
+          "text": "公"
+        },
+        {
+          "end_column": 65,
+          "score": 19.664119720458984,
+          "start_column": 64,
+          "text": "斤"
+        },
+        {
+          "end_column": 71,
+          "score": 24.438255310058594,
+          "start_column": 70,
+          "text": "起"
+        },
+        {
+          "end_column": 77,
+          "score": 17.595989227294922,
+          "start_column": 76,
+          "text": "订"
+        },
+        {
+          "end_column": 83,
+          "score": 22.52484130859375,
+          "start_column": 82,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            611.0
+          ],
+          [
+            833.0,
+            611.0
+          ],
+          [
+            833.0,
+            633.0
+          ],
+          [
+            525.0,
+            633.0
+          ]
+        ],
+        "score": 0.9700833559036255
+      },
+      "emitted_count": 17,
+      "recognition_content_width": 672,
+      "recognition_score": 23.03008270263672,
+      "recognition_tensor_width": 672,
+      "recognition_time_steps": 84,
+      "text": "(45元/每公斤，100公斤起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999442100524902,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 20.3209171295166,
+          "start_column": 3,
+          "text": "每"
+        },
+        {
+          "end_column": 9,
+          "score": 18.109928131103516,
+          "start_column": 8,
+          "text": "瓶"
+        },
+        {
+          "end_column": 14,
+          "score": 24.16780662536621,
+          "start_column": 13,
+          "text": "2"
+        },
+        {
+          "end_column": 17,
+          "score": 25.881433486938477,
+          "start_column": 16,
+          "text": "2"
+        },
+        {
+          "end_column": 21,
+          "score": 22.883319854736328,
+          "start_column": 20,
+          "text": "元"
+        },
+        {
+          "end_column": 27,
+          "score": 23.484079360961914,
+          "start_column": 26,
+          "text": "，"
+        },
+        {
+          "end_column": 31,
+          "score": 24.586820602416992,
+          "start_column": 30,
+          "text": "1"
+        },
+        {
+          "end_column": 35,
+          "score": 25.82921600341797,
+          "start_column": 34,
+          "text": "0"
+        },
+        {
+          "end_column": 38,
+          "score": 26.868432998657227,
+          "start_column": 37,
+          "text": "0"
+        },
+        {
+          "end_column": 41,
+          "score": 28.021324157714844,
+          "start_column": 40,
+          "text": "0"
+        },
+        {
+          "end_column": 45,
+          "score": 17.134824752807617,
+          "start_column": 44,
+          "text": "瓶"
+        },
+        {
+          "end_column": 51,
+          "score": 22.877412796020508,
+          "start_column": 50,
+          "text": "起"
+        },
+        {
+          "end_column": 56,
+          "score": 17.945438385009766,
+          "start_column": 55,
+          "text": "订"
+        },
+        {
+          "end_column": 62,
+          "score": 17.442317962646484,
+          "start_column": 61,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            24.0,
+            641.0
+          ],
+          [
+            285.0,
+            641.0
+          ],
+          [
+            285.0,
+            666.0
+          ],
+          [
+            24.0,
+            666.0
+          ]
+        ],
+        "score": 0.8547627329826355
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 502,
+      "recognition_score": 22.539520263671875,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "每瓶22元，1000瓶起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999442100524902,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 20.3209171295166,
+          "start_column": 3,
+          "text": "每"
+        },
+        {
+          "end_column": 9,
+          "score": 18.109928131103516,
+          "start_column": 8,
+          "text": "瓶"
+        },
+        {
+          "end_column": 14,
+          "score": 24.16780662536621,
+          "start_column": 13,
+          "text": "2"
+        },
+        {
+          "end_column": 17,
+          "score": 25.881433486938477,
+          "start_column": 16,
+          "text": "2"
+        },
+        {
+          "end_column": 21,
+          "score": 22.883319854736328,
+          "start_column": 20,
+          "text": "元"
+        },
+        {
+          "end_column": 27,
+          "score": 23.484079360961914,
+          "start_column": 26,
+          "text": "，"
+        },
+        {
+          "end_column": 31,
+          "score": 24.586820602416992,
+          "start_column": 30,
+          "text": "1"
+        },
+        {
+          "end_column": 35,
+          "score": 25.82921600341797,
+          "start_column": 34,
+          "text": "0"
+        },
+        {
+          "end_column": 38,
+          "score": 26.868432998657227,
+          "start_column": 37,
+          "text": "0"
+        },
+        {
+          "end_column": 41,
+          "score": 28.021324157714844,
+          "start_column": 40,
+          "text": "0"
+        },
+        {
+          "end_column": 45,
+          "score": 17.134824752807617,
+          "start_column": 44,
+          "text": "瓶"
+        },
+        {
+          "end_column": 51,
+          "score": 22.877412796020508,
+          "start_column": 50,
+          "text": "起"
+        },
+        {
+          "end_column": 56,
+          "score": 17.945438385009766,
+          "start_column": 55,
+          "text": "订"
+        },
+        {
+          "end_column": 62,
+          "score": 17.442317962646484,
+          "start_column": 61,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            641.0
+          ],
+          [
+            785.0,
+            641.0
+          ],
+          [
+            785.0,
+            666.0
+          ],
+          [
+            524.0,
+            666.0
+          ]
+        ],
+        "score": 0.8591565489768982
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 502,
+      "recognition_score": 22.539520263671875,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "每瓶22元，1000瓶起订)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999840259552002,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 21.718889236450195,
+          "start_column": 2,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 20.59912109375,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 13.386201858520508,
+          "start_column": 10,
+          "text": "牌"
+        },
+        {
+          "end_column": 16,
+          "score": 19.803112030029297,
+          "start_column": 15,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 21.95113754272461,
+          "start_column": 20,
+          "text": ":"
+        },
+        {
+          "end_column": 26,
+          "score": 23.9277400970459,
+          "start_column": 25,
+          "text": "代"
+        },
+        {
+          "end_column": 31,
+          "score": 21.355003356933594,
+          "start_column": 30,
+          "text": "加"
+        },
+        {
+          "end_column": 36,
+          "score": 21.13632583618164,
+          "start_column": 35,
+          "text": "工"
+        },
+        {
+          "end_column": 41,
+          "score": 20.749130249023438,
+          "start_column": 40,
+          "text": "方"
+        },
+        {
+          "end_column": 46,
+          "score": 25.523836135864258,
+          "start_column": 45,
+          "text": "式"
+        },
+        {
+          "end_column": 50,
+          "score": 22.656314849853516,
+          "start_column": 49,
+          "text": "/"
+        },
+        {
+          "end_column": 53,
+          "score": 20.46619987487793,
+          "start_column": 52,
+          "text": "O"
+        },
+        {
+          "end_column": 56,
+          "score": 21.79023551940918,
+          "start_column": 55,
+          "text": "E"
+        },
+        {
+          "end_column": 60,
+          "score": 21.34978485107422,
+          "start_column": 59,
+          "text": "M"
+        },
+        {
+          "end_column": 63,
+          "score": 20.159631729125977,
+          "start_column": 62,
+          "text": " "
+        },
+        {
+          "end_column": 66,
+          "score": 19.860986709594727,
+          "start_column": 65,
+          "text": "O"
+        },
+        {
+          "end_column": 70,
+          "score": 23.33278465270996,
+          "start_column": 69,
+          "text": "D"
+        },
+        {
+          "end_column": 74,
+          "score": 20.397600173950195,
+          "start_column": 73,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            675.0
+          ],
+          [
+            301.0,
+            675.0
+          ],
+          [
+            301.0,
+            697.0
+          ],
+          [
+            23.0,
+            697.0
+          ]
+        ],
+        "score": 0.8302657604217529
+      },
+      "emitted_count": 18,
+      "recognition_content_width": 607,
+      "recognition_score": 21.120223999023438,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "text": "【品牌】:代加工方式/OEM ODM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999920129776001,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 20.237110137939453,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 21.320926666259766,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 13.396336555480957,
+          "start_column": 10,
+          "text": "牌"
+        },
+        {
+          "end_column": 15,
+          "score": 20.68897247314453,
+          "start_column": 14,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 21.88359832763672,
+          "start_column": 20,
+          "text": ":"
+        },
+        {
+          "end_column": 26,
+          "score": 24.649259567260742,
+          "start_column": 25,
+          "text": "代"
+        },
+        {
+          "end_column": 31,
+          "score": 21.219526290893555,
+          "start_column": 30,
+          "text": "加"
+        },
+        {
+          "end_column": 36,
+          "score": 20.55999755859375,
+          "start_column": 35,
+          "text": "工"
+        },
+        {
+          "end_column": 41,
+          "score": 20.291728973388672,
+          "start_column": 40,
+          "text": "方"
+        },
+        {
+          "end_column": 46,
+          "score": 24.590961456298828,
+          "start_column": 45,
+          "text": "式"
+        },
+        {
+          "end_column": 50,
+          "score": 22.56150245666504,
+          "start_column": 49,
+          "text": "/"
+        },
+        {
+          "end_column": 53,
+          "score": 21.292163848876953,
+          "start_column": 52,
+          "text": "O"
+        },
+        {
+          "end_column": 56,
+          "score": 21.309341430664062,
+          "start_column": 55,
+          "text": "E"
+        },
+        {
+          "end_column": 59,
+          "score": 23.09455680847168,
+          "start_column": 58,
+          "text": "M"
+        },
+        {
+          "end_column": 63,
+          "score": 20.240516662597656,
+          "start_column": 62,
+          "text": " "
+        },
+        {
+          "end_column": 66,
+          "score": 19.982423782348633,
+          "start_column": 65,
+          "text": "O"
+        },
+        {
+          "end_column": 69,
+          "score": 23.45991325378418,
+          "start_column": 68,
+          "text": "D"
+        },
+        {
+          "end_column": 73,
+          "score": 22.354026794433594,
+          "start_column": 72,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            675.0
+          ],
+          [
+            801.0,
+            675.0
+          ],
+          [
+            801.0,
+            697.0
+          ],
+          [
+            524.0,
+            697.0
+          ]
+        ],
+        "score": 0.8361765146255493
+      },
+      "emitted_count": 18,
+      "recognition_content_width": 605,
+      "recognition_score": 21.285158157348633,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "text": "【品牌】:代加工方式/OEM ODM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999412298202515,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 17.042795181274414,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 19.725143432617188,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 21.898836135864258,
+          "start_column": 10,
+          "text": "名"
+        },
+        {
+          "end_column": 16,
+          "score": 19.2753963470459,
+          "start_column": 15,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 21.306476593017578,
+          "start_column": 20,
+          "text": "："
+        },
+        {
+          "end_column": 26,
+          "score": 15.096015930175781,
+          "start_column": 25,
+          "text": "纯"
+        },
+        {
+          "end_column": 31,
+          "score": 6.760178089141846,
+          "start_column": 30,
+          "text": "臻"
+        },
+        {
+          "end_column": 36,
+          "score": 16.186185836791992,
+          "start_column": 35,
+          "text": "营"
+        },
+        {
+          "end_column": 41,
+          "score": 20.27069091796875,
+          "start_column": 40,
+          "text": "养"
+        },
+        {
+          "end_column": 46,
+          "score": 16.449838638305664,
+          "start_column": 45,
+          "text": "护"
+        },
+        {
+          "end_column": 51,
+          "score": 23.637807846069336,
+          "start_column": 50,
+          "text": "发"
+        },
+        {
+          "end_column": 56,
+          "score": 13.324533462524414,
+          "start_column": 55,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            706.0
+          ],
+          [
+            235.0,
+            706.0
+          ],
+          [
+            235.0,
+            728.0
+          ],
+          [
+            23.0,
+            728.0
+          ]
+        ],
+        "score": 0.8418731093406677
+      },
+      "emitted_count": 12,
+      "recognition_content_width": 463,
+      "recognition_score": 17.581157684326172,
+      "recognition_tensor_width": 480,
+      "recognition_time_steps": 60,
+      "text": "【品名】：纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.999919056892395,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 18.3387508392334,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 20.31780242919922,
+          "start_column": 5,
+          "text": "品"
+        },
+        {
+          "end_column": 11,
+          "score": 21.595245361328125,
+          "start_column": 10,
+          "text": "名"
+        },
+        {
+          "end_column": 15,
+          "score": 20.99356460571289,
+          "start_column": 14,
+          "text": "】"
+        },
+        {
+          "end_column": 21,
+          "score": 20.999052047729492,
+          "start_column": 20,
+          "text": "："
+        },
+        {
+          "end_column": 26,
+          "score": 15.147993087768555,
+          "start_column": 25,
+          "text": "纯"
+        },
+        {
+          "end_column": 31,
+          "score": 5.949082851409912,
+          "start_column": 30,
+          "text": "臻"
+        },
+        {
+          "end_column": 36,
+          "score": 15.529082298278809,
+          "start_column": 35,
+          "text": "营"
+        },
+        {
+          "end_column": 41,
+          "score": 20.00322914123535,
+          "start_column": 40,
+          "text": "养"
+        },
+        {
+          "end_column": 46,
+          "score": 16.089401245117188,
+          "start_column": 45,
+          "text": "护"
+        },
+        {
+          "end_column": 51,
+          "score": 23.684328079223633,
+          "start_column": 50,
+          "text": "发"
+        },
+        {
+          "end_column": 56,
+          "score": 13.997770309448242,
+          "start_column": 55,
+          "text": "素"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            706.0
+          ],
+          [
+            735.0,
+            706.0
+          ],
+          [
+            735.0,
+            728.0
+          ],
+          [
+            524.0,
+            728.0
+          ]
+        ],
+        "score": 0.8466527462005615
+      },
+      "emitted_count": 12,
+      "recognition_content_width": 461,
+      "recognition_score": 17.720441818237305,
+      "recognition_tensor_width": 480,
+      "recognition_time_steps": 60,
+      "text": "【品名】：纯臻营养护发素"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999998807907104,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 17.911165237426758,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.148399353027344,
+          "start_column": 5,
+          "text": "产"
+        },
+        {
+          "end_column": 12,
+          "score": 21.235233306884766,
+          "start_column": 11,
+          "text": "品"
+        },
+        {
+          "end_column": 17,
+          "score": 14.099776268005371,
+          "start_column": 16,
+          "text": "编"
+        },
+        {
+          "end_column": 22,
+          "score": 22.37934112548828,
+          "start_column": 21,
+          "text": "号"
+        },
+        {
+          "end_column": 27,
+          "score": 21.288305282592773,
+          "start_column": 26,
+          "text": "】"
+        },
+        {
+          "end_column": 33,
+          "score": 21.555713653564453,
+          "start_column": 32,
+          "text": ":"
+        },
+        {
+          "end_column": 37,
+          "score": 19.398035049438477,
+          "start_column": 36,
+          "text": "Y"
+        },
+        {
+          "end_column": 41,
+          "score": 21.770122528076172,
+          "start_column": 40,
+          "text": "M"
+        },
+        {
+          "end_column": 45,
+          "score": 22.768205642700195,
+          "start_column": 44,
+          "text": "-"
+        },
+        {
+          "end_column": 47,
+          "score": 19.809368133544922,
+          "start_column": 46,
+          "text": "X"
+        },
+        {
+          "end_column": 50,
+          "score": 23.24598503112793,
+          "start_column": 49,
+          "text": "-"
+        },
+        {
+          "end_column": 53,
+          "score": 26.148212432861328,
+          "start_column": 52,
+          "text": "3"
+        },
+        {
+          "end_column": 56,
+          "score": 25.981075286865234,
+          "start_column": 55,
+          "text": "0"
+        },
+        {
+          "end_column": 59,
+          "score": 24.43338966369629,
+          "start_column": 58,
+          "text": "1"
+        },
+        {
+          "end_column": 62,
+          "score": 24.57091522216797,
+          "start_column": 61,
+          "text": "1"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            22.900455474853516,
+            737.0005493164062
+          ],
+          [
+            244.00003051757812,
+            736.0000610351562
+          ],
+          [
+            244.0995635986328,
+            757.9995727539062
+          ],
+          [
+            23.0,
+            759.0000610351562
+          ]
+        ],
+        "score": 0.9028961062431335
+      },
+      "emitted_count": 16,
+      "recognition_content_width": 506,
+      "recognition_score": 21.85895347595215,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "【产品编号】:YM-X-3011"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9422359466552734,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 19.805431365966797,
+          "start_column": 3,
+          "text": "O"
+        },
+        {
+          "end_column": 7,
+          "score": 22.121463775634766,
+          "start_column": 6,
+          "text": "D"
+        },
+        {
+          "end_column": 10,
+          "score": 21.496335983276367,
+          "start_column": 9,
+          "text": "M"
+        },
+        {
+          "end_column": 13,
+          "score": 21.192073822021484,
+          "start_column": 12,
+          "text": " "
+        },
+        {
+          "end_column": 15,
+          "score": 16.827991485595703,
+          "start_column": 14,
+          "text": "O"
+        },
+        {
+          "end_column": 18,
+          "score": 16.834680557250977,
+          "start_column": 17,
+          "text": "E"
+        },
+        {
+          "end_column": 21,
+          "score": 20.983234405517578,
+          "start_column": 20,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            411.0,
+            732.0
+          ],
+          [
+            430.0,
+            732.0
+          ],
+          [
+            430.0,
+            804.0
+          ],
+          [
+            411.0,
+            804.0
+          ]
+        ],
+        "score": 0.7782460451126099
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 182,
+      "recognition_score": 19.894458770751953,
+      "recognition_tensor_width": 192,
+      "recognition_time_steps": 24,
+      "text": "ODM OEM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999998807907104,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 17.911123275756836,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.148677825927734,
+          "start_column": 5,
+          "text": "产"
+        },
+        {
+          "end_column": 12,
+          "score": 21.23548698425293,
+          "start_column": 11,
+          "text": "品"
+        },
+        {
+          "end_column": 17,
+          "score": 14.098871231079102,
+          "start_column": 16,
+          "text": "编"
+        },
+        {
+          "end_column": 22,
+          "score": 22.379487991333008,
+          "start_column": 21,
+          "text": "号"
+        },
+        {
+          "end_column": 27,
+          "score": 21.288000106811523,
+          "start_column": 26,
+          "text": "】"
+        },
+        {
+          "end_column": 33,
+          "score": 21.55647850036621,
+          "start_column": 32,
+          "text": ":"
+        },
+        {
+          "end_column": 37,
+          "score": 19.39847755432129,
+          "start_column": 36,
+          "text": "Y"
+        },
+        {
+          "end_column": 41,
+          "score": 21.77159881591797,
+          "start_column": 40,
+          "text": "M"
+        },
+        {
+          "end_column": 45,
+          "score": 22.767147064208984,
+          "start_column": 44,
+          "text": "-"
+        },
+        {
+          "end_column": 47,
+          "score": 19.80852699279785,
+          "start_column": 46,
+          "text": "X"
+        },
+        {
+          "end_column": 50,
+          "score": 23.246322631835938,
+          "start_column": 49,
+          "text": "-"
+        },
+        {
+          "end_column": 53,
+          "score": 26.148231506347656,
+          "start_column": 52,
+          "text": "3"
+        },
+        {
+          "end_column": 56,
+          "score": 25.98099708557129,
+          "start_column": 55,
+          "text": "0"
+        },
+        {
+          "end_column": 59,
+          "score": 24.433576583862305,
+          "start_column": 58,
+          "text": "1"
+        },
+        {
+          "end_column": 62,
+          "score": 24.570955276489258,
+          "start_column": 61,
+          "text": "1"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            522.9005126953125,
+            737.00048828125
+          ],
+          [
+            744.0000610351562,
+            736.0000610351562
+          ],
+          [
+            744.099609375,
+            757.9996337890625
+          ],
+          [
+            523.0000610351562,
+            759.0000610351562
+          ]
+        ],
+        "score": 0.9025413393974304
+      },
+      "emitted_count": 16,
+      "recognition_content_width": 506,
+      "recognition_score": 21.858997344970703,
+      "recognition_tensor_width": 512,
+      "recognition_time_steps": 64,
+      "text": "【产品编号】:YM-X-3011"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9422359466552734,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 19.805431365966797,
+          "start_column": 3,
+          "text": "O"
+        },
+        {
+          "end_column": 7,
+          "score": 22.121463775634766,
+          "start_column": 6,
+          "text": "D"
+        },
+        {
+          "end_column": 10,
+          "score": 21.496335983276367,
+          "start_column": 9,
+          "text": "M"
+        },
+        {
+          "end_column": 13,
+          "score": 21.192073822021484,
+          "start_column": 12,
+          "text": " "
+        },
+        {
+          "end_column": 15,
+          "score": 16.827991485595703,
+          "start_column": 14,
+          "text": "O"
+        },
+        {
+          "end_column": 18,
+          "score": 16.834680557250977,
+          "start_column": 17,
+          "text": "E"
+        },
+        {
+          "end_column": 21,
+          "score": 20.983234405517578,
+          "start_column": 20,
+          "text": "M"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            911.0,
+            732.0
+          ],
+          [
+            930.0,
+            732.0
+          ],
+          [
+            930.0,
+            804.0
+          ],
+          [
+            911.0,
+            804.0
+          ]
+        ],
+        "score": 0.7967312335968018
+      },
+      "emitted_count": 7,
+      "recognition_content_width": 182,
+      "recognition_score": 19.894458770751953,
+      "recognition_tensor_width": 192,
+      "recognition_time_steps": 24,
+      "text": "ODM OEM"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999476671218872,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.791181564331055,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.294496536254883,
+          "start_column": 5,
+          "text": "净"
+        },
+        {
+          "end_column": 11,
+          "score": 22.478557586669922,
+          "start_column": 10,
+          "text": "含"
+        },
+        {
+          "end_column": 16,
+          "score": 21.014171600341797,
+          "start_column": 15,
+          "text": "量"
+        },
+        {
+          "end_column": 21,
+          "score": 20.29393768310547,
+          "start_column": 20,
+          "text": "】"
+        },
+        {
+          "end_column": 26,
+          "score": 21.328868865966797,
+          "start_column": 25,
+          "text": ":"
+        },
+        {
+          "end_column": 30,
+          "score": 24.271602630615234,
+          "start_column": 29,
+          "text": "2"
+        },
+        {
+          "end_column": 33,
+          "score": 26.296417236328125,
+          "start_column": 32,
+          "text": "2"
+        },
+        {
+          "end_column": 36,
+          "score": 26.138595581054688,
+          "start_column": 35,
+          "text": "0"
+        },
+        {
+          "end_column": 39,
+          "score": 21.94611358642578,
+          "start_column": 38,
+          "text": "m"
+        },
+        {
+          "end_column": 43,
+          "score": 20.168048858642578,
+          "start_column": 42,
+          "text": "l"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            769.0
+          ],
+          [
+            180.0,
+            769.0
+          ],
+          [
+            180.0,
+            791.0
+          ],
+          [
+            23.0,
+            791.0
+          ]
+        ],
+        "score": 0.8655229210853577
+      },
+      "emitted_count": 11,
+      "recognition_content_width": 343,
+      "recognition_score": 22.36563491821289,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "【净含量】:220ml"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999476671218872,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.791181564331055,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.294496536254883,
+          "start_column": 5,
+          "text": "净"
+        },
+        {
+          "end_column": 11,
+          "score": 22.478557586669922,
+          "start_column": 10,
+          "text": "含"
+        },
+        {
+          "end_column": 16,
+          "score": 21.014171600341797,
+          "start_column": 15,
+          "text": "量"
+        },
+        {
+          "end_column": 21,
+          "score": 20.29393768310547,
+          "start_column": 20,
+          "text": "】"
+        },
+        {
+          "end_column": 26,
+          "score": 21.328868865966797,
+          "start_column": 25,
+          "text": ":"
+        },
+        {
+          "end_column": 30,
+          "score": 24.271602630615234,
+          "start_column": 29,
+          "text": "2"
+        },
+        {
+          "end_column": 33,
+          "score": 26.296417236328125,
+          "start_column": 32,
+          "text": "2"
+        },
+        {
+          "end_column": 36,
+          "score": 26.138595581054688,
+          "start_column": 35,
+          "text": "0"
+        },
+        {
+          "end_column": 39,
+          "score": 21.94611358642578,
+          "start_column": 38,
+          "text": "m"
+        },
+        {
+          "end_column": 43,
+          "score": 20.168048858642578,
+          "start_column": 42,
+          "text": "l"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            523.0,
+            769.0
+          ],
+          [
+            680.0,
+            769.0
+          ],
+          [
+            680.0,
+            791.0
+          ],
+          [
+            523.0,
+            791.0
+          ]
+        ],
+        "score": 0.8663400411605835
+      },
+      "emitted_count": 11,
+      "recognition_content_width": 343,
+      "recognition_score": 22.36563491821289,
+      "recognition_tensor_width": 352,
+      "recognition_time_steps": 44,
+      "text": "【净含量】:220ml"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999991655349731,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 18.931350708007812,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.248069763183594,
+          "start_column": 5,
+          "text": "适"
+        },
+        {
+          "end_column": 12,
+          "score": 24.47581672668457,
+          "start_column": 11,
+          "text": "用"
+        },
+        {
+          "end_column": 18,
+          "score": 22.95855712890625,
+          "start_column": 17,
+          "text": "人"
+        },
+        {
+          "end_column": 24,
+          "score": 12.200066566467285,
+          "start_column": 23,
+          "text": "群"
+        },
+        {
+          "end_column": 29,
+          "score": 19.788362503051758,
+          "start_column": 28,
+          "text": "】"
+        },
+        {
+          "end_column": 36,
+          "score": 19.922203063964844,
+          "start_column": 35,
+          "text": "："
+        },
+        {
+          "end_column": 41,
+          "score": 23.3939208984375,
+          "start_column": 40,
+          "text": "适"
+        },
+        {
+          "end_column": 47,
+          "score": 24.506694793701172,
+          "start_column": 46,
+          "text": "合"
+        },
+        {
+          "end_column": 52,
+          "score": 25.683483123779297,
+          "start_column": 51,
+          "text": "所"
+        },
+        {
+          "end_column": 58,
+          "score": 23.79798698425293,
+          "start_column": 57,
+          "text": "有"
+        },
+        {
+          "end_column": 64,
+          "score": 16.526330947875977,
+          "start_column": 63,
+          "text": "肤"
+        },
+        {
+          "end_column": 70,
+          "score": 19.187393188476562,
+          "start_column": 69,
+          "text": "质"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            802.0
+          ],
+          [
+            252.0,
+            802.0
+          ],
+          [
+            252.0,
+            821.0
+          ],
+          [
+            25.0,
+            821.0
+          ]
+        ],
+        "score": 0.8999170064926147
+      },
+      "emitted_count": 13,
+      "recognition_content_width": 574,
+      "recognition_score": 21.1246337890625,
+      "recognition_tensor_width": 576,
+      "recognition_time_steps": 72,
+      "text": "【适用人群】：适合所有肤质"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999991655349731,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 18.931350708007812,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.248069763183594,
+          "start_column": 5,
+          "text": "适"
+        },
+        {
+          "end_column": 12,
+          "score": 24.47581672668457,
+          "start_column": 11,
+          "text": "用"
+        },
+        {
+          "end_column": 18,
+          "score": 22.95855712890625,
+          "start_column": 17,
+          "text": "人"
+        },
+        {
+          "end_column": 24,
+          "score": 12.200066566467285,
+          "start_column": 23,
+          "text": "群"
+        },
+        {
+          "end_column": 29,
+          "score": 19.788362503051758,
+          "start_column": 28,
+          "text": "】"
+        },
+        {
+          "end_column": 36,
+          "score": 19.922203063964844,
+          "start_column": 35,
+          "text": "："
+        },
+        {
+          "end_column": 41,
+          "score": 23.3939208984375,
+          "start_column": 40,
+          "text": "适"
+        },
+        {
+          "end_column": 47,
+          "score": 24.506694793701172,
+          "start_column": 46,
+          "text": "合"
+        },
+        {
+          "end_column": 52,
+          "score": 25.683483123779297,
+          "start_column": 51,
+          "text": "所"
+        },
+        {
+          "end_column": 58,
+          "score": 23.79798698425293,
+          "start_column": 57,
+          "text": "有"
+        },
+        {
+          "end_column": 64,
+          "score": 16.526330947875977,
+          "start_column": 63,
+          "text": "肤"
+        },
+        {
+          "end_column": 70,
+          "score": 19.187393188476562,
+          "start_column": 69,
+          "text": "质"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            802.0
+          ],
+          [
+            752.0,
+            802.0
+          ],
+          [
+            752.0,
+            821.0
+          ],
+          [
+            525.0,
+            821.0
+          ]
+        ],
+        "score": 0.9027270674705505
+      },
+      "emitted_count": 13,
+      "recognition_content_width": 574,
+      "recognition_score": 21.1246337890625,
+      "recognition_tensor_width": 576,
+      "recognition_time_steps": 72,
+      "text": "【适用人群】：适合所有肤质"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999997615814209,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 19.11229133605957,
+          "start_column": 2,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 22.612091064453125,
+          "start_column": 6,
+          "text": "主"
+        },
+        {
+          "end_column": 12,
+          "score": 18.447372436523438,
+          "start_column": 11,
+          "text": "要"
+        },
+        {
+          "end_column": 18,
+          "score": 21.48309326171875,
+          "start_column": 17,
+          "text": "成"
+        },
+        {
+          "end_column": 23,
+          "score": 21.897512435913086,
+          "start_column": 22,
+          "text": "分"
+        },
+        {
+          "end_column": 28,
+          "score": 19.923187255859375,
+          "start_column": 27,
+          "text": "】"
+        },
+        {
+          "end_column": 35,
+          "score": 19.803112030029297,
+          "start_column": 34,
+          "text": "："
+        },
+        {
+          "end_column": 40,
+          "score": 7.691378116607666,
+          "start_column": 39,
+          "text": "鲸"
+        },
+        {
+          "end_column": 45,
+          "score": 2.414750576019287,
+          "start_column": 44,
+          "text": "蜡"
+        },
+        {
+          "end_column": 50,
+          "score": 11.358094215393066,
+          "start_column": 49,
+          "text": "硬"
+        },
+        {
+          "end_column": 56,
+          "score": 16.943954467773438,
+          "start_column": 55,
+          "text": "脂"
+        },
+        {
+          "end_column": 61,
+          "score": 10.018115997314453,
+          "start_column": 60,
+          "text": "醇"
+        },
+        {
+          "end_column": 66,
+          "score": 19.596567153930664,
+          "start_column": 65,
+          "text": "、"
+        },
+        {
+          "end_column": 73,
+          "score": 13.79344654083252,
+          "start_column": 72,
+          "text": "燕"
+        },
+        {
+          "end_column": 78,
+          "score": 18.682640075683594,
+          "start_column": 77,
+          "text": "麦"
+        },
+        {
+          "end_column": 82,
+          "score": 16.726449966430664,
+          "start_column": 81,
+          "text": "β"
+        },
+        {
+          "end_column": 85,
+          "score": 18.843669891357422,
+          "start_column": 84,
+          "text": "-"
+        },
+        {
+          "end_column": 89,
+          "score": 12.482919692993164,
+          "start_column": 88,
+          "text": "葡"
+        },
+        {
+          "end_column": 94,
+          "score": 14.871417999267578,
+          "start_column": 93,
+          "text": "聚"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            23.0,
+            831.0
+          ],
+          [
+            345.065185546875,
+            832.0001831054688
+          ],
+          [
+            344.9999694824219,
+            853.0000610351562
+          ],
+          [
+            22.934782028198242,
+            851.9998779296875
+          ]
+        ],
+        "score": 0.9334141612052917
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 773,
+      "recognition_score": 16.142213821411133,
+      "recognition_tensor_width": 800,
+      "recognition_time_steps": 100,
+      "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999995231628418,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 18.127315521240234,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 7,
+          "score": 23.1629581451416,
+          "start_column": 6,
+          "text": "主"
+        },
+        {
+          "end_column": 12,
+          "score": 17.780298233032227,
+          "start_column": 11,
+          "text": "要"
+        },
+        {
+          "end_column": 18,
+          "score": 20.814029693603516,
+          "start_column": 17,
+          "text": "成"
+        },
+        {
+          "end_column": 23,
+          "score": 21.608211517333984,
+          "start_column": 22,
+          "text": "分"
+        },
+        {
+          "end_column": 28,
+          "score": 19.742877960205078,
+          "start_column": 27,
+          "text": "】"
+        },
+        {
+          "end_column": 34,
+          "score": 21.483234405517578,
+          "start_column": 33,
+          "text": "："
+        },
+        {
+          "end_column": 39,
+          "score": 3.2324776649475098,
+          "start_column": 38,
+          "text": "鲸"
+        },
+        {
+          "end_column": 45,
+          "score": 1.7382992506027222,
+          "start_column": 44,
+          "text": "蜡"
+        },
+        {
+          "end_column": 50,
+          "score": 7.110247611999512,
+          "start_column": 49,
+          "text": "硬"
+        },
+        {
+          "end_column": 56,
+          "score": 17.68910789489746,
+          "start_column": 55,
+          "text": "脂"
+        },
+        {
+          "end_column": 61,
+          "score": 8.903360366821289,
+          "start_column": 60,
+          "text": "醇"
+        },
+        {
+          "end_column": 65,
+          "score": 20.890588760375977,
+          "start_column": 64,
+          "text": "、"
+        },
+        {
+          "end_column": 72,
+          "score": 9.09942626953125,
+          "start_column": 71,
+          "text": "燕"
+        },
+        {
+          "end_column": 77,
+          "score": 17.778133392333984,
+          "start_column": 76,
+          "text": "麦"
+        },
+        {
+          "end_column": 82,
+          "score": 17.061975479125977,
+          "start_column": 81,
+          "text": "β"
+        },
+        {
+          "end_column": 85,
+          "score": 17.68014144897461,
+          "start_column": 84,
+          "text": "-"
+        },
+        {
+          "end_column": 89,
+          "score": 13.649520874023438,
+          "start_column": 88,
+          "text": "葡"
+        },
+        {
+          "end_column": 94,
+          "score": 16.137094497680664,
+          "start_column": 93,
+          "text": "聚"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            831.0
+          ],
+          [
+            845.0654296875,
+            832.0001831054688
+          ],
+          [
+            845.0,
+            853.0000610351562
+          ],
+          [
+            523.9345703125,
+            851.9998779296875
+          ]
+        ],
+        "score": 0.9368199706077576
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 771,
+      "recognition_score": 15.457331657409668,
+      "recognition_tensor_width": 800,
+      "recognition_time_steps": 100,
+      "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999982118606567,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 9.291810035705566,
+          "start_column": 3,
+          "text": "糖"
+        },
+        {
+          "end_column": 9,
+          "score": 19.856843948364258,
+          "start_column": 8,
+          "text": "、"
+        },
+        {
+          "end_column": 16,
+          "score": 4.5665388107299805,
+          "start_column": 15,
+          "text": "椰"
+        },
+        {
+          "end_column": 22,
+          "score": 16.082069396972656,
+          "start_column": 21,
+          "text": "油"
+        },
+        {
+          "end_column": 28,
+          "score": 1.8709739446640015,
+          "start_column": 27,
+          "text": "酰"
+        },
+        {
+          "end_column": 34,
+          "score": 9.589938163757324,
+          "start_column": 33,
+          "text": "胺"
+        },
+        {
+          "end_column": 40,
+          "score": 20.190574645996094,
+          "start_column": 39,
+          "text": "丙"
+        },
+        {
+          "end_column": 46,
+          "score": 16.24041748046875,
+          "start_column": 45,
+          "text": "基"
+        },
+        {
+          "end_column": 52,
+          "score": 16.630815505981445,
+          "start_column": 51,
+          "text": "甜"
+        },
+        {
+          "end_column": 59,
+          "score": 14.67643928527832,
+          "start_column": 58,
+          "text": "菜"
+        },
+        {
+          "end_column": 65,
+          "score": 2.9111857414245605,
+          "start_column": 64,
+          "text": "碱"
+        },
+        {
+          "end_column": 69,
+          "score": 21.638134002685547,
+          "start_column": 68,
+          "text": "、"
+        },
+        {
+          "end_column": 77,
+          "score": 21.853919982910156,
+          "start_column": 76,
+          "text": "泛"
+        },
+        {
+          "end_column": 83,
+          "score": -0.5454812049865723,
+          "start_column": 82,
+          "text": "醌"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            26.0,
+            865.0
+          ],
+          [
+            282.0,
+            865.0
+          ],
+          [
+            282.0,
+            883.0
+          ],
+          [
+            26.0,
+            883.0
+          ]
+        ],
+        "score": 0.9191929697990417
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 683,
+      "recognition_score": 12.489583969116211,
+      "recognition_tensor_width": 704,
+      "recognition_time_steps": 88,
+      "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999866485595703,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 20.742565155029297,
+          "start_column": 2,
+          "text": "("
+        },
+        {
+          "end_column": 8,
+          "score": 22.367462158203125,
+          "start_column": 7,
+          "text": "成"
+        },
+        {
+          "end_column": 13,
+          "score": 21.9509220123291,
+          "start_column": 12,
+          "text": "品"
+        },
+        {
+          "end_column": 18,
+          "score": 23.123220443725586,
+          "start_column": 17,
+          "text": "包"
+        },
+        {
+          "end_column": 23,
+          "score": 20.550783157348633,
+          "start_column": 22,
+          "text": "材"
+        },
+        {
+          "end_column": 28,
+          "score": 19.993114471435547,
+          "start_column": 27,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            366.0,
+            866.0
+          ],
+          [
+            476.0,
+            866.0
+          ],
+          [
+            476.0,
+            889.0
+          ],
+          [
+            366.0,
+            889.0
+          ]
+        ],
+        "score": 0.8895317316055298
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 230,
+      "recognition_score": 21.45467758178711,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "(成品包材)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999982118606567,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 9.291810035705566,
+          "start_column": 3,
+          "text": "糖"
+        },
+        {
+          "end_column": 9,
+          "score": 19.856843948364258,
+          "start_column": 8,
+          "text": "、"
+        },
+        {
+          "end_column": 16,
+          "score": 4.5665388107299805,
+          "start_column": 15,
+          "text": "椰"
+        },
+        {
+          "end_column": 22,
+          "score": 16.082069396972656,
+          "start_column": 21,
+          "text": "油"
+        },
+        {
+          "end_column": 28,
+          "score": 1.8709739446640015,
+          "start_column": 27,
+          "text": "酰"
+        },
+        {
+          "end_column": 34,
+          "score": 9.589938163757324,
+          "start_column": 33,
+          "text": "胺"
+        },
+        {
+          "end_column": 40,
+          "score": 20.190574645996094,
+          "start_column": 39,
+          "text": "丙"
+        },
+        {
+          "end_column": 46,
+          "score": 16.24041748046875,
+          "start_column": 45,
+          "text": "基"
+        },
+        {
+          "end_column": 52,
+          "score": 16.630815505981445,
+          "start_column": 51,
+          "text": "甜"
+        },
+        {
+          "end_column": 59,
+          "score": 14.67643928527832,
+          "start_column": 58,
+          "text": "菜"
+        },
+        {
+          "end_column": 65,
+          "score": 2.9111857414245605,
+          "start_column": 64,
+          "text": "碱"
+        },
+        {
+          "end_column": 69,
+          "score": 21.638134002685547,
+          "start_column": 68,
+          "text": "、"
+        },
+        {
+          "end_column": 77,
+          "score": 21.853919982910156,
+          "start_column": 76,
+          "text": "泛"
+        },
+        {
+          "end_column": 83,
+          "score": -0.5454812049865723,
+          "start_column": 82,
+          "text": "醌"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            526.0,
+            865.0
+          ],
+          [
+            782.0,
+            865.0
+          ],
+          [
+            782.0,
+            883.0
+          ],
+          [
+            526.0,
+            883.0
+          ]
+        ],
+        "score": 0.9247143864631653
+      },
+      "emitted_count": 14,
+      "recognition_content_width": 683,
+      "recognition_score": 12.489583969116211,
+      "recognition_tensor_width": 704,
+      "recognition_time_steps": 88,
+      "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999866485595703,
+      "ctc_spans": [
+        {
+          "end_column": 3,
+          "score": 20.742565155029297,
+          "start_column": 2,
+          "text": "("
+        },
+        {
+          "end_column": 8,
+          "score": 22.367462158203125,
+          "start_column": 7,
+          "text": "成"
+        },
+        {
+          "end_column": 13,
+          "score": 21.9509220123291,
+          "start_column": 12,
+          "text": "品"
+        },
+        {
+          "end_column": 18,
+          "score": 23.123220443725586,
+          "start_column": 17,
+          "text": "包"
+        },
+        {
+          "end_column": 23,
+          "score": 20.550783157348633,
+          "start_column": 22,
+          "text": "材"
+        },
+        {
+          "end_column": 28,
+          "score": 19.993114471435547,
+          "start_column": 27,
+          "text": ")"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            866.0,
+            866.0
+          ],
+          [
+            976.0,
+            866.0
+          ],
+          [
+            976.0,
+            889.0
+          ],
+          [
+            866.0,
+            889.0
+          ]
+        ],
+        "score": 0.8913062214851379
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 230,
+      "recognition_score": 21.45467758178711,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "(成品包材)"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999961853027344,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 17.81237030029297,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.207191467285156,
+          "start_column": 5,
+          "text": "主"
+        },
+        {
+          "end_column": 11,
+          "score": 19.215681076049805,
+          "start_column": 10,
+          "text": "要"
+        },
+        {
+          "end_column": 16,
+          "score": 20.073068618774414,
+          "start_column": 15,
+          "text": "功"
+        },
+        {
+          "end_column": 21,
+          "score": 18.323875427246094,
+          "start_column": 20,
+          "text": "能"
+        },
+        {
+          "end_column": 25,
+          "score": 19.97814178466797,
+          "start_column": 24,
+          "text": "】"
+        },
+        {
+          "end_column": 31,
+          "score": 21.209022521972656,
+          "start_column": 30,
+          "text": "："
+        },
+        {
+          "end_column": 36,
+          "score": 24.343782424926758,
+          "start_column": 35,
+          "text": "可"
+        },
+        {
+          "end_column": 41,
+          "score": 18.449058532714844,
+          "start_column": 40,
+          "text": "紧"
+        },
+        {
+          "end_column": 46,
+          "score": 16.251651763916016,
+          "start_column": 45,
+          "text": "致"
+        },
+        {
+          "end_column": 51,
+          "score": 21.831111907958984,
+          "start_column": 50,
+          "text": "头"
+        },
+        {
+          "end_column": 56,
+          "score": 22.51418113708496,
+          "start_column": 55,
+          "text": "发"
+        },
+        {
+          "end_column": 61,
+          "score": 2.853562116622925,
+          "start_column": 60,
+          "text": "磷"
+        },
+        {
+          "end_column": 65,
+          "score": 19.127117156982422,
+          "start_column": 64,
+          "text": "层"
+        },
+        {
+          "end_column": 71,
+          "score": 23.093605041503906,
+          "start_column": 70,
+          "text": "，"
+        },
+        {
+          "end_column": 76,
+          "score": 21.388742446899414,
+          "start_column": 75,
+          "text": "从"
+        },
+        {
+          "end_column": 81,
+          "score": 22.96430015563965,
+          "start_column": 79,
+          "text": "而"
+        },
+        {
+          "end_column": 85,
+          "score": 22.721933364868164,
+          "start_column": 84,
+          "text": "达"
+        },
+        {
+          "end_column": 90,
+          "score": 19.805456161499023,
+          "start_column": 89,
+          "text": "到"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            24.0,
+            894.0
+          ],
+          [
+            362.0,
+            894.0
+          ],
+          [
+            362.0,
+            916.0
+          ],
+          [
+            24.0,
+            916.0
+          ]
+        ],
+        "score": 0.8147808313369751
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 738,
+      "recognition_score": 19.745466232299805,
+      "recognition_tensor_width": 768,
+      "recognition_time_steps": 96,
+      "text": "【主要功能】：可紧致头发磷层，从而达到"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999961853027344,
+      "ctc_spans": [
+        {
+          "end_column": 2,
+          "score": 17.81237030029297,
+          "start_column": 1,
+          "text": "【"
+        },
+        {
+          "end_column": 6,
+          "score": 23.207191467285156,
+          "start_column": 5,
+          "text": "主"
+        },
+        {
+          "end_column": 11,
+          "score": 19.215681076049805,
+          "start_column": 10,
+          "text": "要"
+        },
+        {
+          "end_column": 16,
+          "score": 20.073068618774414,
+          "start_column": 15,
+          "text": "功"
+        },
+        {
+          "end_column": 21,
+          "score": 18.323875427246094,
+          "start_column": 20,
+          "text": "能"
+        },
+        {
+          "end_column": 25,
+          "score": 19.97814178466797,
+          "start_column": 24,
+          "text": "】"
+        },
+        {
+          "end_column": 31,
+          "score": 21.209022521972656,
+          "start_column": 30,
+          "text": "："
+        },
+        {
+          "end_column": 36,
+          "score": 24.343782424926758,
+          "start_column": 35,
+          "text": "可"
+        },
+        {
+          "end_column": 41,
+          "score": 18.449058532714844,
+          "start_column": 40,
+          "text": "紧"
+        },
+        {
+          "end_column": 46,
+          "score": 16.251651763916016,
+          "start_column": 45,
+          "text": "致"
+        },
+        {
+          "end_column": 51,
+          "score": 21.831111907958984,
+          "start_column": 50,
+          "text": "头"
+        },
+        {
+          "end_column": 56,
+          "score": 22.51418113708496,
+          "start_column": 55,
+          "text": "发"
+        },
+        {
+          "end_column": 61,
+          "score": 2.853562116622925,
+          "start_column": 60,
+          "text": "磷"
+        },
+        {
+          "end_column": 65,
+          "score": 19.127117156982422,
+          "start_column": 64,
+          "text": "层"
+        },
+        {
+          "end_column": 71,
+          "score": 23.093605041503906,
+          "start_column": 70,
+          "text": "，"
+        },
+        {
+          "end_column": 76,
+          "score": 21.388742446899414,
+          "start_column": 75,
+          "text": "从"
+        },
+        {
+          "end_column": 81,
+          "score": 22.96430015563965,
+          "start_column": 79,
+          "text": "而"
+        },
+        {
+          "end_column": 85,
+          "score": 22.721933364868164,
+          "start_column": 84,
+          "text": "达"
+        },
+        {
+          "end_column": 90,
+          "score": 19.805456161499023,
+          "start_column": 89,
+          "text": "到"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            524.0,
+            894.0
+          ],
+          [
+            862.0,
+            894.0
+          ],
+          [
+            862.0,
+            916.0
+          ],
+          [
+            524.0,
+            916.0
+          ]
+        ],
+        "score": 0.8165780901908875
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 738,
+      "recognition_score": 19.745466232299805,
+      "recognition_tensor_width": 768,
+      "recognition_time_steps": 96,
+      "text": "【主要功能】：可紧致头发磷层，从而达到"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999972581863403,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 21.66777992248535,
+          "start_column": 3,
+          "text": "即"
+        },
+        {
+          "end_column": 8,
+          "score": 22.962383270263672,
+          "start_column": 7,
+          "text": "时"
+        },
+        {
+          "end_column": 14,
+          "score": 20.266626358032227,
+          "start_column": 13,
+          "text": "持"
+        },
+        {
+          "end_column": 18,
+          "score": 24.38223648071289,
+          "start_column": 17,
+          "text": "久"
+        },
+        {
+          "end_column": 23,
+          "score": 26.436758041381836,
+          "start_column": 22,
+          "text": "改"
+        },
+        {
+          "end_column": 29,
+          "score": 14.990073204040527,
+          "start_column": 28,
+          "text": "善"
+        },
+        {
+          "end_column": 34,
+          "score": 21.919509887695312,
+          "start_column": 33,
+          "text": "头"
+        },
+        {
+          "end_column": 38,
+          "score": 21.574541091918945,
+          "start_column": 37,
+          "text": "发"
+        },
+        {
+          "end_column": 43,
+          "score": 19.750261306762695,
+          "start_column": 42,
+          "text": "光"
+        },
+        {
+          "end_column": 48,
+          "score": 17.39963722229004,
+          "start_column": 47,
+          "text": "泽"
+        },
+        {
+          "end_column": 53,
+          "score": 23.857553482055664,
+          "start_column": 52,
+          "text": "的"
+        },
+        {
+          "end_column": 58,
+          "score": 18.99022674560547,
+          "start_column": 57,
+          "text": "效"
+        },
+        {
+          "end_column": 63,
+          "score": 19.163238525390625,
+          "start_column": 62,
+          "text": "果"
+        },
+        {
+          "end_column": 68,
+          "score": 23.673110961914062,
+          "start_column": 67,
+          "text": "，"
+        },
+        {
+          "end_column": 73,
+          "score": 14.979920387268066,
+          "start_column": 72,
+          "text": "给"
+        },
+        {
+          "end_column": 78,
+          "score": 19.22001075744629,
+          "start_column": 77,
+          "text": "干"
+        },
+        {
+          "end_column": 83,
+          "score": 2.6444246768951416,
+          "start_column": 82,
+          "text": "燥"
+        },
+        {
+          "end_column": 88,
+          "score": 23.40325164794922,
+          "start_column": 87,
+          "text": "的"
+        },
+        {
+          "end_column": 93,
+          "score": 22.84606170654297,
+          "start_column": 92,
+          "text": "头"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            25.0,
+            925.0
+          ],
+          [
+            373.0,
+            925.0
+          ],
+          [
+            373.0,
+            947.0
+          ],
+          [
+            25.0,
+            947.0
+          ]
+        ],
+        "score": 0.8106380701065063
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 760,
+      "recognition_score": 20.006715774536133,
+      "recognition_tensor_width": 768,
+      "recognition_time_steps": 96,
+      "text": "即时持久改善头发光泽的效果，给干燥的头"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999972581863403,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 21.66777992248535,
+          "start_column": 3,
+          "text": "即"
+        },
+        {
+          "end_column": 8,
+          "score": 22.962383270263672,
+          "start_column": 7,
+          "text": "时"
+        },
+        {
+          "end_column": 14,
+          "score": 20.266626358032227,
+          "start_column": 13,
+          "text": "持"
+        },
+        {
+          "end_column": 18,
+          "score": 24.38223648071289,
+          "start_column": 17,
+          "text": "久"
+        },
+        {
+          "end_column": 23,
+          "score": 26.436758041381836,
+          "start_column": 22,
+          "text": "改"
+        },
+        {
+          "end_column": 29,
+          "score": 14.990073204040527,
+          "start_column": 28,
+          "text": "善"
+        },
+        {
+          "end_column": 34,
+          "score": 21.919509887695312,
+          "start_column": 33,
+          "text": "头"
+        },
+        {
+          "end_column": 38,
+          "score": 21.574541091918945,
+          "start_column": 37,
+          "text": "发"
+        },
+        {
+          "end_column": 43,
+          "score": 19.750261306762695,
+          "start_column": 42,
+          "text": "光"
+        },
+        {
+          "end_column": 48,
+          "score": 17.39963722229004,
+          "start_column": 47,
+          "text": "泽"
+        },
+        {
+          "end_column": 53,
+          "score": 23.857553482055664,
+          "start_column": 52,
+          "text": "的"
+        },
+        {
+          "end_column": 58,
+          "score": 18.99022674560547,
+          "start_column": 57,
+          "text": "效"
+        },
+        {
+          "end_column": 63,
+          "score": 19.163238525390625,
+          "start_column": 62,
+          "text": "果"
+        },
+        {
+          "end_column": 68,
+          "score": 23.673110961914062,
+          "start_column": 67,
+          "text": "，"
+        },
+        {
+          "end_column": 73,
+          "score": 14.979920387268066,
+          "start_column": 72,
+          "text": "给"
+        },
+        {
+          "end_column": 78,
+          "score": 19.22001075744629,
+          "start_column": 77,
+          "text": "干"
+        },
+        {
+          "end_column": 83,
+          "score": 2.6444246768951416,
+          "start_column": 82,
+          "text": "燥"
+        },
+        {
+          "end_column": 88,
+          "score": 23.40325164794922,
+          "start_column": 87,
+          "text": "的"
+        },
+        {
+          "end_column": 93,
+          "score": 22.84606170654297,
+          "start_column": 92,
+          "text": "头"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            925.0
+          ],
+          [
+            873.0,
+            925.0
+          ],
+          [
+            873.0,
+            947.0
+          ],
+          [
+            525.0,
+            947.0
+          ]
+        ],
+        "score": 0.8142968416213989
+      },
+      "emitted_count": 19,
+      "recognition_content_width": 760,
+      "recognition_score": 20.006715774536133,
+      "recognition_tensor_width": 768,
+      "recognition_time_steps": 96,
+      "text": "即时持久改善头发光泽的效果，给干燥的头"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999995231628418,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 22.046327590942383,
+          "start_column": 3,
+          "text": "发"
+        },
+        {
+          "end_column": 9,
+          "score": 21.040802001953125,
+          "start_column": 8,
+          "text": "足"
+        },
+        {
+          "end_column": 14,
+          "score": 15.457472801208496,
+          "start_column": 13,
+          "text": "够"
+        },
+        {
+          "end_column": 19,
+          "score": 25.373321533203125,
+          "start_column": 18,
+          "text": "的"
+        },
+        {
+          "end_column": 24,
+          "score": 16.837726593017578,
+          "start_column": 23,
+          "text": "滋"
+        },
+        {
+          "end_column": 29,
+          "score": 21.16441535949707,
+          "start_column": 28,
+          "text": "养"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            24.0,
+            956.0
+          ],
+          [
+            136.0,
+            956.0
+          ],
+          [
+            136.0,
+            978.0
+          ],
+          [
+            24.0,
+            978.0
+          ]
+        ],
+        "score": 0.9448256492614746
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 245,
+      "recognition_score": 20.320011138916016,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "发足够的滋养"
+    },
+    {
+      "applied_rotation_degrees": 0,
+      "classification_label": 0,
+      "classification_score": 0.9999951124191284,
+      "ctc_spans": [
+        {
+          "end_column": 4,
+          "score": 22.03168487548828,
+          "start_column": 3,
+          "text": "发"
+        },
+        {
+          "end_column": 8,
+          "score": 20.70167350769043,
+          "start_column": 7,
+          "text": "足"
+        },
+        {
+          "end_column": 13,
+          "score": 16.45262336730957,
+          "start_column": 12,
+          "text": "够"
+        },
+        {
+          "end_column": 18,
+          "score": 25.411754608154297,
+          "start_column": 17,
+          "text": "的"
+        },
+        {
+          "end_column": 23,
+          "score": 16.091768264770508,
+          "start_column": 22,
+          "text": "滋"
+        },
+        {
+          "end_column": 27,
+          "score": 20.821325302124023,
+          "start_column": 26,
+          "text": "养"
+        }
+      ],
+      "detection": {
+        "points": [
+          [
+            525.0,
+            956.0
+          ],
+          [
+            636.0,
+            956.0
+          ],
+          [
+            636.0,
+            979.0
+          ],
+          [
+            525.0,
+            979.0
+          ]
+        ],
+        "score": 0.8770894408226013
+      },
+      "emitted_count": 6,
+      "recognition_content_width": 232,
+      "recognition_score": 20.25180435180664,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "text": "发足够的滋养"
+    }
+  ],
+  "text": "纯臻营养护发素\n纯臻营养护发素\n产品信息/参数\n产品信息/参数\n(45元/每公斤，100公斤起订)\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订)\n每瓶22元，1000瓶起订)\n【品牌】:代加工方式/OEM ODM\n【品牌】:代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【品名】：纯臻营养护发素\n【产品编号】:YM-X-3011\nODM OEM\n【产品编号】:YM-X-3011\nODM OEM\n【净含量】:220ml\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养\n发足够的滋养\n纯臻营养护发素\n纯臻营养护发素\n产品信息/参数\n产品信息/参数\n(45元/每公斤，100公斤起订)\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订)\n每瓶22元，1000瓶起订)\n【品牌】:代加工方式/OEM ODM\n【品牌】:代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【品名】：纯臻营养护发素\n【产品编号】:YM-X-3011\nODM OEM\n【产品编号】:YM-X-3011\nODM OEM\n【净含量】:220ml\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养\n发足够的滋养",
+  "width_ratio": 0.9599999785423279
+}

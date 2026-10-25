@@ -284,8 +284,6 @@ pub struct OcrPlan {
     cpu: Arc<CpuContext>,
     cpu_options: CpuOptions,
     recognition_batch_size: usize,
-    #[cfg(feature = "gpu")]
-    gpu_mode: crate::runtime::gpu::GpuPipelineMode,
 }
 impl OcrPlan {
     pub fn new(
@@ -315,9 +313,9 @@ impl OcrPlan {
             cpu,
             cpu_options,
             recognition_batch_size,
-            #[cfg(feature = "gpu")]
-            gpu_mode: Default::default(),
         };
+        #[cfg(feature = "gpu")]
+        plan.validate_contexts()?;
         Ok(plan)
     }
     pub fn with_extractor(
@@ -382,10 +380,6 @@ impl OcrPlan {
     }
     #[cfg(feature = "gpu")]
     fn validate_contexts(&self) -> ImageResult<()> {
-        use crate::runtime::gpu::GpuPipelineMode;
-        if self.gpu_mode != GpuPipelineMode::Full {
-            return Ok(());
-        }
         let detector = self.extractor.detector().compiled().as_gpu();
         let classifier = self
             .extractor
@@ -408,15 +402,6 @@ impl OcrPlan {
             return Err(ImageError::new("resident OCR requires one GPU context"));
         }
         Ok(())
-    }
-    #[cfg(feature = "gpu")]
-    pub fn with_gpu_pipeline_mode(
-        mut self,
-        mode: crate::runtime::gpu::GpuPipelineMode,
-    ) -> ImageResult<Self> {
-        self.gpu_mode = mode;
-        self.validate_contexts()?;
-        Ok(self)
     }
 }
 #[derive(Clone, Copy, Debug, Default)]
@@ -578,22 +563,11 @@ impl OcrRequest {
         .request()
     }
     fn from_plan(plan: OcrPlan) -> ImageResult<Self> {
-        #[cfg(feature = "gpu")]
-        let mut extractor = plan
-            .extractor
-            .with_gpu_pipeline_mode(plan.gpu_mode)?
-            .request()?;
-        #[cfg(not(feature = "gpu"))]
         let mut extractor = plan.extractor.request()?;
         let mut recognizer = plan.recognizer.request()?;
         let options = plan.options;
         let cpu = plan.cpu.clone();
         let cpu_options = plan.cpu_options;
-        #[cfg(feature = "gpu")]
-        {
-            extractor.set_gpu_pipeline_mode(plan.gpu_mode)?;
-            recognizer.set_gpu_pipeline_mode(plan.gpu_mode);
-        }
         if options.max_total_result_bytes == 0 {
             return Err(ImageError::new("max_total_result_bytes must be positive"));
         }
@@ -660,21 +634,6 @@ impl OcrRequest {
         self.extractor.uses_gpu() || self.recognizer.uses_gpu()
     }
     #[cfg(feature = "gpu")]
-    pub fn set_gpu_pipeline_mode(
-        &mut self,
-        mode: crate::runtime::gpu::GpuPipelineMode,
-    ) -> ImageResult<()> {
-        let plan = self.plan.clone().with_gpu_pipeline_mode(mode)?;
-        self.extractor.set_gpu_pipeline_mode(mode)?;
-        self.plan = plan;
-        self.execution = ActiveExecution::staged(self.uses_gpu());
-        self.recognizer.set_gpu_pipeline_mode(mode);
-        for worker in &mut self.workers {
-            worker.recognizer.set_gpu_pipeline_mode(mode);
-        }
-        Ok(())
-    }
-    #[cfg(feature = "gpu")]
     fn collect_gpu_statistics(
         &self,
         stages: &std::collections::BTreeMap<
@@ -683,7 +642,7 @@ impl OcrRequest {
         >,
         resident: bool,
     ) -> Option<crate::runtime::gpu::GpuPipelineStatistics> {
-        use crate::runtime::gpu::{GpuPipelineMode, GpuPipelineStatistics, GpuPlacement};
+        use crate::runtime::gpu::{GpuPipelineStatistics, GpuPlacement};
         if resident && let Some(pipeline) = self.execution.resident() {
             let mut stats = pipeline.statistics.clone();
             stats.diagnostic_readback_bytes = stages
@@ -696,13 +655,12 @@ impl OcrRequest {
         if !self.uses_gpu() {
             return None;
         }
-        let full = resident && self.plan.gpu_mode == GpuPipelineMode::Full;
+        let full = resident;
         let det = full && self.extractor.detector().uses_gpu();
         let rec = full && self.recognizer.uses_gpu();
         let cls = full && self.extractor.classifier().is_none_or(|c| c.uses_gpu());
         let extraction = self.extractor.gpu_pipeline_statistics();
         let mut stats = GpuPipelineStatistics {
-            mode: self.plan.gpu_mode,
             image_processing: if extraction.is_some() {
                 GpuPlacement::NotRun
             } else {
@@ -808,6 +766,61 @@ impl OcrRequest {
                 .is_none_or(|run| run.execution == OcrExecution::Resident),
         )
     }
+    fn stage_counter_snapshots(
+        &self,
+        resident: bool,
+    ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::StatisticsCounters>>
+    {
+        #[cfg(not(feature = "gpu"))]
+        let _ = resident;
+        #[cfg(feature = "gpu")]
+        if resident && let Some(pipeline) = self.execution.resident() {
+            let mut result = pipeline.counter_snapshots();
+            for (stage, diagnostics) in self.primary_diagnostic_counters() {
+                if let Some(active) = result.get_mut(&stage).and_then(|s| s.first_mut()) {
+                    active.add_diagnostics(diagnostics);
+                }
+            }
+            return result;
+        }
+        let mut result = std::collections::BTreeMap::new();
+        result.insert(
+            crate::error::OcrStage::Detector,
+            vec![self.extractor.detector().counter_snapshot()],
+        );
+        result.insert(
+            crate::error::OcrStage::Recognizer,
+            std::iter::once(self.recognizer.counter_snapshot())
+                .chain(self.workers.iter().map(|w| w.recognizer.counter_snapshot()))
+                .collect(),
+        );
+        let classifiers: Vec<_> = self.extractor.classifier_counter_snapshots().collect();
+        if !classifiers.is_empty() {
+            result.insert(crate::error::OcrStage::Classifier, classifiers);
+        }
+        result
+    }
+    #[cfg(feature = "gpu")]
+    fn primary_diagnostic_counters(
+        &self,
+    ) -> [(crate::error::OcrStage, crate::runtime::StatisticsCounters); 3] {
+        let mut recognition = self.recognizer.counter_snapshot();
+        for worker in &self.workers {
+            recognition.add_diagnostics(worker.recognizer.counter_snapshot());
+        }
+        let mut classification = crate::runtime::StatisticsCounters::default();
+        for classifier in self.extractor.classifier_counter_snapshots() {
+            classification.add_diagnostics(classifier);
+        }
+        [
+            (
+                crate::error::OcrStage::Detector,
+                self.extractor.detector().counter_snapshot(),
+            ),
+            (crate::error::OcrStage::Recognizer, recognition),
+            (crate::error::OcrStage::Classifier, classification),
+        ]
+    }
     fn stage_statistics(
         &self,
         resident: bool,
@@ -815,6 +828,17 @@ impl OcrRequest {
     {
         #[cfg(not(feature = "gpu"))]
         let _ = resident;
+        #[cfg(feature = "gpu")]
+        if resident && let Some(pipeline) = self.execution.resident() {
+            let mut result = pipeline.execution_statistics();
+            for (stage, diagnostics) in self.primary_diagnostic_counters() {
+                if let Some(active) = result.get_mut(&stage).and_then(|s| s.first_mut()) {
+                    active.diagnostic_readbacks += diagnostics.diagnostic_readbacks;
+                    active.diagnostic_readback_bytes += diagnostics.diagnostic_readback_bytes;
+                }
+            }
+            return result;
+        }
         let mut result = std::collections::BTreeMap::new();
         result.insert(
             crate::error::OcrStage::Detector,
@@ -833,21 +857,6 @@ impl OcrRequest {
         let classifiers = self.extractor.classifier_statistics();
         if !classifiers.is_empty() {
             result.insert(crate::error::OcrStage::Classifier, classifiers);
-        }
-        #[cfg(feature = "gpu")]
-        if resident && let Some(pipeline) = self.execution.resident() {
-            let diagnostics = result;
-            result = pipeline.execution_statistics();
-            for (stage, sessions) in diagnostics {
-                if let Some(active) = result.get_mut(&stage).and_then(|s| s.first_mut()) {
-                    active.diagnostic_readbacks +=
-                        sessions.iter().map(|s| s.diagnostic_readbacks).sum::<u64>();
-                    active.diagnostic_readback_bytes += sessions
-                        .iter()
-                        .map(|s| s.diagnostic_readback_bytes)
-                        .sum::<u64>();
-                }
-            }
         }
         result
     }
@@ -1153,7 +1162,7 @@ impl OcrRequest {
     where
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
-        let before = self.stage_statistics(!TRACE);
+        let before = self.stage_counter_snapshots(!TRACE);
         #[cfg(feature = "gpu")]
         {
             self.extractor.reset_run_statistics();
@@ -1251,7 +1260,6 @@ impl OcrRequest {
         let _unwind = RequestUnwindGuard(self.unwind_state.clone());
         #[cfg(feature = "gpu")]
         if !TRACE
-            && self.plan.gpu_mode == crate::runtime::gpu::GpuPipelineMode::Full
             && self.extractor.detector().uses_gpu()
             && self.recognizer.uses_gpu()
             && self.extractor.classifier().is_none_or(|c| c.uses_gpu())
@@ -1315,7 +1323,6 @@ impl OcrRequest {
                         self.plan.cpu_options,
                         self.plan.recognition_batch_size,
                     )?
-                    .with_gpu_pipeline_mode(self.plan.gpu_mode)?
                     .request()?;
                     replacement.pinned_cpu = self.pinned_cpu.clone();
                     replacement.result = std::mem::take(&mut self.result);
@@ -2105,6 +2112,9 @@ fn remember_error(destination: &mut Option<(usize, ImageError)>, index: usize, e
         *destination = Some((index, error));
     }
 }
+
+#[cfg(test)]
+pub(crate) mod statistics_tests;
 
 #[cfg(test)]
 pub(crate) mod tests {

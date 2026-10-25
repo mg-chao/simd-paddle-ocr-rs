@@ -11,7 +11,7 @@ use crate::{
     recognizer::{Dictionary, RecognitionScoreMode, RecognizerOptions},
     runtime::{
         CpuCompiledModel, ExecutionLimits, ExecutionTarget,
-        gpu::{GpuBackendPreference, GpuCompiledModel, GpuContext, GpuContextOptions, GpuSession},
+        gpu::{GpuCompiledModel, GpuContext, GpuContextOptions, GpuSession},
     },
 };
 use std::sync::{Arc, OnceLock};
@@ -20,21 +20,8 @@ fn hardware() -> Arc<GpuContext> {
     static CONTEXT: OnceLock<Arc<GpuContext>> = OnceLock::new();
     CONTEXT
         .get_or_init(|| {
-            let backend = match std::env::var("SIMD_OCR_GPU_BACKEND")
-                .as_deref()
-                .unwrap_or("vulkan")
-            {
-                "auto" => GpuBackendPreference::Auto,
-                "vulkan" => GpuBackendPreference::Vulkan,
-                "dx12" => GpuBackendPreference::Dx12,
-                "metal" => GpuBackendPreference::Metal,
-                other => panic!("invalid SIMD_OCR_GPU_BACKEND: {other}"),
-            };
-            let context = GpuContext::new_with_options(GpuContextOptions {
-                backend,
-                ..Default::default()
-            })
-            .expect("explicit GPU integration tests require a physical GPU");
+            let context =
+                GpuContext::new().expect("explicit GPU integration tests require a physical GPU");
             eprintln!("OCR GPU adapter: {:?}", context.adapter_info());
             assert!(matches!(
                 context.adapter_info().device_type,
@@ -525,7 +512,6 @@ fn gpu_resident_requested_crop_pixels_match_cpu() {
 #[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_ocr_context_quota_rolls_back_failed_compilation_and_session_allocation() {
     let context = GpuContext::new_with_options(GpuContextOptions {
-        backend: hardware().options().backend,
         max_device_bytes: Some(4),
         ..Default::default()
     })
@@ -582,7 +568,6 @@ fn gpu_resident_auto_fallback_is_stage_scoped_and_restricted() {
         (crate::error::ErrorKind::GpuMapping, false),
     ] {
         let context = GpuContext::new_with_options(GpuContextOptions {
-            backend: hardware().options().backend,
             max_in_flight: 2,
             ..Default::default()
         })
@@ -675,7 +660,7 @@ fn gpu_resident_auto_fallback_is_stage_scoped_and_restricted() {
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_plan_requests_unicode_capture_and_latest_run_parity() {
-    use crate::{Compiler, CompilerOptions, GpuPipelineMode, RunOptions, ocr::OcrExecution};
+    use crate::{Compiler, CompilerOptions, RunOptions, ocr::OcrExecution};
     let compiler = Arc::new(Compiler::new(CompilerOptions {
         gpu: Some(hardware()),
         ..Default::default()
@@ -687,13 +672,13 @@ fn gpu_plan_requests_unicode_capture_and_latest_run_parity() {
         Arc::new(Dictionary::from_utf8("汉🙂\n".as_bytes()).unwrap()),
         None,
     );
-    let build = |target, mode| {
+    let build = |target, recognizer_target| {
         models
             .clone()
             .builder()
             .compiler(compiler.clone())
             .execution_target(target)
-            .gpu_pipeline_mode(mode)
+            .recognizer_target(recognizer_target)
             .cpu_context(CpuContext::serial())
             .detector_options(DetectorOptions {
                 limit_side_length: 96,
@@ -702,12 +687,13 @@ fn gpu_plan_requests_unicode_capture_and_latest_run_parity() {
             .build()
             .unwrap()
     };
-    let cpu = build(ExecutionTarget::Cpu, GpuPipelineMode::Full);
-    let full = build(ExecutionTarget::Gpu, GpuPipelineMode::Full);
-    let tensor = build(ExecutionTarget::Gpu, GpuPipelineMode::InferenceOnly);
+    let cpu = build(ExecutionTarget::Cpu, ExecutionTarget::Cpu);
+    let full = build(ExecutionTarget::Gpu, ExecutionTarget::Gpu);
+    let shared = build(ExecutionTarget::Gpu, ExecutionTarget::Gpu);
+    let hybrid = build(ExecutionTarget::Gpu, ExecutionTarget::Cpu);
     assert!(Arc::ptr_eq(
         full.recognizer().compiled().as_gpu().unwrap(),
-        tensor.recognizer().compiled().as_gpu().unwrap()
+        shared.recognizer().compiled().as_gpu().unwrap()
     ));
     let pixels = crate::ocr::tests::two_lines();
     let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
@@ -725,7 +711,7 @@ fn gpu_plan_requests_unicode_capture_and_latest_run_parity() {
     assert!(expected.text.contains("汉🙂"));
     for (plan, execution) in [
         (full, OcrExecution::Resident),
-        (tensor, OcrExecution::Hybrid),
+        (hybrid, OcrExecution::Hybrid),
     ] {
         let mut request = plan.request().unwrap();
         assert_eq!(request.activation_bytes(), 0);
@@ -779,39 +765,23 @@ fn gpu_plan_requests_unicode_capture_and_latest_run_parity() {
             first.submissions + second.submissions
         );
         assert_eq!(request.counters().runs, 2);
-        // Switching representation releases obsolete production buffers before running.
-        request
-            .set_gpu_pipeline_mode(GpuPipelineMode::InferenceOnly)
-            .unwrap();
-        request.run(image, RunOptions::default()).unwrap();
-        request
-            .set_gpu_pipeline_mode(GpuPipelineMode::Full)
-            .unwrap();
-        assert_eq!(request.memory_snapshot().device_bytes, 0);
-        assert!(
-            request
-                .recognizer()
-                .execution_statistics()
-                .execution_backend
-                .is_none()
-        );
+        // A new request has independent lazy storage and the same stage choices.
+        let mut fork = request.fork().unwrap();
+        assert_eq!(fork.activation_bytes(), 0);
+        assert_eq!(fork.memory_snapshot().device_bytes, 0);
         assert_eq!(
-            request.run(image, RunOptions::default()).unwrap().text,
+            fork.run(image, RunOptions::default()).unwrap().text,
             expected.text
         );
-        assert_eq!(
-            request.latest_run().unwrap().execution,
-            OcrExecution::Resident
-        );
+        assert_eq!(fork.latest_run().unwrap().execution, execution);
     }
 }
 
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
-fn gpu_plan_context_validation_and_failed_mode_change_are_transactional() {
-    use crate::{Compiler, CompilerOptions, GpuPipelineMode, OcrPlan, ocr::OcrOptions};
+fn gpu_plan_context_validation_rejects_foreign_context_before_request() {
+    use crate::{Compiler, CompilerOptions, OcrPlan, ocr::OcrOptions};
     let other = GpuContext::new_with_options(GpuContextOptions {
-        backend: hardware().options().backend,
         ..Default::default()
     })
     .unwrap();
@@ -833,7 +803,7 @@ fn gpu_plan_context_validation_and_failed_mode_change_are_transactional() {
         .execution_target(ExecutionTarget::Gpu)
         .build()
         .unwrap();
-    let plan = OcrPlan::new(
+    let error = OcrPlan::new(
         left.extractor().clone(),
         right.recognizer().clone(),
         OcrOptions::default(),
@@ -841,24 +811,21 @@ fn gpu_plan_context_validation_and_failed_mode_change_are_transactional() {
         Default::default(),
         1,
     )
-    .unwrap();
-    assert!(plan.request().is_err());
-    let mut request = plan
-        .with_gpu_pipeline_mode(GpuPipelineMode::InferenceOnly)
-        .unwrap()
-        .request()
-        .unwrap();
+    .err()
+    .expect("different GPU contexts cannot form one resident OCR plan");
+    assert!(error.to_string().contains("one GPU context"));
     assert!(
-        request
-            .set_gpu_pipeline_mode(GpuPipelineMode::Full)
+        left.clone()
+            .with_recognizer(right.recognizer().clone())
             .is_err()
     );
+    let mut request = left.request().unwrap();
     assert_eq!(request.activation_bytes(), 0);
     let pixels = vec![0; 32 * 32 * 3];
     let image = ImageView::new(&pixels, 32, 32, 0, PixelFormat::Bgr24).unwrap();
     assert_eq!(request.run(image, Default::default()).unwrap().text, "");
     assert_eq!(
         request.latest_run().unwrap().execution,
-        crate::OcrExecution::Hybrid
+        crate::OcrExecution::Resident
     );
 }

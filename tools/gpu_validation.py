@@ -187,11 +187,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=["inventory", "compare"])
     parser.add_argument("--models", type=Path, default=ROOT.parent / "SimdPaddleOCR/models")
-    parser.add_argument("--report", type=Path, default=ROOT / "reports/native-wgpu")
+    parser.add_argument("--report", type=Path, default=ROOT / "target/metal-tensor-validation")
     parser.add_argument("--model", choices=MODELS)
-    parser.add_argument("--backend", choices=["vulkan", "dx12", "metal"], default="vulkan")
     parser.add_argument("--precision", choices=["f32", "mixed"], default="f32")
-    parser.add_argument("--unfused", action="store_true")
     parser.add_argument("--reference", action="store_true", help="also execute C# CPU and GPU")
     parser.add_argument("--boundary", help="original ONNX output tensor name, never a node index")
     parser.add_argument("--shape", nargs=4, type=int)
@@ -213,13 +211,12 @@ def main():
                   [[1, 3, 128, 128], [1, 3, 96, 160]] if "det" in name else
                   [[batch, 3, 48, width] for batch in [1, 2] for width in [32, 128, 320]])
         for shape in shapes:
-            label = f"{name}-{'x'.join(map(str, shape))}-{args.backend}-{args.precision}-{'unfused' if args.unfused else 'fused'}"
+            label = f"{name}-{'x'.join(map(str, shape))}-metal-{args.precision}"
             directory = args.report / label
             env = dict(os.environ, SIMD_OCR_COMPARE_DIR=str(directory.resolve()))
-            executable = ROOT / ("target/release/examples/gpu_compare.exe" if os.name == "nt" else "target/release/examples/gpu_compare")
-            command = [str(executable), str(path.resolve()), *map(str, shape), args.backend, args.precision]
-            if args.unfused:
-                command.append("unfused")
+            executable = ROOT / "target/release/examples/gpu_compare"
+            command = [str(executable), str(path.resolve()), *map(str, shape)]
+            if args.precision == "mixed": command.append("mixed")
             run = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
             directory.mkdir(parents=True, exist_ok=True)
             (directory / "stderr.txt").write_text(run.stderr, encoding="utf-8")
@@ -227,7 +224,7 @@ def main():
             result.update(model_sha256=hashlib.sha256(source).hexdigest(), original_sha256=inv["sha256"],
                           boundary=args.boundary or inv["outputs"], returncode=run.returncode,
                           executable_sha256=hashlib.sha256(Path(command[0]).read_bytes()).hexdigest(),
-                          fusion=not args.unfused)
+                          executor="Metal")
             if (directory / "input.f32").exists():
                 result["input_sha256"] = hashlib.sha256((directory / "input.f32").read_bytes()).hexdigest()
             if args.reference and run.returncode == 0:
@@ -248,7 +245,7 @@ def main():
             (directory / "manifest.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
             all_results.append(result)
             print(label, "PASS" if run.returncode == 0 else "FAIL", result.get("max_abs"), flush=True)
-    (args.report / f"summary-{args.backend}-{args.precision}-{'unfused' if args.unfused else 'fused'}.json").write_text(json.dumps(all_results, indent=2), encoding="utf-8")
+    (args.report / f"summary-metal-{args.precision}.json").write_text(json.dumps(all_results, indent=2), encoding="utf-8")
     if any(r["returncode"] or any(r.get(f"csharp-{b}", {}).get("failures", 0) for b in ["cpu", "gpu"]) for r in all_results):
         raise SystemExit(1)
 

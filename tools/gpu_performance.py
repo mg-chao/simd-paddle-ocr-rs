@@ -1,4 +1,4 @@
-"""Frozen, bounded comparisons for GPU performance objectives 1–4.
+"""Frozen, bounded current Metal OCR comparisons.
 
 All implementations consume identical decoded RGB bytes. Cold outputs must pass
 the public OCR contract before warm measurements. Instrumented calls are separate.
@@ -57,16 +57,19 @@ def costs(result):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", choices=["vulkan", "dx12", "metal"], required=True)
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--presets", nargs="+", choices=["tiny", "small", "medium"], default=["tiny"])
     parser.add_argument("--cases", nargs="+", default=["typical"])
     parser.add_argument("--configs", nargs="+", type=config, default=[(1, 1, 2)])
-    parser.add_argument("--modes", nargs="+", choices=["cpu", "inference-only", "full"], default=["full"])
+    parser.add_argument("--targets", nargs="+", choices=["cpu", "gpu"], default=["gpu"])
     parser.add_argument("--csharp", nargs="*", choices=["cpu", "gpu"], default=[])
     parser.add_argument("--csharp-reference-dir", type=Path,
                         help="Canonical PRESET-CASE-cpu|gpu.json C# references; cross-implementation equivalence must be checked separately")
+    parser.add_argument("--matrix", choices=["f32", "f16"], default="f32")
+    parser.add_argument("--storage", choices=["f32", "f16"], default="f32")
+    parser.add_argument("--wave", type=int, choices=range(1, 17), default=1)
+    parser.add_argument("--classification-batch", type=int, choices=range(1, 17), default=4)
     parser.add_argument("--measurements", type=int, choices=range(4), default=3)
     parser.add_argument("--profile", action="store_true")
     parser.add_argument("--alignment", action="store_true")
@@ -74,9 +77,7 @@ def main():
     args = parser.parse_args()
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
-    if "gpu" in args.csharp and args.backend not in ("vulkan", "metal"):
-        parser.error("C# GPU comparison supports Vulkan or Metal")
-    executable = ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench")
+    executable = ROOT / "target/release/examples/gpu_ocr_bench"
     inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "rust-toolchain.toml",
               ROOT / "examples/gpu_ocr_bench.rs", *filter(Path.is_file, (ROOT / "examples/support").rglob("*"))]
     if max(p.stat().st_mtime for p in inputs) > executable.stat().st_mtime:
@@ -91,7 +92,7 @@ def main():
                 "cargo": subprocess.check_output(["cargo", "-V"], text=True),
                 "harness_sha256": digest(Path(__file__)), "runs": [],
                 "warmup": "one cold invocation per configuration", "measurements": args.measurements,
-                "profile_calls_per_configuration": "one serial call per request after uninstrumented measurements" if args.profile else 0,
+                "profile_calls_per_configuration": "one separate instrumented call per request after uninstrumented measurements; same native schedule, kernel metadata and host timing only, device_ns unavailable" if args.profile else 0,
                 "model_sha256": hashes((REFERENCE / "models").glob("*.onnx"), REFERENCE),
                 "dictionary_sha256": hashes((REFERENCE / "models").glob("*.txt"), REFERENCE)}
     if args.csharp:
@@ -110,8 +111,6 @@ def main():
     # The checkout may contain uncommitted implementation work. Hashes pin its
     # identity; the archive also preserves the actual sources for reproduction.
     archive_inputs = inputs + [Path(__file__), ROOT / "tools/full_gpu_validation.py"]
-    if args.csharp:
-        archive_inputs += cs_inputs
     with zipfile.ZipFile(args.report / "source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(set(archive_inputs)):
             archive.write(path, path.relative_to(ROOT.parent))
@@ -132,7 +131,7 @@ def main():
             rgb = args.report / f"{case}.rgb"
             rgb.write_bytes(image.tobytes())
             for requests, slots, batch in args.configs:
-                jobs = [("rust", mode) for mode in args.modes]
+                jobs = [("rust", mode) for mode in args.targets]
                 for mode in args.csharp:
                     key = (preset, case, requests, batch, mode)
                     if key not in seen_cs:
@@ -148,10 +147,14 @@ def main():
                     env = dict(os.environ, SIMD_OCR_BENCH_REFERENCE=str(reference.resolve()),
                                SIMD_OCR_BENCH_RGB=str(rgb.resolve()), SIMD_OCR_BENCH_WIDTH=str(image.width), SIMD_OCR_BENCH_HEIGHT=str(image.height),
                                SIMD_OCR_BENCH_CAPTURE=str(int(args.alignment)), SIMD_OCR_BENCH_PROFILE=str(int(args.profile)),
-                               SIMD_OCR_BENCH_MEASUREMENTS=str(args.measurements), SIMD_OCR_BENCH_GPU_BACKEND=args.backend,
+                               SIMD_OCR_BENCH_MEASUREMENTS=str(args.measurements),
                                DOTNET_TieredCompilation="0")
                     if implementation == "rust":
-                        command = [str(frozen.resolve()), args.backend, mode, str(path.resolve()), str(requests), str(slots), str(batch), preset]
+                        env.update(SIMD_OCR_BENCH_MATRIX=args.matrix if mode == "gpu" else "f32",
+                                   SIMD_OCR_BENCH_STORAGE=args.storage if mode == "gpu" else "f32",
+                                   SIMD_OCR_BENCH_WAVE=str(args.wave),
+                                   SIMD_OCR_BENCH_CLASSIFICATION_BATCH=str(args.classification_batch))
+                        command = [str(frozen.resolve()), mode, str(path.resolve()), str(requests), str(slots), str(batch), preset]
                     else:
                         command = ["dotnet", str((args.report / "csharp/Sdcb.SimdPaddleOCR.GpuBench.dll").resolve()), "--ocr-bench", str((REFERENCE / "models").resolve()), preset, mode, str(rgb.resolve()), str(image.width), str(image.height), str(requests), str(batch)]
                     selected_reference = reference
@@ -174,6 +177,8 @@ def main():
                         else:
                             record["result"] = json.loads(run.stdout)
                             record["errors"] = record["result"].get("errors", [])
+                            if not record["result"].get("qualified"):
+                                record["errors"].append("accuracy qualification failed")
                             if implementation == "rust" and args.profile:
                                 record["costs"] = costs(record["result"])
                     except subprocess.TimeoutExpired as error:
@@ -187,7 +192,10 @@ def main():
                     print(label, "FAIL" if record["errors"] else "PASS", result.get("median_group_ms"), flush=True)
                     if record.get("timeout"):
                         raise RuntimeError("declared execution budget exhausted")
+                    if record["errors"]:
+                        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

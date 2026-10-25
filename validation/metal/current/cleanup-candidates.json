@@ -1,0 +1,684 @@
+{
+  "schema": 1,
+  "read_only": true,
+  "root": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs",
+  "preconditions": [
+    "root approves cleanup after fresh validation",
+    "fresh test, gpu_ocr_bench, gpu_compare, and ocr executables copied and hashed under current/artifacts",
+    "fresh data evidence preserved; local adapter no longer needed from its build directory"
+  ],
+  "preserve": [
+    "fixtures/metal-ocr",
+    "validation/metal",
+    "CPU-history parent/data directories",
+    "remaining mixed C# comparison JSON/log/RGB data",
+    "all dependency build caches",
+    ".git",
+    "external C# checkout"
+  ],
+  "project_targets": [
+    "cpu_adoption_probe",
+    "cpu_baseline",
+    "cpu_benchmark",
+    "cpu_owner_probe",
+    "cpu_profile",
+    "cpu_qualify",
+    "cpu_scheduling_probe",
+    "gpu_compare",
+    "gpu_ocr_bench",
+    "gpu_projection_bench",
+    "gpu_shader_check",
+    "ocr",
+    "simd_paddle_ocr_rs"
+  ],
+  "delete_candidates": [
+    {
+      "path": "reports/csharp-comparison-2026-10-24/performance/csharp",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "reports/csharp-comparison-2026-10-24/performance/gpu_ocr_bench",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "reports/csharp-comparison-2026-10-24/performance/source.zip",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "reports/gpu-analysis-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-backend-evaluation-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-cross-backend-analysis-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-current-review-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-matrix-extension-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-matrix-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-native-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-recognition-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-refactor-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-register-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-stage-audit-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "reports/gpu-throughput-optimization-2026-10-24",
+      "reason": "retired GPU report/source/prototype/binary container"
+    },
+    {
+      "path": "target/arm64-pointwise-optimization-20261017/schedule-probe/target/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_adoption_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_adoption_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_benchmark",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/cpu-adoption-20261017-followup/build-baseline/release/examples/cpu_benchmark.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/debug/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/debug/incremental/cpu_adoption_probe-1g7w38rwmrkk6",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_adoption_probe-2g51fqbtruij9",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_adoption_probe-2wwn2j2ctxkn7",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_baseline-2nkoyhr9uizx7",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_baseline-2qj2zha59dn53",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_baseline-2szixkadmbxt8",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_benchmark-0e6ctthi52job",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_benchmark-0kd2gfizl93zk",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_benchmark-370qvcsshqw0x",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_profile-20894961y3ype",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_profile-38jg94kvwe8jg",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_profile-3mzms9gaj7p8b",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_qualify-1rzblsbtiuobo",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_qualify-21wyfezbn2ehk",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/cpu_qualify-3j0relap3j77k",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-0uwfijontwklg",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-1pv4ixvxpukbg",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-1qonwsaoj37n4",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-1x4msapxzhuyj",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-3avnd566mi3fi",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_compare-3w4kc8k0rktcm",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-00jmxa8l8giuk",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-0v723p5whwh2d",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-17g991p4637lk",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-1rqbsa0xtluce",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-22mh78416tl1v",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_ocr_bench-390sh2ogck1un",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-03wjjkt1tbtok",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-0u7hzyz4irgxj",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-0ufh606i0iqsa",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-1i9hl5gyud1rw",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-1upjbsuf596ry",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_projection_bench-360mjtclmr80d",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-0trnectlk5r6r",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-1g6zk58rp3qj9",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-1hk2vx5zkcp1v",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-2aoljpmt4vye9",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-2knsf2p1w2bza",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/gpu_shader_check-2za34naqcq40r",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-0c16t4215qpxq",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-1876jwb5nsjr2",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-1fwmwjmg90g6a",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-1uilcornkplfg",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-2e96hy2qv3aq0",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-2t89srjruoy3a",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-2ye5h09zrvcz2",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-30uiu2xb4q4kg",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-392yuncy1tuad",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-3m48sxqlq4bn1",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/ocr-3v35dthkf3odp",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-02ktxumz7f5vu",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-08asx69twj8ab",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-0ctefmxvmguzb",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-0rm0ypo1up63u",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-0zkxeh2n76s58",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1b89hkznekd71",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1di7cg5p4p5df",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1emcguzmwk98r",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1hcl57xesfkg5",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1hnf7vwn3ipdf",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-1ncq1wfulz7cn",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-22zddyz8tlulr",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-26il46hshlyt8",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2h0354bvf5sm3",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2mwajbfrw0deb",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2qthqxciv8204",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2rtxpkf7e4yul",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2rxnwxr8ter9z",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-2vudu7dawbxv5",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-31tqzr5pbh508",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-37hc1r5vzt0wl",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3h132uvqhqewq",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3jj2b2cg78k4y",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3n21oq0ccfl6v",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/debug/incremental/simd_paddle_ocr_rs-3t7jjpdgxp6ae",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/release/adapter_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/adapter_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/build/ocr-gpu-capability-probe",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/release/build/simd-paddle-half-coop-probe",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/release/examples/cpu_adoption_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_adoption_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_baseline",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_baseline.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_benchmark",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_benchmark.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_owner_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_owner_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_profile",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_profile.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_qualify",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_qualify.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_scheduling_probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/cpu_scheduling_probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_compare",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_compare.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_ocr_bench",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_ocr_bench.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_projection_bench",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_projection_bench.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_shader_check",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/gpu_shader_check.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/ocr",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/examples/ocr.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/simd-paddle-half-coop-probe",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/release/simd-paddle-half-coop-probe.d",
+      "reason": "project or obsolete GPU-probe executable alias/metadata"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_adoption_probe-1cgi3gh8pzt1g",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_adoption_probe-22ni7uu4pv51o",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_adoption_probe-2kmzeup9ax8e0",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_baseline-0qi64rvi50okm",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_baseline-2bob7kuefq6y4",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_baseline-3m55f18bd2984",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_benchmark-07yj3gxr3bbe2",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_benchmark-1ychmvb3v9qib",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_benchmark-241kcsmbbe1u1",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_profile-0jync1k21d2uw",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_profile-0r29mev89zq03",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_profile-2lhansc2f00fk",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_qualify-23ytif735mxc8",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_qualify-2kpyrtbaeemb8",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/cpu_qualify-3gvpwqjthr3ew",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/ocr-0n759soh5xd10",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/ocr-2uz88kh3wvm7w",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/ocr-38ej622cb5qio",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-0lpp2xs89pz3n",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-1f8wg5pa4udg7",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-1gok85nq2kixo",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-1kkdtvpzubddz",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-3h32su9t63o2i",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/debug/incremental/simd_paddle_ocr_rs-3uflfiknu5vr3",
+      "reason": "project-only incremental compilation state"
+    },
+    {
+      "path": "target/x86_64-apple-darwin/release/build/simd-paddle-ocr-rs",
+      "reason": "project compilation package, including out and fingerprint variants"
+    },
+    {
+      "path": "tools/__pycache__",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "tools/csharp-benchmark",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "tools/csharp-profile",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "tools/csharp-qualification",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "tools/csharp-reference",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "tools/reference/bin",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    },
+    {
+      "path": "tools/reference/obj",
+      "reason": "retired local source archive, adapter/probe build, or Python cache"
+    }
+  ]
+}

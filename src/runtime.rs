@@ -45,9 +45,21 @@ pub enum GpuPrecision {
     F32,
     MixedF16,
 }
+
+/// Arithmetic precision for eligible GPU matrix operations, independent of
+/// activation storage precision. F16 converts matrix operands to half precision
+/// and accumulates in F32; other operations retain their storage policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize)]
+pub enum GpuMatrixPrecision {
+    #[default]
+    F32,
+    F16,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub struct GpuCompileOptions {
     pub precision: GpuPrecision,
+    pub matrix_precision: GpuMatrixPrecision,
 }
 /// Settings shared by all compilation backends.
 #[derive(Clone, Copy, Debug, serde::Serialize)]
@@ -142,6 +154,25 @@ pub struct ExecutionStatistics {
     pub plan_cache_misses: u64,
     pub backend: String,
 }
+/// The cumulative fields used to compute a run's deltas, without kernel metadata.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct StatisticsCounters {
+    pub production_submissions: u64,
+    pub production_readbacks: u64,
+    pub diagnostic_readbacks: u64,
+    pub uploaded_bytes: u64,
+    pub output_readback_bytes: u64,
+    pub diagnostic_readback_bytes: u64,
+    pub plan_cache_hits: u64,
+    pub plan_cache_misses: u64,
+}
+impl StatisticsCounters {
+    #[cfg(feature = "gpu")]
+    pub(crate) fn add_diagnostics(&mut self, other: Self) {
+        self.diagnostic_readbacks += other.diagnostic_readbacks;
+        self.diagnostic_readback_bytes += other.diagnostic_readback_bytes;
+    }
+}
 /// Disjoint retained request allocations. Shared weights and transition peaks are separate.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 pub struct MemorySnapshot {
@@ -190,7 +221,21 @@ impl ExecutionStatistics {
                 .sum::<usize>()
     }
 
-    pub(crate) fn since(&mut self, previous: &Self) {
+    #[cfg(test)]
+    pub(crate) fn counter_snapshot(&self) -> StatisticsCounters {
+        StatisticsCounters {
+            production_submissions: self.production_submissions,
+            production_readbacks: self.production_readbacks,
+            diagnostic_readbacks: self.diagnostic_readbacks,
+            uploaded_bytes: self.uploaded_bytes,
+            output_readback_bytes: self.output_readback_bytes,
+            diagnostic_readback_bytes: self.diagnostic_readback_bytes,
+            plan_cache_hits: self.plan_cache_hits,
+            plan_cache_misses: self.plan_cache_misses,
+        }
+    }
+
+    pub(crate) fn since(&mut self, previous: &StatisticsCounters) {
         // A fallback may replace a session; its counters start from zero.
         fn delta(now: u64, before: u64) -> u64 {
             now.checked_sub(before).unwrap_or(now)
@@ -590,6 +635,13 @@ impl CpuSession {
     }
     pub fn set_intra_op_threads(&mut self, threads: usize) -> RuntimeResult<()> {
         self.set_execution_context(self.cpu.clone(), threads)
+    }
+    pub(crate) fn counter_snapshot(&self) -> StatisticsCounters {
+        StatisticsCounters {
+            plan_cache_hits: self.cache_hits,
+            plan_cache_misses: self.cache_misses,
+            ..Default::default()
+        }
     }
     pub fn statistics(&self) -> ExecutionStatistics {
         let mut stats = self

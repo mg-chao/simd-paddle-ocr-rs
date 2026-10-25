@@ -1,0 +1,70 @@
+{
+  "generator": "b056cf9a812c69522911616d39bb4cc1c1dda4cfb9c3488290c99a8b0de42114",
+  "pillow": "12.3.0",
+  "source_sha256": "3bc8e4294ee76020bb9eeded218897182779e88d18213a35e7362bb28ef5952c",
+  "cases": {
+    "typical": {
+      "sha256": "3bc8e4294ee76020bb9eeded218897182779e88d18213a35e7362bb28ef5952c",
+      "size": [
+        500,
+        500
+      ]
+    },
+    "tiny": {
+      "sha256": "2b3b027811d25bcd134f964893b1a41f7c06318ecc8290c40f4a5729a952e07a",
+      "size": [
+        1,
+        27
+      ]
+    },
+    "sparse": {
+      "sha256": "e830cc201e062c542cfc67d51b71d82222dffd296b9d6c795b697cf4ebe42af2",
+      "size": [
+        500,
+        100
+      ]
+    },
+    "vertical": {
+      "sha256": "ef549aa71155c18d589ca338c9ba0024ab6a069321103f8a3501d8ee519a018f",
+      "size": [
+        500,
+        500
+      ]
+    },
+    "wide": {
+      "sha256": "54f24d62bb4babc5b37bf2ff09fd16bd9c0025cf186b46a1779c1782d2419825",
+      "size": [
+        1000,
+        100
+      ]
+    },
+    "perspective": {
+      "sha256": "eeb89cf7948349973677d3ec3a944fd0148fb7889dd7ac1edc13be8f7dee779a",
+      "size": [
+        500,
+        500
+      ]
+    },
+    "dense": {
+      "sha256": "e198e942e3ef61ac0531ed6913dcff6a4c8c0a61de2297f339a012ac3fd2c350",
+      "size": [
+        1000,
+        1000
+      ]
+    },
+    "border": {
+      "sha256": "be3bf4198facc8e4f72e6cea16035cb97c7901e17ae61ca6024f6236396b7b3e",
+      "size": [
+        519,
+        513
+      ]
+    },
+    "holes": {
+      "sha256": "0cf40c7f1e3da85735bfef73170d95997af8d1dc78ac67a743abc20bb991ddbf",
+      "size": [
+        192,
+        128
+      ]
+    }
+  }
+}

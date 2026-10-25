@@ -1,18 +1,18 @@
 """Physical-device full OCR qualification. No downloads, remote execution, or autotuning.
 
 Generate deterministic fixtures with Pillow; run the release OCR example once
-per selected case/placement. Numerical and semantic failures remain failures.
-Performance measurements belong to gpu_ocr_bench, not this correctness harness.
+per selected case/target. Numerical and semantic failures remain failures.
+Validation uses the same Rust comparison contract as gpu_ocr_bench; no benchmark repetitions run.
 """
 import argparse
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import platform
 import subprocess
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,124 +59,80 @@ def fixtures(directory, sample):
     return manifest
 
 
-def check(actual, reference, mixed, full=False):
-    errors = []
-    absolute, relative = (0.05, 0.01) if mixed else (0.001, 0.001)
-    def close(a, b, fp32=False):
-        atol, rtol = (0.001, 0.001) if fp32 else (absolute, relative)
-        return (isinstance(a, (float, int)) and isinstance(b, (float, int))
-                and math.isfinite(a) and math.isfinite(b)
-                and abs(a - b) <= atol + rtol * abs(b))
-    if actual["text"] != reference["text"]:
-        errors.append("joined text")
-    if actual["detected_count"] != reference["detected_count"] or len(actual["lines"]) != len(reference["lines"]):
-        errors.append("count")
-    for field in ("detector_resized_width", "detector_resized_height"):
-        if actual[field] != reference[field]:
-            errors.append(field)
-    coordinate_error = 0.0
-    for i, (a, b) in enumerate(zip(actual["lines"], reference["lines"])):
-        for field in ("text", "classification_label", "applied_rotation_degrees",
-                      "recognition_content_width", "recognition_tensor_width", "recognition_time_steps", "emitted_count"):
-            if a[field] != b[field]:
-                errors.append(f"line {i}: {field}")
-        for field in ("recognition_score", "classification_score"):
-            if not close(a[field], b[field], full and field == "recognition_score"):
-                errors.append(f"line {i}: {field}: {a[field]} vs {b[field]}")
-        if not close(a["detection"]["score"], b["detection"]["score"], full):
-            errors.append(f"line {i}: detection score")
-        for p, q in zip(a["detection"]["points"], b["detection"]["points"]):
-            if any(not isinstance(x, (float, int)) or not math.isfinite(x) for x in [*p, *q]):
-                errors.append(f"line {i}: nonfinite coordinate")
-                continue
-            coordinate_error = max(coordinate_error, *(abs(x - y) for x, y in zip(p, q)))
-        for field in ("ctc_spans",):
-            aa, bb = a.get(field), b.get(field)
-            if not isinstance(aa, list) or not isinstance(bb, list):
-                errors.append(f"line {i}: missing CTC spans")
-            else:
-                if [(x["text"], x["start_column"], x["end_column"]) for x in aa] != [(x["text"], x["start_column"], x["end_column"]) for x in bb]:
-                    errors.append(f"line {i}: CTC spans")
-                if any(not close(x["score"], y["score"], full) for x, y in zip(aa, bb)):
-                    errors.append(f"line {i}: CTC score")
-    if coordinate_error > 0.5:
-        errors.append(f"coordinates: {coordinate_error}")
-    return dict(errors=errors, max_coordinate_error=coordinate_error)
-
-
-def json_stream(text):
-    decoder = json.JSONDecoder()
-    while text.strip():
-        value, end = decoder.raw_decode(text.lstrip())
-        yield value
-        text = text.lstrip()[end:]
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backend", choices=["vulkan", "dx12", "metal"], required=True)
     parser.add_argument("--precision", choices=["f32", "mixed-f16"], default="f32")
+    parser.add_argument("--matrix", choices=["f32", "f16"], default="f32")
     parser.add_argument("--presets", nargs="+", choices=["tiny", "small", "medium"], default=["tiny"])
-    parser.add_argument("--cases", nargs="+", default=["typical", "sparse", "dense"])
+    parser.add_argument("--cases", nargs="+", default=["typical", "dense", "vertical"])
     parser.add_argument("--all-cases", action="store_true")
-    parser.add_argument("--modes", nargs="+", choices=["cpu", "inference-only", "full"],
-                        default=["cpu", "inference-only", "full"])
-    parser.add_argument("--report", type=Path, default=ROOT / "reports/full-gpu/qualification")
+    parser.add_argument("--report", type=Path, default=ROOT / "target/metal-validation")
     parser.add_argument("--sample", type=Path, default=ROOT.parent / "SimdPaddleOCR/examples/sample.jpg")
     parser.add_argument("--models", type=Path, default=ROOT.parent / "SimdPaddleOCR/models")
-    parser.add_argument("--executable", type=Path, default=ROOT / ("target/release/examples/ocr.exe" if os.name == "nt" else "target/release/examples/ocr"))
+    parser.add_argument("--executable", type=Path, default=ROOT / "target/release/examples/gpu_ocr_bench")
+    parser.add_argument("--wave", type=int, choices=range(1, 17), default=1)
+    parser.add_argument("--classification-batch", type=int, choices=range(1, 17), default=4)
+    parser.add_argument("--budget-seconds", type=float, default=70)
     args = parser.parse_args()
-    if not args.modes or args.modes[0] != "cpu" or len(set(args.modes)) != len(args.modes):
-        parser.error("--modes must start with the CPU oracle and contain no duplicates")
-    build_inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "rust-toolchain.toml", ROOT / "examples/ocr.rs"]
+    if args.budget_seconds <= 0:
+        parser.error("positive execution budget required")
+    build_inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock",
+                    ROOT / "rust-toolchain.toml", ROOT / "examples/gpu_ocr_bench.rs", ROOT / "examples/support/ocr_compare.rs"]
     if max(p.stat().st_mtime for p in build_inputs) > args.executable.stat().st_mtime:
         raise RuntimeError("release executable predates source changes; rebuild before qualification")
-    args.report.mkdir(parents=True, exist_ok=True)
+    args.report.mkdir(parents=True, exist_ok=False)
     corpus = fixtures(args.report / "corpus", args.sample)
     cases = list(corpus["cases"]) if args.all_cases else args.cases
-    manifest = dict(platform=platform.platform(), compiler=output(["rustc", "-Vv"]),
-                    cargo=output(["cargo", "-V"]), revision=output(["git", "rev-parse", "HEAD"]),
-                    source_sha256={str(p.relative_to(ROOT)): digest(p) for p in sorted((ROOT / "src").rglob("*")) if p.is_file()},
-                    build_inputs_sha256={str(p.relative_to(ROOT)): digest(p) for p in build_inputs},
-                    lock_sha256=digest(ROOT / "Cargo.lock"), toolchain_sha256=digest(ROOT / "rust-toolchain.toml"),
-                    executable_sha256=digest(args.executable), backend=args.backend, precision=args.precision,
-                    models={p.name: digest(p) for p in sorted(args.models.glob("*.onnx"))}, corpus=corpus,
-                    qualification="physical-device run; other adapters unverified", results=[])
+    if not set(cases) <= set(corpus["cases"]):
+        parser.error("unknown corpus case")
+    manifest = dict(schema=2, platform=platform.platform(), compiler=output(["rustc", "-Vv"]),
+                    cargo=output(["cargo", "-V"]), executor="Metal", precision=args.precision, matrix=args.matrix,
+                    wave=args.wave, classification_batch=args.classification_batch,
+                    source_sha256={str(p.relative_to(ROOT)): digest(p) for p in build_inputs},
+                    executable_sha256=digest(args.executable), models={p.name: digest(p) for p in sorted(args.models.glob("*.onnx"))},
+                    corpus=corpus, measurements=0, qualification="physical Metal; unchanged Rust accuracy contracts", results=[])
+    start = time.monotonic()
     for preset in args.presets:
         for case in cases:
-            reference = None
-            for mode in args.modes:
-                label = f"{preset}-{case}-{mode}"
-                command = [str(args.executable), "--models-dir", str(args.models), "--preset", preset, "--alignment", "--statistics",
-                           "--execution", "cpu" if mode == "cpu" else "gpu", "--gpu-backend", args.backend,
-                           "--gpu-precision", args.precision, "--gpu-pipeline", "full" if mode == "cpu" else mode,
-                           str(args.report / "corpus" / f"{case}.png")]
-                run = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=120)
-                (args.report / f"{label}.json").write_text(run.stdout, encoding="utf-8")
+            reference = args.report / f"{preset}-{case}-cpu.json"
+            for target in ["cpu", "gpu"]:
+                remaining = args.budget_seconds - (time.monotonic() - start)
+                if remaining <= 0:
+                    raise RuntimeError("declared qualification budget exhausted")
+                label = f"{preset}-{case}-{target}"
+                command = [str(args.executable.resolve()), target, str((args.report / "corpus" / f"{case}.png").resolve()), "1", "1", "2", preset]
+                env = dict(os.environ, SIMD_OCR_BENCH_MEASUREMENTS="0", SIMD_OCR_BENCH_CAPTURE="1", SIMD_OCR_BENCH_PROFILE="0",
+                           SIMD_OCR_BENCH_MODELS=str(args.models.resolve()), SIMD_OCR_BENCH_WAVE=str(args.wave),
+                           SIMD_OCR_BENCH_CLASSIFICATION_BATCH=str(args.classification_batch),
+                           SIMD_OCR_BENCH_MATRIX=args.matrix if target == "gpu" else "f32",
+                           SIMD_OCR_BENCH_STORAGE="f16" if target == "gpu" and args.precision == "mixed-f16" else "f32")
+                env.pop("SIMD_OCR_BENCH_REFERENCE", None)
+                if target == "gpu": env["SIMD_OCR_BENCH_REFERENCE"] = str(reference.resolve())
+                run = subprocess.run(command, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8", timeout=remaining)
+                (args.report / f"{label}-run.json").write_text(run.stdout, encoding="utf-8")
                 (args.report / f"{label}.log").write_text(run.stderr, encoding="utf-8")
-                result = dict(label=label, command=command, returncode=run.returncode, errors=[])
+                record = dict(label=label, command=command, returncode=run.returncode, errors=[])
                 if run.returncode:
-                    result["errors"].append(run.stderr)
+                    record["errors"].append(run.stderr)
                 else:
-                    actual = json.loads(run.stdout)
-                    if mode == "cpu":
-                        reference = actual
-                    if reference is None:
-                        result["errors"].append("CPU reference failed")
+                    result = json.loads(run.stdout)
+                    record["result"] = result
+                    record["errors"].extend(result.get("errors", []))
+                    if not result.get("qualified"): record["errors"].append("accuracy qualification failed")
+                    if target == "cpu":
+                        reference.write_text(json.dumps(result["outputs"][0], indent=2, ensure_ascii=False), encoding="utf-8")
                     else:
-                        # Full retains FP32 DET/REC even in a mixed context.
-                        result.update(check(actual, reference, args.precision == "mixed-f16", mode == "full"))
-                    statistics = list(json_stream(run.stderr))
-                    result["statistics"] = statistics
-                    if mode == "full":
-                        stats = statistics[-1]
-                        if stats.get("mode") != "Full" or stats.get("cpu_compute_stages") != [] or stats.get("diagnostic_readback_bytes") != 0:
-                            result["errors"].append("residency contract")
-                manifest["results"].append(result)
+                        for stats in result["cold_statistics"]:
+                            if (stats is None or stats.get("cpu_compute_stages") != []
+                                    or stats.get("diagnostic_readback_bytes") != 0
+                                    or stats.get("dispatches", 0) == 0
+                                    or stats.get("native_graph_dispatches", 0) + stats.get("native_resident_dispatches", 0) != stats.get("dispatches")):
+                                record["errors"].append("native Metal residency contract")
+                manifest["results"].append(record)
                 (args.report / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-                print(label, "FAIL" if result["errors"] else "PASS", flush=True)
-    return int(any(result["errors"] for result in manifest["results"]))
-
+                print(label, "FAIL" if record["errors"] else "PASS", flush=True)
+                if record["errors"]: return 1
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

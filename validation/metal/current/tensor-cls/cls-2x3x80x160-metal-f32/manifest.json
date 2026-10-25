@@ -1,0 +1,185 @@
+{
+  "absolute_tolerance": 0.0010000000474974513,
+  "adapter": "Apple M4",
+  "backend": "Metal",
+  "failures": 0,
+  "max_abs": 7.748603820800781e-07,
+  "measurements": [],
+  "model": "/Users/chao/workspaces/simd-paddle-ocr-workspace/SimdPaddleOCR/models/cls.onnx",
+  "operators": {
+    "Add": 5,
+    "Conv": 32,
+    "GlobalAveragePool": 3,
+    "HardSigmoid": 30,
+    "MatMul": 1,
+    "Mul": 31,
+    "Relu": 2,
+    "Reshape": 1,
+    "Softmax": 1
+  },
+  "output_shape": [
+    2,
+    2
+  ],
+  "precision": "F32",
+  "relative_tolerance": 0.0010000000474974513,
+  "seed": 1,
+  "shape": [
+    2,
+    3,
+    80,
+    160
+  ],
+  "statistics": {
+    "activation_bytes": 1332256,
+    "adapter": "Apple M4",
+    "backend": "GPU Metal: Apple M4",
+    "diagnostic_readback_bytes": 0,
+    "diagnostic_readbacks": 0,
+    "effective_precision": "F32",
+    "execution_backend": "Gpu",
+    "fallback": null,
+    "fused_nodes": 64,
+    "layout_conversions": 0,
+    "nhwc_values": 0,
+    "normalized_nodes": 106,
+    "original_weight_bytes": 965488,
+    "output_readback_bytes": 16,
+    "packed_weight_bytes": 0,
+    "physical_steps": 41,
+    "plan_cache_hits": 0,
+    "plan_cache_misses": 1,
+    "production_readbacks": 1,
+    "production_submissions": 1,
+    "retained_activation_bytes": 1332256,
+    "scratch_bytes": 0,
+    "selected_kernels": [
+      {
+        "layout": "nchw/row_major",
+        "operator": "conv_generic",
+        "packed": false,
+        "steps": 5
+      },
+      {
+        "layout": "nchw/row_major",
+        "operator": "conv_implicit16",
+        "packed": false,
+        "steps": 12
+      },
+      {
+        "layout": "nchw/row_major",
+        "operator": "conv_implicit32",
+        "packed": false,
+        "steps": 2
+      },
+      {
+        "layout": "nchw/row_major",
+        "operator": "depthwise3",
+        "packed": false,
+        "steps": 6
+      },
+      {
+        "layout": "nchw/row_major",
+        "operator": "depthwise5",
+        "packed": false,
+        "steps": 7
+      },
+      {
+        "layout": "nchw/row_major",
+        "operator": "general",
+        "packed": false,
+        "steps": 6
+      },
+      {
+        "layout": "nchw/row_major",
+        "operator": "reduce_contiguous",
+        "packed": false,
+        "steps": 3
+      }
+    ],
+    "shared_cached_weight_bytes": 0,
+    "specialized_kernels": [
+      {
+        "family": "general",
+        "isa": "metal_F32",
+        "operator": "Add",
+        "steps": 1,
+        "store_fused": false
+      },
+      {
+        "family": "conv_generic",
+        "isa": "metal_F32",
+        "operator": "Conv",
+        "steps": 5,
+        "store_fused": true
+      },
+      {
+        "family": "conv_implicit16",
+        "isa": "metal_F32",
+        "operator": "Conv",
+        "steps": 12,
+        "store_fused": true
+      },
+      {
+        "family": "conv_implicit32",
+        "isa": "metal_F32",
+        "operator": "Conv",
+        "steps": 2,
+        "store_fused": true
+      },
+      {
+        "family": "depthwise3",
+        "isa": "metal_F32",
+        "operator": "Conv",
+        "steps": 6,
+        "store_fused": true
+      },
+      {
+        "family": "depthwise5",
+        "isa": "metal_F32",
+        "operator": "Conv",
+        "steps": 7,
+        "store_fused": true
+      },
+      {
+        "family": "reduce_contiguous",
+        "isa": "metal_F32",
+        "operator": "GlobalAveragePool",
+        "steps": 3,
+        "store_fused": false
+      },
+      {
+        "family": "general",
+        "isa": "metal_F32",
+        "operator": "MatMul",
+        "steps": 1,
+        "store_fused": false
+      },
+      {
+        "family": "general",
+        "isa": "metal_F32",
+        "operator": "Mul",
+        "steps": 3,
+        "store_fused": false
+      },
+      {
+        "family": "general",
+        "isa": "metal_F32",
+        "operator": "Softmax",
+        "steps": 1,
+        "store_fused": false
+      }
+    ],
+    "store_fused_steps": 32,
+    "uploaded_bytes": 307200
+  },
+  "model_sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+  "original_sha256": "dd8b2b61983d76ab230a58da9e0e0e84956b71c3877f2ce6e438fe22d74d2cf2",
+  "boundary": [
+    "fetch_name_0"
+  ],
+  "returncode": 0,
+  "executable_sha256": "346bdc182db566f7467d84c4aa7d958b6ea88be79783d83b2b129bf710648bf3",
+  "executor": "Metal",
+  "input_sha256": "f406ad763ef181a3870f7e280a89c8406e28206a36d155e1dd266364a83f95e6"
+}

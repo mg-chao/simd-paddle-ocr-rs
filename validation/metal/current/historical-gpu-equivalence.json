@@ -1,0 +1,113 @@
+{
+  "scope": "Core outputs normalized to F32 for historical JSON formatting differences; excludes additionally derived character_boxes. This audit is separate from the unchanged independent CPU accuracy contract.",
+  "results": [
+    {
+      "policy": "fast-corpus",
+      "preset": "tiny",
+      "case": "typical",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "tiny",
+      "case": "dense",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "tiny",
+      "case": "vertical",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "small",
+      "case": "typical",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "small",
+      "case": "dense",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "small",
+      "case": "vertical",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "medium",
+      "case": "typical",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "medium",
+      "case": "dense",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "fast-corpus",
+      "preset": "medium",
+      "case": "vertical",
+      "same_core_output_at_f32_precision": true
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "tiny",
+      "case": "typical",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "tiny",
+      "case": "dense",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "tiny",
+      "case": "vertical",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "small",
+      "case": "typical",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "small",
+      "case": "dense",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "small",
+      "case": "vertical",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "medium",
+      "case": "typical",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "medium",
+      "case": "dense",
+      "same_core_output_at_f32_precision": false
+    },
+    {
+      "policy": "strict-corpus",
+      "preset": "medium",
+      "case": "vertical",
+      "same_core_output_at_f32_precision": false
+    }
+  ]
+}

@@ -9,7 +9,13 @@ pub(super) fn replacement(
     start: usize,
     selected: TensorId,
     limits: &wgpu::Limits,
+    matrix_precision: GpuMatrixPrecision,
 ) -> RuntimeResult<Option<Recipe>> {
+    if let Some(recipe) =
+        super::fused_activation::replacement(program, plan, start, selected, limits)?
+    {
+        return Ok(Some(recipe));
+    }
     let address_word = |i: usize| i + usize::from(i >= 60) + 4 * usize::from(i >= 63);
     let n = &program.instructions;
     let count = plan.steps.len();
@@ -123,78 +129,21 @@ pub(super) fn replacement(
                 && g.oh == 1
                 && g.ow == 1 =>
         {
+            if matrix_precision == GpuMatrixPrecision::F16
+                && let Some(mut recipe) =
+                    super::se_fusions::replacement(program, plan, start, selected, limits)?
+            {
+                // The parallel F32 dot changes reduction order only under the
+                // explicit fast-matrix policy. K=24 lost in the focused probe;
+                // K=96 and K=384 qualified and improved, so keep small SE serial.
+                if recipe.words[12] == 1 && recipe.words[3] >= 96 {
+                    recipe.words[13] = 1;
+                }
+                return Ok(Some(recipe));
+            }
             let Some(act) = next(n[start].output) else {
                 return Ok(None);
             };
-            if matches!(n[act].kind, Op::Relu)
-                && g.cin <= 256
-                && g.cout <= 64
-                && inputs.len() == 3
-                && let Some(fc2) = next(n[act].output)
-                && let BoundKind::Conv(g2) = &plan.steps[fc2].kind
-                && g2.kh == 1
-                && g2.kw == 1
-                && g2.height == 1
-                && g2.width == 1
-                && g2.oh == 1
-                && g2.ow == 1
-                && g2.cpg == g2.cin
-                && g2.cin == g.cout
-                && g2.batch == g.batch
-                && n[fc2].inputs.len() == 3
-                && let Some(gate) = next(n[fc2].output)
-                && let Op::HardSigmoid { alpha, beta } = n[gate].kind
-            {
-                // Prefer the existing excitation/apply fusion unless
-                // this chain enables removal of the subsequent gate Mul.
-                let prescale = next(n[gate].output)
-                    .filter(|&i| matches!(n[i].kind, Op::Mul))
-                    .and_then(|mul| next(n[mul].output))
-                    .is_some_and(|consumer| {
-                        if let BoundKind::Conv(c) = &plan.steps[consumer].kind {
-                            c.kh == 1
-                                && c.kw == 1
-                                && c.cpg == c.cin
-                                && c.cin >= 8
-                                && c.cout >= 8
-                                && c.batch * c.cout.div_ceil(16) * (c.oh * c.ow).div_ceil(16) >= 128
-                        } else {
-                            false
-                        }
-                    });
-                if !prescale {
-                    return Ok(None);
-                }
-                let members = vec![start, act, fc2, gate];
-                let output = n[gate].output;
-                if patterns::closed_group(program, &members, output, selected, count) {
-                    let mut words = [0; 128];
-                    words[0] = g.batch as u32;
-                    words[3] = g.cin as u32;
-                    words[4] = g.cout as u32;
-                    words[5] = g2.cout as u32;
-                    words[9] = alpha.to_bits();
-                    words[10] = beta.to_bits();
-                    let (x, y) = dispatch_grid(g.batch * 64, limits)?;
-                    words[1] = x;
-                    return Ok(Some(Recipe {
-                        node: gate,
-                        nodes: members,
-                        kind: RecipeKind::Compute(ShaderKind::SeChain),
-                        inputs: vec![
-                            inputs[0],
-                            inputs[1],
-                            inputs[2],
-                            n[fc2].inputs[1],
-                            n[fc2].inputs[2],
-                        ],
-                        output,
-                        words,
-                        x,
-                        y,
-                    }));
-                }
-            }
             match n[act].kind {
                 Op::Sigmoid => words[8] = 0,
                 Op::HardSigmoid { alpha, beta } => {
@@ -236,6 +185,27 @@ pub(super) fn replacement(
         _ => return Ok(None),
     }
     let output = n[end].output;
+    if kind == ShaderKind::Attention && matrix_precision == GpuMatrixPrecision::F16 {
+        let (x, y) = dispatch_grid(groups * 64, limits)?;
+        let mut packed_words = words;
+        packed_words[0] = groups as u32;
+        packed_words[1] = x;
+        let base = Recipe {
+            node: end,
+            nodes: members.clone(),
+            kind: RecipeKind::Compute(kind),
+            inputs: inputs.clone(),
+            output,
+            words: packed_words,
+            x,
+            y,
+        };
+        if let Some(packed) =
+            super::attention_packed::replacement(program, plan, start, selected, &base)
+        {
+            return Ok(Some(packed));
+        }
+    }
     // Address transforms are evaluated at the attention load. Copy/reshape is
     // linear; Transpose also represents strided Slice. Retain every escaping
     // value by accepting the complete Q/K/V group only when it is closed.

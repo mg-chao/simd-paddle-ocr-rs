@@ -14,6 +14,21 @@ use crate::{
 
 use std::sync::Arc;
 
+fn recognition_wave_size(
+    requested: usize,
+    units: usize,
+    device_quota: bool,
+    activation_limit: usize,
+) -> usize {
+    let memory_constrained = device_quota
+        || activation_limit < crate::runtime::ExecutionLimits::default().max_activation_bytes;
+    if memory_constrained {
+        1
+    } else {
+        requested.min(units)
+    }
+}
+
 pub(crate) use crate::error::OcrStage as Stage;
 pub(crate) struct Failure {
     pub stage: Stage,
@@ -102,8 +117,7 @@ impl Pipeline {
         result.map_err(|error| (stage, error))
     }
     pub fn retained_bytes(&self) -> usize {
-        self.detector.scratch.retained_bytes()
-            + self.detector.session.retained_device_bytes()
+        self.detector.session.retained_device_bytes()
             + self
                 .classifier
                 .as_ref()
@@ -115,8 +129,7 @@ impl Pipeline {
                 .sum::<usize>()
     }
     pub fn activation_bytes(&self) -> usize {
-        self.detector.scratch.retained_bytes()
-            + self.detector.session.retained_activation_bytes()
+        self.detector.session.retained_activation_bytes()
             + self
                 .classifier
                 .as_ref()
@@ -147,6 +160,26 @@ impl Pipeline {
                 .iter()
                 .map(|r| r.session.retained_planning_bytes())
                 .sum::<usize>()
+    }
+    pub fn counter_snapshots(
+        &self,
+    ) -> std::collections::BTreeMap<Stage, Vec<crate::runtime::StatisticsCounters>> {
+        let mut output = std::collections::BTreeMap::new();
+        output.insert(
+            Stage::Detector,
+            vec![self.detector.session.counter_snapshot()],
+        );
+        output.insert(
+            Stage::Recognizer,
+            self.recognition
+                .iter()
+                .map(Recognition::counter_snapshot)
+                .collect(),
+        );
+        if let Some(cls) = &self.classifier {
+            output.insert(Stage::Classifier, vec![cls.session.counter_snapshot()]);
+        }
+        output
     }
     pub fn execution_statistics(
         &self,
@@ -198,12 +231,12 @@ impl Pipeline {
         let capture = run_options.capture_spans;
         self.statistics = Default::default();
         self.failed_stage = Stage::Detector;
-        let detection = self
-            .detector
-            .run(image, extractor.detector().options(), profiling)?;
+        let line_options = extractor.options();
+        let (detection, prepared_crops) =
+            self.detector
+                .run_with_crops(image, extractor.detector().options(), profiling)?;
         vision::merge_statistics(&mut self.statistics, detection.statistics.clone());
         let count = detection.boxes.len();
-        let line_options = extractor.options();
         let rec_options = recognizer.options();
         result.clear();
         result.detected_count = count;
@@ -219,7 +252,10 @@ impl Pipeline {
         if count == 0 {
             return Ok(());
         }
-        let crops = Crops::prepare(&detection, line_options)?;
+        let crops = match prepared_crops {
+            Some(crops) => crops.finish(line_options)?,
+            None => Crops::prepare(&detection, line_options)?,
+        };
         vision::merge_statistics(&mut self.statistics, crops.statistics.clone());
         let mut sizes = Vec::with_capacity(count);
         for &[width, height] in &crops.sizes {
@@ -250,12 +286,17 @@ impl Pipeline {
             }
             units.push(vec![index]);
         }
-        let bound = self
-            .detector
-            .context
-            .options()
-            .max_in_flight
-            .min(units.len());
+        let context_options = self.detector.context.options();
+        // Admission counts independent requests. Within one request, a bounded
+        // wave owns disjoint recognition arenas so widths can share a submission
+        // without padding or changing the model's time-step contract. Preserve
+        // single-arena execution for explicitly constrained memory budgets.
+        let bound = recognition_wave_size(
+            context_options.recognition_wave_size,
+            units.len(),
+            context_options.max_device_bytes.is_some(),
+            recognizer.execution_limits().max_activation_bytes,
+        );
         while self.recognition.len() < bound {
             self.recognition.push(self.recognition[0].fork()?);
         }
@@ -289,8 +330,16 @@ impl Pipeline {
         // Classification has a fixed input shape, so combine adjacent crops
         // independently of recognition width. Only one bounded lookahead is
         // retained in addition to the submitted waves, never all page crops.
+        // A global device quota also covers the lookahead crop pixels, whose
+        // sizes are independent of classifier activation storage. Preserve the
+        // original four-crop bound under that quota even if reshape admits 16.
+        let classification_limit = if context_options.max_device_bytes.is_some() {
+            context_options.classification_batch_size.min(4)
+        } else {
+            context_options.classification_batch_size
+        };
         let mut classification_batch = if self.classifier.is_some() {
-            count.min(4)
+            count.min(classification_limit)
         } else {
             1
         };
@@ -306,14 +355,14 @@ impl Pipeline {
             self.statistics.admission_wait_ns += timer.elapsed().as_nanos() as u64;
         }
         let mut pending = std::collections::VecDeque::new();
-        // Queue writes and submissions remain interleaved: reshaping a session
-        // may reuse its parameter buffer, so every wave must be submitted before
-        // the next is recorded. At most two waves retain scratch/readback data.
+        // Each width in a wave has its own activation and parameter arena. Batch
+        // retains immutable command snapshots and interleaves independent graph
+        // dispatches by dependency depth. Submit before reshaping those sessions
+        // for the next wave; at most two waves retain scratch/readback data.
         for wave in units.chunks(bound).map(Some).chain(std::iter::once(None)) {
             if let Some(wave) = wave {
                 let mut batch = Batch::new(self.detector.context.clone())?;
                 batch.profiling = profiling;
-                batch.scratch = Some(self.detector.scratch.clone());
                 let mut outputs = Vec::new();
                 let mut total = 0usize;
                 for (slot, indices) in wave.iter().enumerate() {
@@ -547,5 +596,20 @@ impl Pipeline {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod scheduling_tests {
+    use super::*;
+
+    #[test]
+    fn recognition_waves_are_independent_of_request_admission_and_preserve_quotas() {
+        let default_limit = crate::runtime::ExecutionLimits::default().max_activation_bytes;
+        assert_eq!(recognition_wave_size(4, 13, false, default_limit), 4);
+        assert_eq!(recognition_wave_size(4, 2, false, default_limit), 2);
+        assert_eq!(recognition_wave_size(1, 13, false, default_limit), 1);
+        assert_eq!(recognition_wave_size(4, 13, true, default_limit), 1);
+        assert_eq!(recognition_wave_size(4, 13, false, default_limit - 1), 1);
     }
 }

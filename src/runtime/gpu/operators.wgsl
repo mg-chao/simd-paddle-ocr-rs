@@ -3,6 +3,59 @@ fn main(@builtin(global_invocation_id) id:vec3<u32>) {
     let index=id.x+id.y*p(1u);
     if index>=p(0u) { return; }
     let op=p(2u);
+    if op==26u {
+        if index>=p(6u){return;}
+        let h=p(3u);let w=p(4u);let row=index/p(5u);let x=(index%p(5u))*4u;
+        let y=row%h;let base=row*w+x;
+        if x+4u<w {
+            let current=vec4<f32>(load_a(base),load_a(base+1u),load_a(base+2u),load_a(base+3u));
+            var pooled=max(current,vec4<f32>(current.y,current.z,current.w,load_a(base+4u)));
+            if y+1u<h {
+                let next=vec4<f32>(load_a(base+w),load_a(base+w+1u),load_a(base+w+2u),load_a(base+w+3u));
+                pooled=max(pooled,next);
+                pooled=max(pooled,vec4<f32>(next.y,next.z,next.w,load_a(base+w+4u)));
+            }
+            for(var component=0u;component<4u;component++){store_output(base+component,pooled[component]);}
+        } else {
+            // Keep the original max sequence at every right edge, including
+            // NaNs and signed zero; no duplicate sentinel or out-of-row read.
+            for(var component=0u;component<4u;component++){
+                let column=x+component;if column>=w{break;}
+                let element=base+component;var value=load_a(element);
+                if column+1u<w {value=max(value,load_a(element+1u));}
+                if y+1u<h {value=max(value,load_a(element+w));
+                    if column+1u<w {value=max(value,load_a(element+w+1u));}}
+                store_output(element,value);
+            }
+        }
+        return;
+    }
+    if op==25u {
+        // Each original intermediate was stored with output precision. Keep
+        // those conversions while eliminating its allocation and dispatch.
+        if index>=p(0u)/4u+select(0u,1u,p(0u)%4u!=0u){return;}
+        for(var component=0u;component<4u;component++) {
+            let element=index*4u+component;if element>=p(0u){break;}
+            let value=load_a(element);var result=0.0;
+            if p(3u)==1u {
+                let scaled=output_round(value/load_b(0u));
+                let error=output_round(erf_approx(scaled));
+                let shifted=output_round(error+1.0);
+                let product=output_round(shifted*value);
+                result=product*0.5;
+            } else if p(3u)==2u {
+                let gate=output_round(clamp(value*0.16666667+0.5,0.0,1.0));
+                result=value*gate;
+            } else {
+                var gate=0.0;
+                if value>=0.0 {gate=1.0/(1.0+exp(-value));}
+                else {let exponent=exp(value);gate=exponent/(1.0+exponent);}
+                result=value*output_round(gate);
+            }
+            store_output(element,result);
+        }
+        return;
+    }
     if op==24u {
         let channels=p(3u);let plane=p(4u);let padded=p(5u);
         let channel=index%padded;let pixel=(index/padded)%plane;let batch=index/(padded*plane);

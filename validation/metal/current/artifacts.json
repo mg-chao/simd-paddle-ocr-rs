@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "source_version": "0badef5b4d61e8be",
+  "artifacts": {
+    "gpu-tests": {
+      "path": "validation/metal/current/artifacts/gpu-tests",
+      "sha256": "e701fa0b3a1c7862a3900484480dcac3d2ab8c94594629f5d3a279206df1d1d8",
+      "bytes": 27298240,
+      "built_from": "target/release/build/simd-paddle-ocr-rs/c39a14dfa64524d9/out/simd_paddle_ocr_rs-c39a14dfa64524d9"
+    },
+    "gpu_ocr_bench": {
+      "path": "validation/metal/current/artifacts/gpu_ocr_bench",
+      "sha256": "1738d56cd8843078d119efd89a0fd34a568450db2336095fe93db595b5db49dc",
+      "bytes": 12369184,
+      "built_from": "target/release/examples/gpu_ocr_bench"
+    },
+    "gpu_compare": {
+      "path": "validation/metal/current/artifacts/gpu_compare",
+      "sha256": "346bdc182db566f7467d84c4aa7d958b6ea88be79783d83b2b129bf710648bf3",
+      "bytes": 9779520,
+      "built_from": "target/release/examples/gpu_compare"
+    },
+    "ocr": {
+      "path": "validation/metal/current/artifacts/ocr",
+      "sha256": "05a25c24a2c4a76261c806cbf3f714a50f0dd47ddb05bb3691c87b5c8eb92ec0",
+      "bytes": 11559280,
+      "built_from": "target/release/examples/ocr"
+    }
+  }
+}

@@ -260,27 +260,11 @@ pub struct OrientedLinePlan {
 }
 impl OrientedLinePlan {
     #[cfg(feature = "gpu")]
-    pub fn with_gpu_pipeline_mode(
-        self: &Arc<Self>,
-        mode: crate::runtime::gpu::GpuPipelineMode,
-    ) -> ImageResult<Arc<Self>> {
-        self.validate_contexts(mode == crate::runtime::gpu::GpuPipelineMode::Full)?;
-        let mut plan = self.as_ref().clone();
-        plan.detector = plan.detector.with_gpu_pipeline_mode(mode);
-        plan.classifier = plan
-            .classifier
-            .as_ref()
-            .map(|c| c.with_gpu_pipeline_mode(mode));
-        Ok(Arc::new(plan))
-    }
-    #[cfg(feature = "gpu")]
-    fn validate_contexts(&self, resident: bool) -> ImageResult<()> {
-        if resident
-            && let (Some(det), Some(cls)) = (
-                self.detector.compiled().as_gpu(),
-                self.classifier.as_ref().and_then(|c| c.compiled().as_gpu()),
-            )
-            && !Arc::ptr_eq(det.context(), cls.context())
+    fn validate_contexts(&self) -> ImageResult<()> {
+        if let (Some(det), Some(cls)) = (
+            self.detector.compiled().as_gpu(),
+            self.classifier.as_ref().and_then(|c| c.compiled().as_gpu()),
+        ) && !Arc::ptr_eq(det.context(), cls.context())
         {
             return Err(ImageError::new(
                 "resident extraction requires one GPU context",
@@ -401,7 +385,6 @@ impl OrientedLineExtractor {
         for (index, &[width, height]) in crops.sizes.iter().enumerate() {
             let mut batch = Batch::new(detection.image.context.clone())?;
             batch.profiling = PROFILE;
-            batch.scratch = detection.scratch.clone();
             let crop = crops.record(&mut batch, &detection.image, index)?;
             let mut class = None;
             let oriented = if let Some(classifier) = &mut self.classifier {
@@ -480,28 +463,16 @@ impl OrientedLineExtractor {
             c.reset_run_statistics();
         }
     }
-    #[cfg(feature = "gpu")]
-    pub fn set_gpu_pipeline_mode(
-        &mut self,
-        mode: crate::runtime::gpu::GpuPipelineMode,
-    ) -> ImageResult<()> {
-        self.plan
-            .validate_contexts(mode == crate::runtime::gpu::GpuPipelineMode::Full)?;
-        self.gpu_statistics = None;
-        self.detector.set_gpu_pipeline_mode(mode);
-        if let Some(cls) = &mut self.classifier {
-            cls.set_gpu_pipeline_mode(mode);
-        }
-        for cls in &mut self.classifier_workers {
-            cls.set_gpu_pipeline_mode(mode);
-        }
-        let plan = Arc::make_mut(&mut self.plan);
-        plan.detector = self.detector.plan().clone();
-        plan.classifier = self.classifier.as_ref().map(|c| c.plan().clone());
-        Ok(())
-    }
     pub fn detector(&self) -> &Detector {
         &self.detector
+    }
+    pub(crate) fn classifier_counter_snapshots(
+        &self,
+    ) -> impl Iterator<Item = crate::runtime::StatisticsCounters> + '_ {
+        self.classifier
+            .iter()
+            .chain(&self.classifier_workers)
+            .map(Classifier::counter_snapshot)
     }
     pub(crate) fn classifier_statistics(&self) -> Vec<crate::runtime::ExecutionStatistics> {
         self.classifier
@@ -527,9 +498,7 @@ impl OrientedLineExtractor {
         let mut detector = plan.detector.request()?;
         let mut classifier = plan.classifier.as_ref().map(|c| c.request()).transpose()?;
         #[cfg(feature = "gpu")]
-        plan.validate_contexts(
-            detector.is_full_gpu() && classifier.as_ref().is_none_or(Classifier::is_full_gpu),
-        )?;
+        plan.validate_contexts()?;
         let budgets = plan.cpu_options.resolve(
             plan.cpu.capacity(),
             detector

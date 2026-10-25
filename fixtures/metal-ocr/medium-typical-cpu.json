@@ -1,0 +1,6328 @@
+{
+  "text": "纯臻营养护发素\n产品信息/参数\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订）\n【品牌】:代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【产品编号】：YM-X-3011\nODM OEM\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养",
+  "lines": [
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            35.0
+          ],
+          [
+            304.0,
+            35.0
+          ],
+          [
+            304.0,
+            72.0
+          ],
+          [
+            24.0,
+            72.0
+          ]
+        ],
+        "score": 0.90330625
+      },
+      "text": "纯臻营养护发素",
+      "recognition_score": 18.661917,
+      "classification_score": 0.999938,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 7,
+      "recognition_content_width": 364,
+      "recognition_tensor_width": 384,
+      "recognition_time_steps": 48,
+      "ctc_spans": [
+        {
+          "text": "纯",
+          "score": 17.182343,
+          "start_column": 4,
+          "end_column": 5
+        },
+        {
+          "text": "臻",
+          "score": 11.854887,
+          "start_column": 10,
+          "end_column": 11
+        },
+        {
+          "text": "营",
+          "score": 19.412481,
+          "start_column": 16,
+          "end_column": 17
+        },
+        {
+          "text": "养",
+          "score": 21.436367,
+          "start_column": 23,
+          "end_column": 24
+        },
+        {
+          "text": "护",
+          "score": 18.535671,
+          "start_column": 29,
+          "end_column": 30
+        },
+        {
+          "text": "发",
+          "score": 23.20976,
+          "start_column": 36,
+          "end_column": 37
+        },
+        {
+          "text": "素",
+          "score": 19.001913,
+          "start_column": 42,
+          "end_column": 43
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            79.0
+          ],
+          [
+            173.0,
+            79.0
+          ],
+          [
+            173.0,
+            104.0
+          ],
+          [
+            24.0,
+            104.0
+          ]
+        ],
+        "score": 0.8734225
+      },
+      "text": "产品信息/参数",
+      "recognition_score": 24.17584,
+      "classification_score": 0.9999993,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 7,
+      "recognition_content_width": 287,
+      "recognition_tensor_width": 288,
+      "recognition_time_steps": 36,
+      "ctc_spans": [
+        {
+          "text": "产",
+          "score": 23.898657,
+          "start_column": 3,
+          "end_column": 4
+        },
+        {
+          "text": "品",
+          "score": 26.156866,
+          "start_column": 8,
+          "end_column": 9
+        },
+        {
+          "text": "信",
+          "score": 25.685211,
+          "start_column": 14,
+          "end_column": 15
+        },
+        {
+          "text": "息",
+          "score": 24.886087,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "/",
+          "score": 22.59032,
+          "start_column": 23,
+          "end_column": 24
+        },
+        {
+          "text": "参",
+          "score": 24.647175,
+          "start_column": 27,
+          "end_column": 28
+        },
+        {
+          "text": "数",
+          "score": 21.36656,
+          "start_column": 33,
+          "end_column": 34
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            110.0
+          ],
+          [
+            334.0,
+            110.0
+          ],
+          [
+            334.0,
+            134.0
+          ],
+          [
+            24.0,
+            134.0
+          ]
+        ],
+        "score": 0.85136527
+      },
+      "text": "(45元/每公斤，100公斤起订)",
+      "recognition_score": 22.704773,
+      "classification_score": 0.99999654,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 17,
+      "recognition_content_width": 620,
+      "recognition_tensor_width": 640,
+      "recognition_time_steps": 80,
+      "ctc_spans": [
+        {
+          "text": "(",
+          "score": 23.221043,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "4",
+          "score": 24.0758,
+          "start_column": 4,
+          "end_column": 5
+        },
+        {
+          "text": "5",
+          "score": 25.162437,
+          "start_column": 7,
+          "end_column": 8
+        },
+        {
+          "text": "元",
+          "score": 23.89388,
+          "start_column": 12,
+          "end_column": 13
+        },
+        {
+          "text": "/",
+          "score": 23.143469,
+          "start_column": 16,
+          "end_column": 17
+        },
+        {
+          "text": "每",
+          "score": 22.442713,
+          "start_column": 20,
+          "end_column": 21
+        },
+        {
+          "text": "公",
+          "score": 21.978832,
+          "start_column": 26,
+          "end_column": 27
+        },
+        {
+          "text": "斤",
+          "score": 19.970005,
+          "start_column": 31,
+          "end_column": 32
+        },
+        {
+          "text": "，",
+          "score": 22.18918,
+          "start_column": 37,
+          "end_column": 38
+        },
+        {
+          "text": "1",
+          "score": 23.669258,
+          "start_column": 42,
+          "end_column": 43
+        },
+        {
+          "text": "0",
+          "score": 25.293554,
+          "start_column": 45,
+          "end_column": 46
+        },
+        {
+          "text": "0",
+          "score": 24.76647,
+          "start_column": 49,
+          "end_column": 50
+        },
+        {
+          "text": "公",
+          "score": 21.24997,
+          "start_column": 53,
+          "end_column": 54
+        },
+        {
+          "text": "斤",
+          "score": 19.048988,
+          "start_column": 59,
+          "end_column": 60
+        },
+        {
+          "text": "起",
+          "score": 23.170702,
+          "start_column": 65,
+          "end_column": 66
+        },
+        {
+          "text": "订",
+          "score": 21.572031,
+          "start_column": 70,
+          "end_column": 71
+        },
+        {
+          "text": ")",
+          "score": 21.132818,
+          "start_column": 75,
+          "end_column": 76
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            142.0
+          ],
+          [
+            283.0,
+            142.0
+          ],
+          [
+            283.0,
+            165.0
+          ],
+          [
+            24.0,
+            165.0
+          ]
+        ],
+        "score": 0.873641
+      },
+      "text": "每瓶22元，1000瓶起订）",
+      "recognition_score": 23.461409,
+      "classification_score": 0.9999989,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 14,
+      "recognition_content_width": 541,
+      "recognition_tensor_width": 544,
+      "recognition_time_steps": 68,
+      "ctc_spans": [
+        {
+          "text": "每",
+          "score": 23.016716,
+          "start_column": 3,
+          "end_column": 4
+        },
+        {
+          "text": "瓶",
+          "score": 22.203617,
+          "start_column": 9,
+          "end_column": 10
+        },
+        {
+          "text": "2",
+          "score": 25.03717,
+          "start_column": 14,
+          "end_column": 15
+        },
+        {
+          "text": "2",
+          "score": 26.518002,
+          "start_column": 17,
+          "end_column": 18
+        },
+        {
+          "text": "元",
+          "score": 23.203613,
+          "start_column": 22,
+          "end_column": 23
+        },
+        {
+          "text": "，",
+          "score": 22.621346,
+          "start_column": 28,
+          "end_column": 29
+        },
+        {
+          "text": "1",
+          "score": 25.298014,
+          "start_column": 33,
+          "end_column": 34
+        },
+        {
+          "text": "0",
+          "score": 26.640596,
+          "start_column": 37,
+          "end_column": 38
+        },
+        {
+          "text": "0",
+          "score": 26.45973,
+          "start_column": 40,
+          "end_column": 41
+        },
+        {
+          "text": "0",
+          "score": 25.135193,
+          "start_column": 44,
+          "end_column": 45
+        },
+        {
+          "text": "瓶",
+          "score": 20.143297,
+          "start_column": 49,
+          "end_column": 50
+        },
+        {
+          "text": "起",
+          "score": 21.754469,
+          "start_column": 55,
+          "end_column": 56
+        },
+        {
+          "text": "订",
+          "score": 21.335476,
+          "start_column": 60,
+          "end_column": 61
+        },
+        {
+          "text": "）",
+          "score": 19.092472,
+          "start_column": 66,
+          "end_column": 67
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            25.0,
+            177.0
+          ],
+          [
+            299.0,
+            177.0
+          ],
+          [
+            299.0,
+            194.0
+          ],
+          [
+            25.0,
+            194.0
+          ]
+        ],
+        "score": 0.9072763
+      },
+      "text": "【品牌】:代加工方式/OEM ODM",
+      "recognition_score": 21.748653,
+      "classification_score": 0.9992982,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 18,
+      "recognition_content_width": 774,
+      "recognition_tensor_width": 800,
+      "recognition_time_steps": 100,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 20.868294,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "品",
+          "score": 23.579372,
+          "start_column": 7,
+          "end_column": 8
+        },
+        {
+          "text": "牌",
+          "score": 21.452776,
+          "start_column": 13,
+          "end_column": 14
+        },
+        {
+          "text": "】",
+          "score": 21.16777,
+          "start_column": 18,
+          "end_column": 19
+        },
+        {
+          "text": ":",
+          "score": 18.977634,
+          "start_column": 26,
+          "end_column": 27
+        },
+        {
+          "text": "代",
+          "score": 22.077703,
+          "start_column": 32,
+          "end_column": 33
+        },
+        {
+          "text": "加",
+          "score": 21.144707,
+          "start_column": 39,
+          "end_column": 40
+        },
+        {
+          "text": "工",
+          "score": 21.440224,
+          "start_column": 45,
+          "end_column": 46
+        },
+        {
+          "text": "方",
+          "score": 22.095163,
+          "start_column": 51,
+          "end_column": 52
+        },
+        {
+          "text": "式",
+          "score": 20.84761,
+          "start_column": 58,
+          "end_column": 59
+        },
+        {
+          "text": "/",
+          "score": 23.298676,
+          "start_column": 63,
+          "end_column": 64
+        },
+        {
+          "text": "O",
+          "score": 21.521,
+          "start_column": 66,
+          "end_column": 67
+        },
+        {
+          "text": "E",
+          "score": 23.861313,
+          "start_column": 71,
+          "end_column": 72
+        },
+        {
+          "text": "M",
+          "score": 21.899902,
+          "start_column": 76,
+          "end_column": 77
+        },
+        {
+          "text": " ",
+          "score": 18.297209,
+          "start_column": 80,
+          "end_column": 81
+        },
+        {
+          "text": "O",
+          "score": 21.924572,
+          "start_column": 84,
+          "end_column": 85
+        },
+        {
+          "text": "D",
+          "score": 24.054554,
+          "start_column": 88,
+          "end_column": 89
+        },
+        {
+          "text": "M",
+          "score": 22.967293,
+          "start_column": 94,
+          "end_column": 95
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            22.905216,
+            208.00046
+          ],
+          [
+            234.00002,
+            207.00002
+          ],
+          [
+            234.09479,
+            226.99957
+          ],
+          [
+            23.0,
+            228.00002
+          ]
+        ],
+        "score": 0.8851859
+      },
+      "text": "【品名】：纯臻营养护发素",
+      "recognition_score": 21.000662,
+      "classification_score": 0.9998505,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 12,
+      "recognition_content_width": 534,
+      "recognition_tensor_width": 544,
+      "recognition_time_steps": 68,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 21.385353,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "品",
+          "score": 25.302023,
+          "start_column": 7,
+          "end_column": 8
+        },
+        {
+          "text": "名",
+          "score": 22.814919,
+          "start_column": 12,
+          "end_column": 13
+        },
+        {
+          "text": "】",
+          "score": 22.665428,
+          "start_column": 17,
+          "end_column": 18
+        },
+        {
+          "text": "：",
+          "score": 20.65731,
+          "start_column": 24,
+          "end_column": 25
+        },
+        {
+          "text": "纯",
+          "score": 19.836702,
+          "start_column": 30,
+          "end_column": 31
+        },
+        {
+          "text": "臻",
+          "score": 14.630523,
+          "start_column": 35,
+          "end_column": 36
+        },
+        {
+          "text": "营",
+          "score": 20.46439,
+          "start_column": 41,
+          "end_column": 42
+        },
+        {
+          "text": "养",
+          "score": 23.586016,
+          "start_column": 47,
+          "end_column": 48
+        },
+        {
+          "text": "护",
+          "score": 19.068043,
+          "start_column": 52,
+          "end_column": 53
+        },
+        {
+          "text": "发",
+          "score": 23.182358,
+          "start_column": 58,
+          "end_column": 59
+        },
+        {
+          "text": "素",
+          "score": 18.414886,
+          "start_column": 64,
+          "end_column": 65
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            239.0
+          ],
+          [
+            242.0,
+            239.0
+          ],
+          [
+            242.0,
+            257.0
+          ],
+          [
+            24.0,
+            257.0
+          ]
+        ],
+        "score": 0.86669576
+      },
+      "text": "【产品编号】：YM-X-3011",
+      "recognition_score": 23.652746,
+      "classification_score": 0.9999944,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 16,
+      "recognition_content_width": 582,
+      "recognition_tensor_width": 608,
+      "recognition_time_steps": 76,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 22.297234,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "产",
+          "score": 23.675537,
+          "start_column": 6,
+          "end_column": 7
+        },
+        {
+          "text": "品",
+          "score": 25.482414,
+          "start_column": 13,
+          "end_column": 14
+        },
+        {
+          "text": "编",
+          "score": 20.311663,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "号",
+          "score": 24.0511,
+          "start_column": 25,
+          "end_column": 26
+        },
+        {
+          "text": "】",
+          "score": 20.998306,
+          "start_column": 30,
+          "end_column": 31
+        },
+        {
+          "text": "：",
+          "score": 20.235281,
+          "start_column": 37,
+          "end_column": 38
+        },
+        {
+          "text": "Y",
+          "score": 25.045158,
+          "start_column": 42,
+          "end_column": 43
+        },
+        {
+          "text": "M",
+          "score": 23.321339,
+          "start_column": 46,
+          "end_column": 47
+        },
+        {
+          "text": "-",
+          "score": 23.5997,
+          "start_column": 51,
+          "end_column": 52
+        },
+        {
+          "text": "X",
+          "score": 22.577032,
+          "start_column": 54,
+          "end_column": 55
+        },
+        {
+          "text": "-",
+          "score": 25.14983,
+          "start_column": 57,
+          "end_column": 58
+        },
+        {
+          "text": "3",
+          "score": 25.803322,
+          "start_column": 61,
+          "end_column": 62
+        },
+        {
+          "text": "0",
+          "score": 27.10675,
+          "start_column": 64,
+          "end_column": 65
+        },
+        {
+          "text": "1",
+          "score": 24.643517,
+          "start_column": 67,
+          "end_column": 68
+        },
+        {
+          "text": "1",
+          "score": 24.14576,
+          "start_column": 71,
+          "end_column": 72
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            414.0,
+            233.0
+          ],
+          [
+            428.0,
+            233.0
+          ],
+          [
+            428.0,
+            303.0
+          ],
+          [
+            414.0,
+            303.0
+          ]
+        ],
+        "score": 0.93715566
+      },
+      "text": "ODM OEM",
+      "recognition_score": 19.082512,
+      "classification_score": 0.9958263,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 7,
+      "recognition_content_width": 240,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "ctc_spans": [
+        {
+          "text": "O",
+          "score": 19.54928,
+          "start_column": 3,
+          "end_column": 4
+        },
+        {
+          "text": "D",
+          "score": 23.224213,
+          "start_column": 7,
+          "end_column": 8
+        },
+        {
+          "text": "M",
+          "score": 18.130552,
+          "start_column": 12,
+          "end_column": 13
+        },
+        {
+          "text": " ",
+          "score": 19.129255,
+          "start_column": 16,
+          "end_column": 17
+        },
+        {
+          "text": "O",
+          "score": 16.03556,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "E",
+          "score": 17.192856,
+          "start_column": 23,
+          "end_column": 24
+        },
+        {
+          "text": "M",
+          "score": 20.31586,
+          "start_column": 27,
+          "end_column": 28
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            23.0,
+            270.0
+          ],
+          [
+            180.0,
+            270.0
+          ],
+          [
+            180.0,
+            290.0
+          ],
+          [
+            23.0,
+            290.0
+          ]
+        ],
+        "score": 0.8440619
+      },
+      "text": "【净含量】:220ml",
+      "recognition_score": 24.082666,
+      "classification_score": 0.99985564,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 11,
+      "recognition_content_width": 377,
+      "recognition_tensor_width": 384,
+      "recognition_time_steps": 48,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 20.966112,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "净",
+          "score": 23.141804,
+          "start_column": 6,
+          "end_column": 7
+        },
+        {
+          "text": "含",
+          "score": 28.295795,
+          "start_column": 11,
+          "end_column": 12
+        },
+        {
+          "text": "量",
+          "score": 23.116318,
+          "start_column": 17,
+          "end_column": 18
+        },
+        {
+          "text": "】",
+          "score": 20.86131,
+          "start_column": 21,
+          "end_column": 22
+        },
+        {
+          "text": ":",
+          "score": 22.446064,
+          "start_column": 28,
+          "end_column": 29
+        },
+        {
+          "text": "2",
+          "score": 26.930735,
+          "start_column": 32,
+          "end_column": 33
+        },
+        {
+          "text": "2",
+          "score": 26.725832,
+          "start_column": 35,
+          "end_column": 36
+        },
+        {
+          "text": "0",
+          "score": 26.527788,
+          "start_column": 39,
+          "end_column": 40
+        },
+        {
+          "text": "m",
+          "score": 23.209518,
+          "start_column": 43,
+          "end_column": 44
+        },
+        {
+          "text": "l",
+          "score": 22.68805,
+          "start_column": 46,
+          "end_column": 47
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            303.0
+          ],
+          [
+            252.0,
+            303.0
+          ],
+          [
+            252.0,
+            320.0
+          ],
+          [
+            24.0,
+            320.0
+          ]
+        ],
+        "score": 0.88578385
+      },
+      "text": "【适用人群】：适合所有肤质",
+      "recognition_score": 22.974348,
+      "classification_score": 0.9999982,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 13,
+      "recognition_content_width": 644,
+      "recognition_tensor_width": 672,
+      "recognition_time_steps": 84,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 21.002525,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "适",
+          "score": 24.845203,
+          "start_column": 7,
+          "end_column": 8
+        },
+        {
+          "text": "用",
+          "score": 23.744724,
+          "start_column": 13,
+          "end_column": 14
+        },
+        {
+          "text": "人",
+          "score": 23.017933,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "群",
+          "score": 24.865234,
+          "start_column": 26,
+          "end_column": 27
+        },
+        {
+          "text": "】",
+          "score": 21.917364,
+          "start_column": 31,
+          "end_column": 32
+        },
+        {
+          "text": "：",
+          "score": 22.102823,
+          "start_column": 39,
+          "end_column": 40
+        },
+        {
+          "text": "适",
+          "score": 23.416153,
+          "start_column": 46,
+          "end_column": 47
+        },
+        {
+          "text": "合",
+          "score": 25.080862,
+          "start_column": 52,
+          "end_column": 53
+        },
+        {
+          "text": "所",
+          "score": 23.859241,
+          "start_column": 58,
+          "end_column": 59
+        },
+        {
+          "text": "有",
+          "score": 24.61278,
+          "start_column": 65,
+          "end_column": 66
+        },
+        {
+          "text": "肤",
+          "score": 18.884047,
+          "start_column": 71,
+          "end_column": 72
+        },
+        {
+          "text": "质",
+          "score": 21.317629,
+          "start_column": 77,
+          "end_column": 78
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            24.0,
+            334.0
+          ],
+          [
+            343.0,
+            334.0
+          ],
+          [
+            343.0,
+            352.0
+          ],
+          [
+            24.0,
+            352.0
+          ]
+        ],
+        "score": 0.876571
+      },
+      "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚",
+      "recognition_score": 19.540932,
+      "classification_score": 0.9999995,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 19,
+      "recognition_content_width": 851,
+      "recognition_tensor_width": 864,
+      "recognition_time_steps": 108,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 19.630333,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "主",
+          "score": 24.453995,
+          "start_column": 6,
+          "end_column": 7
+        },
+        {
+          "text": "要",
+          "score": 19.73322,
+          "start_column": 13,
+          "end_column": 14
+        },
+        {
+          "text": "成",
+          "score": 22.82891,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "分",
+          "score": 22.90248,
+          "start_column": 24,
+          "end_column": 25
+        },
+        {
+          "text": "】",
+          "score": 20.711962,
+          "start_column": 30,
+          "end_column": 31
+        },
+        {
+          "text": "：",
+          "score": 21.610235,
+          "start_column": 37,
+          "end_column": 38
+        },
+        {
+          "text": "鲸",
+          "score": 14.974884,
+          "start_column": 43,
+          "end_column": 44
+        },
+        {
+          "text": "蜡",
+          "score": 15.593048,
+          "start_column": 49,
+          "end_column": 50
+        },
+        {
+          "text": "硬",
+          "score": 21.44902,
+          "start_column": 55,
+          "end_column": 56
+        },
+        {
+          "text": "脂",
+          "score": 20.660498,
+          "start_column": 61,
+          "end_column": 62
+        },
+        {
+          "text": "醇",
+          "score": 15.547239,
+          "start_column": 67,
+          "end_column": 68
+        },
+        {
+          "text": "、",
+          "score": 21.557192,
+          "start_column": 71,
+          "end_column": 72
+        },
+        {
+          "text": "燕",
+          "score": 17.366474,
+          "start_column": 80,
+          "end_column": 81
+        },
+        {
+          "text": "麦",
+          "score": 19.621675,
+          "start_column": 85,
+          "end_column": 86
+        },
+        {
+          "text": "β",
+          "score": 16.06418,
+          "start_column": 90,
+          "end_column": 91
+        },
+        {
+          "text": "-",
+          "score": 19.832207,
+          "start_column": 93,
+          "end_column": 94
+        },
+        {
+          "text": "葡",
+          "score": 16.99588,
+          "start_column": 98,
+          "end_column": 99
+        },
+        {
+          "text": "聚",
+          "score": 19.744253,
+          "start_column": 104,
+          "end_column": 105
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            25.0,
+            365.0
+          ],
+          [
+            282.0,
+            365.0
+          ],
+          [
+            282.0,
+            383.0
+          ],
+          [
+            25.0,
+            383.0
+          ]
+        ],
+        "score": 0.85787326
+      },
+      "text": "糖、椰油酰胺丙基甜菜碱、泛醌",
+      "recognition_score": 17.579473,
+      "classification_score": 0.9999989,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 14,
+      "recognition_content_width": 686,
+      "recognition_tensor_width": 704,
+      "recognition_time_steps": 88,
+      "ctc_spans": [
+        {
+          "text": "糖",
+          "score": 14.469771,
+          "start_column": 4,
+          "end_column": 5
+        },
+        {
+          "text": "、",
+          "score": 21.036701,
+          "start_column": 8,
+          "end_column": 9
+        },
+        {
+          "text": "椰",
+          "score": 13.534415,
+          "start_column": 16,
+          "end_column": 17
+        },
+        {
+          "text": "油",
+          "score": 20.487364,
+          "start_column": 22,
+          "end_column": 23
+        },
+        {
+          "text": "酰",
+          "score": 13.7074995,
+          "start_column": 28,
+          "end_column": 29
+        },
+        {
+          "text": "胺",
+          "score": 15.059867,
+          "start_column": 34,
+          "end_column": 35
+        },
+        {
+          "text": "丙",
+          "score": 20.392874,
+          "start_column": 40,
+          "end_column": 41
+        },
+        {
+          "text": "基",
+          "score": 19.975012,
+          "start_column": 46,
+          "end_column": 47
+        },
+        {
+          "text": "甜",
+          "score": 19.737715,
+          "start_column": 52,
+          "end_column": 53
+        },
+        {
+          "text": "菜",
+          "score": 19.235777,
+          "start_column": 58,
+          "end_column": 59
+        },
+        {
+          "text": "碱",
+          "score": 15.9151745,
+          "start_column": 65,
+          "end_column": 66
+        },
+        {
+          "text": "、",
+          "score": 21.963919,
+          "start_column": 69,
+          "end_column": 70
+        },
+        {
+          "text": "泛",
+          "score": 19.938793,
+          "start_column": 77,
+          "end_column": 78
+        },
+        {
+          "text": "醌",
+          "score": 10.657755,
+          "start_column": 83,
+          "end_column": 84
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            368.0,
+            366.0
+          ],
+          [
+            476.0,
+            366.0
+          ],
+          [
+            476.0,
+            388.0
+          ],
+          [
+            368.0,
+            388.0
+          ]
+        ],
+        "score": 0.9039828
+      },
+      "text": "(成品包材)",
+      "recognition_score": 21.84696,
+      "classification_score": 0.99993646,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 6,
+      "recognition_content_width": 236,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "ctc_spans": [
+        {
+          "text": "(",
+          "score": 19.436886,
+          "start_column": 1,
+          "end_column": 2
+        },
+        {
+          "text": "成",
+          "score": 22.620863,
+          "start_column": 7,
+          "end_column": 8
+        },
+        {
+          "text": "品",
+          "score": 25.644642,
+          "start_column": 12,
+          "end_column": 13
+        },
+        {
+          "text": "包",
+          "score": 23.462759,
+          "start_column": 17,
+          "end_column": 18
+        },
+        {
+          "text": "材",
+          "score": 20.938093,
+          "start_column": 23,
+          "end_column": 24
+        },
+        {
+          "text": ")",
+          "score": 18.978514,
+          "start_column": 28,
+          "end_column": 29
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            25.0,
+            396.0
+          ],
+          [
+            361.0,
+            396.0
+          ],
+          [
+            361.0,
+            413.0
+          ],
+          [
+            25.0,
+            413.0
+          ]
+        ],
+        "score": 0.9803335
+      },
+      "text": "【主要功能】：可紧致头发磷层，从而达到",
+      "recognition_score": 21.434,
+      "classification_score": 0.9999411,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 19,
+      "recognition_content_width": 949,
+      "recognition_tensor_width": 960,
+      "recognition_time_steps": 120,
+      "ctc_spans": [
+        {
+          "text": "【",
+          "score": 18.905312,
+          "start_column": 2,
+          "end_column": 3
+        },
+        {
+          "text": "主",
+          "score": 24.023855,
+          "start_column": 6,
+          "end_column": 7
+        },
+        {
+          "text": "要",
+          "score": 23.858383,
+          "start_column": 13,
+          "end_column": 14
+        },
+        {
+          "text": "功",
+          "score": 24.3897,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "能",
+          "score": 21.581593,
+          "start_column": 26,
+          "end_column": 27
+        },
+        {
+          "text": "】",
+          "score": 20.474915,
+          "start_column": 31,
+          "end_column": 32
+        },
+        {
+          "text": "：",
+          "score": 21.4784,
+          "start_column": 39,
+          "end_column": 40
+        },
+        {
+          "text": "可",
+          "score": 23.282598,
+          "start_column": 45,
+          "end_column": 46
+        },
+        {
+          "text": "紧",
+          "score": 18.615997,
+          "start_column": 52,
+          "end_column": 53
+        },
+        {
+          "text": "致",
+          "score": 21.18442,
+          "start_column": 58,
+          "end_column": 59
+        },
+        {
+          "text": "头",
+          "score": 25.304724,
+          "start_column": 64,
+          "end_column": 65
+        },
+        {
+          "text": "发",
+          "score": 22.613316,
+          "start_column": 71,
+          "end_column": 72
+        },
+        {
+          "text": "磷",
+          "score": 13.374352,
+          "start_column": 77,
+          "end_column": 78
+        },
+        {
+          "text": "层",
+          "score": 20.435537,
+          "start_column": 83,
+          "end_column": 85
+        },
+        {
+          "text": "，",
+          "score": 21.499428,
+          "start_column": 90,
+          "end_column": 91
+        },
+        {
+          "text": "从",
+          "score": 21.679178,
+          "start_column": 96,
+          "end_column": 97
+        },
+        {
+          "text": "而",
+          "score": 22.02005,
+          "start_column": 103,
+          "end_column": 104
+        },
+        {
+          "text": "达",
+          "score": 21.456161,
+          "start_column": 109,
+          "end_column": 110
+        },
+        {
+          "text": "到",
+          "score": 21.06807,
+          "start_column": 116,
+          "end_column": 117
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            26.0,
+            428.0
+          ],
+          [
+            372.0,
+            428.0
+          ],
+          [
+            372.0,
+            445.0
+          ],
+          [
+            26.0,
+            445.0
+          ]
+        ],
+        "score": 0.8732801
+      },
+      "text": "即时持久改善头发光泽的效果，给干燥的头",
+      "recognition_score": 21.747171,
+      "classification_score": 0.99999833,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 19,
+      "recognition_content_width": 977,
+      "recognition_tensor_width": 992,
+      "recognition_time_steps": 124,
+      "ctc_spans": [
+        {
+          "text": "即",
+          "score": 21.583263,
+          "start_column": 4,
+          "end_column": 5
+        },
+        {
+          "text": "时",
+          "score": 21.284012,
+          "start_column": 10,
+          "end_column": 11
+        },
+        {
+          "text": "持",
+          "score": 21.93694,
+          "start_column": 16,
+          "end_column": 17
+        },
+        {
+          "text": "久",
+          "score": 22.985746,
+          "start_column": 22,
+          "end_column": 23
+        },
+        {
+          "text": "改",
+          "score": 25.886911,
+          "start_column": 29,
+          "end_column": 30
+        },
+        {
+          "text": "善",
+          "score": 21.502638,
+          "start_column": 36,
+          "end_column": 37
+        },
+        {
+          "text": "头",
+          "score": 24.507101,
+          "start_column": 42,
+          "end_column": 43
+        },
+        {
+          "text": "发",
+          "score": 21.866228,
+          "start_column": 48,
+          "end_column": 49
+        },
+        {
+          "text": "光",
+          "score": 22.926243,
+          "start_column": 55,
+          "end_column": 56
+        },
+        {
+          "text": "泽",
+          "score": 18.691803,
+          "start_column": 61,
+          "end_column": 62
+        },
+        {
+          "text": "的",
+          "score": 24.371367,
+          "start_column": 68,
+          "end_column": 69
+        },
+        {
+          "text": "效",
+          "score": 20.607767,
+          "start_column": 74,
+          "end_column": 75
+        },
+        {
+          "text": "果",
+          "score": 23.475971,
+          "start_column": 80,
+          "end_column": 81
+        },
+        {
+          "text": "，",
+          "score": 22.116577,
+          "start_column": 87,
+          "end_column": 88
+        },
+        {
+          "text": "给",
+          "score": 20.157757,
+          "start_column": 93,
+          "end_column": 94
+        },
+        {
+          "text": "干",
+          "score": 17.883759,
+          "start_column": 100,
+          "end_column": 101
+        },
+        {
+          "text": "燥",
+          "score": 12.425478,
+          "start_column": 107,
+          "end_column": 108
+        },
+        {
+          "text": "的",
+          "score": 24.320898,
+          "start_column": 113,
+          "end_column": 114
+        },
+        {
+          "text": "头",
+          "score": 24.665802,
+          "start_column": 119,
+          "end_column": 120
+        }
+      ]
+    },
+    {
+      "detection": {
+        "points": [
+          [
+            25.0,
+            457.0
+          ],
+          [
+            136.0,
+            457.0
+          ],
+          [
+            136.0,
+            478.0
+          ],
+          [
+            25.0,
+            478.0
+          ]
+        ],
+        "score": 0.9578192
+      },
+      "text": "发足够的滋养",
+      "recognition_score": 22.064024,
+      "classification_score": 0.9999988,
+      "classification_label": 0,
+      "applied_rotation_degrees": 0,
+      "emitted_count": 6,
+      "recognition_content_width": 254,
+      "recognition_tensor_width": 256,
+      "recognition_time_steps": 32,
+      "ctc_spans": [
+        {
+          "text": "发",
+          "score": 22.240793,
+          "start_column": 3,
+          "end_column": 4
+        },
+        {
+          "text": "足",
+          "score": 19.783466,
+          "start_column": 8,
+          "end_column": 9
+        },
+        {
+          "text": "够",
+          "score": 22.340837,
+          "start_column": 14,
+          "end_column": 15
+        },
+        {
+          "text": "的",
+          "score": 24.530186,
+          "start_column": 19,
+          "end_column": 20
+        },
+        {
+          "text": "滋",
+          "score": 21.409718,
+          "start_column": 24,
+          "end_column": 25
+        },
+        {
+          "text": "养",
+          "score": 22.079142,
+          "start_column": 29,
+          "end_column": 30
+        }
+      ]
+    }
+  ],
+  "detected_count": 16,
+  "detector_resized_width": 512,
+  "detector_resized_height": 512,
+  "width_ratio": 1.024,
+  "height_ratio": 1.024,
+  "character_boxes": [
+    [
+      {
+        "text": "纯",
+        "score": 17.182343,
+        "points": [
+          [
+            48.615383,
+            35.0
+          ],
+          [
+            70.15385,
+            35.0
+          ],
+          [
+            70.15385,
+            72.0
+          ],
+          [
+            48.615383,
+            72.0
+          ]
+        ]
+      },
+      {
+        "text": "臻",
+        "score": 11.854887,
+        "points": [
+          [
+            70.15385,
+            35.0
+          ],
+          [
+            107.07692,
+            35.0
+          ],
+          [
+            107.07692,
+            72.0
+          ],
+          [
+            70.15385,
+            72.0
+          ]
+        ]
+      },
+      {
+        "text": "营",
+        "score": 19.412481,
+        "points": [
+          [
+            107.07692,
+            35.0
+          ],
+          [
+            147.07692,
+            35.0
+          ],
+          [
+            147.07692,
+            72.0
+          ],
+          [
+            107.07692,
+            72.0
+          ]
+        ]
+      },
+      {
+        "text": "养",
+        "score": 21.436367,
+        "points": [
+          [
+            147.07692,
+            35.0
+          ],
+          [
+            187.07692,
+            35.0
+          ],
+          [
+            187.07692,
+            72.0
+          ],
+          [
+            147.07692,
+            72.0
+          ]
+        ]
+      },
+      {
+        "text": "护",
+        "score": 18.535671,
+        "points": [
+          [
+            187.07692,
+            35.0
+          ],
+          [
+            227.07692,
+            35.0
+          ],
+          [
+            227.07692,
+            72.0
+          ],
+          [
+            187.07692,
+            72.0
+          ]
+        ]
+      },
+      {
+        "text": "发",
+        "score": 23.20976,
+        "points": [
+          [
+            227.07692,
+            35.0
+          ],
+          [
+            267.07693,
+            35.0
+          ],
+          [
+            267.07693,
+            72.0
+          ],
+          [
+            227.07692,
+            72.0
+          ]
+        ]
+      },
+      {
+        "text": "素",
+        "score": 19.001913,
+        "points": [
+          [
+            267.07693,
+            35.0
+          ],
+          [
+            288.6154,
+            35.0
+          ],
+          [
+            288.6154,
+            72.0
+          ],
+          [
+            267.07693,
+            72.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "产",
+        "score": 23.898657,
+        "points": [
+          [
+            36.45993,
+            79.0
+          ],
+          [
+            48.91986,
+            79.0
+          ],
+          [
+            48.91986,
+            104.0
+          ],
+          [
+            36.45993,
+            104.0
+          ]
+        ]
+      },
+      {
+        "text": "品",
+        "score": 26.156866,
+        "points": [
+          [
+            48.91986,
+            79.0
+          ],
+          [
+            71.76307,
+            79.0
+          ],
+          [
+            71.76307,
+            104.0
+          ],
+          [
+            48.91986,
+            104.0
+          ]
+        ]
+      },
+      {
+        "text": "信",
+        "score": 25.685211,
+        "points": [
+          [
+            71.76307,
+            79.0
+          ],
+          [
+            94.60627,
+            79.0
+          ],
+          [
+            94.60627,
+            104.0
+          ],
+          [
+            71.76307,
+            104.0
+          ]
+        ]
+      },
+      {
+        "text": "息",
+        "score": 24.886087,
+        "points": [
+          [
+            94.60627,
+            79.0
+          ],
+          [
+            113.296165,
+            79.0
+          ],
+          [
+            113.296165,
+            104.0
+          ],
+          [
+            94.60627,
+            104.0
+          ]
+        ]
+      },
+      {
+        "text": "/",
+        "score": 22.59032,
+        "points": [
+          [
+            113.296165,
+            79.0
+          ],
+          [
+            129.90941,
+            79.0
+          ],
+          [
+            129.90941,
+            104.0
+          ],
+          [
+            113.296165,
+            104.0
+          ]
+        ]
+      },
+      {
+        "text": "参",
+        "score": 24.647175,
+        "points": [
+          [
+            129.90941,
+            79.0
+          ],
+          [
+            150.67596,
+            79.0
+          ],
+          [
+            150.67596,
+            104.0
+          ],
+          [
+            129.90941,
+            104.0
+          ]
+        ]
+      },
+      {
+        "text": "数",
+        "score": 21.36656,
+        "points": [
+          [
+            150.67596,
+            79.0
+          ],
+          [
+            165.21254,
+            79.0
+          ],
+          [
+            165.21254,
+            104.0
+          ],
+          [
+            150.67596,
+            104.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "(",
+        "score": 23.221043,
+        "points": [
+          [
+            32.0,
+            110.0
+          ],
+          [
+            38.0,
+            110.0
+          ],
+          [
+            38.0,
+            134.0
+          ],
+          [
+            32.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "4",
+        "score": 24.0758,
+        "points": [
+          [
+            38.0,
+            110.0
+          ],
+          [
+            48.0,
+            110.0
+          ],
+          [
+            48.0,
+            134.0
+          ],
+          [
+            38.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "5",
+        "score": 25.162437,
+        "points": [
+          [
+            48.0,
+            110.0
+          ],
+          [
+            64.0,
+            110.0
+          ],
+          [
+            64.0,
+            134.0
+          ],
+          [
+            48.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "元",
+        "score": 23.89388,
+        "points": [
+          [
+            64.0,
+            110.0
+          ],
+          [
+            82.0,
+            110.0
+          ],
+          [
+            82.0,
+            134.0
+          ],
+          [
+            64.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "/",
+        "score": 23.143469,
+        "points": [
+          [
+            82.0,
+            110.0
+          ],
+          [
+            98.0,
+            110.0
+          ],
+          [
+            98.0,
+            134.0
+          ],
+          [
+            82.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "每",
+        "score": 22.442713,
+        "points": [
+          [
+            98.0,
+            110.0
+          ],
+          [
+            118.0,
+            110.0
+          ],
+          [
+            118.0,
+            134.0
+          ],
+          [
+            98.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "公",
+        "score": 21.978832,
+        "points": [
+          [
+            118.0,
+            110.0
+          ],
+          [
+            140.0,
+            110.0
+          ],
+          [
+            140.0,
+            134.0
+          ],
+          [
+            118.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "斤",
+        "score": 19.970005,
+        "points": [
+          [
+            140.0,
+            110.0
+          ],
+          [
+            162.0,
+            110.0
+          ],
+          [
+            162.0,
+            134.0
+          ],
+          [
+            140.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "，",
+        "score": 22.18918,
+        "points": [
+          [
+            162.0,
+            110.0
+          ],
+          [
+            184.0,
+            110.0
+          ],
+          [
+            184.0,
+            134.0
+          ],
+          [
+            162.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "1",
+        "score": 23.669258,
+        "points": [
+          [
+            184.0,
+            110.0
+          ],
+          [
+            200.0,
+            110.0
+          ],
+          [
+            200.0,
+            134.0
+          ],
+          [
+            184.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 25.293554,
+        "points": [
+          [
+            200.0,
+            110.0
+          ],
+          [
+            214.0,
+            110.0
+          ],
+          [
+            214.0,
+            134.0
+          ],
+          [
+            200.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 24.76647,
+        "points": [
+          [
+            214.0,
+            110.0
+          ],
+          [
+            230.0,
+            110.0
+          ],
+          [
+            230.0,
+            134.0
+          ],
+          [
+            214.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "公",
+        "score": 21.24997,
+        "points": [
+          [
+            230.0,
+            110.0
+          ],
+          [
+            250.0,
+            110.0
+          ],
+          [
+            250.0,
+            134.0
+          ],
+          [
+            230.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "斤",
+        "score": 19.048988,
+        "points": [
+          [
+            250.0,
+            110.0
+          ],
+          [
+            274.0,
+            110.0
+          ],
+          [
+            274.0,
+            134.0
+          ],
+          [
+            250.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "起",
+        "score": 23.170702,
+        "points": [
+          [
+            274.0,
+            110.0
+          ],
+          [
+            296.0,
+            110.0
+          ],
+          [
+            296.0,
+            134.0
+          ],
+          [
+            274.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": "订",
+        "score": 21.572031,
+        "points": [
+          [
+            296.0,
+            110.0
+          ],
+          [
+            316.0,
+            110.0
+          ],
+          [
+            316.0,
+            134.0
+          ],
+          [
+            296.0,
+            134.0
+          ]
+        ]
+      },
+      {
+        "text": ")",
+        "score": 21.132818,
+        "points": [
+          [
+            316.0,
+            110.0
+          ],
+          [
+            328.0,
+            110.0
+          ],
+          [
+            328.0,
+            134.0
+          ],
+          [
+            316.0,
+            134.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "每",
+        "score": 23.016716,
+        "points": [
+          [
+            35.489834,
+            142.0
+          ],
+          [
+            48.894638,
+            142.0
+          ],
+          [
+            48.894638,
+            165.0
+          ],
+          [
+            35.489834,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "瓶",
+        "score": 22.203617,
+        "points": [
+          [
+            48.894638,
+            142.0
+          ],
+          [
+            69.959335,
+            142.0
+          ],
+          [
+            69.959335,
+            165.0
+          ],
+          [
+            48.894638,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "2",
+        "score": 25.03717,
+        "points": [
+          [
+            69.959335,
+            142.0
+          ],
+          [
+            85.27911,
+            142.0
+          ],
+          [
+            85.27911,
+            165.0
+          ],
+          [
+            69.959335,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "2",
+        "score": 26.518002,
+        "points": [
+          [
+            85.27911,
+            142.0
+          ],
+          [
+            100.59889,
+            142.0
+          ],
+          [
+            100.59889,
+            165.0
+          ],
+          [
+            85.27911,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "元",
+        "score": 23.203613,
+        "points": [
+          [
+            100.59889,
+            142.0
+          ],
+          [
+            121.66359,
+            142.0
+          ],
+          [
+            121.66359,
+            165.0
+          ],
+          [
+            100.59889,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "，",
+        "score": 22.621346,
+        "points": [
+          [
+            121.66359,
+            142.0
+          ],
+          [
+            142.72829,
+            142.0
+          ],
+          [
+            142.72829,
+            165.0
+          ],
+          [
+            121.66359,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "1",
+        "score": 25.298014,
+        "points": [
+          [
+            142.72829,
+            142.0
+          ],
+          [
+            159.96303,
+            142.0
+          ],
+          [
+            159.96303,
+            165.0
+          ],
+          [
+            142.72829,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 26.640596,
+        "points": [
+          [
+            159.96303,
+            142.0
+          ],
+          [
+            173.36784,
+            142.0
+          ],
+          [
+            173.36784,
+            165.0
+          ],
+          [
+            159.96303,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 26.45973,
+        "points": [
+          [
+            173.36784,
+            142.0
+          ],
+          [
+            186.77264,
+            142.0
+          ],
+          [
+            186.77264,
+            165.0
+          ],
+          [
+            173.36784,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 25.135193,
+        "points": [
+          [
+            186.77264,
+            142.0
+          ],
+          [
+            204.0074,
+            142.0
+          ],
+          [
+            204.0074,
+            165.0
+          ],
+          [
+            186.77264,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "瓶",
+        "score": 20.143297,
+        "points": [
+          [
+            204.0074,
+            142.0
+          ],
+          [
+            225.07208,
+            142.0
+          ],
+          [
+            225.07208,
+            165.0
+          ],
+          [
+            204.0074,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "起",
+        "score": 21.754469,
+        "points": [
+          [
+            225.07208,
+            142.0
+          ],
+          [
+            246.13678,
+            142.0
+          ],
+          [
+            246.13678,
+            165.0
+          ],
+          [
+            225.07208,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "订",
+        "score": 21.335476,
+        "points": [
+          [
+            246.13678,
+            142.0
+          ],
+          [
+            267.20148,
+            142.0
+          ],
+          [
+            267.20148,
+            165.0
+          ],
+          [
+            246.13678,
+            165.0
+          ]
+        ]
+      },
+      {
+        "text": "）",
+        "score": 19.092472,
+        "points": [
+          [
+            267.20148,
+            142.0
+          ],
+          [
+            280.6063,
+            142.0
+          ],
+          [
+            280.6063,
+            165.0
+          ],
+          [
+            267.20148,
+            165.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 20.868294,
+        "points": [
+          [
+            30.664083,
+            177.0
+          ],
+          [
+            39.160206,
+            177.0
+          ],
+          [
+            39.160206,
+            194.0
+          ],
+          [
+            30.664083,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "品",
+        "score": 23.579372,
+        "points": [
+          [
+            39.160206,
+            177.0
+          ],
+          [
+            54.736435,
+            177.0
+          ],
+          [
+            54.736435,
+            194.0
+          ],
+          [
+            39.160206,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "牌",
+        "score": 21.452776,
+        "points": [
+          [
+            54.736435,
+            177.0
+          ],
+          [
+            70.31266,
+            177.0
+          ],
+          [
+            70.31266,
+            194.0
+          ],
+          [
+            54.736435,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 21.16777,
+        "points": [
+          [
+            70.31266,
+            177.0
+          ],
+          [
+            88.72093,
+            177.0
+          ],
+          [
+            88.72093,
+            194.0
+          ],
+          [
+            70.31266,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": ":",
+        "score": 18.977634,
+        "points": [
+          [
+            88.72093,
+            177.0
+          ],
+          [
+            108.54522,
+            177.0
+          ],
+          [
+            108.54522,
+            194.0
+          ],
+          [
+            88.72093,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "代",
+        "score": 22.077703,
+        "points": [
+          [
+            108.54522,
+            177.0
+          ],
+          [
+            126.95349,
+            177.0
+          ],
+          [
+            126.95349,
+            194.0
+          ],
+          [
+            108.54522,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "加",
+        "score": 21.144707,
+        "points": [
+          [
+            126.95349,
+            177.0
+          ],
+          [
+            145.36176,
+            177.0
+          ],
+          [
+            145.36176,
+            194.0
+          ],
+          [
+            126.95349,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "工",
+        "score": 21.440224,
+        "points": [
+          [
+            145.36176,
+            177.0
+          ],
+          [
+            162.354,
+            177.0
+          ],
+          [
+            162.354,
+            194.0
+          ],
+          [
+            145.36176,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "方",
+        "score": 22.095163,
+        "points": [
+          [
+            162.354,
+            177.0
+          ],
+          [
+            180.76227,
+            177.0
+          ],
+          [
+            180.76227,
+            194.0
+          ],
+          [
+            162.354,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "式",
+        "score": 20.84761,
+        "points": [
+          [
+            180.76227,
+            177.0
+          ],
+          [
+            197.75452,
+            177.0
+          ],
+          [
+            197.75452,
+            194.0
+          ],
+          [
+            180.76227,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "/",
+        "score": 23.298676,
+        "points": [
+          [
+            197.75452,
+            177.0
+          ],
+          [
+            209.08269,
+            177.0
+          ],
+          [
+            209.08269,
+            194.0
+          ],
+          [
+            197.75452,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "O",
+        "score": 21.521,
+        "points": [
+          [
+            209.08269,
+            177.0
+          ],
+          [
+            220.41086,
+            177.0
+          ],
+          [
+            220.41086,
+            194.0
+          ],
+          [
+            209.08269,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "E",
+        "score": 23.861313,
+        "points": [
+          [
+            220.41086,
+            177.0
+          ],
+          [
+            234.57106,
+            177.0
+          ],
+          [
+            234.57106,
+            194.0
+          ],
+          [
+            220.41086,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "M",
+        "score": 21.899902,
+        "points": [
+          [
+            234.57106,
+            177.0
+          ],
+          [
+            247.31525,
+            177.0
+          ],
+          [
+            247.31525,
+            194.0
+          ],
+          [
+            234.57106,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": " ",
+        "score": 18.297209,
+        "points": [
+          [
+            247.31525,
+            177.0
+          ],
+          [
+            258.6434,
+            177.0
+          ],
+          [
+            258.6434,
+            194.0
+          ],
+          [
+            247.31525,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "O",
+        "score": 21.924572,
+        "points": [
+          [
+            258.6434,
+            177.0
+          ],
+          [
+            269.9716,
+            177.0
+          ],
+          [
+            269.9716,
+            194.0
+          ],
+          [
+            258.6434,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "D",
+        "score": 24.054554,
+        "points": [
+          [
+            269.9716,
+            177.0
+          ],
+          [
+            284.13177,
+            177.0
+          ],
+          [
+            284.13177,
+            194.0
+          ],
+          [
+            269.9716,
+            194.0
+          ]
+        ]
+      },
+      {
+        "text": "M",
+        "score": 22.967293,
+        "points": [
+          [
+            284.13177,
+            177.0
+          ],
+          [
+            294.0439,
+            177.0
+          ],
+          [
+            294.0439,
+            194.0
+          ],
+          [
+            284.13177,
+            194.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 21.385353,
+        "points": [
+          [
+            29.230154,
+            207.97049
+          ],
+          [
+            38.71756,
+            207.92552
+          ],
+          [
+            38.812344,
+            227.92508
+          ],
+          [
+            29.324938,
+            227.97005
+          ]
+        ]
+      },
+      {
+        "text": "品",
+        "score": 25.302023,
+        "points": [
+          [
+            38.71756,
+            207.92552
+          ],
+          [
+            54.529903,
+            207.85059
+          ],
+          [
+            54.624687,
+            227.85014
+          ],
+          [
+            38.812344,
+            227.92508
+          ]
+        ]
+      },
+      {
+        "text": "名",
+        "score": 22.814919,
+        "points": [
+          [
+            54.529903,
+            207.85059
+          ],
+          [
+            70.34225,
+            207.77563
+          ],
+          [
+            70.437035,
+            227.77519
+          ],
+          [
+            54.624687,
+            227.85014
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 22.665428,
+        "points": [
+          [
+            70.34225,
+            207.77563
+          ],
+          [
+            89.31706,
+            207.68571
+          ],
+          [
+            89.41184,
+            227.68527
+          ],
+          [
+            70.437035,
+            227.77519
+          ]
+        ]
+      },
+      {
+        "text": "：",
+        "score": 20.65731,
+        "points": [
+          [
+            89.31706,
+            207.68571
+          ],
+          [
+            109.87311,
+            207.58829
+          ],
+          [
+            109.96789,
+            227.58784
+          ],
+          [
+            89.41184,
+            227.68527
+          ]
+        ]
+      },
+      {
+        "text": "纯",
+        "score": 19.836702,
+        "points": [
+          [
+            109.87311,
+            207.58829
+          ],
+          [
+            127.26669,
+            207.50586
+          ],
+          [
+            127.361465,
+            227.50542
+          ],
+          [
+            109.96789,
+            227.58784
+          ]
+        ]
+      },
+      {
+        "text": "臻",
+        "score": 14.630523,
+        "points": [
+          [
+            127.26669,
+            207.50586
+          ],
+          [
+            144.66026,
+            207.42342
+          ],
+          [
+            144.75505,
+            227.42297
+          ],
+          [
+            127.361465,
+            227.50542
+          ]
+        ]
+      },
+      {
+        "text": "营",
+        "score": 20.46439,
+        "points": [
+          [
+            144.66026,
+            207.42342
+          ],
+          [
+            163.63509,
+            207.3335
+          ],
+          [
+            163.72986,
+            227.33305
+          ],
+          [
+            144.75505,
+            227.42297
+          ]
+        ]
+      },
+      {
+        "text": "养",
+        "score": 23.586016,
+        "points": [
+          [
+            163.63509,
+            207.3335
+          ],
+          [
+            181.02866,
+            207.25107
+          ],
+          [
+            181.12344,
+            227.25063
+          ],
+          [
+            163.72986,
+            227.33305
+          ]
+        ]
+      },
+      {
+        "text": "护",
+        "score": 19.068043,
+        "points": [
+          [
+            181.02866,
+            207.25107
+          ],
+          [
+            198.42224,
+            207.16862
+          ],
+          [
+            198.51701,
+            227.16818
+          ],
+          [
+            181.12344,
+            227.25063
+          ]
+        ]
+      },
+      {
+        "text": "发",
+        "score": 23.182358,
+        "points": [
+          [
+            198.42224,
+            207.16862
+          ],
+          [
+            217.39705,
+            207.0787
+          ],
+          [
+            217.49182,
+            227.07826
+          ],
+          [
+            198.51701,
+            227.16818
+          ]
+        ]
+      },
+      {
+        "text": "素",
+        "score": 18.414886,
+        "points": [
+          [
+            217.39705,
+            207.0787
+          ],
+          [
+            228.4657,
+            207.02625
+          ],
+          [
+            228.56047,
+            227.0258
+          ],
+          [
+            217.49182,
+            227.07826
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 22.297234,
+        "points": [
+          [
+            29.993128,
+            239.0
+          ],
+          [
+            37.484535,
+            239.0
+          ],
+          [
+            37.484535,
+            257.0
+          ],
+          [
+            29.993128,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "产",
+        "score": 23.675537,
+        "points": [
+          [
+            37.484535,
+            239.0
+          ],
+          [
+            53.965637,
+            239.0
+          ],
+          [
+            53.965637,
+            257.0
+          ],
+          [
+            37.484535,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "品",
+        "score": 25.482414,
+        "points": [
+          [
+            53.965637,
+            239.0
+          ],
+          [
+            73.4433,
+            239.0
+          ],
+          [
+            73.4433,
+            257.0
+          ],
+          [
+            53.965637,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "编",
+        "score": 20.311663,
+        "points": [
+          [
+            73.4433,
+            239.0
+          ],
+          [
+            91.42268,
+            239.0
+          ],
+          [
+            91.42268,
+            257.0
+          ],
+          [
+            73.4433,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "号",
+        "score": 24.0511,
+        "points": [
+          [
+            91.42268,
+            239.0
+          ],
+          [
+            107.90378,
+            239.0
+          ],
+          [
+            107.90378,
+            257.0
+          ],
+          [
+            91.42268,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 20.998306,
+        "points": [
+          [
+            107.90378,
+            239.0
+          ],
+          [
+            125.88316,
+            239.0
+          ],
+          [
+            125.88316,
+            257.0
+          ],
+          [
+            107.90378,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "：",
+        "score": 20.235281,
+        "points": [
+          [
+            125.88316,
+            239.0
+          ],
+          [
+            143.86255,
+            239.0
+          ],
+          [
+            143.86255,
+            257.0
+          ],
+          [
+            125.88316,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "Y",
+        "score": 25.045158,
+        "points": [
+          [
+            143.86255,
+            239.0
+          ],
+          [
+            157.34708,
+            239.0
+          ],
+          [
+            157.34708,
+            257.0
+          ],
+          [
+            143.86255,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "M",
+        "score": 23.321339,
+        "points": [
+          [
+            157.34708,
+            239.0
+          ],
+          [
+            170.83162,
+            239.0
+          ],
+          [
+            170.83162,
+            257.0
+          ],
+          [
+            157.34708,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "-",
+        "score": 23.5997,
+        "points": [
+          [
+            170.83162,
+            239.0
+          ],
+          [
+            182.81787,
+            239.0
+          ],
+          [
+            182.81787,
+            257.0
+          ],
+          [
+            170.83162,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "X",
+        "score": 22.577032,
+        "points": [
+          [
+            182.81787,
+            239.0
+          ],
+          [
+            191.80756,
+            239.0
+          ],
+          [
+            191.80756,
+            257.0
+          ],
+          [
+            182.81787,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "-",
+        "score": 25.14983,
+        "points": [
+          [
+            191.80756,
+            239.0
+          ],
+          [
+            202.29553,
+            239.0
+          ],
+          [
+            202.29553,
+            257.0
+          ],
+          [
+            191.80756,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "3",
+        "score": 25.803322,
+        "points": [
+          [
+            202.29553,
+            239.0
+          ],
+          [
+            212.78351,
+            239.0
+          ],
+          [
+            212.78351,
+            257.0
+          ],
+          [
+            202.29553,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 27.10675,
+        "points": [
+          [
+            212.78351,
+            239.0
+          ],
+          [
+            221.7732,
+            239.0
+          ],
+          [
+            221.7732,
+            257.0
+          ],
+          [
+            212.78351,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "1",
+        "score": 24.643517,
+        "points": [
+          [
+            221.7732,
+            239.0
+          ],
+          [
+            232.26117,
+            239.0
+          ],
+          [
+            232.26117,
+            257.0
+          ],
+          [
+            221.7732,
+            257.0
+          ]
+        ]
+      },
+      {
+        "text": "1",
+        "score": 24.14576,
+        "points": [
+          [
+            232.26117,
+            239.0
+          ],
+          [
+            239.75258,
+            239.0
+          ],
+          [
+            239.75258,
+            257.0
+          ],
+          [
+            232.26117,
+            257.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "O",
+        "score": 19.54928,
+        "points": [
+          [
+            428.0,
+            240.0
+          ],
+          [
+            428.0,
+            245.83333
+          ],
+          [
+            414.0,
+            245.83333
+          ],
+          [
+            414.0,
+            240.0
+          ]
+        ]
+      },
+      {
+        "text": "D",
+        "score": 23.224213,
+        "points": [
+          [
+            428.0,
+            245.83333
+          ],
+          [
+            428.0,
+            256.33334
+          ],
+          [
+            414.0,
+            256.33334
+          ],
+          [
+            414.0,
+            245.83333
+          ]
+        ]
+      },
+      {
+        "text": "M",
+        "score": 18.130552,
+        "points": [
+          [
+            428.0,
+            256.33334
+          ],
+          [
+            428.0,
+            266.83334
+          ],
+          [
+            414.0,
+            266.83334
+          ],
+          [
+            414.0,
+            256.33334
+          ]
+        ]
+      },
+      {
+        "text": " ",
+        "score": 19.129255,
+        "points": [
+          [
+            428.0,
+            266.83334
+          ],
+          [
+            428.0,
+            275.0
+          ],
+          [
+            414.0,
+            275.0
+          ],
+          [
+            414.0,
+            266.83334
+          ]
+        ]
+      },
+      {
+        "text": "O",
+        "score": 16.03556,
+        "points": [
+          [
+            428.0,
+            275.0
+          ],
+          [
+            428.0,
+            283.16666
+          ],
+          [
+            414.0,
+            283.16666
+          ],
+          [
+            414.0,
+            275.0
+          ]
+        ]
+      },
+      {
+        "text": "E",
+        "score": 17.192856,
+        "points": [
+          [
+            428.0,
+            283.16666
+          ],
+          [
+            428.0,
+            292.5
+          ],
+          [
+            414.0,
+            292.5
+          ],
+          [
+            414.0,
+            283.16666
+          ]
+        ]
+      },
+      {
+        "text": "M",
+        "score": 20.31586,
+        "points": [
+          [
+            428.0,
+            292.5
+          ],
+          [
+            428.0,
+            298.33334
+          ],
+          [
+            414.0,
+            298.33334
+          ],
+          [
+            414.0,
+            292.5
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 20.966112,
+        "points": [
+          [
+            29.66313,
+            270.0
+          ],
+          [
+            37.992043,
+            270.0
+          ],
+          [
+            37.992043,
+            290.0
+          ],
+          [
+            29.66313,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "净",
+        "score": 23.141804,
+        "points": [
+          [
+            37.992043,
+            270.0
+          ],
+          [
+            52.984085,
+            270.0
+          ],
+          [
+            52.984085,
+            290.0
+          ],
+          [
+            37.992043,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "含",
+        "score": 28.295795,
+        "points": [
+          [
+            52.984085,
+            270.0
+          ],
+          [
+            71.30769,
+            270.0
+          ],
+          [
+            71.30769,
+            290.0
+          ],
+          [
+            52.984085,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "量",
+        "score": 23.116318,
+        "points": [
+          [
+            71.30769,
+            270.0
+          ],
+          [
+            87.965515,
+            270.0
+          ],
+          [
+            87.965515,
+            290.0
+          ],
+          [
+            71.30769,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 20.86131,
+        "points": [
+          [
+            87.965515,
+            270.0
+          ],
+          [
+            106.28912,
+            270.0
+          ],
+          [
+            106.28912,
+            290.0
+          ],
+          [
+            87.965515,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": ":",
+        "score": 22.446064,
+        "points": [
+          [
+            106.28912,
+            270.0
+          ],
+          [
+            124.61273,
+            270.0
+          ],
+          [
+            124.61273,
+            290.0
+          ],
+          [
+            106.28912,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "2",
+        "score": 26.930735,
+        "points": [
+          [
+            124.61273,
+            270.0
+          ],
+          [
+            136.27321,
+            270.0
+          ],
+          [
+            136.27321,
+            290.0
+          ],
+          [
+            124.61273,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "2",
+        "score": 26.725832,
+        "points": [
+          [
+            136.27321,
+            270.0
+          ],
+          [
+            147.93369,
+            270.0
+          ],
+          [
+            147.93369,
+            290.0
+          ],
+          [
+            136.27321,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "0",
+        "score": 26.527788,
+        "points": [
+          [
+            147.93369,
+            270.0
+          ],
+          [
+            161.25995,
+            270.0
+          ],
+          [
+            161.25995,
+            290.0
+          ],
+          [
+            147.93369,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "m",
+        "score": 23.209518,
+        "points": [
+          [
+            161.25995,
+            270.0
+          ],
+          [
+            172.92043,
+            270.0
+          ],
+          [
+            172.92043,
+            290.0
+          ],
+          [
+            161.25995,
+            290.0
+          ]
+        ]
+      },
+      {
+        "text": "l",
+        "score": 22.68805,
+        "points": [
+          [
+            172.92043,
+            270.0
+          ],
+          [
+            179.58356,
+            270.0
+          ],
+          [
+            179.58356,
+            290.0
+          ],
+          [
+            172.92043,
+            290.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 21.002525,
+        "points": [
+          [
+            29.664597,
+            303.0
+          ],
+          [
+            38.16149,
+            303.0
+          ],
+          [
+            38.16149,
+            320.0
+          ],
+          [
+            29.664597,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "适",
+        "score": 24.845203,
+        "points": [
+          [
+            38.16149,
+            303.0
+          ],
+          [
+            53.739132,
+            303.0
+          ],
+          [
+            53.739132,
+            320.0
+          ],
+          [
+            38.16149,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "用",
+        "score": 23.744724,
+        "points": [
+          [
+            53.739132,
+            303.0
+          ],
+          [
+            70.73292,
+            303.0
+          ],
+          [
+            70.73292,
+            320.0
+          ],
+          [
+            53.739132,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "人",
+        "score": 23.017933,
+        "points": [
+          [
+            70.73292,
+            303.0
+          ],
+          [
+            89.14286,
+            303.0
+          ],
+          [
+            89.14286,
+            320.0
+          ],
+          [
+            70.73292,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "群",
+        "score": 24.865234,
+        "points": [
+          [
+            89.14286,
+            303.0
+          ],
+          [
+            106.13664,
+            303.0
+          ],
+          [
+            106.13664,
+            320.0
+          ],
+          [
+            89.14286,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 21.917364,
+        "points": [
+          [
+            106.13664,
+            303.0
+          ],
+          [
+            124.546585,
+            303.0
+          ],
+          [
+            124.546585,
+            320.0
+          ],
+          [
+            106.13664,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "：",
+        "score": 22.102823,
+        "points": [
+          [
+            124.546585,
+            303.0
+          ],
+          [
+            145.78882,
+            303.0
+          ],
+          [
+            145.78882,
+            320.0
+          ],
+          [
+            124.546585,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "适",
+        "score": 23.416153,
+        "points": [
+          [
+            145.78882,
+            303.0
+          ],
+          [
+            164.19876,
+            303.0
+          ],
+          [
+            164.19876,
+            320.0
+          ],
+          [
+            145.78882,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "合",
+        "score": 25.080862,
+        "points": [
+          [
+            164.19876,
+            303.0
+          ],
+          [
+            181.19255,
+            303.0
+          ],
+          [
+            181.19255,
+            320.0
+          ],
+          [
+            164.19876,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "所",
+        "score": 23.859241,
+        "points": [
+          [
+            181.19255,
+            303.0
+          ],
+          [
+            199.60248,
+            303.0
+          ],
+          [
+            199.60248,
+            320.0
+          ],
+          [
+            181.19255,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "有",
+        "score": 24.61278,
+        "points": [
+          [
+            199.60248,
+            303.0
+          ],
+          [
+            218.01242,
+            303.0
+          ],
+          [
+            218.01242,
+            320.0
+          ],
+          [
+            199.60248,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "肤",
+        "score": 18.884047,
+        "points": [
+          [
+            218.01242,
+            303.0
+          ],
+          [
+            235.00621,
+            303.0
+          ],
+          [
+            235.00621,
+            320.0
+          ],
+          [
+            218.01242,
+            320.0
+          ]
+        ]
+      },
+      {
+        "text": "质",
+        "score": 21.317629,
+        "points": [
+          [
+            235.00621,
+            303.0
+          ],
+          [
+            244.91925,
+            303.0
+          ],
+          [
+            244.91925,
+            320.0
+          ],
+          [
+            235.00621,
+            320.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 19.630333,
+        "points": [
+          [
+            29.99765,
+            334.0
+          ],
+          [
+            37.494713,
+            334.0
+          ],
+          [
+            37.494713,
+            352.0
+          ],
+          [
+            29.99765,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "主",
+        "score": 24.453995,
+        "points": [
+          [
+            37.494713,
+            334.0
+          ],
+          [
+            53.98825,
+            334.0
+          ],
+          [
+            53.98825,
+            352.0
+          ],
+          [
+            37.494713,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "要",
+        "score": 19.73322,
+        "points": [
+          [
+            53.98825,
+            334.0
+          ],
+          [
+            73.48061,
+            334.0
+          ],
+          [
+            73.48061,
+            352.0
+          ],
+          [
+            53.98825,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "成",
+        "score": 22.82891,
+        "points": [
+          [
+            73.48061,
+            334.0
+          ],
+          [
+            89.97415,
+            334.0
+          ],
+          [
+            89.97415,
+            352.0
+          ],
+          [
+            73.48061,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "分",
+        "score": 22.90248,
+        "points": [
+          [
+            89.97415,
+            334.0
+          ],
+          [
+            106.46768,
+            334.0
+          ],
+          [
+            106.46768,
+            352.0
+          ],
+          [
+            89.97415,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 20.711962,
+        "points": [
+          [
+            106.46768,
+            334.0
+          ],
+          [
+            125.960045,
+            334.0
+          ],
+          [
+            125.960045,
+            352.0
+          ],
+          [
+            106.46768,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "：",
+        "score": 21.610235,
+        "points": [
+          [
+            125.960045,
+            334.0
+          ],
+          [
+            145.45241,
+            334.0
+          ],
+          [
+            145.45241,
+            352.0
+          ],
+          [
+            125.960045,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "鲸",
+        "score": 14.974884,
+        "points": [
+          [
+            145.45241,
+            334.0
+          ],
+          [
+            163.44536,
+            334.0
+          ],
+          [
+            163.44536,
+            352.0
+          ],
+          [
+            145.45241,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "蜡",
+        "score": 15.593048,
+        "points": [
+          [
+            163.44536,
+            334.0
+          ],
+          [
+            181.43831,
+            334.0
+          ],
+          [
+            181.43831,
+            352.0
+          ],
+          [
+            163.44536,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "硬",
+        "score": 21.44902,
+        "points": [
+          [
+            181.43831,
+            334.0
+          ],
+          [
+            199.43126,
+            334.0
+          ],
+          [
+            199.43126,
+            352.0
+          ],
+          [
+            181.43831,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "脂",
+        "score": 20.660498,
+        "points": [
+          [
+            199.43126,
+            334.0
+          ],
+          [
+            217.42421,
+            334.0
+          ],
+          [
+            217.42421,
+            352.0
+          ],
+          [
+            199.43126,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "醇",
+        "score": 15.547239,
+        "points": [
+          [
+            217.42421,
+            334.0
+          ],
+          [
+            232.41833,
+            334.0
+          ],
+          [
+            232.41833,
+            352.0
+          ],
+          [
+            217.42421,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "、",
+        "score": 21.557192,
+        "points": [
+          [
+            232.41833,
+            334.0
+          ],
+          [
+            251.91069,
+            334.0
+          ],
+          [
+            251.91069,
+            352.0
+          ],
+          [
+            232.41833,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "燕",
+        "score": 17.366474,
+        "points": [
+          [
+            251.91069,
+            334.0
+          ],
+          [
+            272.90247,
+            334.0
+          ],
+          [
+            272.90247,
+            352.0
+          ],
+          [
+            251.91069,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "麦",
+        "score": 19.621675,
+        "points": [
+          [
+            272.90247,
+            334.0
+          ],
+          [
+            287.8966,
+            334.0
+          ],
+          [
+            287.8966,
+            352.0
+          ],
+          [
+            272.90247,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "β",
+        "score": 16.06418,
+        "points": [
+          [
+            287.8966,
+            334.0
+          ],
+          [
+            299.8919,
+            334.0
+          ],
+          [
+            299.8919,
+            352.0
+          ],
+          [
+            287.8966,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "-",
+        "score": 19.832207,
+        "points": [
+          [
+            299.8919,
+            334.0
+          ],
+          [
+            311.88718,
+            334.0
+          ],
+          [
+            311.88718,
+            352.0
+          ],
+          [
+            299.8919,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "葡",
+        "score": 16.99588,
+        "points": [
+          [
+            311.88718,
+            334.0
+          ],
+          [
+            328.38074,
+            334.0
+          ],
+          [
+            328.38074,
+            352.0
+          ],
+          [
+            311.88718,
+            352.0
+          ]
+        ]
+      },
+      {
+        "text": "聚",
+        "score": 19.744253,
+        "points": [
+          [
+            328.38074,
+            334.0
+          ],
+          [
+            338.87662,
+            334.0
+          ],
+          [
+            338.87662,
+            352.0
+          ],
+          [
+            328.38074,
+            352.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "糖",
+        "score": 14.469771,
+        "points": [
+          [
+            36.98834,
+            365.0
+          ],
+          [
+            44.48105,
+            365.0
+          ],
+          [
+            44.48105,
+            383.0
+          ],
+          [
+            36.98834,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "、",
+        "score": 21.036701,
+        "points": [
+          [
+            44.48105,
+            365.0
+          ],
+          [
+            62.46356,
+            365.0
+          ],
+          [
+            62.46356,
+            383.0
+          ],
+          [
+            44.48105,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "椰",
+        "score": 13.534415,
+        "points": [
+          [
+            62.46356,
+            365.0
+          ],
+          [
+            83.443146,
+            365.0
+          ],
+          [
+            83.443146,
+            383.0
+          ],
+          [
+            62.46356,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "油",
+        "score": 20.487364,
+        "points": [
+          [
+            83.443146,
+            365.0
+          ],
+          [
+            101.42566,
+            365.0
+          ],
+          [
+            101.42566,
+            383.0
+          ],
+          [
+            83.443146,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "酰",
+        "score": 13.7074995,
+        "points": [
+          [
+            101.42566,
+            365.0
+          ],
+          [
+            119.408165,
+            365.0
+          ],
+          [
+            119.408165,
+            383.0
+          ],
+          [
+            101.42566,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "胺",
+        "score": 15.059867,
+        "points": [
+          [
+            119.408165,
+            365.0
+          ],
+          [
+            137.39067,
+            365.0
+          ],
+          [
+            137.39067,
+            383.0
+          ],
+          [
+            119.408165,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "丙",
+        "score": 20.392874,
+        "points": [
+          [
+            137.39067,
+            365.0
+          ],
+          [
+            155.37318,
+            365.0
+          ],
+          [
+            155.37318,
+            383.0
+          ],
+          [
+            137.39067,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "基",
+        "score": 19.975012,
+        "points": [
+          [
+            155.37318,
+            365.0
+          ],
+          [
+            173.35568,
+            365.0
+          ],
+          [
+            173.35568,
+            383.0
+          ],
+          [
+            155.37318,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "甜",
+        "score": 19.737715,
+        "points": [
+          [
+            173.35568,
+            365.0
+          ],
+          [
+            191.3382,
+            365.0
+          ],
+          [
+            191.3382,
+            383.0
+          ],
+          [
+            173.35568,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "菜",
+        "score": 19.235777,
+        "points": [
+          [
+            191.3382,
+            365.0
+          ],
+          [
+            210.81924,
+            365.0
+          ],
+          [
+            210.81924,
+            383.0
+          ],
+          [
+            191.3382,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "碱",
+        "score": 15.9151745,
+        "points": [
+          [
+            210.81924,
+            365.0
+          ],
+          [
+            227.3032,
+            365.0
+          ],
+          [
+            227.3032,
+            383.0
+          ],
+          [
+            210.81924,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "、",
+        "score": 21.963919,
+        "points": [
+          [
+            227.3032,
+            365.0
+          ],
+          [
+            245.28572,
+            365.0
+          ],
+          [
+            245.28572,
+            383.0
+          ],
+          [
+            227.3032,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "泛",
+        "score": 19.938793,
+        "points": [
+          [
+            245.28572,
+            365.0
+          ],
+          [
+            266.26532,
+            365.0
+          ],
+          [
+            266.26532,
+            383.0
+          ],
+          [
+            245.28572,
+            383.0
+          ]
+        ]
+      },
+      {
+        "text": "醌",
+        "score": 10.657755,
+        "points": [
+          [
+            266.26532,
+            365.0
+          ],
+          [
+            276.7551,
+            365.0
+          ],
+          [
+            276.7551,
+            383.0
+          ],
+          [
+            266.26532,
+            383.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "(",
+        "score": 19.436886,
+        "points": [
+          [
+            371.661,
+            366.0
+          ],
+          [
+            384.47458,
+            366.0
+          ],
+          [
+            384.47458,
+            388.0
+          ],
+          [
+            371.661,
+            388.0
+          ]
+        ]
+      },
+      {
+        "text": "成",
+        "score": 22.620863,
+        "points": [
+          [
+            384.47458,
+            366.0
+          ],
+          [
+            404.61017,
+            366.0
+          ],
+          [
+            404.61017,
+            388.0
+          ],
+          [
+            384.47458,
+            388.0
+          ]
+        ]
+      },
+      {
+        "text": "品",
+        "score": 25.644642,
+        "points": [
+          [
+            404.61017,
+            366.0
+          ],
+          [
+            422.91525,
+            366.0
+          ],
+          [
+            422.91525,
+            388.0
+          ],
+          [
+            404.61017,
+            388.0
+          ]
+        ]
+      },
+      {
+        "text": "包",
+        "score": 23.462759,
+        "points": [
+          [
+            422.91525,
+            366.0
+          ],
+          [
+            443.05084,
+            366.0
+          ],
+          [
+            443.05084,
+            388.0
+          ],
+          [
+            422.91525,
+            388.0
+          ]
+        ]
+      },
+      {
+        "text": "材",
+        "score": 20.938093,
+        "points": [
+          [
+            443.05084,
+            366.0
+          ],
+          [
+            463.18643,
+            366.0
+          ],
+          [
+            463.18643,
+            388.0
+          ],
+          [
+            443.05084,
+            388.0
+          ]
+        ]
+      },
+      {
+        "text": ")",
+        "score": 18.978514,
+        "points": [
+          [
+            463.18643,
+            366.0
+          ],
+          [
+            474.1695,
+            366.0
+          ],
+          [
+            474.1695,
+            388.0
+          ],
+          [
+            463.18643,
+            388.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "【",
+        "score": 18.905312,
+        "points": [
+          [
+            30.664911,
+            396.0
+          ],
+          [
+            37.746048,
+            396.0
+          ],
+          [
+            37.746048,
+            413.0
+          ],
+          [
+            30.664911,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "主",
+        "score": 24.023855,
+        "points": [
+          [
+            37.746048,
+            396.0
+          ],
+          [
+            53.32455,
+            396.0
+          ],
+          [
+            53.32455,
+            413.0
+          ],
+          [
+            37.746048,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "要",
+        "score": 23.858383,
+        "points": [
+          [
+            53.32455,
+            396.0
+          ],
+          [
+            71.73551,
+            396.0
+          ],
+          [
+            71.73551,
+            413.0
+          ],
+          [
+            53.32455,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "功",
+        "score": 24.3897,
+        "points": [
+          [
+            71.73551,
+            396.0
+          ],
+          [
+            90.14647,
+            396.0
+          ],
+          [
+            90.14647,
+            413.0
+          ],
+          [
+            71.73551,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "能",
+        "score": 21.581593,
+        "points": [
+          [
+            90.14647,
+            396.0
+          ],
+          [
+            107.141205,
+            396.0
+          ],
+          [
+            107.141205,
+            413.0
+          ],
+          [
+            90.14647,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "】",
+        "score": 20.474915,
+        "points": [
+          [
+            107.141205,
+            396.0
+          ],
+          [
+            125.55216,
+            396.0
+          ],
+          [
+            125.55216,
+            413.0
+          ],
+          [
+            107.141205,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "：",
+        "score": 21.4784,
+        "points": [
+          [
+            125.55216,
+            396.0
+          ],
+          [
+            145.37935,
+            396.0
+          ],
+          [
+            145.37935,
+            413.0
+          ],
+          [
+            125.55216,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "可",
+        "score": 23.282598,
+        "points": [
+          [
+            145.37935,
+            396.0
+          ],
+          [
+            163.7903,
+            396.0
+          ],
+          [
+            163.7903,
+            413.0
+          ],
+          [
+            145.37935,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "紧",
+        "score": 18.615997,
+        "points": [
+          [
+            163.7903,
+            396.0
+          ],
+          [
+            182.20126,
+            396.0
+          ],
+          [
+            182.20126,
+            413.0
+          ],
+          [
+            163.7903,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "致",
+        "score": 21.18442,
+        "points": [
+          [
+            182.20126,
+            396.0
+          ],
+          [
+            199.196,
+            396.0
+          ],
+          [
+            199.196,
+            413.0
+          ],
+          [
+            182.20126,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "头",
+        "score": 25.304724,
+        "points": [
+          [
+            199.196,
+            396.0
+          ],
+          [
+            217.60695,
+            396.0
+          ],
+          [
+            217.60695,
+            413.0
+          ],
+          [
+            199.196,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "发",
+        "score": 22.613316,
+        "points": [
+          [
+            217.60695,
+            396.0
+          ],
+          [
+            236.01791,
+            396.0
+          ],
+          [
+            236.01791,
+            413.0
+          ],
+          [
+            217.60695,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "磷",
+        "score": 13.374352,
+        "points": [
+          [
+            236.01791,
+            396.0
+          ],
+          [
+            253.01265,
+            396.0
+          ],
+          [
+            253.01265,
+            413.0
+          ],
+          [
+            236.01791,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "层",
+        "score": 20.435537,
+        "points": [
+          [
+            253.01265,
+            396.0
+          ],
+          [
+            272.83984,
+            396.0
+          ],
+          [
+            272.83984,
+            413.0
+          ],
+          [
+            253.01265,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "，",
+        "score": 21.499428,
+        "points": [
+          [
+            272.83984,
+            396.0
+          ],
+          [
+            289.83456,
+            396.0
+          ],
+          [
+            289.83456,
+            413.0
+          ],
+          [
+            272.83984,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "从",
+        "score": 21.679178,
+        "points": [
+          [
+            289.83456,
+            396.0
+          ],
+          [
+            308.2455,
+            396.0
+          ],
+          [
+            308.2455,
+            413.0
+          ],
+          [
+            289.83456,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "而",
+        "score": 22.02005,
+        "points": [
+          [
+            308.2455,
+            396.0
+          ],
+          [
+            326.6565,
+            396.0
+          ],
+          [
+            326.6565,
+            413.0
+          ],
+          [
+            308.2455,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "达",
+        "score": 21.456161,
+        "points": [
+          [
+            326.6565,
+            396.0
+          ],
+          [
+            345.06744,
+            396.0
+          ],
+          [
+            345.06744,
+            413.0
+          ],
+          [
+            326.6565,
+            413.0
+          ]
+        ]
+      },
+      {
+        "text": "到",
+        "score": 21.06807,
+        "points": [
+          [
+            345.06744,
+            396.0
+          ],
+          [
+            356.39725,
+            396.0
+          ],
+          [
+            356.39725,
+            413.0
+          ],
+          [
+            345.06744,
+            413.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "即",
+        "score": 21.583263,
+        "points": [
+          [
+            37.33265,
+            428.0
+          ],
+          [
+            47.248722,
+            428.0
+          ],
+          [
+            47.248722,
+            445.0
+          ],
+          [
+            37.33265,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "时",
+        "score": 21.284012,
+        "points": [
+          [
+            47.248722,
+            428.0
+          ],
+          [
+            64.247696,
+            428.0
+          ],
+          [
+            64.247696,
+            445.0
+          ],
+          [
+            47.248722,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "持",
+        "score": 21.93694,
+        "points": [
+          [
+            64.247696,
+            428.0
+          ],
+          [
+            81.24667,
+            428.0
+          ],
+          [
+            81.24667,
+            445.0
+          ],
+          [
+            64.247696,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "久",
+        "score": 22.985746,
+        "points": [
+          [
+            81.24667,
+            428.0
+          ],
+          [
+            99.66223,
+            428.0
+          ],
+          [
+            99.66223,
+            445.0
+          ],
+          [
+            81.24667,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "改",
+        "score": 25.886911,
+        "points": [
+          [
+            99.66223,
+            428.0
+          ],
+          [
+            119.49437,
+            428.0
+          ],
+          [
+            119.49437,
+            445.0
+          ],
+          [
+            99.66223,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "善",
+        "score": 21.502638,
+        "points": [
+          [
+            119.49437,
+            428.0
+          ],
+          [
+            137.90993,
+            428.0
+          ],
+          [
+            137.90993,
+            445.0
+          ],
+          [
+            119.49437,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "头",
+        "score": 24.507101,
+        "points": [
+          [
+            137.90993,
+            428.0
+          ],
+          [
+            154.9089,
+            428.0
+          ],
+          [
+            154.9089,
+            445.0
+          ],
+          [
+            137.90993,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "发",
+        "score": 21.866228,
+        "points": [
+          [
+            154.9089,
+            428.0
+          ],
+          [
+            173.32446,
+            428.0
+          ],
+          [
+            173.32446,
+            445.0
+          ],
+          [
+            154.9089,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "光",
+        "score": 22.926243,
+        "points": [
+          [
+            173.32446,
+            428.0
+          ],
+          [
+            191.74002,
+            428.0
+          ],
+          [
+            191.74002,
+            445.0
+          ],
+          [
+            173.32446,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "泽",
+        "score": 18.691803,
+        "points": [
+          [
+            191.74002,
+            428.0
+          ],
+          [
+            210.15558,
+            428.0
+          ],
+          [
+            210.15558,
+            445.0
+          ],
+          [
+            191.74002,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "的",
+        "score": 24.371367,
+        "points": [
+          [
+            210.15558,
+            428.0
+          ],
+          [
+            228.57114,
+            428.0
+          ],
+          [
+            228.57114,
+            445.0
+          ],
+          [
+            210.15558,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "效",
+        "score": 20.607767,
+        "points": [
+          [
+            228.57114,
+            428.0
+          ],
+          [
+            245.57011,
+            428.0
+          ],
+          [
+            245.57011,
+            445.0
+          ],
+          [
+            228.57114,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "果",
+        "score": 23.475971,
+        "points": [
+          [
+            245.57011,
+            428.0
+          ],
+          [
+            263.98566,
+            428.0
+          ],
+          [
+            263.98566,
+            445.0
+          ],
+          [
+            245.57011,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "，",
+        "score": 22.116577,
+        "points": [
+          [
+            263.98566,
+            428.0
+          ],
+          [
+            282.4012,
+            428.0
+          ],
+          [
+            282.4012,
+            445.0
+          ],
+          [
+            263.98566,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "给",
+        "score": 20.157757,
+        "points": [
+          [
+            282.4012,
+            428.0
+          ],
+          [
+            300.81677,
+            428.0
+          ],
+          [
+            300.81677,
+            445.0
+          ],
+          [
+            282.4012,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "干",
+        "score": 17.883759,
+        "points": [
+          [
+            300.81677,
+            428.0
+          ],
+          [
+            320.64893,
+            428.0
+          ],
+          [
+            320.64893,
+            445.0
+          ],
+          [
+            300.81677,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "燥",
+        "score": 12.425478,
+        "points": [
+          [
+            320.64893,
+            428.0
+          ],
+          [
+            339.06448,
+            428.0
+          ],
+          [
+            339.06448,
+            445.0
+          ],
+          [
+            320.64893,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "的",
+        "score": 24.320898,
+        "points": [
+          [
+            339.06448,
+            428.0
+          ],
+          [
+            356.06345,
+            428.0
+          ],
+          [
+            356.06345,
+            445.0
+          ],
+          [
+            339.06448,
+            445.0
+          ]
+        ]
+      },
+      {
+        "text": "头",
+        "score": 24.665802,
+        "points": [
+          [
+            356.06345,
+            428.0
+          ],
+          [
+            365.97952,
+            428.0
+          ],
+          [
+            365.97952,
+            445.0
+          ],
+          [
+            356.06345,
+            445.0
+          ]
+        ]
+      }
+    ],
+    [
+      {
+        "text": "发",
+        "score": 22.240793,
+        "points": [
+          [
+            35.48819,
+            457.0
+          ],
+          [
+            45.97638,
+            457.0
+          ],
+          [
+            45.97638,
+            478.0
+          ],
+          [
+            35.48819,
+            478.0
+          ]
+        ]
+      },
+      {
+        "text": "足",
+        "score": 19.783466,
+        "points": [
+          [
+            45.97638,
+            457.0
+          ],
+          [
+            65.20473,
+            457.0
+          ],
+          [
+            65.20473,
+            478.0
+          ],
+          [
+            45.97638,
+            478.0
+          ]
+        ]
+      },
+      {
+        "text": "够",
+        "score": 22.340837,
+        "points": [
+          [
+            65.20473,
+            457.0
+          ],
+          [
+            84.43307,
+            457.0
+          ],
+          [
+            84.43307,
+            478.0
+          ],
+          [
+            65.20473,
+            478.0
+          ]
+        ]
+      },
+      {
+        "text": "的",
+        "score": 24.530186,
+        "points": [
+          [
+            84.43307,
+            457.0
+          ],
+          [
+            101.91338,
+            457.0
+          ],
+          [
+            101.91338,
+            478.0
+          ],
+          [
+            84.43307,
+            478.0
+          ]
+        ]
+      },
+      {
+        "text": "滋",
+        "score": 21.409718,
+        "points": [
+          [
+            101.91338,
+            457.0
+          ],
+          [
+            119.3937,
+            457.0
+          ],
+          [
+            119.3937,
+            478.0
+          ],
+          [
+            101.91338,
+            478.0
+          ]
+        ]
+      },
+      {
+        "text": "养",
+        "score": 22.079142,
+        "points": [
+          [
+            119.3937,
+            457.0
+          ],
+          [
+            129.8819,
+            457.0
+          ],
+          [
+            129.8819,
+            478.0
+          ],
+          [
+            119.3937,
+            478.0
+          ]
+        ]
+      }
+    ]
+  ]
+}

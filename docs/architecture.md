@@ -1,7 +1,7 @@
 # Plans, requests, and backend resources
 
 The library separates imported model data, compilation, and mutable execution.
-The numerical CPU kernels and GPU shaders remain backend-specific.
+The numerical CPU kernels and Metal shaders have separate execution machinery.
 
 ## Ownership
 
@@ -73,9 +73,11 @@ replayed. CPU fallback resources are prepared lazily.
 policy are `CompileOptions.cpu: CpuCompileOptions`; GPU storage policy is
 `CompileOptions.gpu: GpuCompileOptions`. These settings types are available in
 CPU-only builds; GPU execution requires the `gpu` feature.
-`GpuContextOptions` describes device capabilities (`shader_f16`, subgroups),
-admission limits, backend selection and allocation quotas. It no longer
-chooses model precision. FP32 remains the compilation default.
+`GpuContextOptions` contains only admission/resource bounds: `max_in_flight`,
+`recognition_wave_size`, `classification_batch_size` and `max_device_bytes`.
+Device capabilities are discovered internally. GPU work always uses the native
+Metal executor; there is no alternate backend or pipeline-mode selector. FP32
+remains the compilation default, with explicit F16 storage/matrix policies.
 
 ```rust,no_run
 use std::sync::Arc;
@@ -97,7 +99,7 @@ precision/fusion within the compiler's device context. A separately imported
 copy is a different model. There is no process-wide compilation registry.
 CPU-only builds and disabled stages never initialize a GPU. An initialization
 failure is retained and reused by all subsequent compilations on that compiler.
-When a builder receives an explicit compiler, that compiler owns device selection;
+When a builder receives an explicit compiler, that compiler owns its Metal context;
 builder `gpu_context` and `gpu_options` settings apply only to its implicit compiler.
 
 ## Reporting and memory
@@ -143,48 +145,21 @@ on the physical development machine:
 python tools/check_architecture.py
 ```
 
-Add `--release --hardware vulkan dx12` to exercise the selected physical-device
-regressions. Hardware groups have a 120-second timeout and exclude performance
+Add `--release --hardware` on a physical Mac to exercise Metal integration
+regressions. Hardware checks have a 120-second timeout and exclude performance
 tests. Logs and a command/result manifest are written to
-`target/architecture-validation`. The matrix covers all eight combinations of
-parallel/serial, GPU, and profiling. The compile-fail doctests verify that views
-cannot escape requests or engine leases.
+`target/architecture-validation`. CPU-only combinations do not initialize Metal.
+The compile-fail doctests verify that views cannot escape requests or engine leases.
 
 For a bounded real-model comparison using existing local assets:
 
-```powershell
-cargo build --release --locked --all-features --example ocr
-python tools/full_gpu_validation.py --backend vulkan --presets tiny --cases typical --report target/architecture-real-vulkan
+```sh
+cargo build --release --locked --all-features --example gpu_ocr_bench
+python tools/full_gpu_validation.py --presets tiny --cases typical --report target/metal-qualification
 ```
 
-This runs one image once in each of CPU, hybrid and resident mode, checking text,
-ordering, boxes, scores and captured spans against the CPU result. It does not
-measure performance. Metal and NEON require a separate physical Apple Silicon
-machine; Windows x64 checks do not qualify those backends.
-
-### Refactor validation record — 2026-10-24
-
-Local Windows x64 checks used the pinned `nightly-2026-09-08` toolchain and an
-AMD Radeon RX 6750 XT (driver `32.0.21045.16010`). Each final feature combination
-was invoked once with nonignored library tests:
-
-| CPU execution | GPU feature | Profiling feature | Passed |
-| --- | --- | --- | ---: |
-| Parallel | Enabled | Enabled | 369 |
-| Parallel | Enabled | Disabled | 364 |
-| Parallel | Disabled | Enabled | 360 |
-| Parallel | Disabled | Disabled | 355 |
-| Serial | Enabled | Enabled | 357 |
-| Serial | Enabled | Disabled | 352 |
-| Serial | Disabled | Enabled | 348 |
-| Serial | Disabled | Disabled | 343 |
-
-The all-feature release suite also passed 369 tests. The selected 13 hardware
-correctness tests passed once per backend on Vulkan and DX12, including eight
-injected-failure cases in the fallback test. One real `tiny` model sample passed
-once in each CPU, inference-only and resident mode on each backend, using the
-existing comparison tolerances. Formatting, Clippy with warnings denied,
-all-feature and serial example builds, and all seven compile-fail doctests in
-both feature configurations passed. Rustdoc also built with warnings denied.
-No benchmarks were run. Metal, NEON, other
-adapters and the complete real-model corpus were not qualified by this run.
+This runs one image once on CPU and once on the current Metal implementation,
+checking its unchanged Rust text/geometry/score/CTC contract. It performs no
+benchmark repetitions. Explicit per-stage CPU overrides remain supported and
+are reported as Hybrid composition; they do not select a second GPU implementation.
+See [GPU validation](gpu-validation.md) and [CPU validation](macos-cpu-validation.md).

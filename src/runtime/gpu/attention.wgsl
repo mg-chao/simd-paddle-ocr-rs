@@ -26,14 +26,26 @@ fn main(@builtin(workgroup_id) group:vec3<u32>,@builtin(local_invocation_index) 
     let batch=block/p(8u);let first=(block%p(8u))*4u;
     let query=lane/16u;let channel=lane%16u;let row=first+query;
     let rows=p(3u);let count=p(4u);let d=p(5u);let dv=p(6u);
+    let packed=$VIEWS && (p(2u)&2u)!=0u;
+    var packed_stride=0u;var packed_base=0u;
+    if packed {packed_stride=3u*p(15u)*d;packed_base=(batch/p(15u))*rows*packed_stride+(batch%p(15u))*d;}
     for(var i=lane;i<128u;i+=64u){let r=first+i/32u;let c=i%32u;queries[i]=0.0;
-        if r<rows && c<d{queries[i]=load_a(address((batch*rows+r)*d+c,0u))*bitcast<f32>(p(7u));}}
+        if r<rows && c<d{
+            var value=0.0;
+            if packed {value=load_a(packed_base+r*packed_stride+c);}
+            else {value=load_a(address((batch*rows+r)*d+c,0u));}
+            if $VIEWS && (p(2u)&1u)!=0u {value=output_round(value*load_d(0u));}
+            queries[i]=value*bitcast<f32>(p(7u));}}
     if lane<4u{maxima[lane]=-3.402823466e38;denominators[lane]=0.0;}
     var acc0=0.0;var acc1=0.0;
     for(var base=0u;base<count;base+=16u){
         for(var i=lane;i<512u;i+=64u){let k=base+i/32u;let c=i%32u;keys[i]=0.0;values[i]=0.0;
-            if k<count && c<d{keys[i]=load_b(address((batch*d+c)*count+k,1u));}
-            if k<count && c<dv{values[i]=load_c(address((batch*count+k)*dv+c,2u));}}
+            if k<count && c<d{
+                if packed {keys[i]=load_b(packed_base+k*packed_stride+p(15u)*d+c);}
+                else {keys[i]=load_b(address((batch*d+c)*count+k,1u));}}
+            if k<count && c<dv{
+                if packed {values[i]=load_c(packed_base+k*packed_stride+2u*p(15u)*d+c);}
+                else {values[i]=load_c(address((batch*count+k)*dv+c,2u));}}}
         workgroupBarrier();
         var score=0.0;
         for(var i=0u;i<32u;i++){score+=queries[query*32u+i]*keys[channel*32u+i];}
@@ -51,7 +63,9 @@ fn main(@builtin(workgroup_id) group:vec3<u32>,@builtin(local_invocation_index) 
         workgroupBarrier();
     }
     if row<rows{
-        if channel<dv{store_output((batch*rows+row)*dv+channel,acc0/denominators[query]);}
-        if channel+16u<dv{store_output((batch*rows+row)*dv+channel+16u,acc1/denominators[query]);}
+        var output_base=(batch*rows+row)*dv;
+        if packed && (p(2u)&4u)!=0u {output_base=((batch/p(15u))*rows*p(15u)+row*p(15u)+batch%p(15u))*dv;}
+        if channel<dv{store_output(output_base+channel,acc0/denominators[query]);}
+        if channel+16u<dv{store_output(output_base+channel+16u,acc1/denominators[query]);}
     }
 }

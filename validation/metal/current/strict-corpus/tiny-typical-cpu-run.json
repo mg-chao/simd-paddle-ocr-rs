@@ -1,0 +1,3838 @@
+{
+  "accuracy_contract": {
+    "bbox_absolute_tolerance": 0.5,
+    "bbox_min_polygon_iou": null,
+    "bbox_tolerance_metric": "per coordinate",
+    "ctc_columns": "exact when capture is enabled",
+    "metadata": "exact",
+    "name": "fp32",
+    "score_absolute_tolerance": 0.001,
+    "score_comparison": "numeric gate",
+    "score_relative_tolerance": 0.001,
+    "text": "exact"
+  },
+  "accuracy_differences": [],
+  "adapter": null,
+  "batch": 2,
+  "capture": true,
+  "classification_batch_size": null,
+  "cold_run_ms": 60.862375,
+  "cold_run_statistics": [
+    {
+      "execution": "Cpu",
+      "gpu": null,
+      "stages": {
+        "classifier": [
+          {
+            "activation_bytes": 0,
+            "adapter": null,
+            "backend": "",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "",
+            "execution_backend": null,
+            "fallback": null,
+            "fused_nodes": 0,
+            "layout_conversions": 0,
+            "nhwc_values": 0,
+            "normalized_nodes": 0,
+            "original_weight_bytes": 0,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 0,
+            "physical_steps": 0,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 0,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 0,
+            "scratch_bytes": 0,
+            "selected_kernels": [],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [],
+            "store_fused_steps": 0,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 256000,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 62,
+            "layout_conversions": 1,
+            "nhwc_values": 28,
+            "normalized_nodes": 103,
+            "original_weight_bytes": 965484,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 1032384,
+            "physical_steps": 41,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 1,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 256000,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 23
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "GlobalAveragePool",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 2
+              }
+            ],
+            "shared_cached_weight_bytes": 1032384,
+            "specialized_kernels": [
+              {
+                "family": "nchw_depthwise_3x3_height2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_depthwise_3x3_tap_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_pixel8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "GlobalAveragePool",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 2,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 32,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 256000,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 62,
+            "layout_conversions": 1,
+            "nhwc_values": 28,
+            "normalized_nodes": 103,
+            "original_weight_bytes": 965484,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 1032384,
+            "physical_steps": 41,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 1,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 256000,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 23
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "GlobalAveragePool",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 2
+              }
+            ],
+            "shared_cached_weight_bytes": 1032384,
+            "specialized_kernels": [
+              {
+                "family": "nchw_depthwise_3x3_height2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_depthwise_3x3_tap_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_pixel8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "GlobalAveragePool",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 2,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 32,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 256000,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 62,
+            "layout_conversions": 1,
+            "nhwc_values": 28,
+            "normalized_nodes": 103,
+            "original_weight_bytes": 965484,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 1032384,
+            "physical_steps": 41,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 1,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 256000,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 23
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "GlobalAveragePool",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 2
+              }
+            ],
+            "shared_cached_weight_bytes": 1032384,
+            "specialized_kernels": [
+              {
+                "family": "nchw_depthwise_3x3_height2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_depthwise_3x3_tap_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_pixel8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "GlobalAveragePool",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 2,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 32,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 256000,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 62,
+            "layout_conversions": 1,
+            "nhwc_values": 28,
+            "normalized_nodes": 103,
+            "original_weight_bytes": 965484,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 1032384,
+            "physical_steps": 41,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 1,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 256000,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 23
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "GlobalAveragePool",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 2
+              }
+            ],
+            "shared_cached_weight_bytes": 1032384,
+            "specialized_kernels": [
+              {
+                "family": "nchw_depthwise_3x3_height2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_depthwise_3x3_tap_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_pixel8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "GlobalAveragePool",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 2,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 32,
+            "uploaded_bytes": 0
+          }
+        ],
+        "detector": [
+          {
+            "activation_bytes": 16777216,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 98,
+            "layout_conversions": 0,
+            "nhwc_values": 105,
+            "normalized_nodes": 242,
+            "original_weight_bytes": 1713632,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 1705856,
+            "physical_steps": 144,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 1,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 16777216,
+            "scratch_bytes": 1179648,
+            "selected_kernels": [
+              {
+                "layout": "nhwc",
+                "operator": "Add",
+                "packed": false,
+                "steps": 11
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Concat",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 26
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 57
+              },
+              {
+                "layout": "canonical",
+                "operator": "ConvTranspose",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "ConvTranspose",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "GlobalAveragePool",
+                "packed": false,
+                "steps": 8
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nhwc",
+                "operator": "MaxPool",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "canonical",
+                "operator": "ReduceMean",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Resize",
+                "packed": false,
+                "steps": 6
+              }
+            ],
+            "shared_cached_weight_bytes": 1705856,
+            "specialized_kernels": [
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Add",
+                "steps": 11,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_channel_concat",
+                "isa": "Portable4",
+                "operator": "Concat",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 7,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_dense_6x16_k512",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_dense_sme32x32_or_neon",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 17,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 11,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 20,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_sme16x16_or_neon",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 4,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_transpose_4tap_matrix",
+                "isa": "NeonFma",
+                "operator": "ConvTranspose",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_transpose_single_spatial",
+                "isa": "NeonFma",
+                "operator": "ConvTranspose",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "GlobalAveragePool",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 13,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pool_channels",
+                "isa": "NeonFma",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 13,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_nearest_copy",
+                "isa": "Portable4",
+                "operator": "Resize",
+                "steps": 6,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 44,
+            "uploaded_bytes": 0
+          }
+        ],
+        "recognizer": [
+          {
+            "activation_bytes": 0,
+            "adapter": null,
+            "backend": "",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "",
+            "execution_backend": null,
+            "fallback": null,
+            "fused_nodes": 0,
+            "layout_conversions": 0,
+            "nhwc_values": 0,
+            "normalized_nodes": 0,
+            "original_weight_bytes": 0,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 0,
+            "physical_steps": 0,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 0,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 0,
+            "scratch_bytes": 0,
+            "selected_kernels": [],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [],
+            "store_fused_steps": 0,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 516096,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 95,
+            "layout_conversions": 4,
+            "nhwc_values": 38,
+            "normalized_nodes": 156,
+            "original_weight_bytes": 4417232,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 4378944,
+            "physical_steps": 60,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 3,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 2359296,
+            "scratch_bytes": 163840,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Add",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "AveragePool",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "BatchNormalization",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 29
+              },
+              {
+                "layout": "canonical",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSwish",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "MatMul",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "ReduceMean",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "Transpose",
+                "packed": false,
+                "steps": 3
+              }
+            ],
+            "shared_cached_weight_bytes": 4378944,
+            "specialized_kernels": [
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Add",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pool_channels",
+                "isa": "NeonFma",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "BatchNormalization",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_depthwise_1x5",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_dense_6x16_k512",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_sme16x16_or_neon",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "unary",
+                "isa": "NeonFma",
+                "operator": "HardSwish",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_constant_matmul_6x16",
+                "isa": "NeonFma",
+                "operator": "MatMul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "ReduceMean",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Transpose",
+                "steps": 3,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 34,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 737280,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 95,
+            "layout_conversions": 4,
+            "nhwc_values": 38,
+            "normalized_nodes": 156,
+            "original_weight_bytes": 4417232,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 4378944,
+            "physical_steps": 60,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 4,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 1916928,
+            "scratch_bytes": 163840,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Add",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "AveragePool",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "BatchNormalization",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 29
+              },
+              {
+                "layout": "canonical",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSwish",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "MatMul",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "ReduceMean",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "Transpose",
+                "packed": false,
+                "steps": 3
+              }
+            ],
+            "shared_cached_weight_bytes": 4378944,
+            "specialized_kernels": [
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Add",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pool_channels",
+                "isa": "NeonFma",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "BatchNormalization",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_depthwise_1x5",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_dense_6x16_k512",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_sme16x16_or_neon",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "unary",
+                "isa": "NeonFma",
+                "operator": "HardSwish",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_constant_matmul_6x16",
+                "isa": "NeonFma",
+                "operator": "MatMul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "ReduceMean",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Transpose",
+                "steps": 3,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 34,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 2949120,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 95,
+            "layout_conversions": 4,
+            "nhwc_values": 38,
+            "normalized_nodes": 156,
+            "original_weight_bytes": 4417232,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 4378944,
+            "physical_steps": 60,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 2949120,
+            "scratch_bytes": 163840,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Add",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "AveragePool",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "BatchNormalization",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 29
+              },
+              {
+                "layout": "canonical",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSwish",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "MatMul",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "ReduceMean",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "Transpose",
+                "packed": false,
+                "steps": 3
+              }
+            ],
+            "shared_cached_weight_bytes": 4378944,
+            "specialized_kernels": [
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Add",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pool_channels",
+                "isa": "NeonFma",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "BatchNormalization",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_depthwise_1x5",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_dense_6x16_k512",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_sme16x16_or_neon",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "unary",
+                "isa": "NeonFma",
+                "operator": "HardSwish",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_constant_matmul_6x16",
+                "isa": "NeonFma",
+                "operator": "MatMul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "ReduceMean",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Transpose",
+                "steps": 3,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 34,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 1179648,
+            "adapter": null,
+            "backend": "NeonFma",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F32",
+            "execution_backend": {
+              "Cpu": "neon_fma"
+            },
+            "fallback": null,
+            "fused_nodes": 95,
+            "layout_conversions": 4,
+            "nhwc_values": 38,
+            "normalized_nodes": 156,
+            "original_weight_bytes": 4417232,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 4378944,
+            "physical_steps": 60,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 4,
+            "production_readbacks": 0,
+            "production_submissions": 0,
+            "retained_activation_bytes": 1622016,
+            "scratch_bytes": 163840,
+            "selected_kernels": [
+              {
+                "layout": "canonical",
+                "operator": "Add",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "AveragePool",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "BatchNormalization",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "canonical",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 7
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Conv",
+                "packed": true,
+                "steps": 29
+              },
+              {
+                "layout": "canonical",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Convert",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSigmoid",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "HardSwish",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "canonical",
+                "operator": "MatMul",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc",
+                "operator": "Mul",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "ReduceMean",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "canonical",
+                "operator": "Transpose",
+                "packed": false,
+                "steps": 3
+              }
+            ],
+            "shared_cached_weight_bytes": 4378944,
+            "specialized_kernels": [
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Add",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pool_channels",
+                "isa": "NeonFma",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "BatchNormalization",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_depthwise_1x5",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nchw_packed_3x3_stride2",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_oc_major",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nchw_pointwise_packed",
+                "isa": "Portable4",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_dense_6x16_k512",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_depthwise_neon_2x32",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 9,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_pointwise_6x16_group8",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "nhwc_pointwise_sme16x16_or_neon",
+                "isa": "NeonFma",
+                "operator": "Conv",
+                "steps": 12,
+                "store_fused": true
+              },
+              {
+                "family": "transpose_8x8",
+                "isa": "Portable4",
+                "operator": "Convert",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "HardSigmoid",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "unary",
+                "isa": "NeonFma",
+                "operator": "HardSwish",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_constant_matmul_6x16",
+                "isa": "NeonFma",
+                "operator": "MatMul",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_binary",
+                "isa": "NeonFma",
+                "operator": "Mul",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "nhwc_spatial_mean",
+                "isa": "NeonFma",
+                "operator": "ReduceMean",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "canonical_native",
+                "isa": "NeonFma",
+                "operator": "Transpose",
+                "steps": 3,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 34,
+            "uploaded_bytes": 0
+          }
+        ]
+      },
+      "succeeded": true
+    }
+  ],
+  "cold_statistics": [
+    null
+  ],
+  "cpu_options": {
+    "detector_threads": 8,
+    "line_workers": 4,
+    "preprocess_workers": 16
+  },
+  "errors": [],
+  "failed_outputs": [],
+  "host_cpu_contract": "process CPU clock across execute including owned copy; excludes validation and serialization; requires macOS and the profiling feature, otherwise null",
+  "image": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/validation/metal/current/strict-corpus/corpus/typical.png",
+  "images_per_second": null,
+  "matrix_precision": "f32",
+  "median_group_ms": null,
+  "outputs": [
+    {
+      "detected_count": 16,
+      "detector_resized_height": 512,
+      "detector_resized_width": 512,
+      "height_ratio": 1.0240000486373901,
+      "lines": [
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999992847442627,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 40.89818572998047,
+              "start_column": 3,
+              "text": "纯"
+            },
+            {
+              "end_column": 10,
+              "score": 40.34092330932617,
+              "start_column": 9,
+              "text": "臻"
+            },
+            {
+              "end_column": 16,
+              "score": 45.16318893432617,
+              "start_column": 15,
+              "text": "营"
+            },
+            {
+              "end_column": 22,
+              "score": 47.79218673706055,
+              "start_column": 21,
+              "text": "养"
+            },
+            {
+              "end_column": 28,
+              "score": 49.739810943603516,
+              "start_column": 27,
+              "text": "护"
+            },
+            {
+              "end_column": 34,
+              "score": 40.47676086425781,
+              "start_column": 33,
+              "text": "发"
+            },
+            {
+              "end_column": 39,
+              "score": 42.52223205566406,
+              "start_column": 38,
+              "text": "素"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                23.0,
+                33.0
+              ],
+              [
+                307.0,
+                33.0
+              ],
+              [
+                307.0,
+                74.0
+              ],
+              [
+                23.0,
+                74.0
+              ]
+            ],
+            "score": 0.9400017857551575
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 333,
+          "recognition_score": 43.84761428833008,
+          "recognition_tensor_width": 352,
+          "recognition_time_steps": 44,
+          "text": "纯臻营养护发素"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999991655349731,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 42.479801177978516,
+              "start_column": 3,
+              "text": "产"
+            },
+            {
+              "end_column": 10,
+              "score": 34.78601837158203,
+              "start_column": 9,
+              "text": "品"
+            },
+            {
+              "end_column": 15,
+              "score": 38.149749755859375,
+              "start_column": 14,
+              "text": "信"
+            },
+            {
+              "end_column": 21,
+              "score": 36.49356460571289,
+              "start_column": 19,
+              "text": "息"
+            },
+            {
+              "end_column": 25,
+              "score": 30.641660690307617,
+              "start_column": 23,
+              "text": "/"
+            },
+            {
+              "end_column": 29,
+              "score": 41.66710662841797,
+              "start_column": 28,
+              "text": "参"
+            },
+            {
+              "end_column": 34,
+              "score": 37.82906723022461,
+              "start_column": 33,
+              "text": "数"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                23.0,
+                79.0
+              ],
+              [
+                177.0,
+                79.0
+              ],
+              [
+                177.0,
+                104.0
+              ],
+              [
+                23.0,
+                104.0
+              ]
+            ],
+            "score": 0.8301201462745667
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 296,
+          "recognition_score": 37.435279846191406,
+          "recognition_tensor_width": 320,
+          "recognition_time_steps": 40,
+          "text": "产品信息/参数"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999996542930603,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 31.94017219543457,
+              "start_column": 1,
+              "text": "("
+            },
+            {
+              "end_column": 5,
+              "score": 38.09178924560547,
+              "start_column": 4,
+              "text": "4"
+            },
+            {
+              "end_column": 8,
+              "score": 37.786102294921875,
+              "start_column": 7,
+              "text": "5"
+            },
+            {
+              "end_column": 13,
+              "score": 37.828006744384766,
+              "start_column": 12,
+              "text": "元"
+            },
+            {
+              "end_column": 17,
+              "score": 40.05894470214844,
+              "start_column": 16,
+              "text": "/"
+            },
+            {
+              "end_column": 21,
+              "score": 33.83903884887695,
+              "start_column": 20,
+              "text": "每"
+            },
+            {
+              "end_column": 27,
+              "score": 41.2242317199707,
+              "start_column": 26,
+              "text": "公"
+            },
+            {
+              "end_column": 32,
+              "score": 35.71162796020508,
+              "start_column": 31,
+              "text": "斤"
+            },
+            {
+              "end_column": 38,
+              "score": 28.346176147460938,
+              "start_column": 37,
+              "text": "，"
+            },
+            {
+              "end_column": 43,
+              "score": 33.12295150756836,
+              "start_column": 42,
+              "text": "1"
+            },
+            {
+              "end_column": 46,
+              "score": 39.803382873535156,
+              "start_column": 45,
+              "text": "0"
+            },
+            {
+              "end_column": 49,
+              "score": 34.88051223754883,
+              "start_column": 48,
+              "text": "0"
+            },
+            {
+              "end_column": 54,
+              "score": 39.60585403442383,
+              "start_column": 53,
+              "text": "公"
+            },
+            {
+              "end_column": 60,
+              "score": 37.3718376159668,
+              "start_column": 59,
+              "text": "斤"
+            },
+            {
+              "end_column": 66,
+              "score": 41.513736724853516,
+              "start_column": 65,
+              "text": "起"
+            },
+            {
+              "end_column": 71,
+              "score": 40.31663513183594,
+              "start_column": 70,
+              "text": "订"
+            },
+            {
+              "end_column": 77,
+              "score": 29.4696102142334,
+              "start_column": 76,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                110.0
+              ],
+              [
+                337.0,
+                110.0
+              ],
+              [
+                337.0,
+                134.0
+              ],
+              [
+                24.0,
+                134.0
+              ]
+            ],
+            "score": 0.8562902212142944
+          },
+          "emitted_count": 17,
+          "recognition_content_width": 626,
+          "recognition_score": 36.52415466308594,
+          "recognition_tensor_width": 640,
+          "recognition_time_steps": 80,
+          "text": "(45元/每公斤，100公斤起订)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999986886978149,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 32.9315185546875,
+              "start_column": 3,
+              "text": "每"
+            },
+            {
+              "end_column": 12,
+              "score": 42.284969329833984,
+              "start_column": 10,
+              "text": "瓶"
+            },
+            {
+              "end_column": 17,
+              "score": 32.81557083129883,
+              "start_column": 16,
+              "text": "2"
+            },
+            {
+              "end_column": 21,
+              "score": 30.933334350585938,
+              "start_column": 20,
+              "text": "2"
+            },
+            {
+              "end_column": 26,
+              "score": 36.02824783325195,
+              "start_column": 25,
+              "text": "元"
+            },
+            {
+              "end_column": 33,
+              "score": 29.546127319335938,
+              "start_column": 32,
+              "text": "，"
+            },
+            {
+              "end_column": 39,
+              "score": 31.466318130493164,
+              "start_column": 38,
+              "text": "1"
+            },
+            {
+              "end_column": 43,
+              "score": 36.57669448852539,
+              "start_column": 42,
+              "text": "0"
+            },
+            {
+              "end_column": 47,
+              "score": 36.211673736572266,
+              "start_column": 46,
+              "text": "0"
+            },
+            {
+              "end_column": 51,
+              "score": 32.821170806884766,
+              "start_column": 50,
+              "text": "0"
+            },
+            {
+              "end_column": 57,
+              "score": 42.73765563964844,
+              "start_column": 56,
+              "text": "瓶"
+            },
+            {
+              "end_column": 64,
+              "score": 35.18463897705078,
+              "start_column": 63,
+              "text": "起"
+            },
+            {
+              "end_column": 70,
+              "score": 40.86782455444336,
+              "start_column": 69,
+              "text": "订"
+            },
+            {
+              "end_column": 77,
+              "score": 27.18463706970215,
+              "start_column": 76,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                143.0
+              ],
+              [
+                285.0,
+                143.0
+              ],
+              [
+                285.0,
+                163.0
+              ],
+              [
+                25.0,
+                163.0
+              ]
+            ],
+            "score": 0.9665049314498901
+          },
+          "emitted_count": 14,
+          "recognition_content_width": 624,
+          "recognition_score": 34.827884674072266,
+          "recognition_tensor_width": 640,
+          "recognition_time_steps": 80,
+          "text": "每瓶22元，1000瓶起订)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9998238682746887,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 32.56292724609375,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 36.99991226196289,
+              "start_column": 6,
+              "text": "品"
+            },
+            {
+              "end_column": 13,
+              "score": 34.3028450012207,
+              "start_column": 11,
+              "text": "牌"
+            },
+            {
+              "end_column": 17,
+              "score": 35.06663513183594,
+              "start_column": 16,
+              "text": "】"
+            },
+            {
+              "end_column": 23,
+              "score": 30.366130828857422,
+              "start_column": 22,
+              "text": "："
+            },
+            {
+              "end_column": 29,
+              "score": 41.10286331176758,
+              "start_column": 28,
+              "text": "代"
+            },
+            {
+              "end_column": 34,
+              "score": 29.12143898010254,
+              "start_column": 33,
+              "text": "加"
+            },
+            {
+              "end_column": 40,
+              "score": 32.4969596862793,
+              "start_column": 39,
+              "text": "工"
+            },
+            {
+              "end_column": 45,
+              "score": 39.69898986816406,
+              "start_column": 44,
+              "text": "方"
+            },
+            {
+              "end_column": 51,
+              "score": 40.41469955444336,
+              "start_column": 50,
+              "text": "式"
+            },
+            {
+              "end_column": 55,
+              "score": 36.23710250854492,
+              "start_column": 53,
+              "text": "/"
+            },
+            {
+              "end_column": 58,
+              "score": 30.259389877319336,
+              "start_column": 57,
+              "text": "O"
+            },
+            {
+              "end_column": 61,
+              "score": 30.43442153930664,
+              "start_column": 60,
+              "text": "E"
+            },
+            {
+              "end_column": 66,
+              "score": 27.70041275024414,
+              "start_column": 65,
+              "text": "M"
+            },
+            {
+              "end_column": 69,
+              "score": 28.021703720092773,
+              "start_column": 68,
+              "text": " "
+            },
+            {
+              "end_column": 72,
+              "score": 30.80669403076172,
+              "start_column": 71,
+              "text": "O"
+            },
+            {
+              "end_column": 76,
+              "score": 33.97272491455078,
+              "start_column": 75,
+              "text": "D"
+            },
+            {
+              "end_column": 82,
+              "score": 32.99894332885742,
+              "start_column": 80,
+              "text": "M"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                23.924461364746094,
+                176.000244140625
+              ],
+              [
+                302.0,
+                174.99998474121094
+              ],
+              [
+                302.0755310058594,
+                195.99972534179688
+              ],
+              [
+                24.0,
+                196.99998474121094
+              ]
+            ],
+            "score": 0.8930502533912659
+          },
+          "emitted_count": 18,
+          "recognition_content_width": 668,
+          "recognition_score": 33.47582244873047,
+          "recognition_tensor_width": 672,
+          "recognition_time_steps": 84,
+          "text": "【品牌】：代加工方式/OEM ODM"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9996046423912048,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 32.410491943359375,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 41.486934661865234,
+              "start_column": 6,
+              "text": "品"
+            },
+            {
+              "end_column": 11,
+              "score": 44.41591262817383,
+              "start_column": 10,
+              "text": "名"
+            },
+            {
+              "end_column": 16,
+              "score": 32.823787689208984,
+              "start_column": 15,
+              "text": "】"
+            },
+            {
+              "end_column": 22,
+              "score": 28.818735122680664,
+              "start_column": 21,
+              "text": "："
+            },
+            {
+              "end_column": 28,
+              "score": 42.063785552978516,
+              "start_column": 27,
+              "text": "纯"
+            },
+            {
+              "end_column": 33,
+              "score": 41.11351776123047,
+              "start_column": 32,
+              "text": "臻"
+            },
+            {
+              "end_column": 38,
+              "score": 43.74283218383789,
+              "start_column": 37,
+              "text": "营"
+            },
+            {
+              "end_column": 43,
+              "score": 45.88379669189453,
+              "start_column": 42,
+              "text": "养"
+            },
+            {
+              "end_column": 48,
+              "score": 49.60051345825195,
+              "start_column": 47,
+              "text": "护"
+            },
+            {
+              "end_column": 53,
+              "score": 42.47541046142578,
+              "start_column": 52,
+              "text": "发"
+            },
+            {
+              "end_column": 59,
+              "score": 40.660213470458984,
+              "start_column": 58,
+              "text": "素"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                207.0
+              ],
+              [
+                236.0,
+                207.0
+              ],
+              [
+                236.0,
+                228.0
+              ],
+              [
+                24.0,
+                228.0
+              ]
+            ],
+            "score": 0.8233640789985657
+          },
+          "emitted_count": 12,
+          "recognition_content_width": 485,
+          "recognition_score": 40.45799255371094,
+          "recognition_tensor_width": 512,
+          "recognition_time_steps": 64,
+          "text": "【品名】：纯臻营养护发素"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999998807907104,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 30.42344856262207,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 39.53439712524414,
+              "start_column": 6,
+              "text": "产"
+            },
+            {
+              "end_column": 12,
+              "score": 37.37185287475586,
+              "start_column": 11,
+              "text": "品"
+            },
+            {
+              "end_column": 17,
+              "score": 40.105857849121094,
+              "start_column": 16,
+              "text": "编"
+            },
+            {
+              "end_column": 22,
+              "score": 36.600303649902344,
+              "start_column": 21,
+              "text": "号"
+            },
+            {
+              "end_column": 26,
+              "score": 35.64857864379883,
+              "start_column": 25,
+              "text": "】"
+            },
+            {
+              "end_column": 32,
+              "score": 28.971725463867188,
+              "start_column": 31,
+              "text": "："
+            },
+            {
+              "end_column": 37,
+              "score": 27.269287109375,
+              "start_column": 36,
+              "text": "Y"
+            },
+            {
+              "end_column": 41,
+              "score": 28.390634536743164,
+              "start_column": 40,
+              "text": "M"
+            },
+            {
+              "end_column": 44,
+              "score": 34.371334075927734,
+              "start_column": 43,
+              "text": "-"
+            },
+            {
+              "end_column": 47,
+              "score": 27.284151077270508,
+              "start_column": 46,
+              "text": "X"
+            },
+            {
+              "end_column": 50,
+              "score": 38.1872444152832,
+              "start_column": 49,
+              "text": "-"
+            },
+            {
+              "end_column": 53,
+              "score": 31.39167594909668,
+              "start_column": 52,
+              "text": "3"
+            },
+            {
+              "end_column": 56,
+              "score": 38.647098541259766,
+              "start_column": 55,
+              "text": "0"
+            },
+            {
+              "end_column": 59,
+              "score": 34.956565856933594,
+              "start_column": 58,
+              "text": "1"
+            },
+            {
+              "end_column": 62,
+              "score": 32.3021240234375,
+              "start_column": 61,
+              "text": "1"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                238.0
+              ],
+              [
+                244.0,
+                238.0
+              ],
+              [
+                244.0,
+                259.0
+              ],
+              [
+                24.0,
+                259.0
+              ]
+            ],
+            "score": 0.8562822937965393
+          },
+          "emitted_count": 16,
+          "recognition_content_width": 503,
+          "recognition_score": 33.84101867675781,
+          "recognition_tensor_width": 512,
+          "recognition_time_steps": 64,
+          "text": "【产品编号】：YM-X-3011"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9991505146026611,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 32.015499114990234,
+              "start_column": 3,
+              "text": "O"
+            },
+            {
+              "end_column": 8,
+              "score": 31.70450782775879,
+              "start_column": 7,
+              "text": "D"
+            },
+            {
+              "end_column": 13,
+              "score": 28.30659294128418,
+              "start_column": 12,
+              "text": "M"
+            },
+            {
+              "end_column": 16,
+              "score": 28.31975746154785,
+              "start_column": 14,
+              "text": " "
+            },
+            {
+              "end_column": 19,
+              "score": 33.417869567871094,
+              "start_column": 18,
+              "text": "O"
+            },
+            {
+              "end_column": 22,
+              "score": 27.74215316772461,
+              "start_column": 21,
+              "text": "E"
+            },
+            {
+              "end_column": 26,
+              "score": 31.59215545654297,
+              "start_column": 25,
+              "text": "M"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                414.0,
+                233.0
+              ],
+              [
+                429.0,
+                233.0
+              ],
+              [
+                429.0,
+                302.0
+              ],
+              [
+                414.0,
+                302.0
+              ]
+            ],
+            "score": 0.7583120465278625
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 221,
+          "recognition_score": 30.44264793395996,
+          "recognition_tensor_width": 224,
+          "recognition_time_steps": 28,
+          "text": "ODM OEM"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999808132648468,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 30.83806610107422,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 43.13477325439453,
+              "start_column": 6,
+              "text": "净"
+            },
+            {
+              "end_column": 12,
+              "score": 47.10293960571289,
+              "start_column": 11,
+              "text": "含"
+            },
+            {
+              "end_column": 18,
+              "score": 38.5208854675293,
+              "start_column": 17,
+              "text": "量"
+            },
+            {
+              "end_column": 22,
+              "score": 36.876953125,
+              "start_column": 21,
+              "text": "】"
+            },
+            {
+              "end_column": 29,
+              "score": 32.91883087158203,
+              "start_column": 28,
+              "text": ":"
+            },
+            {
+              "end_column": 33,
+              "score": 32.0450553894043,
+              "start_column": 32,
+              "text": "2"
+            },
+            {
+              "end_column": 36,
+              "score": 34.80385208129883,
+              "start_column": 35,
+              "text": "2"
+            },
+            {
+              "end_column": 39,
+              "score": 37.181175231933594,
+              "start_column": 38,
+              "text": "0"
+            },
+            {
+              "end_column": 44,
+              "score": 42.07600021362305,
+              "start_column": 43,
+              "text": "m"
+            },
+            {
+              "end_column": 47,
+              "score": 32.281349182128906,
+              "start_column": 46,
+              "text": "l"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                270.0
+              ],
+              [
+                182.0,
+                270.0
+              ],
+              [
+                182.0,
+                290.0
+              ],
+              [
+                24.0,
+                290.0
+              ]
+            ],
+            "score": 0.8590315580368042
+          },
+          "emitted_count": 11,
+          "recognition_content_width": 380,
+          "recognition_score": 37.070899963378906,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "text": "【净含量】:220ml"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999951124191284,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 31.976356506347656,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 54.38412857055664,
+              "start_column": 6,
+              "text": "适"
+            },
+            {
+              "end_column": 12,
+              "score": 44.46942138671875,
+              "start_column": 11,
+              "text": "用"
+            },
+            {
+              "end_column": 18,
+              "score": 35.64455795288086,
+              "start_column": 17,
+              "text": "人"
+            },
+            {
+              "end_column": 24,
+              "score": 41.51399230957031,
+              "start_column": 22,
+              "text": "群"
+            },
+            {
+              "end_column": 28,
+              "score": 36.89277267456055,
+              "start_column": 27,
+              "text": "】"
+            },
+            {
+              "end_column": 34,
+              "score": 28.5567626953125,
+              "start_column": 33,
+              "text": "："
+            },
+            {
+              "end_column": 40,
+              "score": 54.65679168701172,
+              "start_column": 39,
+              "text": "适"
+            },
+            {
+              "end_column": 45,
+              "score": 47.63301467895508,
+              "start_column": 44,
+              "text": "合"
+            },
+            {
+              "end_column": 51,
+              "score": 43.19783020019531,
+              "start_column": 50,
+              "text": "所"
+            },
+            {
+              "end_column": 56,
+              "score": 51.054805755615234,
+              "start_column": 55,
+              "text": "有"
+            },
+            {
+              "end_column": 62,
+              "score": 48.22503662109375,
+              "start_column": 61,
+              "text": "肤"
+            },
+            {
+              "end_column": 67,
+              "score": 48.01155090332031,
+              "start_column": 66,
+              "text": "质"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                301.0
+              ],
+              [
+                254.0,
+                301.0
+              ],
+              [
+                254.0,
+                321.0
+              ],
+              [
+                24.0,
+                321.0
+              ]
+            ],
+            "score": 0.8309783935546875
+          },
+          "emitted_count": 13,
+          "recognition_content_width": 552,
+          "recognition_score": 43.55515670776367,
+          "recognition_tensor_width": 576,
+          "recognition_time_steps": 72,
+          "text": "【适用人群】：适合所有肤质"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999995231628418,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 33.895931243896484,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 42.237396240234375,
+              "start_column": 6,
+              "text": "主"
+            },
+            {
+              "end_column": 12,
+              "score": 37.062320709228516,
+              "start_column": 11,
+              "text": "要"
+            },
+            {
+              "end_column": 18,
+              "score": 43.20355224609375,
+              "start_column": 17,
+              "text": "成"
+            },
+            {
+              "end_column": 23,
+              "score": 39.36115646362305,
+              "start_column": 22,
+              "text": "分"
+            },
+            {
+              "end_column": 28,
+              "score": 33.53976058959961,
+              "start_column": 26,
+              "text": "】"
+            },
+            {
+              "end_column": 34,
+              "score": 29.382823944091797,
+              "start_column": 33,
+              "text": "："
+            },
+            {
+              "end_column": 40,
+              "score": 38.87131118774414,
+              "start_column": 39,
+              "text": "鲸"
+            },
+            {
+              "end_column": 45,
+              "score": 39.29454040527344,
+              "start_column": 44,
+              "text": "蜡"
+            },
+            {
+              "end_column": 51,
+              "score": 43.77399444580078,
+              "start_column": 50,
+              "text": "硬"
+            },
+            {
+              "end_column": 56,
+              "score": 38.440940856933594,
+              "start_column": 55,
+              "text": "脂"
+            },
+            {
+              "end_column": 62,
+              "score": 37.82670211791992,
+              "start_column": 61,
+              "text": "醇"
+            },
+            {
+              "end_column": 66,
+              "score": 33.08298873901367,
+              "start_column": 64,
+              "text": "、"
+            },
+            {
+              "end_column": 73,
+              "score": 33.75167465209961,
+              "start_column": 72,
+              "text": "燕"
+            },
+            {
+              "end_column": 78,
+              "score": 39.15991973876953,
+              "start_column": 77,
+              "text": "麦"
+            },
+            {
+              "end_column": 82,
+              "score": 38.057491302490234,
+              "start_column": 81,
+              "text": "β"
+            },
+            {
+              "end_column": 85,
+              "score": 30.3203067779541,
+              "start_column": 84,
+              "text": "-"
+            },
+            {
+              "end_column": 89,
+              "score": 39.240970611572266,
+              "start_column": 88,
+              "text": "葡"
+            },
+            {
+              "end_column": 94,
+              "score": 34.590972900390625,
+              "start_column": 93,
+              "text": "聚"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                331.9999694824219
+              ],
+              [
+                346.065185546875,
+                333.00018310546875
+              ],
+              [
+                345.9999694824219,
+                354.0
+              ],
+              [
+                23.934783935546875,
+                352.9997863769531
+              ]
+            ],
+            "score": 0.943261444568634
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 773,
+          "recognition_score": 37.11024856567383,
+          "recognition_tensor_width": 800,
+          "recognition_time_steps": 100,
+          "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999982118606567,
+          "ctc_spans": [
+            {
+              "end_column": 5,
+              "score": 41.757625579833984,
+              "start_column": 4,
+              "text": "糖"
+            },
+            {
+              "end_column": 9,
+              "score": 28.02788734436035,
+              "start_column": 7,
+              "text": "、"
+            },
+            {
+              "end_column": 17,
+              "score": 41.63992691040039,
+              "start_column": 16,
+              "text": "椰"
+            },
+            {
+              "end_column": 23,
+              "score": 42.430294036865234,
+              "start_column": 22,
+              "text": "油"
+            },
+            {
+              "end_column": 29,
+              "score": 34.71290969848633,
+              "start_column": 28,
+              "text": "酰"
+            },
+            {
+              "end_column": 35,
+              "score": 44.915306091308594,
+              "start_column": 34,
+              "text": "胺"
+            },
+            {
+              "end_column": 41,
+              "score": 47.054725646972656,
+              "start_column": 40,
+              "text": "丙"
+            },
+            {
+              "end_column": 47,
+              "score": 45.91994094848633,
+              "start_column": 46,
+              "text": "基"
+            },
+            {
+              "end_column": 53,
+              "score": 37.57888412475586,
+              "start_column": 52,
+              "text": "甜"
+            },
+            {
+              "end_column": 59,
+              "score": 46.969478607177734,
+              "start_column": 58,
+              "text": "菜"
+            },
+            {
+              "end_column": 65,
+              "score": 36.39579772949219,
+              "start_column": 64,
+              "text": "碱"
+            },
+            {
+              "end_column": 69,
+              "score": 31.138994216918945,
+              "start_column": 68,
+              "text": "、"
+            },
+            {
+              "end_column": 78,
+              "score": 43.03791809082031,
+              "start_column": 76,
+              "text": "泛"
+            },
+            {
+              "end_column": 84,
+              "score": 26.80868148803711,
+              "start_column": 83,
+              "text": "醌"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                26.0,
+                365.0
+              ],
+              [
+                283.0,
+                365.0
+              ],
+              [
+                283.0,
+                383.0
+              ],
+              [
+                26.0,
+                383.0
+              ]
+            ],
+            "score": 0.9053653478622437
+          },
+          "emitted_count": 14,
+          "recognition_content_width": 686,
+          "recognition_score": 39.170597076416016,
+          "recognition_tensor_width": 704,
+          "recognition_time_steps": 88,
+          "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999432563781738,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 28.894012451171875,
+              "start_column": 1,
+              "text": "("
+            },
+            {
+              "end_column": 8,
+              "score": 42.82239532470703,
+              "start_column": 7,
+              "text": "成"
+            },
+            {
+              "end_column": 13,
+              "score": 37.52496337890625,
+              "start_column": 12,
+              "text": "品"
+            },
+            {
+              "end_column": 18,
+              "score": 43.76197052001953,
+              "start_column": 17,
+              "text": "包"
+            },
+            {
+              "end_column": 24,
+              "score": 46.917320251464844,
+              "start_column": 23,
+              "text": "材"
+            },
+            {
+              "end_column": 29,
+              "score": 27.937679290771484,
+              "start_column": 28,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                367.0,
+                366.0
+              ],
+              [
+                476.0,
+                366.0
+              ],
+              [
+                476.0,
+                388.0
+              ],
+              [
+                367.0,
+                388.0
+              ]
+            ],
+            "score": 0.8985521793365479
+          },
+          "emitted_count": 6,
+          "recognition_content_width": 238,
+          "recognition_score": 37.97639083862305,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "text": "(成品包材)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999998807907104,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 32.83265686035156,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 41.21458435058594,
+              "start_column": 6,
+              "text": "主"
+            },
+            {
+              "end_column": 12,
+              "score": 37.08415222167969,
+              "start_column": 11,
+              "text": "要"
+            },
+            {
+              "end_column": 18,
+              "score": 47.45512771606445,
+              "start_column": 17,
+              "text": "功"
+            },
+            {
+              "end_column": 23,
+              "score": 36.376060485839844,
+              "start_column": 22,
+              "text": "能"
+            },
+            {
+              "end_column": 28,
+              "score": 32.48705291748047,
+              "start_column": 27,
+              "text": "】"
+            },
+            {
+              "end_column": 34,
+              "score": 28.848495483398438,
+              "start_column": 33,
+              "text": "："
+            },
+            {
+              "end_column": 40,
+              "score": 44.930938720703125,
+              "start_column": 38,
+              "text": "可"
+            },
+            {
+              "end_column": 45,
+              "score": 39.58972930908203,
+              "start_column": 44,
+              "text": "紧"
+            },
+            {
+              "end_column": 51,
+              "score": 43.5227165222168,
+              "start_column": 50,
+              "text": "致"
+            },
+            {
+              "end_column": 56,
+              "score": 39.57842254638672,
+              "start_column": 55,
+              "text": "头"
+            },
+            {
+              "end_column": 61,
+              "score": 42.16846466064453,
+              "start_column": 60,
+              "text": "发"
+            },
+            {
+              "end_column": 67,
+              "score": 42.465694427490234,
+              "start_column": 66,
+              "text": "磷"
+            },
+            {
+              "end_column": 72,
+              "score": 39.84807205200195,
+              "start_column": 71,
+              "text": "层"
+            },
+            {
+              "end_column": 78,
+              "score": 29.861759185791016,
+              "start_column": 77,
+              "text": "，"
+            },
+            {
+              "end_column": 83,
+              "score": 37.00324630737305,
+              "start_column": 82,
+              "text": "从"
+            },
+            {
+              "end_column": 89,
+              "score": 37.45133972167969,
+              "start_column": 88,
+              "text": "而"
+            },
+            {
+              "end_column": 94,
+              "score": 45.20719528198242,
+              "start_column": 93,
+              "text": "达"
+            },
+            {
+              "end_column": 100,
+              "score": 42.38749313354492,
+              "start_column": 99,
+              "text": "到"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                395.0
+              ],
+              [
+                362.0,
+                395.0
+              ],
+              [
+                362.0,
+                415.0
+              ],
+              [
+                24.0,
+                415.0
+              ]
+            ],
+            "score": 0.8145706057548523
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 812,
+          "recognition_score": 38.96385192871094,
+          "recognition_tensor_width": 832,
+          "recognition_time_steps": 104,
+          "text": "【主要功能】：可紧致头发磷层，从而达到"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999983310699463,
+          "ctc_spans": [
+            {
+              "end_column": 5,
+              "score": 40.3078727722168,
+              "start_column": 4,
+              "text": "即"
+            },
+            {
+              "end_column": 11,
+              "score": 38.816436767578125,
+              "start_column": 10,
+              "text": "时"
+            },
+            {
+              "end_column": 17,
+              "score": 37.4608268737793,
+              "start_column": 16,
+              "text": "持"
+            },
+            {
+              "end_column": 23,
+              "score": 38.60455322265625,
+              "start_column": 22,
+              "text": "久"
+            },
+            {
+              "end_column": 30,
+              "score": 43.390541076660156,
+              "start_column": 29,
+              "text": "改"
+            },
+            {
+              "end_column": 37,
+              "score": 39.333831787109375,
+              "start_column": 36,
+              "text": "善"
+            },
+            {
+              "end_column": 43,
+              "score": 37.509979248046875,
+              "start_column": 42,
+              "text": "头"
+            },
+            {
+              "end_column": 49,
+              "score": 41.176517486572266,
+              "start_column": 48,
+              "text": "发"
+            },
+            {
+              "end_column": 56,
+              "score": 39.74085235595703,
+              "start_column": 55,
+              "text": "光"
+            },
+            {
+              "end_column": 62,
+              "score": 40.16793441772461,
+              "start_column": 61,
+              "text": "泽"
+            },
+            {
+              "end_column": 69,
+              "score": 43.881710052490234,
+              "start_column": 68,
+              "text": "的"
+            },
+            {
+              "end_column": 75,
+              "score": 40.37685775756836,
+              "start_column": 74,
+              "text": "效"
+            },
+            {
+              "end_column": 82,
+              "score": 35.98572540283203,
+              "start_column": 80,
+              "text": "果"
+            },
+            {
+              "end_column": 88,
+              "score": 28.390710830688477,
+              "start_column": 87,
+              "text": "，"
+            },
+            {
+              "end_column": 95,
+              "score": 41.764808654785156,
+              "start_column": 93,
+              "text": "给"
+            },
+            {
+              "end_column": 101,
+              "score": 32.398677825927734,
+              "start_column": 100,
+              "text": "干"
+            },
+            {
+              "end_column": 107,
+              "score": 35.34242630004883,
+              "start_column": 106,
+              "text": "燥"
+            },
+            {
+              "end_column": 114,
+              "score": 45.25418472290039,
+              "start_column": 113,
+              "text": "的"
+            },
+            {
+              "end_column": 120,
+              "score": 36.42875289916992,
+              "start_column": 119,
+              "text": "头"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                26.0,
+                428.0
+              ],
+              [
+                373.0,
+                428.0
+              ],
+              [
+                373.0,
+                445.0
+              ],
+              [
+                26.0,
+                445.0
+              ]
+            ],
+            "score": 0.901804506778717
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 980,
+          "recognition_score": 38.75437927246094,
+          "recognition_tensor_width": 992,
+          "recognition_time_steps": 124,
+          "text": "即时持久改善头发光泽的效果，给干燥的头"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999988079071045,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 43.43596649169922,
+              "start_column": 3,
+              "text": "发"
+            },
+            {
+              "end_column": 9,
+              "score": 41.964447021484375,
+              "start_column": 8,
+              "text": "足"
+            },
+            {
+              "end_column": 15,
+              "score": 40.095787048339844,
+              "start_column": 14,
+              "text": "够"
+            },
+            {
+              "end_column": 20,
+              "score": 47.06206512451172,
+              "start_column": 19,
+              "text": "的"
+            },
+            {
+              "end_column": 25,
+              "score": 43.40919494628906,
+              "start_column": 24,
+              "text": "滋"
+            },
+            {
+              "end_column": 30,
+              "score": 44.639122009277344,
+              "start_column": 29,
+              "text": "养"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                457.0
+              ],
+              [
+                137.0,
+                457.0
+              ],
+              [
+                137.0,
+                478.0
+              ],
+              [
+                25.0,
+                478.0
+              ]
+            ],
+            "score": 0.9608280658721924
+          },
+          "emitted_count": 6,
+          "recognition_content_width": 256,
+          "recognition_score": 43.43442916870117,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "text": "发足够的滋养"
+        }
+      ],
+      "text": "纯臻营养护发素\n产品信息/参数\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订)\n【品牌】：代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【产品编号】：YM-X-3011\nODM OEM\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养",
+      "width_ratio": 1.0240000486373901
+    }
+  ],
+  "peak_device_bytes": null,
+  "pipeline": "cpu",
+  "profiles": [],
+  "qualified": true,
+  "recognition_wave_size": null,
+  "requests": 1,
+  "retained_device_bytes": null,
+  "sample_run_statistics": [],
+  "sample_statistics": [],
+  "slots": 1,
+  "startup_ms": 10.711833,
+  "statistics": [
+    null
+  ],
+  "storage_precision": "F32",
+  "timing_contract": "group start through last inference return; excludes decode, owned copy, validation, serialization and profile calls",
+  "warm_group_ms": [],
+  "warm_process_cpu_ms": []
+}

@@ -5,7 +5,11 @@ fn p(i:u32)->u32{return params.words[i/4u][i%4u];}
 fn store(base:u32,i:u32,value:vec2<f32>){transforms[base+8u+i*2u]=bitcast<u32>(value.x);transforms[base+9u+i*2u]=bitcast<u32>(value.y);}
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id:vec3<u32>){
-    let index=id.x;if index>=p(0u){return;}let base=index*32u;let input=(index+1u)*16u;
+    let index=id.x;if index>=p(0u){return;}
+    // Full OCR can prepare the accepted prefix before its count reaches CPU.
+    // Standalone callers supply their own count and do not depend on the header.
+    if p(1u)!=0u && index>=boxes[0]{return;}
+    let base=index*32u;let input=(index+1u)*16u;
     var q:array<vec2<f32>,4>;for(var i=0u;i<4u;i++){q[i]=vec2<f32>(bitcast<f32>(boxes[input+i*2u]),bitcast<f32>(boxes[input+i*2u+1u]));}
     let width=u32(max(dfloor(dlength(q[0],q[1])),dfloor(dlength(q[2],q[3]))));
     let height=u32(max(dfloor(dlength(q[0],q[3])),dfloor(dlength(q[1],q[2]))));

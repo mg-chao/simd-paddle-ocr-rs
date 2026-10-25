@@ -89,6 +89,24 @@ pub(super) fn activation(
     }
     None
 }
+
+/// Keep the two-node Swish form distinct from a bare Sigmoid. Callers that
+/// fuse both nodes must also prove that the Sigmoid result does not escape.
+#[cfg(feature = "gpu")]
+pub(super) fn swish(
+    program: &Program,
+    start: usize,
+    input: TensorId,
+    count: usize,
+) -> Option<usize> {
+    let n = &program.instructions;
+    (start + 1 < count
+        && matches!(n[start].kind, Op::Sigmoid)
+        && n[start].inputs[0] == input
+        && matches!(n[start + 1].kind, Op::Mul)
+        && other_binary(&n[start + 1], n[start].output) == Some(input))
+    .then_some(start + 1)
+}
 pub(super) fn layer_norm(
     program: &Program,
     plan: &ShapePlan,

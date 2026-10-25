@@ -7,6 +7,11 @@
 #![cfg_attr(feature = "gpu", recursion_limit = "256")]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+compile_error!(
+    "The native Metal GPU implementation requires macOS 26 or later. Disable the gpu feature for CPU-only execution."
+);
+
 pub mod builder;
 pub mod characters;
 pub mod cpu;
@@ -37,7 +42,7 @@ pub mod tensor;
 pub use builder::{ModelPreset, OcrBuilder, OcrModelSet};
 pub use characters::{CharacterBox, OwnedCharacterBox};
 #[cfg(feature = "gpu")]
-pub use runtime::gpu::{GpuPipelineMode, GpuPipelineStatistics, GpuPlacement};
+pub use runtime::gpu::{GpuPipelineStatistics, GpuPlacement};
 pub use runtime::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget, Session};
 
 pub use error::OcrStage;

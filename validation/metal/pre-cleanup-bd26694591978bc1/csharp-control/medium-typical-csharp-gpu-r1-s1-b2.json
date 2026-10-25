@@ -1,0 +1,588 @@
+{
+  "implementation": "csharp",
+  "pipeline": "hybrid",
+  "preset": "medium",
+  "requests": 1,
+  "batch": 2,
+  "capture": false,
+  "adapter": "Apple M4",
+  "backend": "Metal",
+  "framework": ".NET 10.0.11",
+  "precision": "mixed_f16",
+  "cpu_options": {
+    "line_workers": 4,
+    "detector_threads": 8,
+    "preprocess_workers": 16
+  },
+  "timing_contract": "group start through last inference return; excludes decode, validation, serialization and profile calls; C# public results are owned",
+  "startup_ms": 361.5026,
+  "cold_run_ms": 361.843,
+  "warm_group_ms": [
+    161.8799,
+    161.4153,
+    161.4062
+  ],
+  "median_group_ms": 161.4153,
+  "images_per_second": 6.195199587647515,
+  "qualified": true,
+  "errors": [],
+  "outputs": [
+    {
+      "text": "纯臻营养护发素\n产品信息/参数\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订）\n【品牌】:代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【产品编号】：YM-X-3011\nODM OEM\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养",
+      "detected_count": 16,
+      "detector_resized_width": 512,
+      "detector_resized_height": 512,
+      "lines": [
+        {
+          "text": "纯臻营养护发素",
+          "detection": {
+            "points": [
+              [
+                24,
+                35
+              ],
+              [
+                304,
+                35
+              ],
+              [
+                304,
+                72
+              ],
+              [
+                24,
+                72
+              ]
+            ],
+            "score": 0.9032675
+          },
+          "recognition_score": 18.671274,
+          "classification_score": 0.9999366,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 7,
+          "recognition_content_width": 364,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "ctc_spans": null
+        },
+        {
+          "text": "产品信息/参数",
+          "detection": {
+            "points": [
+              [
+                24,
+                79
+              ],
+              [
+                173,
+                79
+              ],
+              [
+                173,
+                104
+              ],
+              [
+                24,
+                104
+              ]
+            ],
+            "score": 0.8732834
+          },
+          "recognition_score": 24.175367,
+          "classification_score": 0.9999993,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 7,
+          "recognition_content_width": 287,
+          "recognition_tensor_width": 288,
+          "recognition_time_steps": 36,
+          "ctc_spans": null
+        },
+        {
+          "text": "(45元/每公斤，100公斤起订)",
+          "detection": {
+            "points": [
+              [
+                24,
+                110
+              ],
+              [
+                334,
+                110
+              ],
+              [
+                334,
+                134
+              ],
+              [
+                24,
+                134
+              ]
+            ],
+            "score": 0.8512677
+          },
+          "recognition_score": 22.70202,
+          "classification_score": 0.9999964,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 17,
+          "recognition_content_width": 620,
+          "recognition_tensor_width": 640,
+          "recognition_time_steps": 80,
+          "ctc_spans": null
+        },
+        {
+          "text": "每瓶22元，1000瓶起订）",
+          "detection": {
+            "points": [
+              [
+                24,
+                142
+              ],
+              [
+                283,
+                142
+              ],
+              [
+                283,
+                165
+              ],
+              [
+                24,
+                165
+              ]
+            ],
+            "score": 0.8735311
+          },
+          "recognition_score": 23.457657,
+          "classification_score": 0.9999989,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 14,
+          "recognition_content_width": 541,
+          "recognition_tensor_width": 544,
+          "recognition_time_steps": 68,
+          "ctc_spans": null
+        },
+        {
+          "text": "【品牌】:代加工方式/OEM ODM",
+          "detection": {
+            "points": [
+              [
+                25,
+                177
+              ],
+              [
+                299,
+                177
+              ],
+              [
+                299,
+                194
+              ],
+              [
+                25,
+                194
+              ]
+            ],
+            "score": 0.90709174
+          },
+          "recognition_score": 21.745981,
+          "classification_score": 0.9992995,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 18,
+          "recognition_content_width": 774,
+          "recognition_tensor_width": 800,
+          "recognition_time_steps": 100,
+          "ctc_spans": null
+        },
+        {
+          "text": "【品名】：纯臻营养护发素",
+          "detection": {
+            "points": [
+              [
+                22.905216,
+                208.00046
+              ],
+              [
+                234.00002,
+                207.00002
+              ],
+              [
+                234.09479,
+                226.99957
+              ],
+              [
+                23,
+                228.00002
+              ]
+            ],
+            "score": 0.8851142
+          },
+          "recognition_score": 20.996626,
+          "classification_score": 0.99986243,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 12,
+          "recognition_content_width": 534,
+          "recognition_tensor_width": 544,
+          "recognition_time_steps": 68,
+          "ctc_spans": null
+        },
+        {
+          "text": "【产品编号】：YM-X-3011",
+          "detection": {
+            "points": [
+              [
+                24,
+                239
+              ],
+              [
+                242,
+                239
+              ],
+              [
+                242,
+                257
+              ],
+              [
+                24,
+                257
+              ]
+            ],
+            "score": 0.86648417
+          },
+          "recognition_score": 23.649317,
+          "classification_score": 0.9999944,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 16,
+          "recognition_content_width": 582,
+          "recognition_tensor_width": 608,
+          "recognition_time_steps": 76,
+          "ctc_spans": null
+        },
+        {
+          "text": "ODM OEM",
+          "detection": {
+            "points": [
+              [
+                414,
+                233
+              ],
+              [
+                428,
+                233
+              ],
+              [
+                428,
+                303
+              ],
+              [
+                414,
+                303
+              ]
+            ],
+            "score": 0.9372253
+          },
+          "recognition_score": 19.08393,
+          "classification_score": 0.96997225,
+          "classification_label": 1,
+          "applied_rotation_degrees": 180,
+          "emitted_count": 7,
+          "recognition_content_width": 240,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "ctc_spans": null
+        },
+        {
+          "text": "【净含量】:220ml",
+          "detection": {
+            "points": [
+              [
+                23,
+                270
+              ],
+              [
+                180,
+                270
+              ],
+              [
+                180,
+                290
+              ],
+              [
+                23,
+                290
+              ]
+            ],
+            "score": 0.84371984
+          },
+          "recognition_score": 24.076548,
+          "classification_score": 0.9998572,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 11,
+          "recognition_content_width": 377,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "ctc_spans": null
+        },
+        {
+          "text": "【适用人群】：适合所有肤质",
+          "detection": {
+            "points": [
+              [
+                24,
+                303
+              ],
+              [
+                252,
+                303
+              ],
+              [
+                252,
+                320
+              ],
+              [
+                24,
+                320
+              ]
+            ],
+            "score": 0.8857579
+          },
+          "recognition_score": 22.972557,
+          "classification_score": 0.99999845,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 13,
+          "recognition_content_width": 644,
+          "recognition_tensor_width": 672,
+          "recognition_time_steps": 84,
+          "ctc_spans": null
+        },
+        {
+          "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚",
+          "detection": {
+            "points": [
+              [
+                24,
+                334
+              ],
+              [
+                343,
+                334
+              ],
+              [
+                343,
+                352
+              ],
+              [
+                24,
+                352
+              ]
+            ],
+            "score": 0.8764483
+          },
+          "recognition_score": 19.537035,
+          "classification_score": 0.9999995,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 19,
+          "recognition_content_width": 851,
+          "recognition_tensor_width": 864,
+          "recognition_time_steps": 108,
+          "ctc_spans": null
+        },
+        {
+          "text": "糖、椰油酰胺丙基甜菜碱、泛醌",
+          "detection": {
+            "points": [
+              [
+                25,
+                365
+              ],
+              [
+                282,
+                365
+              ],
+              [
+                282,
+                383
+              ],
+              [
+                25,
+                383
+              ]
+            ],
+            "score": 0.8575497
+          },
+          "recognition_score": 17.575933,
+          "classification_score": 0.9999989,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 14,
+          "recognition_content_width": 686,
+          "recognition_tensor_width": 704,
+          "recognition_time_steps": 88,
+          "ctc_spans": null
+        },
+        {
+          "text": "(成品包材)",
+          "detection": {
+            "points": [
+              [
+                368,
+                366
+              ],
+              [
+                476,
+                366
+              ],
+              [
+                476,
+                388
+              ],
+              [
+                368,
+                388
+              ]
+            ],
+            "score": 0.903761
+          },
+          "recognition_score": 21.837824,
+          "classification_score": 0.9999356,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 6,
+          "recognition_content_width": 236,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "ctc_spans": null
+        },
+        {
+          "text": "【主要功能】：可紧致头发磷层，从而达到",
+          "detection": {
+            "points": [
+              [
+                25,
+                396
+              ],
+              [
+                361,
+                396
+              ],
+              [
+                361,
+                413
+              ],
+              [
+                25,
+                413
+              ]
+            ],
+            "score": 0.9802605
+          },
+          "recognition_score": 21.440147,
+          "classification_score": 0.9999379,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 19,
+          "recognition_content_width": 949,
+          "recognition_tensor_width": 960,
+          "recognition_time_steps": 120,
+          "ctc_spans": null
+        },
+        {
+          "text": "即时持久改善头发光泽的效果，给干燥的头",
+          "detection": {
+            "points": [
+              [
+                26,
+                428
+              ],
+              [
+                372,
+                428
+              ],
+              [
+                372,
+                445
+              ],
+              [
+                26,
+                445
+              ]
+            ],
+            "score": 0.8729355
+          },
+          "recognition_score": 21.742395,
+          "classification_score": 0.99999833,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 19,
+          "recognition_content_width": 977,
+          "recognition_tensor_width": 992,
+          "recognition_time_steps": 124,
+          "ctc_spans": null
+        },
+        {
+          "text": "发足够的滋养",
+          "detection": {
+            "points": [
+              [
+                25,
+                457
+              ],
+              [
+                136,
+                457
+              ],
+              [
+                136,
+                478
+              ],
+              [
+                25,
+                478
+              ]
+            ],
+            "score": 0.9575472
+          },
+          "recognition_score": 22.052967,
+          "classification_score": 0.9999989,
+          "classification_label": 0,
+          "applied_rotation_degrees": 0,
+          "emitted_count": 6,
+          "recognition_content_width": 254,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "ctc_spans": null
+        }
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "stage": "detector",
+      "type": "Sdcb.SimdPaddleOCR.Backends.Metal.MetalSession",
+      "gpu_alive": true
+    },
+    {
+      "stage": "classifier",
+      "type": "Sdcb.SimdPaddleOCR.Backends.Metal.MetalSession",
+      "gpu_alive": true
+    },
+    {
+      "stage": "recognizer",
+      "type": "Sdcb.SimdPaddleOCR.Backends.Metal.MetalSession",
+      "gpu_alive": true
+    }
+  ],
+  "profiles": null,
+  "reference_scope": "implementation-cold-output; cross-implementation differences checked separately",
+  "retained_device_bytes": null,
+  "peak_device_bytes": null
+}

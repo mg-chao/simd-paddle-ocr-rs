@@ -6,10 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Sdcb.SimdPaddleOCR;
 using Sdcb.SimdPaddleOCR.OnnxSharp;
-using Sdcb.SimdPaddleOCR.Backends.Vulkan;
 using Sdcb.SimdPaddleOCR.Backends.Metal;
 
-// Developer-only comparison adapter: production remains pure Rust/wgpu.
+// Developer-only comparison adapter: production remains pure Rust/Metal.
 internal static class OcrBench
 {
     internal static void Run(string[] args)
@@ -18,11 +17,7 @@ internal static class OcrBench
         string dir = args[1], preset = args[2], mode = args[3];
         int width = int.Parse(args[5]), height = int.Parse(args[6]), requests = int.Parse(args[7]), batch = int.Parse(args[8]);
         if (requests is < 1 or > 16 || batch is < 1 or > 64) throw new ArgumentException("request/batch bounds");
-        OcrBackend gpuBackend = (Environment.GetEnvironmentVariable("SIMD_OCR_BENCH_GPU_BACKEND") ?? "vulkan") switch {
-            "vulkan" => OcrBackend.Vulkan, "metal" => OcrBackend.Metal,
-            _ => throw new ArgumentException("C# GPU backend must be vulkan or metal")
-        };
-        OcrBackend backend = mode switch { "cpu" => OcrBackend.Cpu, "gpu" => gpuBackend, _ => throw new ArgumentException("backend") };
+        OcrBackend backend = mode switch { "cpu" => OcrBackend.Cpu, "gpu" => OcrBackend.Metal, _ => throw new ArgumentException("backend") };
         (string det,string rec,string keys) = preset switch {
             "tiny" => ("det.onnx","rec.onnx","ppocr_keys.txt"),
             "small" => ("small_det.onnx","small_rec.onnx","rec_keys.txt"),
@@ -73,7 +68,7 @@ internal static class OcrBench
             if (owner is null) return true;
             var sessions = ((IEnumerable)owner.GetType().GetField("_sessions",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(owner)!).Cast<IOcrSession>().ToArray();
             // Empty pages may legitimately never invoke CLS/REC.
-            string expected = gpuBackend == OcrBackend.Metal ? "Backends.Metal" : "Backends.Vulkan";
+            string expected = "Backends.Metal";
             return (stage != "detector" || sessions.Length > 0) && sessions.All(s => s.GetType().FullName!.Contains(expected) && s.GpuAlive);
         });
         if (mode == "gpu" && !GpuAlive()) errors.Add("C# GPU fell back to CPU");
@@ -95,12 +90,12 @@ internal static class OcrBench
         }
         double? median = measured.Count == 0 ? null : measured.Order().ElementAt(measured.Count/2);
         Console.WriteLine(JsonSerializer.Serialize(new {
-            implementation = "csharp", pipeline = mode == "gpu" ? "hybrid" : "cpu", preset, requests, batch, capture,
-            adapter = mode == "gpu" ? (gpuBackend == OcrBackend.Metal ? MetalBackend.TryGetDevice()?.Name : GpuBackend.TryGetDevice()?.DeviceName) : null,
+            implementation = "csharp", pipeline = mode, preset, requests, batch, capture,
+            adapter = mode == "gpu" ? MetalBackend.TryGetDevice()?.Name : null,
             backend = backend.ToString(),
             framework = RuntimeInformation.FrameworkDescription, precision = mode == "gpu" ? "mixed_f16" : "f32",
             cpu_options = new { line_workers = 4, detector_threads = 8, preprocess_workers = 16 },
-            timing_contract = "group start through last inference return; excludes decode, validation, serialization and profile calls; C# public results are owned",
+            timing_contract = "group start through last inference return; excludes image decoding, validation, serialization and profile calls; C# public results are owned",
             startup_ms = startup, cold_run_ms = cold, warm_group_ms = measured, median_group_ms = errors.Count == 0 ? median : null,
             images_per_second = errors.Count == 0 && median is > 0 ? requests * 1000 / median : null,
             qualified = errors.Count == 0, errors, outputs = canonical, sessions = Sessions(), profiles,

@@ -9,28 +9,37 @@ const EMPTY_PACKET: [u32; PACKET_WORDS] = [0; PACKET_WORDS];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum ShaderKind {
-    PointwiseNhwc,
     Attention,
     AttentionViews,
-    SeChain,
     SqueezeExcite,
+    SmallProjection,
     Transposed,
     Convolution,
     General,
-    CooperativeMatMul,
-    PointwiseCooperative32,
+    PointwiseNative64,
+    PointwiseF16,
+    LinearNative,
+    LinearMpp,
+    TailProjection,
+    PackNhwc,
+    ConvMpp2s1,
+    ConvMpp2Staged,
+    ConvMpp3s2Staged,
+    ConvMpp3s1,
+    ConvMpp3s2,
+    ConvMpp3s21,
+    ConvMpp3s12,
+    ConvMpp7s1,
+    ConvMpp7s2,
+    DepthwiseNative3,
+    DepthwiseNative5,
+    DepthwiseNative7,
+    DepthwiseNative9,
+    DepthwiseNative1x7,
     MatMul16,
     MatMul32,
-    ConvPrescaled16,
-    ConvPrescaled32,
     Conv16,
     Conv32,
-    PointwiseNchw16,
-    PointwiseNchw32,
-    PointwiseBlocked32,
-    PointwisePacked32,
-    PointwisePrescaled16,
-    PointwisePrescaled32,
     Depthwise3,
     Depthwise5,
     Reduce,
@@ -42,25 +51,19 @@ pub(super) enum ShaderKind {
     SoftmaxFinish,
 }
 impl ShaderKind {
+    #[cfg(test)]
     pub const ALL: &'static [Self] = &[
-        Self::PointwiseNhwc,
         Self::Attention,
         Self::AttentionViews,
-        Self::SeChain,
         Self::SqueezeExcite,
+        Self::SmallProjection,
         Self::Transposed,
         Self::Convolution,
         Self::General,
         Self::MatMul16,
         Self::MatMul32,
-        Self::ConvPrescaled16,
-        Self::ConvPrescaled32,
         Self::Conv16,
         Self::Conv32,
-        Self::PointwiseNchw16,
-        Self::PointwiseNchw32,
-        Self::PointwisePrescaled16,
-        Self::PointwisePrescaled32,
         Self::Depthwise3,
         Self::Depthwise5,
         Self::Reduce,
@@ -73,28 +76,37 @@ impl ShaderKind {
     ];
     pub fn name(self) -> &'static str {
         match self {
-            Self::PointwiseNhwc => "pointwise_nhwc16",
             Self::Attention => "attention_online",
             Self::AttentionViews => "attention_qkv_views",
-            Self::SeChain => "se_projection_chain",
             Self::SqueezeExcite => "squeeze_excitation",
+            Self::SmallProjection => "small_projection",
             Self::Transposed => "conv_transpose_tile8",
             Self::Convolution => "conv_generic",
             Self::General => "general",
-            Self::CooperativeMatMul => "experimental_cooperative_matmul8",
-            Self::PointwiseCooperative32 => "pointwise_cooperative32",
+            Self::PointwiseNative64 => "pointwise_native64",
+            Self::PointwiseF16 => "pointwise_f16",
+            Self::LinearNative => "linear_native",
+            Self::LinearMpp => "linear_mpp",
+            Self::TailProjection => "tail_projection",
+            Self::PackNhwc => "pack_nhwc",
+            Self::ConvMpp2s1 => "conv_mpp2s1",
+            Self::ConvMpp2Staged => "conv_mpp2_staged",
+            Self::ConvMpp3s2Staged => "conv_mpp3s2_staged",
+            Self::ConvMpp3s1 => "conv_mpp3s1",
+            Self::ConvMpp3s2 => "conv_mpp3s2",
+            Self::ConvMpp3s21 => "conv_mpp3s21",
+            Self::ConvMpp3s12 => "conv_mpp3s12",
+            Self::ConvMpp7s1 => "conv_mpp7s1",
+            Self::ConvMpp7s2 => "conv_mpp7s2",
+            Self::DepthwiseNative3 => "depthwise_native3",
+            Self::DepthwiseNative5 => "depthwise_native5",
+            Self::DepthwiseNative7 => "depthwise_native7",
+            Self::DepthwiseNative9 => "depthwise_native9",
+            Self::DepthwiseNative1x7 => "depthwise_native1x7",
             Self::MatMul16 => "matmul_tile16",
             Self::MatMul32 => "matmul_tile32",
-            Self::ConvPrescaled16 => "conv_prescaled16",
-            Self::ConvPrescaled32 => "conv_prescaled32",
             Self::Conv16 => "conv_implicit16",
             Self::Conv32 => "conv_implicit32",
-            Self::PointwiseNchw16 => "pointwise_nchw16",
-            Self::PointwiseNchw32 => "pointwise_nchw32",
-            Self::PointwiseBlocked32 => "pointwise_blocked32",
-            Self::PointwisePacked32 => "pointwise_packed32",
-            Self::PointwisePrescaled16 => "pointwise_prescaled16",
-            Self::PointwisePrescaled32 => "pointwise_prescaled32",
             Self::Depthwise3 => "depthwise3",
             Self::Depthwise5 => "depthwise5",
             Self::Reduce => "reduce_contiguous",
@@ -108,18 +120,6 @@ impl ShaderKind {
     }
     pub fn source(self) -> String {
         match self {
-            Self::PointwiseBlocked32 | Self::PointwisePacked32 => format!(
-                "{}\n{}",
-                if self == Self::PointwisePacked32 {
-                    include_str!("pointwise_weights_packed.wgsl")
-                } else {
-                    include_str!("pointwise_weights_rowmajor.wgsl")
-                },
-                include_str!("pointwise_blocked.wgsl")
-            ),
-            Self::CooperativeMatMul => include_str!("cooperative.wgsl").into(),
-            Self::PointwiseCooperative32 => self.cooperative_direct_source(),
-            Self::PointwiseNhwc => include_str!("pointwise.wgsl").into(),
             Self::Attention | Self::AttentionViews => include_str!("attention.wgsl").replace(
                 "$VIEWS",
                 if self == Self::AttentionViews {
@@ -128,8 +128,8 @@ impl ShaderKind {
                     "false"
                 },
             ),
-            Self::SeChain => include_str!("se_chain.wgsl").into(),
             Self::SqueezeExcite => include_str!("se.wgsl").into(),
+            Self::SmallProjection => include_str!("small_projection.wgsl").into(),
             Self::Transposed => include_str!("transposed.wgsl").into(),
             Self::ReducePartial
             | Self::ReduceFinish
@@ -151,18 +151,33 @@ impl ShaderKind {
                         "false"
                     },
                 ),
+            Self::ConvMpp2Staged
+            | Self::ConvMpp3s2Staged
+            | Self::ConvMpp2s1
+            | Self::ConvMpp3s1
+            | Self::ConvMpp3s2
+            | Self::ConvMpp3s21
+            | Self::ConvMpp3s12
+            | Self::ConvMpp7s1
+            | Self::ConvMpp7s2 => {
+                unreachable!("native MPP pipelines require Metal passthrough compilation")
+            }
+            Self::PointwiseF16
+            | Self::LinearNative
+            | Self::LinearMpp
+            | Self::TailProjection
+            | Self::PointwiseNative64
+            | Self::DepthwiseNative3
+            | Self::DepthwiseNative5
+            | Self::DepthwiseNative7
+            | Self::DepthwiseNative9
+            | Self::DepthwiseNative1x7 => {
+                unreachable!("native pipelines require Metal passthrough compilation")
+            }
+            Self::PackNhwc => include_str!("pack_nhwc.wgsl").into(),
             Self::Convolution => include_str!("conv.wgsl").into(),
             Self::General => include_str!("operators.wgsl").into(),
-            Self::MatMul16
-            | Self::MatMul32
-            | Self::Conv16
-            | Self::Conv32
-            | Self::ConvPrescaled16
-            | Self::ConvPrescaled32 => self.tiled_source(),
-            Self::PointwiseNchw16
-            | Self::PointwiseNchw32
-            | Self::PointwisePrescaled16
-            | Self::PointwisePrescaled32 => self.tiled_source(),
+            Self::MatMul16 | Self::MatMul32 | Self::Conv16 | Self::Conv32 => self.tiled_source(),
             Self::Depthwise3 | Self::Depthwise5 => include_str!("depthwise.wgsl")
                 .replace("$KERNEL", if self == Self::Depthwise3 { "3" } else { "5" }),
             Self::Reduce | Self::Softmax | Self::LayerNorm => include_str!("reduce.wgsl").replace(
@@ -176,78 +191,10 @@ impl ShaderKind {
         }
     }
     pub fn common_source(self) -> String {
-        if self == Self::PointwisePacked32 {
-            include_str!("common.wgsl")
-                .replace("raw_b: array<$B>", "raw_b: array<vec4<f32>>")
-                .replace("return f32(raw_b[i]);", "return raw_b[i/4u][i%4u];")
-        } else {
-            include_str!("common.wgsl").into()
-        }
-    }
-    fn cooperative_direct_source(self) -> String {
-        // Named matrix fragments keep the 4x4 accumulator grid in registers.
-        // Dynamic arrays of cooperative matrices are not supported by WGSL.
-        let mut init = String::new();
-        let mut step = String::new();
-        let mut finish = String::new();
-        for row in 0..4 {
-            init.push_str(&format!(
-                r"
-                for (var i = lane; i < 64u; i += width) {{
-                    var value = 0.0;
-                    if p(19u) != 0u && mr + {row}u * 8u + i / 8u < rows {{
-                        value = load_c(mr + {row}u * 8u + i / 8u);
-                    }}
-                    result[dest + i] = value;
-                }}
-                workgroupBarrier();
-                var s{row}_0 = coopLoadT<MC>(&result[dest], 8u);
-            "
-            ));
-            for col in 1..4 {
-                init.push_str(&format!("var s{row}_{col} = s{row}_0;\n"));
-            }
-            init.push_str("workgroupBarrier();\n");
-            // Clamp only unused fragments; finish_fragment masks their stores.
-            step.push_str(&format!(
-                "let a{row} = coopLoadT<MA>(&raw_b[min(mr + {row}u * 8u, rows - 8u) * inner + base], inner);\n"
-            ));
-        }
-        for col in 0..4 {
-            step.push_str(&format!(
-                "let b{col} = coopLoadT<MB>(&raw_a[ai + base * columns + min(nc + {col}u * 8u, columns - 8u)], columns);\n"
-            ));
-        }
-        for row in 0..4 {
-            for col in 0..4 {
-                step.push_str(&format!(
-                    "s{row}_{col} = coopMultiplyAdd(a{row}, b{col}, s{row}_{col});\n"
-                ));
-                finish.push_str(&format!(
-                    r"
-                    coopStoreT(s{row}_{col}, &result[dest], 8u);
-                    workgroupBarrier();
-                    finish_fragment(dest, lane, width, batch, mr + {row}u * 8u, nc + {col}u * 8u);
-                    workgroupBarrier();
-                "
-                ));
-            }
-        }
-        include_str!("pointwise_cooperative.wgsl")
-            .replace("$TILE", "32")
-            .replace("$INIT", &init)
-            .replace("$STEP", &step)
-            .replace("$FINISH", &finish)
+        include_str!("common.wgsl").into()
     }
     fn tiled_source(self) -> String {
-        let tile = if matches!(
-            self,
-            Self::MatMul32
-                | Self::Conv32
-                | Self::ConvPrescaled32
-                | Self::PointwiseNchw32
-                | Self::PointwisePrescaled32
-        ) {
+        let tile = if matches!(self, Self::MatMul32 | Self::Conv32) {
             32
         } else {
             16
@@ -268,52 +215,14 @@ impl ShaderKind {
                     ));
         }
         include_str!("tiled.wgsl")
-            .replace(
-                "$PRESCALE",
-                if matches!(
-                    self,
-                    Self::ConvPrescaled16
-                        | Self::ConvPrescaled32
-                        | Self::PointwisePrescaled16
-                        | Self::PointwisePrescaled32
-                ) {
-                    "true"
-                } else {
-                    "false"
-                },
-            )
             .replace("$TILE", &tile.to_string())
             .replace("$SHARED", &(tile * 16).to_string())
             .replace("$INIT", &init)
             .replace("$ACCUMULATE", &accumulate)
             .replace("$STORE", &store)
             .replace(
-                "$POINTWISE",
-                if matches!(
-                    self,
-                    Self::PointwiseNchw16
-                        | Self::PointwiseNchw32
-                        | Self::PointwisePrescaled16
-                        | Self::PointwisePrescaled32
-                ) {
-                    "true"
-                } else {
-                    "false"
-                },
-            )
-            .replace(
                 "$CONV",
-                if matches!(
-                    self,
-                    Self::Conv16
-                        | Self::Conv32
-                        | Self::ConvPrescaled16
-                        | Self::ConvPrescaled32
-                        | Self::PointwiseNchw16
-                        | Self::PointwiseNchw32
-                        | Self::PointwisePrescaled16
-                        | Self::PointwisePrescaled32
-                ) {
+                if matches!(self, Self::Conv16 | Self::Conv32) {
                     "true"
                 } else {
                     "false"
@@ -863,9 +772,8 @@ pub(super) fn specialize(
     plan: &ShapePlan,
     limits: &wgpu::Limits,
     precision: GpuPrecision,
-    backend: wgpu::Backend,
 ) -> RuntimeResult<()> {
-    let metal_f32 = backend == wgpu::Backend::Metal && precision == GpuPrecision::F32;
+    let metal_f32 = precision == GpuPrecision::F32;
     for r in recipes {
         if !matches!(
             r.kind,
@@ -931,6 +839,16 @@ pub(super) fn specialize(
                             && g.cin >= 32
                             && g.cout.is_multiple_of(32)
                             && g.oh * g.ow >= 1024)
+                        // Small recognition's H24 96->48 stride-two layer
+                        // benefits from tile32 despite its partial channel tile.
+                        // Retain the common minimum-group guard below.
+                        || (metal_f32
+                            && g.height == 24
+                            && g.cin == 96
+                            && g.cout == 48
+                            && g.kh == 3
+                            && g.sh == 2
+                            && g.sw == 2)
                         // Measured 192->96 recognition maps benefit from register
                         // reuse even though their channel count is below 128.
                         || (metal_f32

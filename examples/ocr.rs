@@ -16,10 +16,8 @@ const USAGE: &str = "Usage: ocr [OPTIONS] IMAGE\n\
     --threads N         Shared CPU worker capacity (default: automatic)\n\
     --execution TARGET cpu, auto, or gpu (default: cpu)\n\
     --det-execution TARGET / --rec-execution TARGET / --cls-execution TARGET\n\
-    --gpu-backend NAME  auto, vulkan, dx12, or metal\n\
     --gpu-precision P   f32 (default), or mixed-f16\n\
-    --gpu-pipeline P    full (default), or inference-only\n\
-    --gpu-experimental-cooperative-matrix  Enable the experimental matrix tier\n\
+    --gpu-matrix P      f32 (default), or f16 (native Metal fast mode)\n\
     --statistics       Print actual stage backends, kernels, and memory to stderr\n\
     --json              Print owned OCR output as JSON instead of joined text\n\
     --alignment         Capture CTC spans and token boxes; implies --json\n\
@@ -37,10 +35,8 @@ struct Args {
     alignment: bool,
     target: ExecutionTarget,
     stages: [Option<ExecutionTarget>; 3],
-    gpu_backend: String,
     gpu_precision: String,
-    gpu_pipeline: String,
-    experimental_cooperative_matrix: bool,
+    gpu_matrix: String,
     statistics: bool,
 }
 
@@ -63,10 +59,8 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
     let mut image = None;
     let mut target = ExecutionTarget::Cpu;
     let mut stages = [None; 3];
-    let mut gpu_backend = "auto".to_string();
     let mut gpu_precision = "f32".to_string();
-    let mut experimental_cooperative_matrix = false;
-    let mut gpu_pipeline = "full".to_string();
+    let mut gpu_matrix = "f32".to_string();
     let mut statistics = false;
     let value = |args: &mut std::iter::Skip<std::env::ArgsOs>, flag: &str| {
         args.next()
@@ -91,21 +85,15 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
                     _ => target = selected,
                 };
             }
-            Some("--gpu-backend") => {
-                gpu_backend = value(&mut args, "--gpu-backend")?
-                    .into_string()
-                    .map_err(|_| "invalid GPU backend")?
-            }
             Some("--gpu-precision") => {
                 gpu_precision = value(&mut args, "--gpu-precision")?
                     .into_string()
                     .map_err(|_| "invalid precision")?
             }
-            Some("--gpu-experimental-cooperative-matrix") => experimental_cooperative_matrix = true,
-            Some("--gpu-pipeline") => {
-                gpu_pipeline = value(&mut args, "--gpu-pipeline")?
+            Some("--gpu-matrix") => {
+                gpu_matrix = value(&mut args, "--gpu-matrix")?
                     .into_string()
-                    .map_err(|_| "invalid GPU pipeline")?;
+                    .map_err(|_| "invalid GPU matrix precision")?;
             }
             Some("-h" | "--help") => return Ok(None),
             Some("--models-dir") => models = value(&mut args, "--models-dir")?.into(),
@@ -153,10 +141,8 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
         alignment,
         target,
         stages,
-        gpu_backend,
         gpu_precision,
-        gpu_pipeline,
-        experimental_cooperative_matrix,
+        gpu_matrix,
         statistics,
     }))
 }
@@ -205,39 +191,39 @@ fn run() -> Result<(), Box<dyn Error>> {
     #[cfg(feature = "gpu")]
     {
         use simd_paddle_ocr_rs::runtime::gpu::*;
-        builder = builder.gpu_pipeline_mode(match args.gpu_pipeline.as_str() {
-            "full" => GpuPipelineMode::Full,
-            "inference-only" => GpuPipelineMode::InferenceOnly,
-            _ => return Err("GPU pipeline must be full or inference-only".into()),
-        });
         let precision = match args.gpu_precision.as_str() {
             "f32" => GpuPrecision::F32,
             "mixed-f16" => GpuPrecision::MixedF16,
             _ => return Err("invalid GPU precision".into()),
         };
+        let matrix_precision = match args.gpu_matrix.as_str() {
+            "f32" => GpuMatrixPrecision::F32,
+            "f16" => GpuMatrixPrecision::F16,
+            _ => return Err("GPU matrix precision must be f32 or f16".into()),
+        };
         builder = builder.compile_options(simd_paddle_ocr_rs::runtime::CompileOptions {
-            gpu: GpuCompileOptions { precision },
+            gpu: GpuCompileOptions {
+                precision,
+                matrix_precision,
+            },
             ..Default::default()
         });
         builder = builder.gpu_options(GpuContextOptions {
-            experimental_cooperative_matrix: args.experimental_cooperative_matrix,
-            backend: match args.gpu_backend.as_str() {
-                "auto" => GpuBackendPreference::Auto,
-                "vulkan" => GpuBackendPreference::Vulkan,
-                "dx12" => GpuBackendPreference::Dx12,
-                "metal" => GpuBackendPreference::Metal,
-                _ => return Err("invalid GPU backend".into()),
+            recognition_wave_size: if matrix_precision == GpuMatrixPrecision::F16 {
+                4
+            } else {
+                1
             },
-            shader_f16: precision == GpuPrecision::MixedF16,
+            classification_batch_size: if matrix_precision == GpuMatrixPrecision::F16 {
+                16
+            } else {
+                4
+            },
             ..Default::default()
         });
     }
     #[cfg(not(feature = "gpu"))]
-    if args.experimental_cooperative_matrix
-        || args.gpu_backend != "auto"
-        || args.gpu_precision != "f32"
-        || args.gpu_pipeline != "full"
-    {
+    if args.gpu_precision != "f32" || args.gpu_matrix != "f32" {
         return Err("GPU options require --features gpu".into());
     }
     if let Some(threads) = args.threads {

@@ -1,0 +1,6247 @@
+{
+  "accuracy_contract": {
+    "bbox_absolute_tolerance": 2.0,
+    "bbox_min_polygon_iou": 0.8,
+    "bbox_tolerance_metric": "per coordinate",
+    "ctc_columns": "independently valid; differences reported when capture is enabled",
+    "metadata": "exact count, order, orientation and emitted count; internally valid derived shape",
+    "name": "f16_text_geometry",
+    "score_absolute_tolerance": 0.05,
+    "score_comparison": "mixed numeric gate for equivalent geometry and dimensions; finite values, probability bounds and raw differences for changed geometry",
+    "score_relative_tolerance": 0.01,
+    "text": "exact"
+  },
+  "accuracy_differences": [
+    {
+      "line_count": {
+        "actual": 16,
+        "delta": 0,
+        "expected": 16
+      },
+      "lines": [
+        {
+          "classification_score": {
+            "actual": 0.9999723434448242,
+            "delta": -5.960464477539062e-7,
+            "expected": 0.999972939491272
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 7,
+              "delta": 0,
+              "expected": 7
+            }
+          },
+          "detection_score": {
+            "actual": 0.9732208847999573,
+            "delta": -0.0007018446922303356,
+            "expected": 0.9739227294921876
+          },
+          "line": 0,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 14.519625663757324,
+            "delta": 0.01744556427001953,
+            "expected": 14.502180099487305
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999992847442627,
+            "delta": -1.1102230246251565e-16,
+            "expected": 0.9999992847442628
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 7,
+              "delta": 0,
+              "expected": 7
+            }
+          },
+          "detection_score": {
+            "actual": 0.9608086347579956,
+            "delta": -0.00009745359420776367,
+            "expected": 0.9609060883522034
+          },
+          "line": 1,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 19.63368797302246,
+            "delta": -0.001590728759765625,
+            "expected": 19.635278701782227
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999946355819702,
+            "delta": 0.0,
+            "expected": 0.9999946355819702
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 17,
+              "delta": 0,
+              "expected": 17
+            }
+          },
+          "detection_score": {
+            "actual": 0.9199751019477844,
+            "delta": -0.0004176497459411621,
+            "expected": 0.9203927516937256
+          },
+          "line": 2,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 23.082353591918945,
+            "delta": 0.003326416015625,
+            "expected": 23.07902717590332
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.999998927116394,
+            "delta": 0.0,
+            "expected": 0.999998927116394
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 14,
+              "delta": 0,
+              "expected": 14
+            }
+          },
+          "detection_score": {
+            "actual": 0.9125375747680664,
+            "delta": -0.00047338008880615234,
+            "expected": 0.9130109548568726
+          },
+          "line": 3,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 22.76626968383789,
+            "delta": 0.0005855560302734375,
+            "expected": 22.765684127807617
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9998905658721924,
+            "delta": -7.152557371936652e-7,
+            "expected": 0.9998912811279296
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 18,
+              "delta": 0,
+              "expected": 18
+            }
+          },
+          "detection_score": {
+            "actual": 0.8972602486610413,
+            "delta": -0.00007325410842895508,
+            "expected": 0.8973335027694702
+          },
+          "line": 4,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 21.1040096282959,
+            "delta": 0.008726119995117188,
+            "expected": 21.09528350830078
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9995806813240051,
+            "delta": -0.00002396106719970703,
+            "expected": 0.9996046423912048
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 12,
+              "delta": 0,
+              "expected": 12
+            }
+          },
+          "detection_score": {
+            "actual": 0.9003612399101257,
+            "delta": -0.00011283159255981445,
+            "expected": 0.9004740715026855
+          },
+          "line": 5,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 17.421098709106445,
+            "delta": 0.02230072021484375,
+            "expected": 17.3987979888916
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999997615814209,
+            "delta": 1.1102230246251565e-16,
+            "expected": 0.9999997615814208
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 16,
+              "delta": 0,
+              "expected": 16
+            }
+          },
+          "detection_score": {
+            "actual": 0.879452109336853,
+            "delta": -0.0036141276359558105,
+            "expected": 0.8830662369728088
+          },
+          "line": 6,
+          "maximum_coordinate_error": 1.0,
+          "maximum_corner_distance": 1.0,
+          "numeric_score_comparison": {
+            "applied": false,
+            "reason": "changed input geometry"
+          },
+          "polygon_iou": 0.995475113122172,
+          "recognition_score": {
+            "actual": 21.847915649414062,
+            "delta": 0.1329669952392578,
+            "expected": 21.714948654174805
+          },
+          "shape_changes": {
+            "recognition_content_width": {
+              "actual": 506,
+              "delta": 3,
+              "expected": 503
+            }
+          }
+        },
+        {
+          "classification_score": {
+            "actual": 0.9649271965026855,
+            "delta": 0.0013097524642943226,
+            "expected": 0.9636174440383912
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 7,
+              "delta": 0,
+              "expected": 7
+            }
+          },
+          "detection_score": {
+            "actual": 0.8472005724906921,
+            "delta": -0.00030118227005004883,
+            "expected": 0.8475017547607422
+          },
+          "line": 7,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 20.00710105895996,
+            "delta": 0.016658782958984375,
+            "expected": 19.990442276000977
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9998633861541748,
+            "delta": 7.748603820800781e-6,
+            "expected": 0.999855637550354
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 11,
+              "delta": 0,
+              "expected": 11
+            }
+          },
+          "detection_score": {
+            "actual": 0.9027674794197083,
+            "delta": -0.0001163482666015625,
+            "expected": 0.9028838276863098
+          },
+          "line": 8,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 22.640493392944336,
+            "delta": 0.0041027069091796875,
+            "expected": 22.636390686035156
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999951124191284,
+            "delta": 0.0,
+            "expected": 0.9999951124191284
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 13,
+              "delta": 0,
+              "expected": 13
+            }
+          },
+          "detection_score": {
+            "actual": 0.8766509294509888,
+            "delta": -0.00010818243026733398,
+            "expected": 0.8767591118812561
+          },
+          "line": 9,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 21.24786949157715,
+            "delta": 0.0040130615234375,
+            "expected": 21.24385643005371
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999988079071045,
+            "delta": 1.1102230246251565e-16,
+            "expected": 0.9999988079071044
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 19,
+              "delta": 0,
+              "expected": 19
+            }
+          },
+          "detection_score": {
+            "actual": 0.8478013873100281,
+            "delta": -0.00002872943878173828,
+            "expected": 0.8478301167488098
+          },
+          "line": 10,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 15.9508638381958,
+            "delta": 0.0142669677734375,
+            "expected": 15.936596870422363
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999932050704956,
+            "delta": -2.384185792125848e-7,
+            "expected": 0.9999934434890748
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 14,
+              "delta": 0,
+              "expected": 14
+            }
+          },
+          "detection_score": {
+            "actual": 0.8529425859451294,
+            "delta": 0.00012433528900146484,
+            "expected": 0.8528182506561279
+          },
+          "line": 11,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 13.775033950805664,
+            "delta": 0.010617256164552558,
+            "expected": 13.764416694641112
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999645948410034,
+            "delta": -5.960464477539062e-7,
+            "expected": 0.9999651908874512
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 6,
+              "delta": 0,
+              "expected": 6
+            }
+          },
+          "detection_score": {
+            "actual": 0.913022518157959,
+            "delta": 0.0001620054244994007,
+            "expected": 0.9128605127334596
+          },
+          "line": 12,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 20.8214111328125,
+            "delta": -0.022157669067382812,
+            "expected": 20.843568801879883
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999998807907104,
+            "delta": 0.0,
+            "expected": 0.9999998807907104
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 19,
+              "delta": 0,
+              "expected": 19
+            }
+          },
+          "detection_score": {
+            "actual": 0.8495402336120605,
+            "delta": -0.00023245811462402344,
+            "expected": 0.8497726917266846
+          },
+          "line": 13,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 19.76021957397461,
+            "delta": -0.000469207763671875,
+            "expected": 19.76068878173828
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999994039535522,
+            "delta": 0.0,
+            "expected": 0.9999994039535522
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 19,
+              "delta": 0,
+              "expected": 19
+            }
+          },
+          "detection_score": {
+            "actual": 0.8386521935462952,
+            "delta": -0.00014352798461914062,
+            "expected": 0.8387957215309143
+          },
+          "line": 14,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 19.871612548828125,
+            "delta": 0.016416549682617188,
+            "expected": 19.855195999145508
+          },
+          "shape_changes": {}
+        },
+        {
+          "classification_score": {
+            "actual": 0.9999994039535522,
+            "delta": 0.0,
+            "expected": 0.9999994039535522
+          },
+          "ctc": {
+            "column_changes": [],
+            "span_count": {
+              "actual": 6,
+              "delta": 0,
+              "expected": 6
+            }
+          },
+          "detection_score": {
+            "actual": 0.8997653722763062,
+            "delta": -0.000019550323486328125,
+            "expected": 0.8997849225997925
+          },
+          "line": 15,
+          "maximum_coordinate_error": 0.0,
+          "maximum_corner_distance": 0.0,
+          "numeric_score_comparison": {
+            "applied": true,
+            "reason": "equivalent input geometry"
+          },
+          "polygon_iou": 1.0,
+          "recognition_score": {
+            "actual": 20.337791442871094,
+            "delta": 0.0016880035400390625,
+            "expected": 20.336103439331055
+          },
+          "shape_changes": {}
+        }
+      ],
+      "maximum_allowed_coordinate_error": 2.0,
+      "minimum_polygon_iou": 0.8
+    }
+  ],
+  "adapter": "AdapterInfo { name: \"Apple M4\", vendor: 0, device: 0, device_type: IntegratedGpu, device_pci_bus_id: \"\", driver: \"\", driver_info: \"\", backend: Metal, subgroup_min_size: 4, subgroup_max_size: 64, transient_saves_memory: Some(true), limit_bucket: None }",
+  "batch": 2,
+  "capture": true,
+  "classification_batch_size": 16,
+  "cold_run_ms": 3031.460583,
+  "cold_run_statistics": [
+    {
+      "execution": "Resident",
+      "gpu": {
+        "adapter": "Apple M4",
+        "admission_wait_ns": 0,
+        "backend": "Metal",
+        "completion_wait_ns": 0,
+        "control_readback_bytes": 400,
+        "cpu_compute_stages": [],
+        "decoding": "Gpu",
+        "diagnostic_readback_bytes": 0,
+        "dispatches": 1340,
+        "driver": "",
+        "driver_info": "",
+        "encoding_ns": 0,
+        "geometry": "Gpu",
+        "image_processing": "Gpu",
+        "kernels": [
+          "image_normalize_MixedF16",
+          "db_label_MixedF16",
+          "db_row_extremes",
+          "db_geometry_native_trig_MixedF16",
+          "db_reading_order",
+          "perspective_transform",
+          "perspective_bicubic",
+          "projection_features_F16_F32",
+          "projection_tiles1_F32",
+          "projection_winners",
+          "classifier_rotation",
+          "projection_mpp32_F16",
+          "ctc_compaction",
+          "projection_winners_logit_parallel"
+        ],
+        "layout_conversions": 17,
+        "native_graph_dispatches": 1218,
+        "native_resident_dispatches": 122,
+        "output_readback_bytes": 26496,
+        "peak_device_bytes": 102976292,
+        "profiling_readback_bytes": 0,
+        "projection": "Gpu",
+        "projection_encoding_ns": 0,
+        "readback_ns": 0,
+        "scratch_allocated_bytes": 10065720,
+        "scratch_allocations": 84,
+        "scratch_reuses": 0,
+        "submission_ns": 0,
+        "submissions": 3,
+        "uploaded_bytes": 750000
+      },
+      "stages": {
+        "classifier": [
+          {
+            "activation_bytes": 2496512,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 66,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 103,
+            "original_weight_bytes": 499148,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 1728,
+            "physical_steps": 37,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 2496512,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_generic",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_implicit16",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 6
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native5",
+                "packed": false,
+                "steps": 7
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 11
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 2
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "conv_generic",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_implicit16",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 6,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native5",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 7,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 11,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "GlobalAveragePool",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Mul",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 30,
+            "uploaded_bytes": 0
+          }
+        ],
+        "detector": [
+          {
+            "activation_bytes": 22925312,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 127,
+            "layout_conversions": 3,
+            "nhwc_values": 3,
+            "normalized_nodes": 242,
+            "original_weight_bytes": 4912868,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 93888,
+            "physical_steps": 116,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 22925312,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_generic",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s1",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "conv_transpose_tile8",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native7",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 16
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 35
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 8
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 13
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Add",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "conv_generic",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s1",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": false
+              },
+              {
+                "family": "depthwise_native7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 3,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 11,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 24,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 8,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": false
+              },
+              {
+                "family": "conv_transpose_tile8",
+                "isa": "metal_MixedF16",
+                "operator": "ConvTranspose",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "ConvTranspose",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "GlobalAveragePool",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Resize",
+                "steps": 6,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 44,
+            "uploaded_bytes": 0
+          }
+        ],
+        "recognizer": [
+          {
+            "activation_bytes": 1096576,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 1096576,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 8
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 1265344,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 1265344,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 8
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 8,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 1434112,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 1434112,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 1602880,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 1602880,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 4579840,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 85,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 4579840,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 7
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Concat",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 6077440,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 85,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 6077440,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 7
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Concat",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 6826240,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 85,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 6826240,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 7
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Concat",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 3290560,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 3290560,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 3459328,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 3459328,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 3628096,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 3628096,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 3965632,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 3965632,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 4471936,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 4471936,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          },
+          {
+            "activation_bytes": 4640704,
+            "adapter": "Apple M4",
+            "backend": "GPU Metal: Apple M4",
+            "diagnostic_readback_bytes": 0,
+            "diagnostic_readbacks": 0,
+            "effective_precision": "F16 storage; F16 matrix operands/F32 accumulation",
+            "execution_backend": "Gpu",
+            "fallback": null,
+            "fused_nodes": 246,
+            "layout_conversions": 1,
+            "nhwc_values": 1,
+            "normalized_nodes": 330,
+            "original_weight_bytes": 19669932,
+            "output_readback_bytes": 0,
+            "packed_weight_bytes": 138624,
+            "physical_steps": 81,
+            "plan_cache_hits": 0,
+            "plan_cache_misses": 2,
+            "production_readbacks": 0,
+            "production_submissions": 1,
+            "retained_activation_bytes": 4640704,
+            "scratch_bytes": 0,
+            "selected_kernels": [
+              {
+                "layout": "nchw/row_major",
+                "operator": "attention_qkv_views",
+                "packed": false,
+                "steps": 2
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp2_staged",
+                "packed": true,
+                "steps": 2
+              },
+              {
+                "layout": "nhwc/hwio",
+                "operator": "conv_mpp3s2",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/hwio",
+                "operator": "conv_mpp3s2_staged",
+                "packed": true,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native1x7",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "depthwise_native3",
+                "packed": false,
+                "steps": 13
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "general",
+                "packed": false,
+                "steps": 3
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "layer_norm",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_mpp",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "linear_native",
+                "packed": false,
+                "steps": 4
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pack_nhwc",
+                "packed": false,
+                "steps": 1
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "pointwise_native64",
+                "packed": false,
+                "steps": 28
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "reduce_contiguous",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "small_projection",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "squeeze_excitation",
+                "packed": false,
+                "steps": 5
+              },
+              {
+                "layout": "nchw/row_major",
+                "operator": "tail_projection",
+                "packed": false,
+                "steps": 1
+              }
+            ],
+            "shared_cached_weight_bytes": 0,
+            "specialized_kernels": [
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "AveragePool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "conv_mpp2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 2,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "conv_mpp3s2_staged",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native1x7",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "depthwise_native3",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 13,
+                "store_fused": true
+              },
+              {
+                "family": "pack_nhwc",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "pointwise_native64",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 28,
+                "store_fused": true
+              },
+              {
+                "family": "small_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": true
+              },
+              {
+                "family": "squeeze_excitation",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "tail_projection",
+                "isa": "metal_MixedF16",
+                "operator": "Conv",
+                "steps": 1,
+                "store_fused": true
+              },
+              {
+                "family": "linear_mpp",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "linear_native",
+                "isa": "metal_MixedF16",
+                "operator": "MatMul",
+                "steps": 4,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "MaxPool",
+                "steps": 1,
+                "store_fused": false
+              },
+              {
+                "family": "layer_norm",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "reduce_contiguous",
+                "isa": "metal_MixedF16",
+                "operator": "ReduceMean",
+                "steps": 5,
+                "store_fused": false
+              },
+              {
+                "family": "attention_qkv_views",
+                "isa": "metal_MixedF16",
+                "operator": "Reshape",
+                "steps": 2,
+                "store_fused": false
+              },
+              {
+                "family": "general",
+                "isa": "metal_MixedF16",
+                "operator": "Transpose",
+                "steps": 1,
+                "store_fused": false
+              }
+            ],
+            "store_fused_steps": 52,
+            "uploaded_bytes": 0
+          }
+        ]
+      },
+      "succeeded": true
+    }
+  ],
+  "cold_statistics": [
+    {
+      "adapter": "Apple M4",
+      "admission_wait_ns": 0,
+      "backend": "Metal",
+      "completion_wait_ns": 0,
+      "control_readback_bytes": 400,
+      "cpu_compute_stages": [],
+      "decoding": "Gpu",
+      "diagnostic_readback_bytes": 0,
+      "dispatches": 1340,
+      "driver": "",
+      "driver_info": "",
+      "encoding_ns": 0,
+      "geometry": "Gpu",
+      "image_processing": "Gpu",
+      "kernels": [
+        "image_normalize_MixedF16",
+        "db_label_MixedF16",
+        "db_row_extremes",
+        "db_geometry_native_trig_MixedF16",
+        "db_reading_order",
+        "perspective_transform",
+        "perspective_bicubic",
+        "projection_features_F16_F32",
+        "projection_tiles1_F32",
+        "projection_winners",
+        "classifier_rotation",
+        "projection_mpp32_F16",
+        "ctc_compaction",
+        "projection_winners_logit_parallel"
+      ],
+      "layout_conversions": 17,
+      "native_graph_dispatches": 1218,
+      "native_resident_dispatches": 122,
+      "output_readback_bytes": 26496,
+      "peak_device_bytes": 102976292,
+      "profiling_readback_bytes": 0,
+      "projection": "Gpu",
+      "projection_encoding_ns": 0,
+      "readback_ns": 0,
+      "scratch_allocated_bytes": 10065720,
+      "scratch_allocations": 84,
+      "scratch_reuses": 0,
+      "submission_ns": 0,
+      "submissions": 3,
+      "uploaded_bytes": 750000
+    }
+  ],
+  "cpu_options": {
+    "detector_threads": 8,
+    "line_workers": 4,
+    "preprocess_workers": 16
+  },
+  "errors": [],
+  "failed_outputs": [],
+  "host_cpu_contract": "process CPU clock across execute including owned copy; excludes validation and serialization; requires macOS and the profiling feature, otherwise null",
+  "image": "/Users/chao/workspaces/simd-paddle-ocr-workspace/simd-paddle-ocr-rs/validation/metal/current/fast-corpus/corpus/typical.png",
+  "images_per_second": null,
+  "matrix_precision": "f16",
+  "median_group_ms": null,
+  "outputs": [
+    {
+      "detected_count": 16,
+      "detector_resized_height": 512,
+      "detector_resized_width": 512,
+      "height_ratio": 1.0240000486373901,
+      "lines": [
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999723434448242,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 12.728655815124512,
+              "start_column": 3,
+              "text": "纯"
+            },
+            {
+              "end_column": 10,
+              "score": 3.155660390853882,
+              "start_column": 9,
+              "text": "臻"
+            },
+            {
+              "end_column": 16,
+              "score": 12.473408699035645,
+              "start_column": 15,
+              "text": "营"
+            },
+            {
+              "end_column": 23,
+              "score": 21.09371566772461,
+              "start_column": 22,
+              "text": "养"
+            },
+            {
+              "end_column": 29,
+              "score": 15.506246566772461,
+              "start_column": 28,
+              "text": "护"
+            },
+            {
+              "end_column": 36,
+              "score": 22.828920364379883,
+              "start_column": 35,
+              "text": "发"
+            },
+            {
+              "end_column": 42,
+              "score": 13.850763320922852,
+              "start_column": 41,
+              "text": "素"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                34.0
+              ],
+              [
+                304.0,
+                34.0
+              ],
+              [
+                304.0,
+                72.0
+              ],
+              [
+                24.0,
+                72.0
+              ]
+            ],
+            "score": 0.9732208847999573
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 354,
+          "recognition_score": 14.519625663757324,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "text": "纯臻营养护发素"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999992847442627,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 24.558259963989258,
+              "start_column": 3,
+              "text": "产"
+            },
+            {
+              "end_column": 9,
+              "score": 21.67154312133789,
+              "start_column": 8,
+              "text": "品"
+            },
+            {
+              "end_column": 15,
+              "score": 18.144493103027344,
+              "start_column": 14,
+              "text": "信"
+            },
+            {
+              "end_column": 20,
+              "score": 18.9420108795166,
+              "start_column": 19,
+              "text": "息"
+            },
+            {
+              "end_column": 24,
+              "score": 21.164958953857422,
+              "start_column": 23,
+              "text": "/"
+            },
+            {
+              "end_column": 28,
+              "score": 17.428247451782227,
+              "start_column": 27,
+              "text": "参"
+            },
+            {
+              "end_column": 33,
+              "score": 15.526287078857422,
+              "start_column": 32,
+              "text": "数"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                79.0
+              ],
+              [
+                174.0,
+                79.0
+              ],
+              [
+                174.0,
+                104.0
+              ],
+              [
+                24.0,
+                104.0
+              ]
+            ],
+            "score": 0.9608086347579956
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 288,
+          "recognition_score": 19.63368797302246,
+          "recognition_tensor_width": 288,
+          "recognition_time_steps": 36,
+          "text": "产品信息/参数"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999946355819702,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 24.57449722290039,
+              "start_column": 1,
+              "text": "("
+            },
+            {
+              "end_column": 5,
+              "score": 26.322187423706055,
+              "start_column": 4,
+              "text": "4"
+            },
+            {
+              "end_column": 8,
+              "score": 25.08390998840332,
+              "start_column": 7,
+              "text": "5"
+            },
+            {
+              "end_column": 12,
+              "score": 21.852005004882812,
+              "start_column": 11,
+              "text": "元"
+            },
+            {
+              "end_column": 17,
+              "score": 21.13813018798828,
+              "start_column": 16,
+              "text": "/"
+            },
+            {
+              "end_column": 21,
+              "score": 22.972232818603516,
+              "start_column": 20,
+              "text": "每"
+            },
+            {
+              "end_column": 26,
+              "score": 23.219762802124023,
+              "start_column": 25,
+              "text": "公"
+            },
+            {
+              "end_column": 32,
+              "score": 20.057514190673828,
+              "start_column": 31,
+              "text": "斤"
+            },
+            {
+              "end_column": 38,
+              "score": 22.912696838378906,
+              "start_column": 37,
+              "text": "，"
+            },
+            {
+              "end_column": 43,
+              "score": 21.79133415222168,
+              "start_column": 42,
+              "text": "1"
+            },
+            {
+              "end_column": 46,
+              "score": 26.097267150878906,
+              "start_column": 45,
+              "text": "0"
+            },
+            {
+              "end_column": 49,
+              "score": 27.1468505859375,
+              "start_column": 48,
+              "text": "0"
+            },
+            {
+              "end_column": 54,
+              "score": 23.082313537597656,
+              "start_column": 53,
+              "text": "公"
+            },
+            {
+              "end_column": 59,
+              "score": 19.86002540588379,
+              "start_column": 58,
+              "text": "斤"
+            },
+            {
+              "end_column": 65,
+              "score": 24.80596351623535,
+              "start_column": 64,
+              "text": "起"
+            },
+            {
+              "end_column": 71,
+              "score": 17.80464744567871,
+              "start_column": 70,
+              "text": "订"
+            },
+            {
+              "end_column": 76,
+              "score": 23.678688049316406,
+              "start_column": 75,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                110.0
+              ],
+              [
+                334.0,
+                110.0
+              ],
+              [
+                334.0,
+                134.0
+              ],
+              [
+                25.0,
+                134.0
+              ]
+            ],
+            "score": 0.9199751019477844
+          },
+          "emitted_count": 17,
+          "recognition_content_width": 618,
+          "recognition_score": 23.082353591918945,
+          "recognition_tensor_width": 640,
+          "recognition_time_steps": 80,
+          "text": "(45元/每公斤，100公斤起订)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.999998927116394,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 21.86664390563965,
+              "start_column": 3,
+              "text": "每"
+            },
+            {
+              "end_column": 10,
+              "score": 15.937847137451172,
+              "start_column": 9,
+              "text": "瓶"
+            },
+            {
+              "end_column": 15,
+              "score": 24.534530639648438,
+              "start_column": 14,
+              "text": "2"
+            },
+            {
+              "end_column": 18,
+              "score": 26.14165687561035,
+              "start_column": 17,
+              "text": "2"
+            },
+            {
+              "end_column": 23,
+              "score": 22.934288024902344,
+              "start_column": 22,
+              "text": "元"
+            },
+            {
+              "end_column": 29,
+              "score": 23.773988723754883,
+              "start_column": 28,
+              "text": "，"
+            },
+            {
+              "end_column": 34,
+              "score": 24.29828453063965,
+              "start_column": 33,
+              "text": "1"
+            },
+            {
+              "end_column": 37,
+              "score": 26.351106643676758,
+              "start_column": 36,
+              "text": "0"
+            },
+            {
+              "end_column": 41,
+              "score": 26.84715461730957,
+              "start_column": 40,
+              "text": "0"
+            },
+            {
+              "end_column": 45,
+              "score": 27.66731834411621,
+              "start_column": 44,
+              "text": "0"
+            },
+            {
+              "end_column": 49,
+              "score": 16.93359375,
+              "start_column": 48,
+              "text": "瓶"
+            },
+            {
+              "end_column": 55,
+              "score": 24.334606170654297,
+              "start_column": 54,
+              "text": "起"
+            },
+            {
+              "end_column": 61,
+              "score": 18.08856964111328,
+              "start_column": 60,
+              "text": "订"
+            },
+            {
+              "end_column": 67,
+              "score": 19.01816177368164,
+              "start_column": 66,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                142.0
+              ],
+              [
+                286.0,
+                142.0
+              ],
+              [
+                286.0,
+                165.0
+              ],
+              [
+                24.0,
+                165.0
+              ]
+            ],
+            "score": 0.9125375747680664
+          },
+          "emitted_count": 14,
+          "recognition_content_width": 547,
+          "recognition_score": 22.76626968383789,
+          "recognition_tensor_width": 576,
+          "recognition_time_steps": 72,
+          "text": "每瓶22元，1000瓶起订)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9998905658721924,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 19.443334579467773,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 21.614273071289062,
+              "start_column": 6,
+              "text": "品"
+            },
+            {
+              "end_column": 12,
+              "score": 12.138565063476562,
+              "start_column": 11,
+              "text": "牌"
+            },
+            {
+              "end_column": 17,
+              "score": 20.172266006469727,
+              "start_column": 16,
+              "text": "】"
+            },
+            {
+              "end_column": 23,
+              "score": 21.636213302612305,
+              "start_column": 22,
+              "text": ":"
+            },
+            {
+              "end_column": 29,
+              "score": 23.889345169067383,
+              "start_column": 28,
+              "text": "代"
+            },
+            {
+              "end_column": 34,
+              "score": 20.25731086730957,
+              "start_column": 32,
+              "text": "加"
+            },
+            {
+              "end_column": 39,
+              "score": 21.033117294311523,
+              "start_column": 38,
+              "text": "工"
+            },
+            {
+              "end_column": 45,
+              "score": 20.449663162231445,
+              "start_column": 44,
+              "text": "方"
+            },
+            {
+              "end_column": 50,
+              "score": 26.400657653808594,
+              "start_column": 49,
+              "text": "式"
+            },
+            {
+              "end_column": 55,
+              "score": 22.426462173461914,
+              "start_column": 54,
+              "text": "/"
+            },
+            {
+              "end_column": 58,
+              "score": 20.863330841064453,
+              "start_column": 57,
+              "text": "O"
+            },
+            {
+              "end_column": 62,
+              "score": 21.763790130615234,
+              "start_column": 61,
+              "text": "E"
+            },
+            {
+              "end_column": 65,
+              "score": 22.329044342041016,
+              "start_column": 64,
+              "text": "M"
+            },
+            {
+              "end_column": 69,
+              "score": 20.532344818115234,
+              "start_column": 68,
+              "text": " "
+            },
+            {
+              "end_column": 72,
+              "score": 20.831283569335938,
+              "start_column": 71,
+              "text": "O"
+            },
+            {
+              "end_column": 76,
+              "score": 23.271860122680664,
+              "start_column": 75,
+              "text": "D"
+            },
+            {
+              "end_column": 81,
+              "score": 20.819290161132812,
+              "start_column": 80,
+              "text": "M"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                176.0
+              ],
+              [
+                301.0,
+                176.0
+              ],
+              [
+                301.0,
+                196.0
+              ],
+              [
+                24.0,
+                196.0
+              ]
+            ],
+            "score": 0.8972602486610413
+          },
+          "emitted_count": 18,
+          "recognition_content_width": 665,
+          "recognition_score": 21.1040096282959,
+          "recognition_tensor_width": 672,
+          "recognition_time_steps": 84,
+          "text": "【品牌】:代加工方式/OEM ODM"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9995806813240051,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 18.0378360748291,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 6,
+              "score": 19.895225524902344,
+              "start_column": 5,
+              "text": "品"
+            },
+            {
+              "end_column": 11,
+              "score": 21.591140747070312,
+              "start_column": 10,
+              "text": "名"
+            },
+            {
+              "end_column": 16,
+              "score": 20.337505340576172,
+              "start_column": 15,
+              "text": "】"
+            },
+            {
+              "end_column": 22,
+              "score": 20.411989212036133,
+              "start_column": 21,
+              "text": "："
+            },
+            {
+              "end_column": 27,
+              "score": 15.261723518371582,
+              "start_column": 26,
+              "text": "纯"
+            },
+            {
+              "end_column": 32,
+              "score": 5.5639214515686035,
+              "start_column": 31,
+              "text": "臻"
+            },
+            {
+              "end_column": 37,
+              "score": 15.209108352661133,
+              "start_column": 36,
+              "text": "营"
+            },
+            {
+              "end_column": 43,
+              "score": 20.065570831298828,
+              "start_column": 42,
+              "text": "养"
+            },
+            {
+              "end_column": 48,
+              "score": 16.180288314819336,
+              "start_column": 47,
+              "text": "护"
+            },
+            {
+              "end_column": 53,
+              "score": 23.040468215942383,
+              "start_column": 52,
+              "text": "发"
+            },
+            {
+              "end_column": 58,
+              "score": 13.458393096923828,
+              "start_column": 57,
+              "text": "素"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                207.0
+              ],
+              [
+                235.0,
+                207.0
+              ],
+              [
+                235.0,
+                228.0
+              ],
+              [
+                24.0,
+                228.0
+              ]
+            ],
+            "score": 0.9003612399101257
+          },
+          "emitted_count": 12,
+          "recognition_content_width": 483,
+          "recognition_score": 17.421098709106445,
+          "recognition_tensor_width": 512,
+          "recognition_time_steps": 64,
+          "text": "【品名】：纯臻营养护发素"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999997615814209,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 17.719167709350586,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 6,
+              "score": 23.52475357055664,
+              "start_column": 5,
+              "text": "产"
+            },
+            {
+              "end_column": 12,
+              "score": 21.213239669799805,
+              "start_column": 11,
+              "text": "品"
+            },
+            {
+              "end_column": 17,
+              "score": 14.138505935668945,
+              "start_column": 16,
+              "text": "编"
+            },
+            {
+              "end_column": 22,
+              "score": 22.40556526184082,
+              "start_column": 21,
+              "text": "号"
+            },
+            {
+              "end_column": 27,
+              "score": 21.209293365478516,
+              "start_column": 26,
+              "text": "】"
+            },
+            {
+              "end_column": 33,
+              "score": 21.70458221435547,
+              "start_column": 32,
+              "text": ":"
+            },
+            {
+              "end_column": 37,
+              "score": 19.231481552124023,
+              "start_column": 36,
+              "text": "Y"
+            },
+            {
+              "end_column": 41,
+              "score": 22.257064819335938,
+              "start_column": 40,
+              "text": "M"
+            },
+            {
+              "end_column": 45,
+              "score": 22.34015464782715,
+              "start_column": 44,
+              "text": "-"
+            },
+            {
+              "end_column": 47,
+              "score": 19.62533950805664,
+              "start_column": 46,
+              "text": "X"
+            },
+            {
+              "end_column": 50,
+              "score": 22.63498306274414,
+              "start_column": 49,
+              "text": "-"
+            },
+            {
+              "end_column": 53,
+              "score": 26.00123405456543,
+              "start_column": 52,
+              "text": "3"
+            },
+            {
+              "end_column": 56,
+              "score": 26.11235809326172,
+              "start_column": 55,
+              "text": "0"
+            },
+            {
+              "end_column": 59,
+              "score": 24.705856323242188,
+              "start_column": 58,
+              "text": "1"
+            },
+            {
+              "end_column": 62,
+              "score": 24.743078231811523,
+              "start_column": 61,
+              "text": "1"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                23.0,
+                238.0
+              ],
+              [
+                244.0,
+                238.0
+              ],
+              [
+                244.0,
+                259.0
+              ],
+              [
+                23.0,
+                259.0
+              ]
+            ],
+            "score": 0.879452109336853
+          },
+          "emitted_count": 16,
+          "recognition_content_width": 506,
+          "recognition_score": 21.847915649414062,
+          "recognition_tensor_width": 512,
+          "recognition_time_steps": 64,
+          "text": "【产品编号】:YM-X-3011"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9649271965026855,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 19.543399810791016,
+              "start_column": 3,
+              "text": "O"
+            },
+            {
+              "end_column": 7,
+              "score": 21.105531692504883,
+              "start_column": 6,
+              "text": "D"
+            },
+            {
+              "end_column": 11,
+              "score": 21.048919677734375,
+              "start_column": 10,
+              "text": "M"
+            },
+            {
+              "end_column": 14,
+              "score": 23.91994285583496,
+              "start_column": 12,
+              "text": " "
+            },
+            {
+              "end_column": 16,
+              "score": 16.969072341918945,
+              "start_column": 15,
+              "text": "O"
+            },
+            {
+              "end_column": 19,
+              "score": 17.287403106689453,
+              "start_column": 18,
+              "text": "E"
+            },
+            {
+              "end_column": 22,
+              "score": 20.17542839050293,
+              "start_column": 21,
+              "text": "M"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                412.0,
+                232.0
+              ],
+              [
+                430.0,
+                232.0
+              ],
+              [
+                430.0,
+                303.0
+              ],
+              [
+                412.0,
+                303.0
+              ]
+            ],
+            "score": 0.8472005724906921
+          },
+          "emitted_count": 7,
+          "recognition_content_width": 190,
+          "recognition_score": 20.00710105895996,
+          "recognition_tensor_width": 192,
+          "recognition_time_steps": 24,
+          "text": "ODM OEM"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9998633861541748,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 21.13922882080078,
+              "start_column": 2,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 24.469968795776367,
+              "start_column": 6,
+              "text": "净"
+            },
+            {
+              "end_column": 12,
+              "score": 22.70043182373047,
+              "start_column": 11,
+              "text": "含"
+            },
+            {
+              "end_column": 18,
+              "score": 21.488067626953125,
+              "start_column": 17,
+              "text": "量"
+            },
+            {
+              "end_column": 23,
+              "score": 19.96324920654297,
+              "start_column": 22,
+              "text": "】"
+            },
+            {
+              "end_column": 29,
+              "score": 21.654611587524414,
+              "start_column": 28,
+              "text": ":"
+            },
+            {
+              "end_column": 33,
+              "score": 24.392377853393555,
+              "start_column": 32,
+              "text": "2"
+            },
+            {
+              "end_column": 36,
+              "score": 26.180625915527344,
+              "start_column": 35,
+              "text": "2"
+            },
+            {
+              "end_column": 40,
+              "score": 25.750551223754883,
+              "start_column": 39,
+              "text": "0"
+            },
+            {
+              "end_column": 43,
+              "score": 21.787233352661133,
+              "start_column": 42,
+              "text": "m"
+            },
+            {
+              "end_column": 47,
+              "score": 19.51906967163086,
+              "start_column": 46,
+              "text": "l"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                23.0,
+                270.0
+              ],
+              [
+                181.0,
+                270.0
+              ],
+              [
+                181.0,
+                290.0
+              ],
+              [
+                23.0,
+                290.0
+              ]
+            ],
+            "score": 0.9027674794197083
+          },
+          "emitted_count": 11,
+          "recognition_content_width": 380,
+          "recognition_score": 22.640493392944336,
+          "recognition_tensor_width": 384,
+          "recognition_time_steps": 48,
+          "text": "【净含量】:220ml"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999951124191284,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 18.576587677001953,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 22.561269760131836,
+              "start_column": 6,
+              "text": "适"
+            },
+            {
+              "end_column": 12,
+              "score": 24.39410400390625,
+              "start_column": 11,
+              "text": "用"
+            },
+            {
+              "end_column": 17,
+              "score": 22.781614303588867,
+              "start_column": 16,
+              "text": "人"
+            },
+            {
+              "end_column": 23,
+              "score": 14.040560722351074,
+              "start_column": 22,
+              "text": "群"
+            },
+            {
+              "end_column": 28,
+              "score": 19.829647064208984,
+              "start_column": 27,
+              "text": "】"
+            },
+            {
+              "end_column": 34,
+              "score": 21.44158363342285,
+              "start_column": 33,
+              "text": "："
+            },
+            {
+              "end_column": 39,
+              "score": 22.816017150878906,
+              "start_column": 38,
+              "text": "适"
+            },
+            {
+              "end_column": 45,
+              "score": 23.9986629486084,
+              "start_column": 44,
+              "text": "合"
+            },
+            {
+              "end_column": 50,
+              "score": 25.586698532104492,
+              "start_column": 49,
+              "text": "所"
+            },
+            {
+              "end_column": 56,
+              "score": 23.718643188476562,
+              "start_column": 55,
+              "text": "有"
+            },
+            {
+              "end_column": 61,
+              "score": 16.886550903320312,
+              "start_column": 60,
+              "text": "肤"
+            },
+            {
+              "end_column": 66,
+              "score": 19.59035301208496,
+              "start_column": 65,
+              "text": "质"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                301.0
+              ],
+              [
+                253.0,
+                301.0
+              ],
+              [
+                253.0,
+                321.0
+              ],
+              [
+                24.0,
+                321.0
+              ]
+            ],
+            "score": 0.8766509294509888
+          },
+          "emitted_count": 13,
+          "recognition_content_width": 550,
+          "recognition_score": 21.24786949157715,
+          "recognition_tensor_width": 576,
+          "recognition_time_steps": 72,
+          "text": "【适用人群】：适合所有肤质"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999988079071045,
+          "ctc_spans": [
+            {
+              "end_column": 2,
+              "score": 17.699987411499023,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 6,
+              "score": 22.443096160888672,
+              "start_column": 5,
+              "text": "主"
+            },
+            {
+              "end_column": 11,
+              "score": 17.306446075439453,
+              "start_column": 10,
+              "text": "要"
+            },
+            {
+              "end_column": 17,
+              "score": 20.976030349731445,
+              "start_column": 16,
+              "text": "成"
+            },
+            {
+              "end_column": 22,
+              "score": 21.737306594848633,
+              "start_column": 21,
+              "text": "分"
+            },
+            {
+              "end_column": 26,
+              "score": 21.348440170288086,
+              "start_column": 25,
+              "text": "】"
+            },
+            {
+              "end_column": 33,
+              "score": 19.527822494506836,
+              "start_column": 32,
+              "text": "："
+            },
+            {
+              "end_column": 37,
+              "score": 9.541609764099121,
+              "start_column": 36,
+              "text": "鲸"
+            },
+            {
+              "end_column": 43,
+              "score": 5.561934947967529,
+              "start_column": 42,
+              "text": "蜡"
+            },
+            {
+              "end_column": 48,
+              "score": 9.118017196655273,
+              "start_column": 47,
+              "text": "硬"
+            },
+            {
+              "end_column": 53,
+              "score": 16.791412353515625,
+              "start_column": 52,
+              "text": "脂"
+            },
+            {
+              "end_column": 58,
+              "score": 8.969099044799805,
+              "start_column": 57,
+              "text": "醇"
+            },
+            {
+              "end_column": 62,
+              "score": 20.84794044494629,
+              "start_column": 61,
+              "text": "、"
+            },
+            {
+              "end_column": 69,
+              "score": 10.674785614013672,
+              "start_column": 68,
+              "text": "燕"
+            },
+            {
+              "end_column": 74,
+              "score": 18.287946701049805,
+              "start_column": 73,
+              "text": "麦"
+            },
+            {
+              "end_column": 78,
+              "score": 16.184223175048828,
+              "start_column": 77,
+              "text": "β"
+            },
+            {
+              "end_column": 81,
+              "score": 17.73870849609375,
+              "start_column": 80,
+              "text": "-"
+            },
+            {
+              "end_column": 84,
+              "score": 13.451396942138672,
+              "start_column": 83,
+              "text": "葡"
+            },
+            {
+              "end_column": 89,
+              "score": 14.86019515991211,
+              "start_column": 88,
+              "text": "聚"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                332.0
+              ],
+              [
+                345.0,
+                332.0
+              ],
+              [
+                345.0,
+                353.0
+              ],
+              [
+                24.0,
+                353.0
+              ]
+            ],
+            "score": 0.8478013873100281
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 734,
+          "recognition_score": 15.9508638381958,
+          "recognition_tensor_width": 736,
+          "recognition_time_steps": 92,
+          "text": "【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999932050704956,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 12.221197128295898,
+              "start_column": 3,
+              "text": "糖"
+            },
+            {
+              "end_column": 8,
+              "score": 20.179170608520508,
+              "start_column": 7,
+              "text": "、"
+            },
+            {
+              "end_column": 14,
+              "score": 5.4983391761779785,
+              "start_column": 13,
+              "text": "椰"
+            },
+            {
+              "end_column": 19,
+              "score": 16.07305908203125,
+              "start_column": 18,
+              "text": "油"
+            },
+            {
+              "end_column": 25,
+              "score": 7.922987461090088,
+              "start_column": 24,
+              "text": "酰"
+            },
+            {
+              "end_column": 30,
+              "score": 11.946703910827637,
+              "start_column": 29,
+              "text": "胺"
+            },
+            {
+              "end_column": 35,
+              "score": 20.958072662353516,
+              "start_column": 34,
+              "text": "丙"
+            },
+            {
+              "end_column": 40,
+              "score": 18.82495880126953,
+              "start_column": 39,
+              "text": "基"
+            },
+            {
+              "end_column": 45,
+              "score": 17.94712257385254,
+              "start_column": 44,
+              "text": "甜"
+            },
+            {
+              "end_column": 51,
+              "score": 12.372308731079102,
+              "start_column": 50,
+              "text": "菜"
+            },
+            {
+              "end_column": 56,
+              "score": 2.9184582233428955,
+              "start_column": 55,
+              "text": "碱"
+            },
+            {
+              "end_column": 60,
+              "score": 20.563886642456055,
+              "start_column": 59,
+              "text": "、"
+            },
+            {
+              "end_column": 66,
+              "score": 20.82996368408203,
+              "start_column": 65,
+              "text": "泛"
+            },
+            {
+              "end_column": 71,
+              "score": 4.594235897064209,
+              "start_column": 70,
+              "text": "醌"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                363.0
+              ],
+              [
+                283.0,
+                363.0
+              ],
+              [
+                283.0,
+                384.0
+              ],
+              [
+                25.0,
+                384.0
+              ]
+            ],
+            "score": 0.8529425859451294
+          },
+          "emitted_count": 14,
+          "recognition_content_width": 590,
+          "recognition_score": 13.775033950805664,
+          "recognition_tensor_width": 608,
+          "recognition_time_steps": 76,
+          "text": "糖、椰油酰胺丙基甜菜碱、泛醌"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999645948410034,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 20.03791046142578,
+              "start_column": 2,
+              "text": "("
+            },
+            {
+              "end_column": 7,
+              "score": 22.2049560546875,
+              "start_column": 6,
+              "text": "成"
+            },
+            {
+              "end_column": 12,
+              "score": 21.279617309570312,
+              "start_column": 11,
+              "text": "品"
+            },
+            {
+              "end_column": 17,
+              "score": 21.98002052307129,
+              "start_column": 16,
+              "text": "包"
+            },
+            {
+              "end_column": 22,
+              "score": 19.942651748657227,
+              "start_column": 21,
+              "text": "材"
+            },
+            {
+              "end_column": 26,
+              "score": 19.483301162719727,
+              "start_column": 25,
+              "text": ")"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                364.7767333984375,
+                364.9930419921875
+              ],
+              [
+                476.7767028808594,
+                363.9930419921875
+              ],
+              [
+                476.9999694824219,
+                389.0
+              ],
+              [
+                365.0,
+                390.0
+              ]
+            ],
+            "score": 0.913022518157959
+          },
+          "emitted_count": 6,
+          "recognition_content_width": 216,
+          "recognition_score": 20.8214111328125,
+          "recognition_tensor_width": 224,
+          "recognition_time_steps": 28,
+          "text": "(成品包材)"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999998807907104,
+          "ctc_spans": [
+            {
+              "end_column": 3,
+              "score": 17.047687530517578,
+              "start_column": 1,
+              "text": "【"
+            },
+            {
+              "end_column": 7,
+              "score": 23.363994598388672,
+              "start_column": 6,
+              "text": "主"
+            },
+            {
+              "end_column": 12,
+              "score": 19.58675193786621,
+              "start_column": 11,
+              "text": "要"
+            },
+            {
+              "end_column": 17,
+              "score": 19.123079299926758,
+              "start_column": 16,
+              "text": "功"
+            },
+            {
+              "end_column": 23,
+              "score": 17.037494659423828,
+              "start_column": 22,
+              "text": "能"
+            },
+            {
+              "end_column": 28,
+              "score": 19.352680206298828,
+              "start_column": 27,
+              "text": "】"
+            },
+            {
+              "end_column": 34,
+              "score": 21.15975570678711,
+              "start_column": 33,
+              "text": "："
+            },
+            {
+              "end_column": 39,
+              "score": 24.966068267822266,
+              "start_column": 38,
+              "text": "可"
+            },
+            {
+              "end_column": 45,
+              "score": 17.71049690246582,
+              "start_column": 44,
+              "text": "紧"
+            },
+            {
+              "end_column": 50,
+              "score": 17.30545425415039,
+              "start_column": 49,
+              "text": "致"
+            },
+            {
+              "end_column": 56,
+              "score": 22.20343780517578,
+              "start_column": 55,
+              "text": "头"
+            },
+            {
+              "end_column": 61,
+              "score": 22.779678344726562,
+              "start_column": 60,
+              "text": "发"
+            },
+            {
+              "end_column": 67,
+              "score": 3.0925042629241943,
+              "start_column": 66,
+              "text": "磷"
+            },
+            {
+              "end_column": 72,
+              "score": 19.993873596191406,
+              "start_column": 71,
+              "text": "层"
+            },
+            {
+              "end_column": 78,
+              "score": 22.87027359008789,
+              "start_column": 77,
+              "text": "，"
+            },
+            {
+              "end_column": 83,
+              "score": 21.748170852661133,
+              "start_column": 82,
+              "text": "从"
+            },
+            {
+              "end_column": 88,
+              "score": 22.866687774658203,
+              "start_column": 87,
+              "text": "而"
+            },
+            {
+              "end_column": 94,
+              "score": 23.06154441833496,
+              "start_column": 93,
+              "text": "达"
+            },
+            {
+              "end_column": 99,
+              "score": 20.17453956604004,
+              "start_column": 98,
+              "text": "到"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                24.0,
+                395.0
+              ],
+              [
+                362.0,
+                395.0
+              ],
+              [
+                362.0,
+                415.0
+              ],
+              [
+                24.0,
+                415.0
+              ]
+            ],
+            "score": 0.8495402336120605
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 812,
+          "recognition_score": 19.76021957397461,
+          "recognition_tensor_width": 832,
+          "recognition_time_steps": 104,
+          "text": "【主要功能】：可紧致头发磷层，从而达到"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999994039535522,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 21.099258422851562,
+              "start_column": 3,
+              "text": "即"
+            },
+            {
+              "end_column": 9,
+              "score": 23.425037384033203,
+              "start_column": 8,
+              "text": "时"
+            },
+            {
+              "end_column": 15,
+              "score": 19.98705291748047,
+              "start_column": 14,
+              "text": "持"
+            },
+            {
+              "end_column": 20,
+              "score": 25.053525924682617,
+              "start_column": 19,
+              "text": "久"
+            },
+            {
+              "end_column": 25,
+              "score": 26.33576774597168,
+              "start_column": 24,
+              "text": "改"
+            },
+            {
+              "end_column": 31,
+              "score": 13.507960319519043,
+              "start_column": 30,
+              "text": "善"
+            },
+            {
+              "end_column": 36,
+              "score": 20.53183364868164,
+              "start_column": 35,
+              "text": "头"
+            },
+            {
+              "end_column": 42,
+              "score": 22.25581932067871,
+              "start_column": 41,
+              "text": "发"
+            },
+            {
+              "end_column": 47,
+              "score": 19.4816837310791,
+              "start_column": 46,
+              "text": "光"
+            },
+            {
+              "end_column": 53,
+              "score": 18.990909576416016,
+              "start_column": 52,
+              "text": "泽"
+            },
+            {
+              "end_column": 58,
+              "score": 23.945314407348633,
+              "start_column": 57,
+              "text": "的"
+            },
+            {
+              "end_column": 64,
+              "score": 19.919185638427734,
+              "start_column": 63,
+              "text": "效"
+            },
+            {
+              "end_column": 69,
+              "score": 19.076078414916992,
+              "start_column": 68,
+              "text": "果"
+            },
+            {
+              "end_column": 75,
+              "score": 23.098663330078125,
+              "start_column": 74,
+              "text": "，"
+            },
+            {
+              "end_column": 80,
+              "score": 15.352438926696777,
+              "start_column": 79,
+              "text": "给"
+            },
+            {
+              "end_column": 86,
+              "score": 18.98082160949707,
+              "start_column": 85,
+              "text": "干"
+            },
+            {
+              "end_column": 91,
+              "score": 0.34440377354621887,
+              "start_column": 90,
+              "text": "燥"
+            },
+            {
+              "end_column": 96,
+              "score": 23.63413429260254,
+              "start_column": 95,
+              "text": "的"
+            },
+            {
+              "end_column": 102,
+              "score": 22.54074478149414,
+              "start_column": 101,
+              "text": "头"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                26.0,
+                426.0
+              ],
+              [
+                373.0,
+                426.0
+              ],
+              [
+                373.0,
+                446.0
+              ],
+              [
+                26.0,
+                446.0
+              ]
+            ],
+            "score": 0.8386521935462952
+          },
+          "emitted_count": 19,
+          "recognition_content_width": 833,
+          "recognition_score": 19.871612548828125,
+          "recognition_tensor_width": 864,
+          "recognition_time_steps": 108,
+          "text": "即时持久改善头发光泽的效果，给干燥的头"
+        },
+        {
+          "applied_rotation_degrees": 0,
+          "classification_label": 0,
+          "classification_score": 0.9999994039535522,
+          "ctc_spans": [
+            {
+              "end_column": 4,
+              "score": 22.516157150268555,
+              "start_column": 3,
+              "text": "发"
+            },
+            {
+              "end_column": 9,
+              "score": 21.201749801635742,
+              "start_column": 8,
+              "text": "足"
+            },
+            {
+              "end_column": 14,
+              "score": 16.869564056396484,
+              "start_column": 13,
+              "text": "够"
+            },
+            {
+              "end_column": 18,
+              "score": 25.07461929321289,
+              "start_column": 17,
+              "text": "的"
+            },
+            {
+              "end_column": 24,
+              "score": 15.284273147583008,
+              "start_column": 23,
+              "text": "滋"
+            },
+            {
+              "end_column": 29,
+              "score": 21.080385208129883,
+              "start_column": 28,
+              "text": "养"
+            }
+          ],
+          "detection": {
+            "points": [
+              [
+                25.0,
+                456.0
+              ],
+              [
+                136.0,
+                456.0
+              ],
+              [
+                136.0,
+                478.0
+              ],
+              [
+                25.0,
+                478.0
+              ]
+            ],
+            "score": 0.8997653722763062
+          },
+          "emitted_count": 6,
+          "recognition_content_width": 243,
+          "recognition_score": 20.337791442871094,
+          "recognition_tensor_width": 256,
+          "recognition_time_steps": 32,
+          "text": "发足够的滋养"
+        }
+      ],
+      "text": "纯臻营养护发素\n产品信息/参数\n(45元/每公斤，100公斤起订)\n每瓶22元，1000瓶起订)\n【品牌】:代加工方式/OEM ODM\n【品名】：纯臻营养护发素\n【产品编号】:YM-X-3011\nODM OEM\n【净含量】:220ml\n【适用人群】：适合所有肤质\n【主要成分】：鲸蜡硬脂醇、燕麦β-葡聚\n糖、椰油酰胺丙基甜菜碱、泛醌\n(成品包材)\n【主要功能】：可紧致头发磷层，从而达到\n即时持久改善头发光泽的效果，给干燥的头\n发足够的滋养",
+      "width_ratio": 1.0240000486373901
+    }
+  ],
+  "peak_device_bytes": 102976292,
+  "pipeline": "gpu",
+  "profiles": [],
+  "qualified": true,
+  "recognition_wave_size": 16,
+  "requests": 1,
+  "retained_device_bytes": 96440796,
+  "sample_run_statistics": [],
+  "sample_statistics": [],
+  "slots": 1,
+  "startup_ms": 29.674415999999997,
+  "statistics": [
+    {
+      "adapter": "Apple M4",
+      "admission_wait_ns": 0,
+      "backend": "Metal",
+      "completion_wait_ns": 0,
+      "control_readback_bytes": 400,
+      "cpu_compute_stages": [],
+      "decoding": "Gpu",
+      "diagnostic_readback_bytes": 0,
+      "dispatches": 1340,
+      "driver": "",
+      "driver_info": "",
+      "encoding_ns": 0,
+      "geometry": "Gpu",
+      "image_processing": "Gpu",
+      "kernels": [
+        "image_normalize_MixedF16",
+        "db_label_MixedF16",
+        "db_row_extremes",
+        "db_geometry_native_trig_MixedF16",
+        "db_reading_order",
+        "perspective_transform",
+        "perspective_bicubic",
+        "projection_features_F16_F32",
+        "projection_tiles1_F32",
+        "projection_winners",
+        "classifier_rotation",
+        "projection_mpp32_F16",
+        "ctc_compaction",
+        "projection_winners_logit_parallel"
+      ],
+      "layout_conversions": 17,
+      "native_graph_dispatches": 1218,
+      "native_resident_dispatches": 122,
+      "output_readback_bytes": 26496,
+      "peak_device_bytes": 102976292,
+      "profiling_readback_bytes": 0,
+      "projection": "Gpu",
+      "projection_encoding_ns": 0,
+      "readback_ns": 0,
+      "scratch_allocated_bytes": 10065720,
+      "scratch_allocations": 84,
+      "scratch_reuses": 0,
+      "submission_ns": 0,
+      "submissions": 3,
+      "uploaded_bytes": 750000
+    }
+  ],
+  "storage_precision": "MixedF16",
+  "timing_contract": "group start through last inference return; excludes decode, owned copy, validation, serialization and profile calls",
+  "warm_group_ms": [],
+  "warm_process_cpu_ms": []
+}

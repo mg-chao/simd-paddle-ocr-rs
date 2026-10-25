@@ -7,7 +7,6 @@ use crate::{
 };
 
 pub(crate) struct Detection {
-    pub scratch: Option<Arc<ScratchPool>>,
     pub image: Image,
     pub boxes: Vec<DetectionBox>,
     pub device_boxes: GpuBuffer,
@@ -15,16 +14,20 @@ pub(crate) struct Detection {
     pub statistics: GpuPipelineStatistics,
 }
 pub(crate) struct Detector {
-    pub scratch: Arc<ScratchPool>,
     pub session: GpuSession,
     pub context: Arc<GpuContext>,
 }
 impl Detector {
     pub fn new(compiled: Arc<GpuCompiledModel>, limits: ExecutionLimits) -> RuntimeResult<Self> {
-        let compiled = compiled.with_full_precision()?;
+        // Explicit fast matrix policy also permits Half detector storage.
+        // Its text/geometry contract is qualified separately from FP32.
+        let compiled = if compiled.matrix_precision == GpuMatrixPrecision::F16 {
+            compiled
+        } else {
+            compiled.with_full_precision()?
+        };
         compiled.prepare_images()?;
         Ok(Self {
-            scratch: Arc::default(),
             context: compiled.context.clone(),
             session: GpuSession::new_resident(compiled, &[1, 3, 32, 32], limits, None)?,
         })
@@ -35,6 +38,24 @@ impl Detector {
         options: DetectorOptions,
         profiling: bool,
     ) -> RuntimeResult<Detection> {
+        self.run_inner(image, options, profiling, false)
+            .map(|(detection, _)| detection)
+    }
+    pub fn run_with_crops(
+        &mut self,
+        image: ImageView<'_>,
+        options: DetectorOptions,
+        profiling: bool,
+    ) -> RuntimeResult<(Detection, Option<PreparedCrops>)> {
+        self.run_inner(image, options, profiling, true)
+    }
+    fn run_inner(
+        &mut self,
+        image: ImageView<'_>,
+        options: DetectorOptions,
+        profiling: bool,
+        prepare_crops: bool,
+    ) -> RuntimeResult<(Detection, Option<PreparedCrops>)> {
         if image.pixel_count().map_err(RuntimeError::from)? > options.max_image_pixels {
             return Err(resource("source image exceeds max_image_pixels"));
         }
@@ -51,7 +72,6 @@ impl Detector {
         }
         let mut batch = Batch::new(self.context.clone())?;
         batch.profiling = profiling;
-        batch.scratch = Some(self.scratch.clone());
         let image = Image::upload(&mut batch, image)?;
         preprocess(
             &mut batch,
@@ -62,15 +82,24 @@ impl Detector {
             true,
         )?;
         let prediction = batch.graph(&mut self.session, "detector")?;
-        let (boxes, device_boxes, statistics) = postprocess(batch, &prediction, options, geometry)?;
-        Ok(Detection {
-            scratch: Some(self.scratch.clone()),
-            image,
-            boxes,
-            device_boxes,
-            size,
-            statistics,
-        })
+        let (boxes, device_boxes, statistics, crops) = postprocess_with_math(
+            batch,
+            &prediction,
+            options,
+            geometry,
+            prepare_crops,
+            self.session.compiled.matrix_precision,
+        )?;
+        Ok((
+            Detection {
+                image,
+                boxes,
+                device_boxes,
+                size,
+                statistics,
+            },
+            crops,
+        ))
     }
 }
 
@@ -111,6 +140,8 @@ pub(crate) fn merge_statistics(
     destination.encoding_ns += source.encoding_ns;
     destination.admission_wait_ns += source.admission_wait_ns;
     destination.dispatches += source.dispatches;
+    destination.native_graph_dispatches += source.native_graph_dispatches;
+    destination.native_resident_dispatches += source.native_resident_dispatches;
     destination.layout_conversions += source.layout_conversions;
     destination.scratch_allocations += source.scratch_allocations;
     destination.scratch_allocated_bytes += source.scratch_allocated_bytes;
@@ -131,6 +162,25 @@ pub(crate) struct Crops {
     pub original: Vec<[usize; 3]>,
     pub statistics: GpuPipelineStatistics,
 }
+pub(crate) struct PreparedCrops {
+    transforms: GpuBuffer,
+    readback: Vec<u8>,
+    metadata_offset: usize,
+    count: usize,
+}
+impl PreparedCrops {
+    pub fn finish(self, options: crate::lines::LineOptions) -> RuntimeResult<Crops> {
+        let metadata = &self.readback[self.metadata_offset..self.metadata_offset + self.count * 24];
+        let CropShapes { sizes, original } = parse_crop_metadata(metadata, self.count, options)?;
+        Ok(Crops {
+            transforms: self.transforms,
+            sizes,
+            original,
+            // Its GPU work/readback is already included in Detection statistics.
+            statistics: Default::default(),
+        })
+    }
+}
 impl Crops {
     pub fn prepare(
         detection: &Detection,
@@ -149,18 +199,12 @@ impl Crops {
         }
         let mut batch = Batch::new(context)?;
         batch.profiling = detection.statistics.profile.is_some();
-        batch.scratch = detection.scratch.clone();
-        let source = format!(
-            "{PARAMETERS}{}{}",
-            shader("precise.wgsl", include_str!("precise.wgsl")),
-            shader("crop_meta.wgsl", include_str!("crop_meta.wgsl"))
-        );
-        batch.dispatch(
-            "perspective_transform",
-            &source,
-            &[(&detection.device_boxes, true), (&transforms, false)],
-            &[count as u32],
-            [(count as u32).div_ceil(64), 1, 1],
+        record_crop_transforms(
+            &mut batch,
+            &detection.device_boxes,
+            &transforms,
+            count,
+            false,
         )?;
         // Only shape/validation metadata crosses the scheduling boundary. Coefficients stay on device.
         let metadata = batch.storage("crop shape metadata", count * 24)?;
@@ -174,31 +218,7 @@ impl Crops {
             );
         }
         let (bytes, statistics) = batch.read(&metadata, count * 24, true)?;
-        let mut sizes = Vec::with_capacity(count);
-        let mut original = Vec::with_capacity(count);
-        let mut total = 0usize;
-        for row in bytes.as_chunks::<24>().0 {
-            let word =
-                |i: usize| u32::from_le_bytes(row[i * 4..i * 4 + 4].try_into().unwrap()) as usize;
-            let (w, h) = (word(0), word(1));
-            if word(5) != 0 || w == 0 || h == 0 {
-                return Err(RuntimeError::new("degenerate GPU perspective crop"));
-            }
-            let pixels = w
-                .checked_mul(h)
-                .filter(|&n| n <= options.max_crop_pixels)
-                .ok_or_else(|| resource("crop exceeds max_crop_pixels"))?;
-            total = total
-                .checked_add(
-                    pixels
-                        .checked_mul(3)
-                        .ok_or_else(|| resource("crop byte overflow"))?,
-                )
-                .filter(|&n| n <= options.max_total_crop_bytes)
-                .ok_or_else(|| resource("crops exceed max_total_crop_bytes"))?;
-            sizes.push([w, h]);
-            original.push([word(2), word(3), word(4)]);
-        }
+        let CropShapes { sizes, original } = parse_crop_metadata(&bytes, count, options)?;
         Ok(Self {
             transforms,
             sizes,
@@ -253,6 +273,68 @@ impl Crops {
             format: crate::image::PixelFormat::Bgra32,
         })
     }
+}
+
+fn record_crop_transforms(
+    batch: &mut Batch,
+    boxes: &GpuBuffer,
+    transforms: &GpuBuffer,
+    capacity: usize,
+    header_count: bool,
+) -> RuntimeResult<()> {
+    let source = format!(
+        "{PARAMETERS}{}{}",
+        shader("precise.wgsl", include_str!("precise.wgsl")),
+        shader("crop_meta.wgsl", include_str!("crop_meta.wgsl"))
+    );
+    batch.dispatch(
+        "perspective_transform",
+        &source,
+        &[(boxes, true), (transforms, false)],
+        &[capacity as u32, u32::from(header_count)],
+        [(capacity as u32).div_ceil(64), 1, 1],
+    )
+}
+
+struct CropShapes {
+    sizes: Vec<[usize; 2]>,
+    original: Vec<[usize; 3]>,
+}
+
+fn parse_crop_metadata(
+    bytes: &[u8],
+    count: usize,
+    options: crate::lines::LineOptions,
+) -> RuntimeResult<CropShapes> {
+    if count.checked_mul(24) != Some(bytes.len()) {
+        return Err(RuntimeError::new("invalid GPU crop metadata size"));
+    }
+    let mut sizes = Vec::with_capacity(count);
+    let mut original = Vec::with_capacity(count);
+    let mut total = 0usize;
+    for row in bytes.as_chunks::<24>().0 {
+        let word =
+            |i: usize| u32::from_le_bytes(row[i * 4..i * 4 + 4].try_into().unwrap()) as usize;
+        let (w, h) = (word(0), word(1));
+        if word(5) != 0 || w == 0 || h == 0 {
+            return Err(RuntimeError::new("degenerate GPU perspective crop"));
+        }
+        let pixels = w
+            .checked_mul(h)
+            .filter(|&n| n <= options.max_crop_pixels)
+            .ok_or_else(|| resource("crop exceeds max_crop_pixels"))?;
+        total = total
+            .checked_add(
+                pixels
+                    .checked_mul(3)
+                    .ok_or_else(|| resource("crop byte overflow"))?,
+            )
+            .filter(|&n| n <= options.max_total_crop_bytes)
+            .ok_or_else(|| resource("crops exceed max_total_crop_bytes"))?;
+        sizes.push([w, h]);
+        original.push([word(2), word(3), word(4)]);
+    }
+    Ok(CropShapes { sizes, original })
 }
 
 pub(crate) fn pack_bgr(batch: &mut Batch, image: &Image) -> RuntimeResult<GpuBuffer> {
@@ -318,14 +400,171 @@ pub(crate) fn orient_at(
     })
 }
 pub(crate) fn postprocess(
-    mut batch: Batch,
+    batch: Batch,
     prediction: &Tensor,
     options: DetectorOptions,
     geometry: DetSourceGeometry,
 ) -> RuntimeResult<(Vec<DetectionBox>, GpuBuffer, GpuPipelineStatistics)> {
+    let (boxes, buffer, statistics, _) =
+        postprocess_inner(batch, prediction, options, geometry, false)?;
+    Ok((boxes, buffer, statistics))
+}
+
+struct CropReadbackLayout {
+    box_bytes: usize,
+    metadata_bytes: usize,
+    transform_bytes: usize,
+    total_bytes: usize,
+}
+
+fn merged_crop_layout(
+    count: usize,
+    binding_limit: usize,
+    device_quota: bool,
+) -> Option<CropReadbackLayout> {
+    // Speculating on rejected candidates must not add a failure under an
+    // explicit quota or exceed a binding that the accepted-only path can fit.
+    if count == 0 || device_quota {
+        return None;
+    }
+    let box_bytes = count.checked_add(1)?.checked_mul(64)?;
+    let metadata_bytes = count.checked_mul(24)?;
+    let transform_bytes = count.checked_mul(128)?;
+    let total_bytes = box_bytes.checked_add(metadata_bytes)?;
+    if transform_bytes > binding_limit || total_bytes > binding_limit {
+        return None;
+    }
+    Some(CropReadbackLayout {
+        box_bytes,
+        metadata_bytes,
+        transform_bytes,
+        total_bytes,
+    })
+}
+
+type PostprocessResult = (
+    Vec<DetectionBox>,
+    GpuBuffer,
+    GpuPipelineStatistics,
+    Option<PreparedCrops>,
+);
+
+fn postprocess_inner(
+    batch: Batch,
+    prediction: &Tensor,
+    options: DetectorOptions,
+    geometry: DetSourceGeometry,
+    prepare_crops: bool,
+) -> RuntimeResult<PostprocessResult> {
+    // Explicit postprocess replay retains its original precise contract.
+    postprocess_with_math(
+        batch,
+        prediction,
+        options,
+        geometry,
+        prepare_crops,
+        GpuMatrixPrecision::F32,
+    )
+}
+
+fn native_trig_eligible(
+    matrix: GpuMatrixPrecision,
+    storage: GpuPrecision,
+    dimensions: [usize; 6],
+    ratio: f32,
+) -> bool {
+    matrix == GpuMatrixPrecision::F16
+        && storage == GpuPrecision::MixedF16
+        && dimensions.into_iter().all(|n| (1..=4096).contains(&n))
+        && (0.25..=2.0).contains(&ratio)
+}
+
+fn geometry_source(precision: GpuPrecision, native_trig: bool) -> String {
+    format!(
+        "{}{}{}{}",
+        if precision == GpuPrecision::MixedF16 {
+            "enable f16;\n"
+        } else {
+            ""
+        },
+        PARAMETERS,
+        if native_trig {
+            shader(
+                "precise_native_trig.wgsl",
+                include_str!("precise_native_trig.wgsl"),
+            )
+        } else {
+            shader("precise.wgsl", include_str!("precise.wgsl"))
+        },
+        shader("db_geometry.wgsl", include_str!("db_geometry.wgsl")).replace(
+            "$INPUT",
+            if precision == GpuPrecision::MixedF16 {
+                "f16"
+            } else {
+                "f32"
+            }
+        ),
+    )
+}
+
+fn geometry_kernel(
+    context: &GpuContext,
+    precision: GpuPrecision,
+    native_trig: bool,
+) -> RuntimeResult<(String, Arc<Kernel>)> {
+    geometry_kernel_with(context, precision, native_trig, Kernel::get)
+}
+
+fn geometry_kernel_with(
+    context: &GpuContext,
+    precision: GpuPrecision,
+    native_trig: bool,
+    mut compile: impl FnMut(&GpuContext, &str, &str, &[bool]) -> RuntimeResult<Arc<Kernel>>,
+) -> RuntimeResult<(String, Arc<Kernel>)> {
+    let read_only = [true, true, true, false, false];
+    if native_trig {
+        let name = format!("db_geometry_native_trig_{precision:?}");
+        // Optional admission happens before parameter allocation or recording.
+        // A failed native compiler must retain the original precise GPU source,
+        // rather than executing the new arithmetic through a generic native fallback.
+        match compile(
+            context,
+            &name,
+            &geometry_source(precision, true),
+            &read_only,
+        ) {
+            Ok(kernel) => return Ok((name, kernel)),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    ErrorKind::Unsupported | ErrorKind::GpuValidation
+                ) =>
+            {
+                context.check_alive()?;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    let name = format!("db_geometry_{precision:?}");
+    let kernel = compile(
+        context,
+        &name,
+        &geometry_source(precision, false),
+        &read_only,
+    )?;
+    Ok((name, kernel))
+}
+
+fn postprocess_with_math(
+    mut batch: Batch,
+    prediction: &Tensor,
+    options: DetectorOptions,
+    geometry: DetSourceGeometry,
+    prepare_crops: bool,
+    matrix: GpuMatrixPrecision,
+) -> RuntimeResult<PostprocessResult> {
     batch.ensure_context(&prediction.context)?;
     let profiling = batch.profiling;
-    let scratch = batch.scratch.clone();
     let context = batch.context.clone();
     let dims = prediction.descriptor.shape.dimensions();
     if dims.len() != 4 || dims[0] != 1 || dims[1] != 1 {
@@ -362,9 +601,6 @@ pub(crate) fn postprocess(
             }
         )
     );
-    #[cfg(test)]
-    let tiled = context.options.tiled_labels;
-    #[cfg(not(test))]
     let tiled = true;
     let (gx, gy) = dispatch_grid(pixels, &context.limits)?;
     for mode in [0, 1, 2, 3, 4, 9, 5, 6, 7, 8] {
@@ -418,10 +654,21 @@ pub(crate) fn postprocess(
     }
     let mut batch = Batch::new(context.clone())?;
     batch.profiling = profiling;
-    batch.scratch = scratch;
-    let compact = batch.storage("DB sorted output", (count + 1) * 64)?;
+    let crop_layout = prepare_crops
+        .then(|| {
+            merged_crop_layout(
+                count,
+                context.limits.max_storage_buffer_binding_size as usize,
+                context.options.max_device_bytes.is_some(),
+            )
+        })
+        .flatten();
+    let compact_bytes = crop_layout
+        .as_ref()
+        .map_or((count + 1) * 64, |layout| layout.total_bytes);
+    let compact = batch.storage("DB sorted output", compact_bytes)?;
     if count == 0 {
-        return Ok((Vec::new(), compact, statistics));
+        return Ok((Vec::new(), compact, statistics, None));
     }
     let rows = batch.storage("DB row extremes", row_count * 8)?;
     let hull = batch.storage(
@@ -448,29 +695,23 @@ pub(crate) fn postprocess(
             [x, y, 1],
         )?;
     }
-    let source = format!(
-        "{}{}{}",
-        if precision == GpuPrecision::MixedF16 {
-            "enable f16;\n"
-        } else {
-            ""
-        },
-        format_args!(
-            "{PARAMETERS}{}",
-            shader("precise.wgsl", include_str!("precise.wgsl"))
-        ),
-        shader("db_geometry.wgsl", include_str!("db_geometry.wgsl")).replace(
-            "$INPUT",
-            if precision == GpuPrecision::MixedF16 {
-                "f16"
-            } else {
-                "f32"
-            }
-        )
+    let native_trig = native_trig_eligible(
+        matrix,
+        precision,
+        [
+            w,
+            h,
+            geometry.original_width,
+            geometry.original_height,
+            geometry.padded_width,
+            geometry.padded_height,
+        ],
+        options.unclip_ratio,
     );
-    batch.dispatch(
-        &format!("db_geometry_{precision:?}"),
-        &source,
+    let (name, kernel) = geometry_kernel(&context, precision, native_trig)?;
+    batch.dispatch_prepared(
+        &name,
+        &kernel,
         &[
             (&prediction.buffer, true),
             (&meta, true),
@@ -501,7 +742,29 @@ pub(crate) fn postprocess(
         &[count as u32],
         [1, 1, 1],
     )?;
-    let (data, stats) = batch.read(&compact, (count + 1) * 64, false)?;
+    let transforms = if let Some(layout) = &crop_layout {
+        let transforms = storage(&context, "perspective transforms", layout.transform_bytes)?;
+        record_crop_transforms(&mut batch, &compact, &transforms, count, true)?;
+        for index in 0..count {
+            batch.copy(
+                &transforms,
+                (index * 128) as u64,
+                &compact,
+                (layout.box_bytes + index * 24) as u64,
+                24,
+            );
+        }
+        Some(transforms)
+    } else {
+        None
+    };
+    let (data, mut stats) = batch.read(&compact, compact_bytes, false)?;
+    if let Some(layout) = &crop_layout {
+        // The single physical readback carries two semantic kinds of data.
+        // Count all capacity rows actually copied, including rejected tails.
+        stats.output_readback_bytes -= layout.metadata_bytes as u64;
+        stats.control_readback_bytes += layout.metadata_bytes as u64;
+    }
     merge_statistics(&mut statistics, stats);
     let word = |i: usize| u32::from_le_bytes(data[i * 4..i * 4 + 4].try_into().unwrap());
     let accepted = word(0) as usize;
@@ -523,23 +786,320 @@ pub(crate) fn postprocess(
         }
         boxes.push(DetectionBox { points, score });
     }
-    Ok((boxes, compact, statistics))
+    let crops = if accepted != 0
+        && let (Some(transforms), Some(layout)) = (transforms, crop_layout)
+    {
+        Some(PreparedCrops {
+            transforms,
+            readback: data,
+            metadata_offset: layout.box_bytes,
+            count: accepted,
+        })
+    } else {
+        None
+    };
+    Ok((boxes, compact, statistics, crops))
 }
+
+#[cfg(test)]
+#[path = "crop_merge_tests.rs"]
+mod crop_merge_tests;
+
+#[cfg(test)]
+#[path = "geometry_native_trig_tests.rs"]
+mod geometry_native_trig_tests;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn count_fixture(case: usize, w: usize, h: usize, dilation: bool) -> Vec<bool> {
+        let original: Vec<_> = (0..w * h)
+            .map(|i| {
+                let (x, y) = (i % w, i / w);
+                match case {
+                    0 => false,
+                    1 => x == w / 2 && y == h / 2,
+                    2 => true,
+                    3 => {
+                        (3..w - 3).contains(&x)
+                            && (3..h - 3).contains(&y)
+                            && !((7..w - 7).contains(&x) && (6..h - 6).contains(&y))
+                    }
+                    4 => (x < 4 && y < 8) || (x >= w - 2 && y >= h - 4),
+                    5 => x == y,
+                    _ => x % 2 == 1 && y % 2 == 1,
+                }
+            })
+            .collect();
+        if !dilation {
+            return original;
+        }
+        (0..w * h)
+            .map(|i| {
+                let (x, y) = (i % w, i / w);
+                (y..=(y + 1).min(h - 1))
+                    .any(|yy| (x..=(x + 1).min(w - 1)).any(|xx| original[yy * w + xx]))
+            })
+            .collect()
+    }
+
+    fn count_reference(
+        mask: &[bool],
+        w: usize,
+        h: usize,
+        omit_zero_adds: bool,
+    ) -> (Vec<u32>, Vec<u32>, usize) {
+        // Independent flood fill: foreground has eight-neighbor connectivity,
+        // background four. Ascending seeds give each component its minimum
+        // pixel index, independently of the GPU's tile/atomic union algorithm.
+        let mut parents = vec![u32::MAX; w * h];
+        for seed in 0..mask.len() {
+            if parents[seed] != u32::MAX {
+                continue;
+            }
+            let mut todo = vec![seed];
+            parents[seed] = seed as u32;
+            while let Some(i) = todo.pop() {
+                let (x, y) = ((i % w) as i32, (i / w) as i32);
+                for dy in -1i32..=1 {
+                    for dx in -1i32..=1 {
+                        if (dx == 0 && dy == 0) || (!mask[seed] && dx.abs() + dy.abs() != 1) {
+                            continue;
+                        }
+                        let (nx, ny) = (x + dx, y + dy);
+                        if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
+                            continue;
+                        }
+                        let j = ny as usize * w + nx as usize;
+                        if parents[j] == u32::MAX && mask[j] == mask[seed] {
+                            parents[j] = seed as u32;
+                            todo.push(j);
+                        }
+                    }
+                }
+            }
+        }
+        let mut counts = vec![0u32; mask.len()];
+        let mut additions = 0;
+        for i in 0..mask.len() {
+            let (x, y) = (i % w, i / w);
+            let root = parents[i] as usize;
+            let border = x == 0 || y == 0 || x + 1 == w || y + 1 == h;
+            let boundary = if mask[i] {
+                u32::from(
+                    border
+                        || (y.saturating_sub(1)..=(y + 1).min(h - 1)).any(|yy| {
+                            (x.saturating_sub(1)..=(x + 1).min(w - 1)).any(|xx| !mask[yy * w + xx])
+                        }),
+                )
+            } else {
+                if border {
+                    counts[root] |= 0x8000_0000;
+                }
+                u32::from(x > 0 && mask[i - 1])
+                    + u32::from(x + 1 < w && mask[i + 1])
+                    + u32::from(y > 0 && mask[i - w])
+                    + u32::from(y + 1 < h && mask[i + w])
+            };
+            if !omit_zero_adds || boundary != 0 {
+                counts[root] = counts[root].wrapping_add(boundary);
+                additions += 1;
+            }
+        }
+        (parents, counts, additions)
+    }
+
+    #[test]
+    fn db_zero_boundary_adds_preserve_component_counts_and_border_flags() {
+        let (w, h) = (19, 17);
+        for case in 0..7 {
+            for dilation in [false, true] {
+                let mask = count_fixture(case, w, h, dilation);
+                let (parents, counts, all_additions) = count_reference(&mask, w, h, false);
+                let (guarded_parents, guarded_counts, nonzero_additions) =
+                    count_reference(&mask, w, h, true);
+                assert_eq!(parents, guarded_parents);
+                assert_eq!(counts, guarded_counts);
+                assert_eq!(all_additions, w * h);
+                assert!(nonzero_additions <= all_additions);
+                for i in 0..mask.len() {
+                    if mask[i] {
+                        assert_eq!(counts[parents[i] as usize] & 0x8000_0000, 0);
+                    }
+                }
+                if case == 0 {
+                    assert_eq!(nonzero_additions, 0);
+                    assert_eq!(counts[0], 0x8000_0000);
+                } else if case == 2 {
+                    assert_eq!(nonzero_additions, 2 * w + 2 * h - 4);
+                    assert_eq!(counts[0], nonzero_additions as u32);
+                } else if case == 1 && !dilation {
+                    assert_eq!(nonzero_additions, 5);
+                    assert_eq!(counts[w * (h / 2) + w / 2], 1);
+                    assert_eq!(counts[0], 0x8000_0004);
+                }
+                if case == 3 && !dilation {
+                    let hole = 7 * w + 8;
+                    assert!(!mask[hole]);
+                    assert_eq!(counts[parents[hole] as usize] & 0x8000_0000, 0);
+                    assert!(counts[parents[hole] as usize] >= 3);
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires physical Metal; exact DB parent/count flags and instrumented zero-add traffic for F32/Half"]
+    fn gpu_resident_db_nonzero_boundary_counts() {
+        let (w, h) = (19usize, 17usize);
+        let pixels = w * h;
+        {
+            let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
+            for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+                // Resident WGSL kernels are cached by name. Each storage ABI
+                // needs its own key, as in production postprocess_inner.
+                let dispatch_name = format!("db_label_nonzero_boundary_test_{precision:?}");
+                let body = include_str!("db_label.wgsl");
+                let marker = "atomicAdd(&counts[r],boundary);";
+                assert_eq!(body.matches(marker).count(), 1);
+                // Metadata[3] is unused through mode3. Count the actual executed
+                // additions in this test-only source, without changing the ABI.
+                // The old unconditional zero-add implementation fails blank
+                // and sparse fixtures even though its final counts are equal.
+                let body = body.replace(
+                    marker,
+                    "atomicAdd(&counts[r],boundary);atomicAdd(&metadata[3],1u);",
+                );
+                let source = format!(
+                    "{}{PARAMETERS}{}",
+                    if precision == GpuPrecision::MixedF16 {
+                        "enable f16;\n"
+                    } else {
+                        ""
+                    },
+                    body.replace(
+                        "$INPUT",
+                        if precision == GpuPrecision::MixedF16 {
+                            "f16"
+                        } else {
+                            "f32"
+                        }
+                    )
+                );
+                for case in 0..7 {
+                    for dilation in [false, true] {
+                        let original = count_fixture(case, w, h, false);
+                        let mask = count_fixture(case, w, h, dilation);
+                        let (parents, counts, additions) = count_reference(&mask, w, h, true);
+                        let map: Vec<f32> = original
+                            .iter()
+                            .map(|&yes| if yes { 0.75 } else { 0.0 })
+                            .collect();
+                        let prediction = context
+                            .create_buffer_init(
+                                "DB boundary probability fixture",
+                                &precision.encode(&map),
+                                wgpu::BufferUsages::STORAGE,
+                            )
+                            .unwrap();
+                        let mut batch = Batch::new(context.clone()).unwrap();
+                        let state: Vec<_> = (0..5)
+                            .map(|_| batch.storage("DB boundary state", pixels * 4).unwrap())
+                            .collect();
+                        let meta = batch.storage("DB boundary count metadata", 16).unwrap();
+                        let buffers = [
+                            (&prediction, true),
+                            (&state[0], false),
+                            (&state[1], false),
+                            (&state[2], false),
+                            (&state[3], false),
+                            (&state[4], false),
+                            (&meta, false),
+                        ];
+                        let groups = pixels.div_ceil(64) as u32;
+                        for mode in 0..=3 {
+                            batch
+                                .dispatch(
+                                    &dispatch_name,
+                                    &source,
+                                    &buffers,
+                                    &[
+                                        w as u32,
+                                        h as u32,
+                                        0.5f32.to_bits(),
+                                        pixels as u32,
+                                        mode,
+                                        u32::from(dilation),
+                                        1,
+                                    ],
+                                    [
+                                        if mode == 1 {
+                                            (w.div_ceil(8) * h.div_ceil(8)) as u32
+                                        } else {
+                                            groups
+                                        },
+                                        1,
+                                        1,
+                                    ],
+                                )
+                                .unwrap();
+                        }
+                        let output = batch
+                            .storage("DB boundary fixture readback", (pixels * 3 + 4) * 4)
+                            .unwrap();
+                        for (index, buffer) in state[..3].iter().enumerate() {
+                            batch.copy(
+                                buffer,
+                                0,
+                                &output,
+                                (index * pixels * 4) as u64,
+                                (pixels * 4) as u64,
+                            );
+                        }
+                        batch.copy(&meta, 0, &output, (pixels * 3 * 4) as u64, 16);
+                        let (bytes, _) = batch.read(&output, output.bytes(), false).unwrap();
+                        let actual: Vec<_> = bytes
+                            .as_chunks::<4>()
+                            .0
+                            .iter()
+                            .map(|b| u32::from_le_bytes(*b))
+                            .collect();
+                        for index in 0..pixels {
+                            assert_eq!(
+                                actual[index],
+                                u32::from(mask[index]),
+                                "mask precision={precision:?} case={case} dilation={dilation} index={index}"
+                            );
+                            assert_eq!(
+                                actual[pixels + index],
+                                parents[index],
+                                "parent precision={precision:?} case={case} dilation={dilation} index={index}"
+                            );
+                            assert_eq!(
+                                actual[pixels * 2 + index],
+                                counts[index],
+                                "count precision={precision:?} case={case} dilation={dilation} index={index}"
+                            );
+                        }
+                        assert_eq!(
+                            actual[pixels * 3 + 2],
+                            0,
+                            "nonfinite flag precision={precision:?} case={case} dilation={dilation}"
+                        );
+                        assert_eq!(
+                            actual[pixels * 3 + 3] as usize,
+                            additions,
+                            "add traffic precision={precision:?} case={case} dilation={dilation}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn hardware() -> Arc<GpuContext> {
-        let backend = match std::env::var("SIMD_OCR_GPU_BACKEND").as_deref() {
-            Ok("dx12") => GpuBackendPreference::Dx12,
-            Ok("metal") => GpuBackendPreference::Metal,
-            _ => GpuBackendPreference::Vulkan,
-        };
-        let context = GpuContext::new_with_options(GpuContextOptions {
-            backend,
-            ..Default::default()
-        })
-        .unwrap();
+        let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
         assert!(matches!(
             context.adapter_info().device_type,
             wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
@@ -717,7 +1277,6 @@ mod tests {
                     )
                     .unwrap();
                 let detection = Detection {
-                    scratch: None,
                     image,
                     boxes: vec![box_],
                     device_boxes,
