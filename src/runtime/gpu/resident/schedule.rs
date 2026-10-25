@@ -10,7 +10,6 @@ struct Access {
 pub(in crate::runtime::gpu) enum Operation {
     Compute {
         native: Arc<executor::NativeDispatch>,
-        #[cfg(not(target_os = "macos"))]
         profile_index: usize,
     },
     Copy {
@@ -26,7 +25,7 @@ pub(super) struct Schedule {
     operations: Vec<(usize, Operation)>,
     accesses: HashMap<usize, Access>,
 }
-pub(super) fn identity(buffer: &GpuBuffer) -> usize {
+pub(in crate::runtime::gpu) fn identity(buffer: &GpuBuffer) -> usize {
     Arc::as_ptr(&buffer.reservation) as usize
 }
 impl Schedule {

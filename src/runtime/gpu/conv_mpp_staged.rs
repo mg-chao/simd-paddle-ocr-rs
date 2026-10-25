@@ -3,8 +3,6 @@
 use super::*;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
-#[cfg(target_os = "macos")]
-pub(super) const ENTRY: &str = "conv_mpp2_staged";
 pub(super) const WORKGROUP: [u32; 3] = [128, 1, 1];
 const MAX_CHANNELS: u32 = 64;
 const PATCH_ELEMENTS: u32 = 9 * 5;
@@ -42,25 +40,10 @@ impl Specialization {
         })
     }
 
-    #[cfg(target_os = "macos")]
-
-    pub(super) fn for_shader(kind: ShaderKind, words: &[u32; 128]) -> Option<Self> {
-        Self::from_words(words).filter(|specialization| specialization.shader() == kind)
-    }
-
     fn shader(self) -> ShaderKind {
         match self.family {
             Family::K2S1 => ShaderKind::ConvMpp2Staged,
             Family::K3S2 => ShaderKind::ConvMpp3s2Staged,
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-
-    pub(super) fn entry(self) -> &'static str {
-        match self.family {
-            Family::K2S1 => ENTRY,
-            Family::K3S2 => "conv_mpp3s2_staged",
         }
     }
 
@@ -128,29 +111,4 @@ pub(super) fn prepare_recipe(
     // Both families retain the full-view 32x8x4 output tile and grid packet.
     recipe.kind = RecipeKind::Compute(specialization.shader());
     true
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn source(
-    specialization: Specialization,
-    storage: [GpuPrecision; 6],
-) -> RuntimeResult<String> {
-    if storage != [GpuPrecision::MixedF16; 6] {
-        return Err(unsupported("staged convolution requires all-Half storage"));
-    }
-    let body = match specialization.family {
-        Family::K2S1 => include_str!("conv_mpp_staged.metal"),
-        Family::K3S2 => include_str!("conv_mpp_staged3s2.metal"),
-    }
-    .replace("$INPUT_CHANNELS", &specialization.channels.to_string());
-    Ok(format!("{}\n{body}", include_str!("common_native.metal"))
-        .replace("device const float*", "device const half*")
-        .replace("device float*", "device half*"))
-}
-
-#[cfg(target_os = "macos")]
-
-fn unsupported(message: &str) -> RuntimeError {
-    RuntimeError::with_kind(ErrorKind::Unsupported, message)
 }

@@ -3,7 +3,7 @@
 //! Models, graph lowering and shape binding are shared across execution backends.
 //! Compiled instructions are immutable and shareable. Each session binds concrete
 //! shapes and owns reusable activation buffers. The optional `gpu` module uses
-//! wgpu for tensor and OCR inference. This deliberately does not claim
+//! native Metal 4 on macOS and native Vulkan elsewhere for tensor and OCR inference. This deliberately does not claim
 //! general ONNX execution support.
 
 #[cfg(feature = "gpu")]

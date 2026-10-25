@@ -3,36 +3,6 @@ use super::*;
 use crate::runtime::graph_patterns as patterns;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
-#[cfg(target_os = "macos")]
-pub(super) const ENTRY: &str = "pointwise_mpp64";
-#[cfg(target_os = "macos")]
-pub(super) const WORKGROUP: [u32; 3] = [128, 1, 1];
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
-    if storage != [GpuPrecision::MixedF16; 6] {
-        return Err(RuntimeError::with_kind(
-            ErrorKind::Unsupported,
-            "token tail requires all-Half storage",
-        ));
-    }
-    let source = half_native::pointwise_epilogue_source();
-    let before = "const uint index = (batch * rows + row) * columns + column;";
-    if source.matches(before).count() != 2 {
-        return Err(RuntimeError::with_kind(
-            ErrorKind::Unsupported,
-            "token tail source no longer matches its qualified index proof",
-        ));
-    }
-    // Both the full residual read and the final store use this index. Matrix
-    // operands, Float bias seeding, Swish and accumulation remain unchanged.
-    Ok(source.replace(
-        before,
-        "const uint index = (batch * columns + column) * rows + row;",
-    ))
-}
-
 fn view(plan: &ShapePlan, node: usize, dimensions: &[usize], strides: &[usize]) -> bool {
     matches!(&plan.steps[node].kind, BoundKind::Transpose(v)
         if v.rank == dimensions.len() && v.dimensions[..v.rank] == *dimensions

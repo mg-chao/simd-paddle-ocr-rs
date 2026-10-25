@@ -31,7 +31,7 @@ pub(super) fn lower(
             "MPP convolution lowering has inconsistent tensor metadata",
         ));
     }
-    let mut lowered = Vec::with_capacity(recipes.len());
+    let mut lowered: Vec<Recipe> = Vec::with_capacity(recipes.len());
     let mut packed = HashMap::<(TensorId, Option<TensorId>, GpuPrecision), TensorId>::new();
     for recipe in recipes {
         // The central owner caches immutable FP32 weight permutations. Dynamic
@@ -62,7 +62,7 @@ pub(super) fn lower(
         }
         // Admission must precede the input layout rewrite and scale folding.
         let mut candidate = recipe.clone();
-        let scale = if prepare_pointwise(&mut candidate, descriptors, limits)? {
+        let mut scale = if prepare_pointwise(&mut candidate, descriptors, limits)? {
             let scale = match recipe.words[52] {
                 0 => None,
                 1 => recipe.inputs.get(3).copied(),
@@ -102,6 +102,43 @@ pub(super) fn lower(
             continue;
         }
         let mut recipe = candidate;
+        if scale.is_none() && matches!(recipe.kind, RecipeKind::Compute(ShaderKind::PointwiseF16)) {
+            let scaled = recipe.inputs[0];
+            if program
+                .graph_uses
+                .unique_consumer(scaled, plan.steps.len())
+                .is_some()
+                && let Some(index) = lowered.iter().position(|r| {
+                    r.output == scaled
+                        && r.nodes.len() == 1
+                        && matches!(r.kind, RecipeKind::Compute(ShaderKind::General))
+                        && r.words[2] == 1
+                        && r.inputs.len() == 2
+                })
+            {
+                let multiply = &lowered[index];
+                let input_shape = plan.shapes[scaled.0];
+                let expected_scale = [recipe.words[2] as usize, recipe.words[3] as usize, 1, 1];
+                let operands = multiply
+                    .inputs
+                    .iter()
+                    .copied()
+                    .zip(multiply.inputs.iter().rev().copied())
+                    .find(|(input, factor)| {
+                        plan.shapes[input.0] == input_shape
+                            && plan.shapes[factor.0].dimensions() == expected_scale
+                            && descriptors[input.0].precision == GpuPrecision::F32
+                            && descriptors[factor.0].precision == GpuPrecision::F32
+                    });
+                if let Some((input, factor)) = operands {
+                    recipe.inputs[0] = input;
+                    scale = Some(factor);
+                    let multiply = lowered.remove(index);
+                    recipe.nodes.extend(multiply.nodes);
+                    recipe.nodes.sort_unstable();
+                }
+            }
+        }
         let source = recipe.inputs[0];
         let key = (source, scale, operand_precision);
         let storage = if let Some(&storage) = packed.get(&key) {

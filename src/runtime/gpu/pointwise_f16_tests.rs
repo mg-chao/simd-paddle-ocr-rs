@@ -306,7 +306,7 @@ fn gpu_hardware_pointwise_f16_prescale_fused_residual_and_bias() {
     assert_eq!(matrix.words[64], 2);
     assert_eq!(
         matrix.inputs.len(),
-        5,
+        4,
         "prescale must preserve residual binding3"
     );
     assert_close(

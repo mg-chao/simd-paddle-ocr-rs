@@ -2,8 +2,6 @@
 use super::GpuPrecision;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum KernelId {
-    #[cfg(all(test, target_os = "macos"))]
-    ProjectionScalarProbe,
     #[cfg(all(test, not(target_os = "macos")))]
     BindingProbe,
     #[cfg(test)]
@@ -78,8 +76,6 @@ pub(super) enum KernelId {
 impl KernelId {
     pub fn precision_mask(self) -> u8 {
         match self {
-            #[cfg(all(test, target_os = "macos"))]
-            Self::ProjectionScalarProbe => 0,
             #[cfg(test)]
             Self::CounterProbe | Self::RoundHalfProbe => 0,
             #[cfg(all(test, not(target_os = "macos")))]

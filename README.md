@@ -7,10 +7,11 @@ CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 The project uses `nightly-2026-09-08`, selected by `rust-toolchain.toml`.
 CPU execution supports Windows x64 and native macOS Apple Silicon; see
 [CPU usage](docs/cpu-usage.md) and [macOS setup](docs/macos-cpu-validation.md).
-The optional GPU implementation uses Metal on macOS and native Vulkan 1.3 through
-`ash` on Windows. Windows shaders are GLSL compiled to embedded SPIR-V at build
+The optional GPU implementation uses native Metal 4 through `objc2_metal` on
+Apple Silicon with macOS 26+, and native Vulkan 1.3 through `ash` on Windows. Windows shaders are GLSL compiled to embedded SPIR-V at build
 time. Applications need the Vulkan loader and a supported physical GPU driver;
-they do not compile shaders at runtime. CPU-only builds skip the shader toolchain.
+Windows applications do not compile shaders at runtime. macOS applications compile
+embedded MSL through Metal 4 without requiring Xcode. CPU-only builds skip both GPU stacks.
 See [GPU usage](docs/gpu-usage.md) for configuration and validation.
 The [Windows migration results](docs/vulkan-performance.md) include local correctness
 checks, bounded measurements, and hardware validation limits.

@@ -201,21 +201,6 @@ fn tail_projection_keeps_escaping_values_and_default_precision() {
 }
 
 #[test]
-#[cfg(target_os = "macos")]
-fn tail_projection_source_changes_exactly_the_two_qualified_indices() {
-    let original = half_native::pointwise_epilogue_source();
-    let source = source([GpuPrecision::MixedF16; 6]).unwrap();
-    assert_eq!(
-        source.replace(
-            "const uint index = (batch * columns + column) * rows + row;",
-            "const uint index = (batch * rows + row) * columns + column;"
-        ),
-        original
-    );
-    assert!(super::source([GpuPrecision::F32; 6]).is_err());
-}
-
-#[test]
 fn tail_projection_rejection_is_atomic_and_near_miss_packets_keep_originals() {
     let program = Program::compile(fixture(false)).unwrap();
     let (plan, baseline) = lower(
@@ -339,7 +324,7 @@ fn gpu_hardware_tail_projection_native_closed_graph() {
             }
         }
     }
-    for reject in [false, true] {
+    {
         let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
         let compiled = Arc::new(
             GpuCompiledModel::compile_with_options(
@@ -355,18 +340,10 @@ fn gpu_hardware_tail_projection_native_closed_graph() {
             )
             .unwrap(),
         );
-        if reject {
-            compiled
-                .pipelines
-                .reject_tail_projection_for_test(RuntimeError::with_kind(
-                    ErrorKind::GpuValidation,
-                    "injected optional tail rejection",
-                ));
-        }
         let mut session =
             GpuSession::new_resident(compiled, &[N, K, 1, T], ExecutionLimits::default(), None)
                 .unwrap();
-        assert_eq!(tails(&session.recipes), usize::from(!reject));
+        assert_eq!(tails(&session.recipes), 1);
         let expected_native = session.dispatches.len() as u64;
         context
             .upload_resident(
@@ -389,7 +366,7 @@ fn gpu_hardware_tail_projection_native_closed_graph() {
         for (i, (&a, &e)) in actual.iter().zip(&expected).enumerate() {
             assert!(
                 a.is_finite() && (a - e).abs() <= 1e-4 + 1e-4 * e.abs(),
-                "reject={reject},i={i},actual={a},expected={e}"
+                "i={i},actual={a},expected={e}"
             );
         }
     }

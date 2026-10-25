@@ -561,24 +561,30 @@ fn gpu_native_half_classifier_policy_and_public_results() {
             );
             let mut classifier =
                 Classification::new(compiled.clone(), ExecutionLimits::default()).unwrap();
-            let half = precision == GpuPrecision::MixedF16;
-            assert_eq!(classifier.session.compiled.precision, precision);
+            let effective = if matrix_precision == GpuMatrixPrecision::F16 {
+                precision
+            } else {
+                GpuPrecision::F32
+            };
+            let half = effective == GpuPrecision::MixedF16;
+            assert_eq!(compiled.precision, precision);
+            assert_eq!(classifier.session.compiled.precision, effective);
             assert_eq!(
                 classifier.session.compiled.matrix_precision,
                 matrix_precision
             );
-            assert_eq!(classifier.session.input_precision(), precision);
-            assert_eq!(classifier.session.output_precision(), precision);
+            assert_eq!(classifier.session.input_precision(), effective);
+            assert_eq!(classifier.session.output_precision(), effective);
             assert_eq!(classifier.session.output_shape().dimensions(), &[1, 8]);
-            assert!(Arc::ptr_eq(&classifier.session.compiled, &compiled));
+            assert_eq!(Arc::ptr_eq(&classifier.session.compiled, &compiled), effective == precision);
             assert!(Arc::ptr_eq(
                 &classifier.session.compiled.model_arc(),
                 &compiled.model_arc()
             ));
-            assert!(Arc::ptr_eq(
+            assert_eq!(Arc::ptr_eq(
                 &classifier.session.compiled.weights,
                 &compiled.weights
-            ));
+            ), effective == precision);
             let repeated =
                 Classification::new(compiled.clone(), ExecutionLimits::default()).unwrap();
             assert!(Arc::ptr_eq(

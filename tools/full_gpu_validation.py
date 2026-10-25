@@ -67,6 +67,7 @@ def main():
     parser.add_argument("--cases", nargs="+", default=["typical", "dense", "vertical"])
     parser.add_argument("--all-cases", action="store_true")
     parser.add_argument("--report", type=Path, default=ROOT / "target/gpu-validation")
+    parser.add_argument("--cpu-reference-dir", type=Path, help="reuse frozen CPU references only when corpus bytes match")
     parser.add_argument("--sample", type=Path, default=ROOT.parent / "SimdPaddleOCR/examples/sample.jpg")
     parser.add_argument("--models", type=Path, default=ROOT.parent / "SimdPaddleOCR/models")
     parser.add_argument("--executable", type=Path, default=ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench"))
@@ -96,7 +97,16 @@ def main():
     for preset in args.presets:
         for case in cases:
             reference = args.report / f"{preset}-{case}-cpu.json"
-            for target in ["cpu", "gpu"]:
+            targets = ["cpu", "gpu"]
+            if args.cpu_reference_dir is not None:
+                original = args.cpu_reference_dir / f"{preset}-{case}-cpu.json"
+                original_input = args.cpu_reference_dir / "corpus" / f"{case}.png"
+                if digest(original_input) != digest(args.report / "corpus" / f"{case}.png"):
+                    raise RuntimeError("CPU reference input differs from the current corpus")
+                reference.write_bytes(original.read_bytes())
+                manifest.setdefault("cpu_reference_sha256", {})[f"{preset}-{case}"] = digest(original)
+                targets = ["gpu"]
+            for target in targets:
                 remaining = args.budget_seconds - (time.monotonic() - start)
                 if remaining <= 0:
                     raise RuntimeError("declared qualification budget exhausted")

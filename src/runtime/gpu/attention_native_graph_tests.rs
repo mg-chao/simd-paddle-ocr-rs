@@ -1,41 +1,3 @@
-// Included with the existing packed-attention graph fixture and closure proofs.
-#[test]
-fn attention_simd_requires_the_explicit_fast_closed_packed_recipe() {
-    let case = Case {
-        n: 2,
-        t: 17,
-        h: 3,
-        d: 15,
-        post_scale: true,
-        offset: false,
-    };
-    let shape = [case.n, case.t, 3 * case.h * case.d];
-    let program = Program::compile(fixture(case, Escape::None, false)).unwrap();
-    for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
-        for matrix in [GpuMatrixPrecision::F32, GpuMatrixPrecision::F16] {
-            let (_, recipes) = lowered(&program, &shape, precision, matrix);
-            let count = recipes
-                .iter()
-                .filter(|recipe| match recipe.kind {
-                    RecipeKind::Compute(kind) => native::eligible(
-                        kind,
-                        [precision; 6],
-                        &recipe.words,
-                        &crate::runtime::gpu::GpuLimits::default(),
-                    ),
-                    _ => false,
-                })
-                .count();
-            assert_eq!(
-                count,
-                usize::from(
-                    precision == GpuPrecision::MixedF16 && matrix == GpuMatrixPrecision::F16
-                )
-            );
-        }
-    }
-}
-
 #[cfg(target_os = "macos")]
 fn attention_online_oracle(case: Case, input: &[f32]) -> Vec<f32> {
     let round = |value: f32| half::f16::from_f32(value).to_f32();
@@ -164,42 +126,6 @@ fn attention_native_contract() {
                 matches!(r.kind, RecipeKind::Compute(ShaderKind::AttentionViews)) && r.words[2] == 7
             })
             .unwrap();
-        assert!(native::eligible(
-            ShaderKind::AttentionViews,
-            [GpuPrecision::MixedF16; 6],
-            &recipe.words,
-            &context.limits
-        ));
-        let selected = compiled
-            .pipelines
-            .get_for_recipe(
-                &context,
-                ShaderKind::AttentionViews,
-                [GpuPrecision::MixedF16; 6],
-                &recipe.words,
-            )
-            .unwrap();
-        let generic = compiled
-            .pipelines
-            .get(
-                &context,
-                ShaderKind::AttentionViews,
-                [GpuPrecision::MixedF16; 6],
-            )
-            .unwrap();
-        assert_ne!(selected, generic, "actual admitted native PSO identity");
-        let prepared = session
-            .dispatches
-            .iter()
-            .find_map(|dispatch| match &dispatch.command {
-                Command::Compute {
-                    shader: ShaderKind::AttentionViews,
-                    native,
-                } => Some(native),
-                _ => None,
-            })
-            .unwrap();
-        assert_eq!(prepared.pipeline_for_test(), selected);
         if case.offset {
             assert_eq!(recipe.words[60], (case.n * case.t * case.h * case.d) as u32);
         }
@@ -246,7 +172,7 @@ fn attention_native_contract() {
 
 #[test]
 #[cfg(target_os = "macos")]
-#[ignore = "requires physical Metal; same4-query Half attention native PSO, independent online16 oracle, tails/p60 and original-WGSL profiling"]
+#[ignore = "requires physical Metal; same4-query Half attention native PSO, independent online16 oracle, tails/p60 and native dispatch profiling"]
 fn gpu_attention_simd_contract_native_graph() {
     attention_native_contract();
 }

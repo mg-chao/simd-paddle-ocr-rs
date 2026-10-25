@@ -139,7 +139,8 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
         assert_eq!(stats.native_resident_dispatches, 1);
         assert_eq!(stats.diagnostic_readback_bytes, 0);
     }
-    for kind in [ErrorKind::Unsupported, ErrorKind::GpuValidation] {
+    {
+        let kind = ErrorKind::Unsupported;
         assert!(
             kernel_with(&context, true, false, [rows, tiles], |_, _, _| Err(
                 RuntimeError::with_kind(kind, "scoped compiler rejection")
@@ -148,13 +149,15 @@ fn gpu_parallel_head_winner_protocol_and_pre_admission() {
             .is_none()
         );
     }
-    assert!(
-        kernel_with(&context, true, false, [rows, tiles], |_, _, _| Err(
-            RuntimeError::with_kind(ErrorKind::GpuValidation, "rejected shader interface")
+    let invalid = kernel_with(&context, true, false, [rows, tiles], |_, _, _| {
+        Err(RuntimeError::with_kind(
+            ErrorKind::GpuValidation,
+            "invalid shader interface",
         ))
-        .unwrap()
-        .is_none()
-    );
+    })
+    .err()
+    .unwrap();
+    assert_eq!(invalid.kind(), ErrorKind::GpuValidation);
     let error = kernel_with(&context, true, false, [rows, tiles], |_, _, _| {
         Err(RuntimeError::with_kind(
             ErrorKind::Allocation,

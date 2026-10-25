@@ -1,8 +1,6 @@
 use super::super::tests::{bind_program, model, node, tensor};
 use super::*;
 use crate::runtime::CompileOptions;
-use backend::test_support::MetalTestBatch;
-use backend::test_support::MetalTestShader;
 use resident::Batch;
 
 #[derive(Clone, Copy)]
@@ -234,7 +232,6 @@ fn linear_mpp_selection_is_bounded_and_retains_original_recipe() {
         calls, 1,
         "allocation failure must not silently take manual fallback"
     );
-    assert!(source([GpuPrecision::F32; 6]).is_err());
 }
 
 #[test]
@@ -361,7 +358,7 @@ fn compile(context: &Arc<GpuContext>, case: Case, v: &Values) -> Arc<GpuCompiled
 }
 fn hardware() {
     let context = context();
-    for (number, case) in [
+    for case in [
         Case {
             batch: 2,
             tokens: 17,
@@ -385,7 +382,6 @@ fn hardware() {
         },
     ]
     .into_iter()
-    .enumerate()
     {
         let v = values(case);
         let expected = oracle(case, &v);
@@ -451,18 +447,20 @@ fn hardware() {
             .unwrap();
         let mut words = recipe.words;
         words[60] = prefix as u32;
-        words[24] = u32::from(number == 2);
-        let source = source([GpuPrecision::MixedF16; 6]).unwrap();
+        words[24] = 0;
         let mut buffers = operands.iter().map(|b| (b, true)).collect::<Vec<_>>();
         buffers.push((&output, false));
+        let pipeline = compiled_pipeline(
+            &context,
+            ShaderKind::LinearMpp,
+            [GpuPrecision::MixedF16; 6],
+            &words,
+        );
+        let kernel = resident::Kernel::test_pipeline(&context, pipeline, &buffers);
         batch
-            .dispatch_msl(
-                "linear_mpp_guards",
-                MetalTestShader {
-                    source: &source,
-                    entry_point: ENTRY,
-                    workgroup_size: WORKGROUP_SIZE,
-                },
+            .dispatch_prepared(
+                "linear guards",
+                &kernel,
                 &buffers,
                 &words,
                 [recipe.x, recipe.y, 1],
@@ -487,80 +485,14 @@ fn gpu_hardware_linear_mpp_native_graph_rounding_tails_and_offsets() {
     hardware();
 }
 
-#[test]
-#[ignore = "requires physical Metal; scoped unsupported MPP retains exact manual splitK recipe and native PSO"]
-fn gpu_hardware_linear_mpp_rejection_retains_manual_recipe_and_native_pipeline() {
-    for kind in [ErrorKind::Unsupported, ErrorKind::GpuValidation] {
-        let context = context();
-        let case = Case {
-            batch: 1,
-            tokens: 65,
-            inner: 120,
-            columns: 240,
-            mode: 2,
-        };
-        let v = values(case);
-        let compiled = compile(&context, case, &v);
-        compiled
-            .pipelines
-            .reject_linear_mpp_for_test(RuntimeError::with_kind(
-                kind,
-                "intentional scoped MPP rejection",
-            ));
-        let (_, _, _, manual) = bound(case);
-        let mut session = GpuSession::new_resident(
-            compiled.clone(),
-            &case.shape(),
-            ExecutionLimits::default(),
-            None,
-        )
-        .unwrap();
-        let selected = session
-            .recipes
-            .iter()
-            .find(|r| matches!(r.kind, RecipeKind::Compute(ShaderKind::LinearNative)))
-            .unwrap();
-        assert_eq!(selected.words, manual.words);
-        assert_eq!((selected.x, selected.y), (manual.x, manual.y));
-        assert!(
-            !session
-                .recipes
-                .iter()
-                .any(|r| matches!(r.kind, RecipeKind::Compute(ShaderKind::LinearMpp)))
-        );
-        let pipeline = compiled
-            .pipelines
-            .get_for_recipe(
-                &context,
-                ShaderKind::LinearNative,
-                [GpuPrecision::MixedF16; 6],
-                &manual.words,
-            )
-            .unwrap();
-        assert!(
-            session
-                .dispatches
-                .iter()
-                .any(|d| matches!(&d.command,Command::Compute {native,..} if native.pipeline_for_test()==pipeline))
-        );
-        context
-            .upload_resident(
-                &session.resident_input().buffer,
-                &GpuPrecision::MixedF16.encode(&v.input),
-            )
-            .unwrap();
-        let mut batch = Batch::new(context.clone()).unwrap();
-        let output = batch.graph(&mut session, "manual-fallback").unwrap();
-        let (bytes, stats) = batch
-            .read(
-                &output.buffer,
-                GpuPrecision::MixedF16.bytes(case.count()),
-                false,
-            )
-            .unwrap();
-        assert_eq!(stats.native_graph_dispatches, 1);
-        let mut actual = vec![0.0; case.count()];
-        GpuPrecision::MixedF16.decode(&bytes, &mut actual).unwrap();
-        close(&actual, &oracle(case, &v), case);
-    }
+fn compiled_pipeline(
+    context: &GpuContext,
+    kind: ShaderKind,
+    storage: [GpuPrecision; 6],
+    words: &[u32; 128],
+) -> Arc<executor::NativePipeline> {
+    pipelines::Pipelines::shared(context)
+        .unwrap()
+        .get_for_recipe(context, kind, storage, words)
+        .unwrap()
 }

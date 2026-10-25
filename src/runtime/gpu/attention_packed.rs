@@ -3,10 +3,6 @@ use super::*;
 use crate::runtime::{Op, graph_patterns as patterns};
 use operators::{Recipe, RecipeKind, ShaderKind};
 
-#[cfg(target_os = "macos")]
-#[path = "attention_native.rs"]
-pub(super) mod native;
-
 pub(super) const Q_SCALE: u32 = 1;
 pub(super) const PACKED: u32 = 2;
 pub(super) const TRANSPOSE_OUTPUT: u32 = 4;

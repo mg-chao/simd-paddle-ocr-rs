@@ -338,6 +338,7 @@ pub(crate) struct Classification {
 }
 impl Classification {
     pub fn new(compiled: Arc<GpuCompiledModel>, limits: ExecutionLimits) -> RuntimeResult<Self> {
+        let compiled = compiled.for_resident_ocr()?;
         compiled.prepare_images()?;
         let head = Head::shared(&compiled, 2, 2, None)?;
         let session = GpuSession::new_resident(
@@ -482,13 +483,7 @@ impl Recognition {
         width: usize,
         limits: ExecutionLimits,
     ) -> RuntimeResult<Self> {
-        // FP16 weight rounding can move a close CTC token boundary even with
-        // FP32 attention residuals. Preserve canonical spans in resident OCR.
-        let compiled = if compiled.matrix_precision == GpuMatrixPrecision::F16 {
-            compiled
-        } else {
-            compiled.with_full_precision()?
-        };
+        let compiled = compiled.for_resident_ocr()?;
         compiled.prepare_images()?;
         let head = Head::shared(&compiled, dictionary.class_count(), 3, Some(dictionary))?;
         let session = GpuSession::new_resident(
@@ -951,10 +946,26 @@ mod tests {
         let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
         let cpu = crate::ocr::tests::synthetic_classifier_with_batch(None);
         let compiled = Arc::new(
-            GpuCompiledModel::compile(cpu.program.model.clone(), context.clone()).unwrap(),
+            GpuCompiledModel::compile_with_options(
+                cpu.program.model.clone(),
+                context.clone(),
+                super::super::super::CompileOptions {
+                    gpu: GpuCompileOptions {
+                        precision: GpuPrecision::MixedF16,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
         );
         let mut reference = Classifier::new(cpu, ExecutionLimits::default()).unwrap();
         let mut classifier = Classification::new(compiled, ExecutionLimits::default()).unwrap();
+        assert_eq!(
+            classifier.session.compiled.precision,
+            GpuPrecision::F32,
+            "strict classifier confidence must share detection/recognition precision policy"
+        );
         let pixels = (0..17)
             .map(|i| {
                 (0..(13 + i * 2) * 9)

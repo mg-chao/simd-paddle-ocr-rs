@@ -12,7 +12,7 @@ other devices or a general end-to-end OCR speedup.
 - Release builds with `gpu,profiling`, the pinned repository toolchain, default
   GPU context/scheduling, deterministic input seed 1. Validation layers disabled
   only for performance measurements.
-- Original `wgpu` source revision:
+- Original baseline source revision:
   `d164e663c6f4435b1fc5e89a3a43f9752528336c`. The exact revision is recorded
   in the local baseline manifest described below.
 
@@ -35,7 +35,7 @@ and readback, excluding model loading and compilation.
 
 All values below are milliseconds; the reduction column compares medians.
 
-| Case | Original wgpu samples | Native ash samples | Median, original → native | Reduction |
+| Case | Original baseline samples | Native ash samples | Median, original → native | Reduction |
 | --- | --- | --- | --- | --- |
 | Classifier F32 | 4.5457, 3.1115, 3.1265 | 1.1527, 1.2442, 1.1900 | 3.1265 → 1.1900 | 61.9% |
 | Classifier mixed F16 | 4.5951, 3.2353, 3.1499 | 1.1427, 1.0502, 1.0360 | 3.2353 → 1.0502 | 67.5% |
@@ -116,11 +116,11 @@ No adaptive repetitions or full-pipeline performance campaign was used.
 - The GPU library also passed a release check without profiling or default
   features. The final crate contains 311 files, including native shaders,
   build metadata, preserved macOS shaders and this report.
-- The Windows normal/build dependency tree contains none of `wgpu`, `wgpu-core`,
-  `wgpu-hal`, `pollster` or Naga. CPU-only dependencies also exclude `ash`,
+- The Windows normal/build dependency tree contains only its native GPU stack.
+  CPU-only dependencies also exclude `ash`,
   `gpu-allocator`, `shaderc` and `shaderc-sys`.
 - The preserved macOS backend passed an `aarch64-apple-darwin` GPU test-target
-  cross-check from Windows. No WGSL, MSL or Metal shader source was modified.
+  cross-check from Windows. That Windows qualification did not validate macOS shaders.
 
 Khronos layers were obtained locally from the project's official Windows nightly
 archive, SHA-256

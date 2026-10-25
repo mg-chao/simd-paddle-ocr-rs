@@ -473,7 +473,7 @@ fn hardware() {
             &case.expected(true, true),
         );
 
-        // Execute the same production WGSL with poisoned guards and p60=7.
+        // Execute the same production MSL with poisoned guards and p60=7.
         let source = KernelKey::storage(KernelId::SmallProjection, GpuPrecision::MixedF16);
         let mut batch = Batch::new(context.clone()).unwrap();
         let dummy = vec![0.0; 2];
@@ -542,7 +542,7 @@ fn hardware() {
 }
 
 #[test]
-#[ignore = "requires a physical GPU; native translated small projection, fused epilogue and offset guards"]
+#[ignore = "requires a physical GPU; native small projection, fused epilogue and offset guards"]
 fn gpu_hardware_small_projection_native_metal() {
     hardware();
 }
@@ -664,7 +664,7 @@ fn classifier_hardware() {
 }
 
 #[test]
-#[ignore = "requires a physical GPU; native batched classifier Conv16 admission and guarded production WGSL"]
+#[ignore = "requires a physical GPU; native batched classifier Conv16 admission and guarded production MSL"]
 fn gpu_hardware_small_projection_classifier_conv16_native() {
     classifier_hardware();
 }

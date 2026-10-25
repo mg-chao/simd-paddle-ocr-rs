@@ -411,8 +411,8 @@ fn hardware() {
         GpuPrecision::MixedF16.decode(&bytes, &mut actual).unwrap();
         compare(&case, &actual);
 
-        // The same production WGSL and admitted packet must honor nonzero p60
-        // without touching guards; this also verifies raw native translation.
+        // The same production MSL and admitted packet must honor nonzero p60
+        // without touching guards; this also verifies the native buffer ABI.
         let source = KernelKey::storage(KernelId::SqueezeExcite, GpuPrecision::MixedF16);
         let mut batch = Batch::new(context.clone()).unwrap();
         let mut operands = Vec::new();
@@ -474,7 +474,7 @@ fn hardware() {
 }
 
 #[test]
-#[ignore = "requires a physical GPU; actual native translated SE tree, gate boundaries and offset guards"]
+#[ignore = "requires a physical GPU; native SE tree, gate boundaries and offset guards"]
 fn gpu_hardware_parallel_excitation_native_metal() {
     hardware();
 }

@@ -311,12 +311,7 @@ pub(super) fn probe_native(
 ) -> RuntimeResult<bool> {
     match Kernel::get(context, key, read_only) {
         Ok(_) => Ok(true),
-        Err(error)
-            if matches!(
-                error.kind(),
-                ErrorKind::Unsupported | ErrorKind::GpuValidation
-            ) =>
-        {
+        Err(error) if matches!(error.kind(), ErrorKind::Unsupported) => {
             context.check_alive()?;
             Ok(false)
         }
@@ -517,12 +512,11 @@ impl Batch {
             .as_ref()
             .is_none_or(|(buffer, offset)| buffer.size() - offset < 1024)
         {
-            let packets =
-                if cfg!(target_os = "macos") || self.context.options.max_device_bytes.is_some() {
-                    1
-                } else {
-                    16
-                };
+            let packets = if self.context.options.max_device_bytes.is_some() {
+                1
+            } else {
+                16
+            };
             self.parameters = Some((
                 self.context.create_buffer(
                     "resident parameter arena",
@@ -580,7 +574,6 @@ impl Batch {
         self.schedule.push_prepared(
             Operation::Compute {
                 native: native.clone(),
-                #[cfg(not(target_os = "macos"))]
                 profile_index: self.profile.kernels.len().saturating_sub(1),
             },
             native.hazards(),
@@ -668,7 +661,6 @@ impl Batch {
                     self.schedule.push_prepared(
                         Operation::Compute {
                             native: native.clone(),
-                            #[cfg(not(target_os = "macos"))]
                             profile_index: self.profile.kernels.len(),
                         },
                         native.hazards(),
@@ -1039,14 +1031,8 @@ mod tests {
             assert_eq!(actual, value + 1);
             assert_eq!(statistics.native_resident_dispatches, 1);
             assert_eq!(statistics.output_readback_bytes, 4);
-            assert_eq!(
-                statistics.profiling_readback_bytes,
-                if cfg!(target_os = "macos") { 0 } else { 16 }
-            );
-            assert_eq!(
-                statistics.profile.unwrap().compute_ns().is_some(),
-                !cfg!(target_os = "macos")
-            );
+            assert_eq!(statistics.profiling_readback_bytes, 16);
+            assert!(statistics.profile.unwrap().compute_ns().is_some());
             assert!(Arc::ptr_eq(&identity, &readback.reservation));
             assert_eq!(context.memory_statistics().used_bytes, used);
         }
@@ -1100,7 +1086,7 @@ mod tests {
                 .unwrap_err()
                 .kind(),
             ErrorKind::InvalidInput,
-            "transfer recording must validate the same ledger identity before touching the bridge"
+            "transfer recording must validate the same ledger identity before native recording"
         );
         let foreign_readback = foreign
             .create_buffer(
@@ -1121,7 +1107,7 @@ mod tests {
     #[test]
     #[ignore = "requires a physical GPU"]
     fn gpu_resident_pending_readbacks_hold_admission_and_reservations() {
-        let transfer_bytes = if cfg!(target_os = "macos") { 0 } else { 2048 };
+        let transfer_bytes = 2048;
         let context = GpuContext::new_with_options(GpuContextOptions {
             max_in_flight: 1,
             max_device_bytes: Some(4096 + transfer_bytes),
@@ -1141,12 +1127,11 @@ mod tests {
             .submit(&source, 1024, false, &gate)
             .unwrap();
         drop(source);
+        // Completed upload snapshots may already be recycled by feedback;
+        // pending read objects still own source and readback reservations.
+        assert!((3072..=3072 + transfer_bytes).contains(&context.memory_statistics().used_bytes));
         assert_eq!(
-            context.memory_statistics().used_bytes,
-            3072 + transfer_bytes
-        );
-        assert_eq!(
-            storage(&context, "over quota while pending", 2048)
+            storage(&context, "over quota while pending", 4096)
                 .err()
                 .unwrap()
                 .kind(),
@@ -1210,26 +1195,10 @@ mod tests {
             if profiling {
                 let profile = statistics.profile.unwrap();
                 assert_eq!(profile.kernels.len(), 260);
-                assert!(
-                    profile
-                        .kernels
-                        .iter()
-                        .all(|entry| if cfg!(target_os = "macos") {
-                            entry.device_ns.is_none()
-                        } else {
-                            entry.device_ns.is_some()
-                                && entry.granularity == GpuTimingGranularity::Dispatch
-                        })
-                );
-                assert_eq!(
-                    statistics.profiling_readback_bytes,
-                    if cfg!(target_os = "macos") {
-                        0
-                    } else {
-                        260 * 16
-                    }
-                );
-                assert_eq!(profile.compute_ns().is_some(), !cfg!(target_os = "macos"));
+                assert!(profile.kernels.iter().all(|entry| entry.device_ns.is_some()
+                    && entry.granularity == GpuTimingGranularity::Dispatch));
+                assert_eq!(statistics.profiling_readback_bytes, 260 * 16);
+                assert!(profile.compute_ns().is_some());
             } else {
                 assert!(statistics.profile.is_none());
                 assert_eq!(statistics.profiling_readback_bytes, 0);

@@ -660,15 +660,10 @@ fn gpu_hardware_profile_and_warmed_shape_bindings_are_bounded() {
             profile
                 .kernels
                 .iter()
-                .all(|kernel| if cfg!(target_os = "macos") {
-                    kernel.device_ns.is_none()
-                        && kernel.granularity == GpuTimingGranularity::Unavailable
-                } else {
-                    kernel.device_ns.is_some()
-                        && kernel.granularity == GpuTimingGranularity::Dispatch
-                })
+                .all(|kernel| kernel.device_ns.is_some()
+                    && kernel.granularity == GpuTimingGranularity::Dispatch)
         );
-        assert_eq!(profile.compute_ns().is_some(), !cfg!(target_os = "macos"));
+        assert!(profile.compute_ns().is_some());
         assert_eq!(session.retained_device_bytes(), retained);
         session.run(&values(256, 2)).unwrap();
         assert!(session.last_gpu_profile().is_none());
@@ -1869,6 +1864,7 @@ fn gpu_hardware_full_precision_variant_shares_context_and_isolates_weights() {
         .unwrap(),
     );
     let full = mixed.with_full_precision().unwrap();
+    assert!(Arc::ptr_eq(&full, &mixed.for_resident_ocr().unwrap()));
     assert!(Arc::ptr_eq(&context, full.context()));
     assert!(Arc::ptr_eq(&full, &mixed.with_full_precision().unwrap()));
     assert_eq!(mixed.precision, GpuPrecision::MixedF16);

@@ -51,6 +51,34 @@ pub struct GpuTensorDescriptor {
     pub storage_offset: usize,
 }
 impl GpuTensorDescriptor {
+    /// Required allocation range for this logical view, including its offset
+    /// and noncontiguous physical strides. Arithmetic cannot wrap at binding.
+    pub(super) fn required_bytes(&self) -> RuntimeResult<u64> {
+        if self.strides.len() != self.shape.rank() {
+            return Err(resource("GPU tensor stride rank differs"));
+        }
+        let last = self.shape.dimensions().iter().zip(&self.strides).try_fold(
+            self.storage_offset as u64,
+            |offset, (&dimension, &stride)| {
+                (dimension as u64)
+                    .checked_sub(1)?
+                    .checked_mul(stride as u64)?
+                    .checked_add(offset)
+            },
+        );
+        last.and_then(|offset| offset.checked_add(1))
+            .and_then(|elements| {
+                elements.checked_mul(if self.precision == GpuPrecision::F32 {
+                    4
+                } else {
+                    2
+                })
+            })
+            .and_then(|bytes| bytes.checked_add(3))
+            .map(|bytes| bytes / 4 * 4)
+            .ok_or_else(|| resource("GPU tensor binding range overflow"))
+    }
+
     pub(super) fn canonical(shape: Shape, precision: GpuPrecision) -> Self {
         let mut stride = 1;
         let mut strides = vec![0; shape.rank()];
@@ -65,5 +93,21 @@ impl GpuTensorDescriptor {
             strides,
             storage_offset: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn tensor_view_binding_ranges_include_padding_offsets_and_overflow() {
+        let mut view =
+            GpuTensorDescriptor::canonical(Shape::new(&[2, 3]).unwrap(), GpuPrecision::MixedF16);
+        view.storage_offset = 3;
+        assert_eq!(view.required_bytes().unwrap(), 20);
+        view.strides = vec![8, 1];
+        assert_eq!(view.required_bytes().unwrap(), 28);
+        view.storage_offset = usize::MAX;
+        assert!(view.required_bytes().is_err());
     }
 }

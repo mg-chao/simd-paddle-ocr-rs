@@ -410,8 +410,8 @@ fn gpu_native_trig_policy_compile_fallback_and_prepared_validation() {
             calls.push(key);
             if key.id == KernelId::DbGeometryFast {
                 Err(RuntimeError::with_kind(
-                    ErrorKind::GpuValidation,
-                    "rejected candidate interface",
+                    ErrorKind::Unsupported,
+                    "unsupported candidate capability",
                 ))
             } else {
                 Kernel::get(ctx, key, layout)
@@ -433,6 +433,15 @@ fn gpu_native_trig_policy_compile_fallback_and_prepared_validation() {
     .unwrap();
     assert_eq!(calls, 1);
     assert_eq!(error.kind(), ErrorKind::Allocation);
+    let invalid = geometry_kernel_with(&context, GpuPrecision::MixedF16, true, |_, _, _| {
+        Err(RuntimeError::with_kind(
+            ErrorKind::GpuValidation,
+            "invalid shader interface",
+        ))
+    })
+    .err()
+    .unwrap();
+    assert_eq!(invalid.kind(), ErrorKind::GpuValidation);
     let (_, kernel) = geometry_kernel(&context, GpuPrecision::MixedF16, true).unwrap();
     let dummy = context
         .create_buffer_init(

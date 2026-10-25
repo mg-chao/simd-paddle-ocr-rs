@@ -2,25 +2,7 @@
 use super::*;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
-#[cfg(target_os = "macos")]
-pub(super) const ENTRY: &str = "linear_mpp";
 pub(super) const WORKGROUP_SIZE: [u32; 3] = [128, 1, 1];
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
-    if storage != [GpuPrecision::MixedF16; 6] {
-        return Err(RuntimeError::with_kind(
-            ErrorKind::Unsupported,
-            "MPP token projection requires all-Half storage",
-        ));
-    }
-    Ok(format!(
-        "{}\n{}",
-        include_str!("round_f16.metal"),
-        include_str!("linear_mpp.metal")
-    ))
-}
 
 /// The caller supplies an already closed and validated constant LinearNative
 /// recipe. A candidate clone changes only its shader and launch geometry.

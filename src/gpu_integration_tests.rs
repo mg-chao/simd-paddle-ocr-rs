@@ -511,7 +511,8 @@ fn gpu_resident_requested_crop_pixels_match_cpu() {
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_ocr_context_quota_rolls_back_failed_compilation_and_session_allocation() {
-    let retained = if cfg!(target_os = "macos") { 4 } else { 8 };
+    // The weight and its immutable pending upload both hold quota reservations.
+    let retained = 8;
     let context = GpuContext::new_with_options(GpuContextOptions {
         max_device_bytes: Some(retained),
         ..Default::default()

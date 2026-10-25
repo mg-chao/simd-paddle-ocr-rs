@@ -24,28 +24,21 @@ mod attention_packed;
 use api::BufferUsage;
 pub use api::{GpuAdapterInfo, GpuApi, GpuDeviceType, GpuLimits};
 mod kernel;
-#[cfg(target_os = "macos")]
-mod metal_resident_sources;
-#[cfg(target_os = "macos")]
-mod metal_sources;
 use kernel::{KernelId, KernelKey};
 #[cfg(not(target_os = "macos"))]
 #[path = "gpu/vulkan.rs"]
 mod backend;
 #[cfg(target_os = "macos")]
-#[path = "gpu/metal.rs"]
+#[path = "gpu/metal/mod.rs"]
 mod backend;
 mod conv_mpp;
 mod conv_mpp_lower;
 mod conv_mpp_staged;
 mod conv_weight_pack;
-#[cfg(target_os = "macos")]
-mod depthwise_native;
-#[cfg(target_os = "macos")]
-#[path = "gpu/metal_execution.rs"]
-mod executor;
 #[cfg(not(target_os = "macos"))]
 use backend as executor;
+#[cfg(target_os = "macos")]
+use backend::execution as executor;
 mod fused_activation;
 mod fusions;
 mod half_native;
@@ -53,21 +46,12 @@ pub(crate) mod heads;
 mod linear_mpp;
 mod linear_native;
 mod max_pool;
-#[cfg(all(test, target_os = "macos"))]
-mod native_binding_tests;
 mod operators;
 mod physical;
 #[cfg(target_os = "macos")]
-#[path = "gpu/metal_pipelines.rs"]
-mod pipelines;
+use backend::pipelines;
 #[cfg(not(target_os = "macos"))]
 mod pipelines;
-#[cfg(target_os = "macos")]
-mod pointwise_f16;
-#[cfg(target_os = "macos")]
-mod pointwise_mpp64;
-#[cfg(target_os = "macos")]
-mod pointwise_static;
 mod profile;
 pub(crate) mod resident;
 mod se_fusions;
@@ -473,6 +457,17 @@ impl GpuCompiledModel {
         }
         bytes
     }
+    /// Strict OCR preserves geometry, classifier confidence, and CTC spans.
+    /// Half weights or activations can move each of those decision boundaries;
+    /// only the explicit F16 matrix policy admits reduced-precision OCR stages.
+    pub(crate) fn for_resident_ocr(self: &Arc<Self>) -> RuntimeResult<Arc<Self>> {
+        if self.matrix_precision == GpuMatrixPrecision::F16 {
+            Ok(self.clone())
+        } else {
+            self.with_full_precision()
+        }
+    }
+
     /// Cache an FP32-storage sibling without changing matrix operand policy.
     /// Strict resident stages use this to preserve their storage contract.
     pub(crate) fn with_full_precision(self: &Arc<Self>) -> RuntimeResult<Arc<Self>> {
@@ -1311,6 +1306,24 @@ impl GpuSession {
                             )
                         })
                         .collect();
+                    for (index, owner) in owners.iter().enumerate() {
+                        // Packed weights have their own checked format/range
+                        // at cache construction; every logical tensor view is
+                        // checked against the actual chosen activation slot.
+                        if index == 1 && packed.is_some() {
+                            continue;
+                        }
+                        let id = if index == 5 {
+                            Some(recipe.output)
+                        } else {
+                            recipe.inputs.get(index).copied()
+                        };
+                        if let Some(id) = id
+                            && bound.descriptors[id.0].required_bytes()? > owner.size()
+                        {
+                            return Err(resource("GPU tensor view exceeds its bound allocation"));
+                        }
+                    }
                     owners.push(parameters.clone());
                     executor::NativeDispatch::prepare(
                         pipeline,

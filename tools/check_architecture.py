@@ -17,8 +17,9 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 HARDWARE = [
     "gpu_integration_tests",
+    "runtime::gpu::backend::tests::native_",
     "runtime::gpu::tests::gpu_hardware_",
-    "gpu_round_f16_wgsl_ieee_edges_match_independent_oracle",
+    "gpu_round_f16_ieee_edges_match_independent_oracle",
     "gpu_round_f16_tensor_stores_match_independent_oracle",
     "gpu_resident_image_pixel_reuse_matches_cpu_and_batch_offset",
     "gpu_hardware_parallel_excitation_native_metal",

@@ -78,7 +78,7 @@ def main():
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
     executable = ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench")
-    inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "rust-toolchain.toml",
+    inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock", ROOT / "build.rs", ROOT / "rust-toolchain.toml",
               ROOT / "examples/gpu_ocr_bench.rs", *filter(Path.is_file, (ROOT / "examples/support").rglob("*"))]
     if max(p.stat().st_mtime for p in inputs) > executable.stat().st_mtime:
         raise RuntimeError("release executable predates source changes; rebuild")
@@ -92,7 +92,7 @@ def main():
                 "cargo": subprocess.check_output(["cargo", "-V"], text=True),
                 "harness_sha256": digest(Path(__file__)), "runs": [],
                 "warmup": "one cold invocation per configuration", "measurements": args.measurements,
-                "profile_calls_per_configuration": "one separate instrumented call per request after uninstrumented measurements; same native schedule, kernel metadata and host timing only, device_ns unavailable" if args.profile else 0,
+                "profile_calls_per_configuration": "one separate instrumented call per request after uninstrumented measurements; same native schedule; dispatch device timestamps and separate host timings" if args.profile else 0,
                 "model_sha256": hashes((REFERENCE / "models").glob("*.onnx"), REFERENCE),
                 "dictionary_sha256": hashes((REFERENCE / "models").glob("*.txt"), REFERENCE)}
     if args.csharp:

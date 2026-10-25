@@ -1,6 +1,5 @@
 //! Cin-only staged K2 admission and physical Metal numerical qualification.
 use super::*;
-use backend::test_support::MetalTestBatch;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
 fn dyadic(count: usize, seed: usize, denominator: f32) -> Vec<f32> {
@@ -254,38 +253,6 @@ fn staged_k2_capacity_precision_and_matrix_policy_retain_existing_paths() {
     }
 }
 
-#[test]
-fn staged_k2_specialization_depends_only_on_channels_and_rejects_nonhalf() {
-    let mut words = [0; 128];
-    words[3] = 32;
-    words[11..=16].copy_from_slice(&[2, 2, 1, 1, 1, 1]);
-    words[5] = 9;
-    words[6] = 13;
-    let first = conv_mpp_staged::Specialization::from_words(&words).unwrap();
-    words[2] = 2;
-    words[4] = 64;
-    words[5] = 24;
-    words[6] = 992;
-    assert_eq!(
-        Some(first),
-        conv_mpp_staged::Specialization::from_words(&words)
-    );
-    assert_eq!(
-        conv_mpp_staged::source(first, [GpuPrecision::F32; 6])
-            .unwrap_err()
-            .kind(),
-        ErrorKind::Unsupported
-    );
-    let mut mixed = [GpuPrecision::MixedF16; 6];
-    mixed[5] = GpuPrecision::F32;
-    assert_eq!(
-        conv_mpp_staged::source(first, mixed).unwrap_err().kind(),
-        ErrorKind::Unsupported
-    );
-    words[3] = 65;
-    assert!(conv_mpp_staged::Specialization::from_words(&words).is_none());
-}
-
 fn context() -> Arc<GpuContext> {
     GpuContext::new_with_options(GpuContextOptions::default()).unwrap()
 }
@@ -454,95 +421,6 @@ fn gpu_hardware_staged_k2_width_cache_reuses_pipeline() {
             &oracle,
         );
     }
-}
-
-#[test]
-#[ignore = "requires physical Metal GPU; force the production alternate-width scalar branch over canonical NCHW with Half HWIO weights and sentinels"]
-fn gpu_hardware_staged_k2_alternate_simd_fallback_and_sentinels() {
-    use backend::test_support::MetalTestShader;
-    use resident::Batch;
-    let context = context();
-    let shape = [2, 9, 9, 17];
-    let graph = graph(shape, 33, [1, 1, 0, 0], false, false);
-    let input = dyadic(shape.iter().product(), 1, 32.);
-    let oracle = expected(graph.clone(), &shape, &input);
-    let session = GpuSession::new(
-        compile(graph, context.clone()),
-        &shape,
-        ExecutionLimits::default(),
-    )
-    .unwrap();
-    selected(&session);
-    let recipe = session
-        .recipes
-        .iter()
-        .find(|r| matches!(r.kind, RecipeKind::Compute(ShaderKind::ConvMpp2Staged)))
-        .unwrap();
-    let mut words = recipe.words;
-    let prefix = 5;
-    let suffix = 7;
-    words[60] = prefix as u32;
-    let specialization = conv_mpp_staged::Specialization::from_words(&words).unwrap();
-    let source = conv_mpp_staged::source(specialization, [GpuPrecision::MixedF16; 6]).unwrap();
-    let marker = "group, tid, width, staging);";
-    assert!(source.contains(marker));
-    // Exercise this exact production fallback on a width32 machine by changing
-    // only the uniform width argument supplied to its body. No CPU fallback.
-    let source = source.replace(marker, "group, tid, 16u, staging);");
-    let precision = GpuPrecision::MixedF16;
-    let make = |label, values: &[f32], usage| {
-        context
-            .create_buffer_init(label, &precision.encode(values), usage)
-            .unwrap()
-    };
-    let a = make("canonical Half NCHW", &input, BufferUsage::STORAGE);
-    let weights = dyadic(33 * 9 * 4, 0, 64.);
-    let weights = conv_weight_pack::pack_hwio(&weights, 33, 9, 2, 2).unwrap();
-    let b = make("Half HWIO", &weights, BufferUsage::STORAGE);
-    let c = make("Half bias", &dyadic(33, 2, 16.), BufferUsage::STORAGE);
-    let dummy = make("Half dummy", &[0.], BufferUsage::STORAGE);
-    let initial = vec![-777.; prefix + oracle.len() + suffix];
-    let output = make(
-        "Half sentinel output",
-        &initial,
-        BufferUsage::STORAGE | BufferUsage::COPY_SRC,
-    );
-    let mut batch = Batch::new(context).unwrap();
-    batch
-        .dispatch_msl(
-            "staged_k2_alternate_simd",
-            MetalTestShader {
-                source: &source,
-                entry_point: conv_mpp_staged::ENTRY,
-                workgroup_size: conv_mpp_staged::WORKGROUP,
-            },
-            &[
-                (&a, true),
-                (&b, true),
-                (&c, true),
-                (&dummy, true),
-                (&dummy, true),
-                (&output, false),
-            ],
-            &words,
-            [recipe.x, recipe.y, 1],
-        )
-        .unwrap();
-    let (bytes, _) = batch
-        .read(&output, precision.bytes(initial.len()), false)
-        .unwrap();
-    let mut actual = vec![0.; initial.len()];
-    precision.decode(&bytes, &mut actual).unwrap();
-    assert_eq!(&actual[..prefix], &initial[..prefix]);
-    assert_eq!(
-        &actual[prefix + oracle.len()..],
-        &initial[prefix + oracle.len()..]
-    );
-    assert_close(
-        "staged K2 alternate-width GPU fallback",
-        &actual[prefix..prefix + oracle.len()],
-        &oracle,
-    );
 }
 
 #[cfg(target_os = "macos")]

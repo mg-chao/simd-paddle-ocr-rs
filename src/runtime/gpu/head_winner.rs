@@ -44,12 +44,7 @@ fn kernel_with(
         &[true, false],
     ) {
         Ok(kernel) => Ok(Some(kernel)),
-        Err(error)
-            if matches!(
-                error.kind(),
-                ErrorKind::Unsupported | ErrorKind::GpuValidation
-            ) =>
-        {
+        Err(error) if matches!(error.kind(), ErrorKind::Unsupported) => {
             context.check_alive()?;
             Ok(None)
         }

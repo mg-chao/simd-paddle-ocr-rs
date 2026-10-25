@@ -19,13 +19,7 @@ pub(crate) struct Detector {
 }
 impl Detector {
     pub fn new(compiled: Arc<GpuCompiledModel>, limits: ExecutionLimits) -> RuntimeResult<Self> {
-        // Explicit fast matrix policy also permits Half detector storage.
-        // Its text/geometry contract is qualified separately from FP32.
-        let compiled = if compiled.matrix_precision == GpuMatrixPrecision::F16 {
-            compiled
-        } else {
-            compiled.with_full_precision()?
-        };
+        let compiled = compiled.for_resident_ocr()?;
         compiled.prepare_images()?;
         Ok(Self {
             context: compiled.context.clone(),
@@ -482,12 +476,7 @@ fn geometry_kernel_with(
             layout,
         ) {
             Ok(kernel) => return Ok((format!("db_geometry_native_trig_{precision:?}"), kernel)),
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    ErrorKind::Unsupported | ErrorKind::GpuValidation
-                ) =>
-            {
+            Err(error) if matches!(error.kind(), ErrorKind::Unsupported) => {
                 context.check_alive()?
             }
             Err(error) => return Err(error),
@@ -1132,6 +1121,49 @@ mod tests {
                     assert!(statistics.cpu_compute_stages.is_empty());
                     assert_eq!(statistics.diagnostic_readback_bytes, 0);
                 }
+            }
+        }
+    }
+    #[test]
+    #[ignore = "requires a physical GPU"]
+    fn gpu_resident_geometry_mapping_rounds_halfway_to_even() {
+        let context = hardware();
+        let (w, h) = (64, 64);
+        let options = DetectorOptions {
+            box_threshold: Some(0.5),
+            ..Default::default()
+        };
+        for origin in [12, 13] {
+            let mut map = vec![0.0f32; w * h];
+            for y in 10..25 {
+                map[y * w + origin..y * w + origin + 20].fill(0.75);
+            }
+            let tensor = Tensor::allocate(
+                context.clone(),
+                Shape::new(&[1, 1, h, w]).unwrap(),
+                GpuPrecision::F32,
+            )
+            .unwrap();
+            context
+                .upload(&tensor.buffer, 0, bytemuck::cast_slice(&map))
+                .unwrap();
+            // Both scales map odd integer corners onto exact half-integers.
+            for side in [96, 160] {
+                let geometry = DetSourceGeometry::new(side, side).unwrap();
+                let (actual, _, _) = postprocess(
+                    Batch::new(context.clone()).unwrap(),
+                    &tensor,
+                    options,
+                    geometry,
+                )
+                .unwrap();
+                let mut expected = crate::db::Workspace::default();
+                crate::db::run(&map, w, h, &options, geometry, &mut expected).unwrap();
+                assert_eq!(actual.len(), 1);
+                assert_eq!(
+                    actual[0].points, expected.boxes[0].points,
+                    "origin {origin}, source side {side}"
+                );
             }
         }
     }

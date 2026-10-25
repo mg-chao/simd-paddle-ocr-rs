@@ -11,44 +11,7 @@ use operators::{Recipe, RecipeKind, ShaderKind};
 #[path = "linear_native_tests.rs"]
 mod tests;
 
-#[cfg(target_os = "macos")]
-pub(super) const ENTRY: &str = "linear_native";
 pub(super) const WORKGROUP_SIZE: [u32; 3] = [256, 1, 1];
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn source(storage: [GpuPrecision; 6]) -> RuntimeResult<String> {
-    if storage != [GpuPrecision::F32; 6] && storage != [GpuPrecision::MixedF16; 6] {
-        return Err(RuntimeError::with_kind(
-            ErrorKind::Unsupported,
-            "native token projection requires uniform F32 or half storage",
-        ));
-    }
-    let half = storage[0] == GpuPrecision::MixedF16;
-    let body = include_str!("linear_native.metal")
-        .replace("$STORAGE", if half { "half" } else { "float" })
-        .replace(
-            "$PACKED",
-            if half {
-                "packed_half4"
-            } else {
-                "packed_float4"
-            },
-        )
-        .replace(
-            "$ROUND",
-            if half {
-                "round_to_half(value)"
-            } else {
-                "value"
-            },
-        );
-    Ok(if half {
-        format!("{}\n{body}", include_str!("round_f16.metal"))
-    } else {
-        body
-    })
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replacement(

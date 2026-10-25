@@ -261,7 +261,3 @@ fn gpu_hardware_half_native_recognition_stems() {
         assert_close(case.name, session.run(&input).unwrap().data(), &expected);
     }
 }
-
-#[cfg(target_os = "macos")]
-#[path = "depthwise_1x7_tests.rs"]
-mod depthwise_1x7;

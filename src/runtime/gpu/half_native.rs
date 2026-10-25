@@ -2,7 +2,7 @@
 //!
 //! This explicit F16 matrix mode does not change the default F32 policies.
 //! The caller must qualify each selected native pipeline before committing its
-//! recipe; compiler rejection preserves that recipe's original generic native kernel.
+//! recipe; capability rejection retains the generic kernel and compiler errors propagate.
 use super::*;
 use operators::{Recipe, RecipeKind, ShaderKind};
 
@@ -15,26 +15,6 @@ pub(super) fn supports_kind(kind: ShaderKind) -> bool {
             | ShaderKind::DepthwiseNative7
             | ShaderKind::DepthwiseNative9
             | ShaderKind::DepthwiseNative1x7
-    )
-}
-
-#[cfg(target_os = "macos")]
-
-fn half_storage(source: String) -> String {
-    source
-        .replace("device const float*", "device const half*")
-        .replace("device float*", "device half*")
-        .replace("tensor<device float,", "tensor<device half,")
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn pointwise_source() -> String {
-    // Scalar fallback products need explicit promotion after the storage
-    // conversion. The collective MPP destination remains float in the source.
-    half_storage(pointwise_mpp64::source()).replace(
-        "sum = sum + raw_b[row * inner + k]\n                    * raw_a[(batch * inner + k) * columns + column];",
-        "sum = sum + float(raw_b[row * inner + k])\n                    * float(raw_a[(batch * inner + k) * columns + column]);",
     )
 }
 
@@ -53,7 +33,7 @@ fn pointwise_epilogue_coordinates(
             .is_some_and(|plane| plane != 0 && words[66] == plane)
 }
 
-/// Keep the general Known packet specialization at its original K interval.
+/// Recognizer tail fusion requires this bounded channel and epilogue domain.
 pub(super) fn known_pointwise_epilogue(
     kind: ShaderKind,
     storage: [GpuPrecision; 6],
@@ -63,217 +43,6 @@ pub(super) fn known_pointwise_epilogue(
         && (96..=768).contains(&words[3])
         && (1..=3).contains(&words[64])
 }
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn pointwise_epilogue_source() -> String {
-    pointwise_source()
-        .replace(
-            "kernel void pointwise_mpp64(",
-            &format!(
-                "{}\nkernel void pointwise_mpp64(",
-                include_str!("pointwise_epilogue.metal")
-            ),
-        )
-        .replace(
-            "epilogue(sum, index, raw_d, raw_e, params)",
-            "epilogue_known(sum, index, row, raw_d, raw_e, params)",
-        )
-        .replace(
-            "epilogue(accum[i], index, raw_d, raw_e, params)",
-            "epilogue_known(accum[i], index, row, raw_d, raw_e, params)",
-        )
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn fixed_pointwise_epilogue(
-    kind: ShaderKind,
-    storage: [GpuPrecision; 6],
-    words: &[u32; 128],
-) -> bool {
-    known_pointwise_epilogue(kind, storage, words)
-        && words[64] == 3
-        && words[68] == 1
-        && words[69] == 1
-        && words[71] == 2
-        && words[72] == 2
-        && words[74] == 7
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn fixed_pointwise_bias_gelu(
-    kind: ShaderKind,
-    storage: [GpuPrecision; 6],
-    words: &[u32; 128],
-) -> bool {
-    pointwise_epilogue_coordinates(kind, storage, words)
-        && (words[3] == 48 || (96..=768).contains(&words[3]))
-        && words[64] == 2
-        && words[68] == 1
-        && words[69] == 1
-        && words[71] == 7
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn fixed_pointwise_adds(
-    kind: ShaderKind,
-    storage: [GpuPrecision; 6],
-    words: &[u32; 128],
-) -> bool {
-    known_pointwise_epilogue(kind, storage, words)
-        && words[64] == 2
-        && words[68] == 1
-        && words[69] == 1
-        && words[71] == 2
-        && words[72] == 2
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn pointwise_adds_source() -> String {
-    pointwise_source()
-        .replace(
-            "kernel void pointwise_mpp64(",
-            &format!(
-                "{}\nkernel void pointwise_mpp64(",
-                include_str!("pointwise_adds.metal")
-            ),
-        )
-        .replace(
-            "epilogue(sum, index, raw_d, raw_e, params)",
-            "epilogue_fixed_adds(sum, index, row, raw_d, raw_e, params)",
-        )
-        .replace(
-            "epilogue(accum[i], index, raw_d, raw_e, params)",
-            "epilogue_fixed_adds(accum[i], index, row, raw_d, raw_e, params)",
-        )
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn pointwise_bias_gelu_source() -> String {
-    pointwise_source()
-        .replace(
-            "kernel void pointwise_mpp64(",
-            &format!(
-                "{}\nkernel void pointwise_mpp64(",
-                include_str!("pointwise_bias_gelu.metal")
-            ),
-        )
-        .replace(
-            "epilogue(sum, index, raw_d, raw_e, params)",
-            "epilogue_fixed_bg(sum, index, row, raw_d, raw_e, params)",
-        )
-        .replace(
-            "epilogue(accum[i], index, raw_d, raw_e, params)",
-            "epilogue_fixed_bg(accum[i], index, row, raw_d, raw_e, params)",
-        )
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn pointwise_fixed_epilogue_source() -> String {
-    pointwise_source()
-        .replace(
-            "kernel void pointwise_mpp64(",
-            &format!(
-                "{}\nkernel void pointwise_mpp64(",
-                include_str!("pointwise_fixed_epilogue.metal")
-            ),
-        )
-        .replace(
-            "epilogue(sum, index, raw_d, raw_e, params)",
-            "epilogue_fixed_brg(sum, index, row, raw_d, raw_e, params)",
-        )
-        .replace(
-            "epilogue(accum[i], index, raw_d, raw_e, params)",
-            "epilogue_fixed_brg(accum[i], index, row, raw_d, raw_e, params)",
-        )
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn depthwise_source(kernel: u32) -> String {
-    half_storage(depthwise_native::source(kernel)).replace("packed_float4", "packed_half4")
-}
-
-/// Native Half DW3 already knows the output channel. Only the complete
-/// bias-only signature can bypass the shared dynamic epilogue.
-#[cfg(target_os = "macos")]
-pub(super) fn fixed_depthwise_bias(
-    kind: ShaderKind,
-    storage: [GpuPrecision; 6],
-    words: &[u32; 128],
-) -> bool {
-    kind == ShaderKind::DepthwiseNative3
-        && storage == [GpuPrecision::MixedF16; 6]
-        && depthwise_geometry(words)
-        && words[11] == 3
-        && words[19] == 0
-        && words[64] == 1
-        && words[68] == 1
-        && words[69] == 1
-        && words[65] == words[4]
-        && words[7]
-            .checked_mul(words[8])
-            .is_some_and(|plane| plane != 0 && words[66] == plane)
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn depthwise_bias_source() -> String {
-    depthwise_source(3)
-        .replace(
-            "    const uint index = row * ow + ox;",
-            "    const uint index = row * ow + ox;\n    const float channel_bias = float(raw_d[channel]);",
-        )
-        .replace(
-            "epilogue(sum[pixel], index + pixel, raw_d, raw_e, params)",
-            "sum[pixel] + channel_bias",
-        )
-}
-
-#[cfg(target_os = "macos")]
-
-fn depthwise_1x7_source() -> String {
-    half_storage(format!(
-        "{}\n{}",
-        include_str!("common_native.metal"),
-        include_str!("depthwise_1x7.metal")
-    ))
-}
-
-#[cfg(target_os = "macos")]
-
-pub(super) fn source(kind: ShaderKind) -> RuntimeResult<(String, &'static str, [u32; 3])> {
-    match kind {
-        ShaderKind::PointwiseNative64 => Ok((pointwise_source(), "pointwise_mpp64", [128, 1, 1])),
-        ShaderKind::DepthwiseNative3 => Ok((depthwise_source(3), "depthwise_native", [64, 1, 1])),
-        ShaderKind::DepthwiseNative5 => Ok((depthwise_source(5), "depthwise_native", [64, 1, 1])),
-        ShaderKind::DepthwiseNative7 => Ok((depthwise_source(7), "depthwise_native", [64, 1, 1])),
-        ShaderKind::DepthwiseNative9 => Ok((depthwise_source(9), "depthwise_native", [64, 1, 1])),
-        ShaderKind::DepthwiseNative1x7 => {
-            Ok((depthwise_1x7_source(), "depthwise_1x7_half", [64, 1, 1]))
-        }
-        _ => Err(RuntimeError::with_kind(
-            ErrorKind::Unsupported,
-            "native half storage is unavailable for this shader family",
-        )),
-    }
-}
-
-#[cfg(test)]
-#[cfg(target_os = "macos")]
-#[path = "pointwise_epilogue_tests.rs"]
-mod epilogue_tests;
-
-#[cfg(test)]
-#[cfg(target_os = "macos")]
-#[path = "depthwise_bias_tests.rs"]
-mod depthwise_bias_tests;
 
 /// Propose native families only for explicit F16 matrix mode and canonical
 /// half bindings. The caller supplies Metal/capability and pipeline admission.
@@ -498,11 +267,6 @@ fn depthwise_geometry(words: &[u32; 128]) -> bool {
             == Some(words[0])
 }
 
-#[cfg(test)]
-#[cfg(target_os = "macos")]
-#[path = "depthwise7_tests.rs"]
-mod depthwise7_tests;
-
 fn depthwise_1x7_geometry(words: &[u32; 128]) -> bool {
     words[2] != 0
         && words[3] != 0
@@ -637,38 +401,5 @@ mod tests {
             .unwrap(),
             0
         );
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn half_native_depthwise_retains_offsets_and_scalar_fallback_uses_float_products() {
-        for kernel in [3, 5, 9] {
-            let (mut recipe, descriptors) = fixture(kernel);
-            recipe.words[60] = 13;
-            let mut selected = [recipe];
-            assert_eq!(
-                select(
-                    &mut selected,
-                    &descriptors,
-                    &crate::runtime::gpu::GpuLimits::default(),
-                    GpuMatrixPrecision::F16
-                )
-                .unwrap(),
-                1
-            );
-            assert_eq!(
-                (selected[0].x, selected[0].y, selected[0].words[1]),
-                (2, 1, 128)
-            );
-            assert_eq!(selected[0].words[60], 13);
-            let source = depthwise_source(kernel);
-            assert!(source.contains("packed_half4"));
-            assert!(source.contains("float4 sum"));
-            assert!(!source.contains("device const float*"));
-        }
-        let source = pointwise_source();
-        assert!(source.contains("tensor<device half,"));
-        assert!(source.contains("decltype(a), decltype(b), float>"));
-        assert!(source.contains("float(raw_b[row * inner + k])"));
     }
 }
