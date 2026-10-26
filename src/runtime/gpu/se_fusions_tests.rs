@@ -127,7 +127,6 @@ fn excitation_bias_add_fusion_preserves_gate_rounding_and_rejects_escaping_gate(
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,
-            &mut |_| Ok(false),
         )
         .unwrap();
         assert_original_gate_recipe(&recipes);
@@ -135,7 +134,7 @@ fn excitation_bias_add_fusion_preserves_gate_rounding_and_rejects_escaping_gate(
 }
 
 #[test]
-#[ignore = "requires physical Metal GPU; separate-bias excitation fusion with half gate rounding"]
+#[ignore = "requires physical Vulkan GPU; separate-bias excitation fusion with half gate rounding"]
 fn gpu_hardware_excitation_bias_add_fusion_matches_materialized_half_gate() {
     let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
     let shape = [2, 5, 3, 17];

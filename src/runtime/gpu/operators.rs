@@ -16,26 +16,6 @@ pub(super) enum ShaderKind {
     Transposed,
     Convolution,
     General,
-    PointwiseNative64,
-    PointwiseF16,
-    LinearNative,
-    LinearMpp,
-    TailProjection,
-    PackNhwc,
-    ConvMpp2s1,
-    ConvMpp2Staged,
-    ConvMpp3s2Staged,
-    ConvMpp3s1,
-    ConvMpp3s2,
-    ConvMpp3s21,
-    ConvMpp3s12,
-    ConvMpp7s1,
-    ConvMpp7s2,
-    DepthwiseNative3,
-    DepthwiseNative5,
-    DepthwiseNative7,
-    DepthwiseNative9,
-    DepthwiseNative1x7,
     MatMul16,
     MatMul32,
     Conv16,
@@ -51,55 +31,6 @@ pub(super) enum ShaderKind {
     SoftmaxFinish,
 }
 impl ShaderKind {
-    #[cfg(not(target_os = "macos"))]
-    pub(super) fn is_portable(self) -> bool {
-        !matches!(
-            self,
-            Self::PointwiseNative64
-                | Self::PointwiseF16
-                | Self::LinearNative
-                | Self::LinearMpp
-                | Self::TailProjection
-                | Self::ConvMpp2s1
-                | Self::ConvMpp2Staged
-                | Self::ConvMpp3s2Staged
-                | Self::ConvMpp3s1
-                | Self::ConvMpp3s2
-                | Self::ConvMpp3s21
-                | Self::ConvMpp3s12
-                | Self::ConvMpp7s1
-                | Self::ConvMpp7s2
-                | Self::DepthwiseNative3
-                | Self::DepthwiseNative5
-                | Self::DepthwiseNative7
-                | Self::DepthwiseNative9
-                | Self::DepthwiseNative1x7
-        )
-    }
-    #[cfg(test)]
-    #[cfg(target_os = "macos")]
-    pub const ALL: &'static [Self] = &[
-        Self::Attention,
-        Self::AttentionViews,
-        Self::SqueezeExcite,
-        Self::SmallProjection,
-        Self::Transposed,
-        Self::Convolution,
-        Self::General,
-        Self::MatMul16,
-        Self::MatMul32,
-        Self::Conv16,
-        Self::Conv32,
-        Self::Depthwise3,
-        Self::Depthwise5,
-        Self::Reduce,
-        Self::Softmax,
-        Self::LayerNorm,
-        Self::ReducePartial,
-        Self::ReduceFinish,
-        Self::SoftmaxPartial,
-        Self::SoftmaxFinish,
-    ];
     pub fn name(self) -> &'static str {
         match self {
             Self::Attention => "attention_online",
@@ -109,26 +40,6 @@ impl ShaderKind {
             Self::Transposed => "conv_transpose_tile8",
             Self::Convolution => "conv_generic",
             Self::General => "general",
-            Self::PointwiseNative64 => "pointwise_native64",
-            Self::PointwiseF16 => "pointwise_f16",
-            Self::LinearNative => "linear_native",
-            Self::LinearMpp => "linear_mpp",
-            Self::TailProjection => "tail_projection",
-            Self::PackNhwc => "pack_nhwc",
-            Self::ConvMpp2s1 => "conv_mpp2s1",
-            Self::ConvMpp2Staged => "conv_mpp2_staged",
-            Self::ConvMpp3s2Staged => "conv_mpp3s2_staged",
-            Self::ConvMpp3s1 => "conv_mpp3s1",
-            Self::ConvMpp3s2 => "conv_mpp3s2",
-            Self::ConvMpp3s21 => "conv_mpp3s21",
-            Self::ConvMpp3s12 => "conv_mpp3s12",
-            Self::ConvMpp7s1 => "conv_mpp7s1",
-            Self::ConvMpp7s2 => "conv_mpp7s2",
-            Self::DepthwiseNative3 => "depthwise_native3",
-            Self::DepthwiseNative5 => "depthwise_native5",
-            Self::DepthwiseNative7 => "depthwise_native7",
-            Self::DepthwiseNative9 => "depthwise_native9",
-            Self::DepthwiseNative1x7 => "depthwise_native1x7",
             Self::MatMul16 => "matmul_tile16",
             Self::MatMul32 => "matmul_tile32",
             Self::Conv16 => "conv_implicit16",
@@ -689,7 +600,7 @@ pub(super) fn specialize(
     limits: &crate::runtime::gpu::GpuLimits,
     precision: GpuPrecision,
 ) -> RuntimeResult<()> {
-    let metal_f32 = precision == GpuPrecision::F32;
+    let full_precision = precision == GpuPrecision::F32;
     for r in recipes {
         if !matches!(
             r.kind,
@@ -702,7 +613,7 @@ pub(super) fn specialize(
         let mut narrow_pointwise = false;
         match &plan.steps[r.nodes[0]].kind {
             BoundKind::Conv(g) if g.dh == 1 && g.dw == 1 && g.sh <= 2 && g.sw <= 2 => {
-                let rgb_stem = metal_f32
+                let rgb_stem = full_precision
                     && g.cin == 3
                     && g.kh == 3
                     && g.kw == 3
@@ -724,7 +635,7 @@ pub(super) fn specialize(
                     r.words[1] = r.x * 64;
                 } else if g.cpg == g.cin
                     && g.kh == g.kw
-                    && (matches!(g.kh, 1..=3) || (metal_f32 && matches!(g.kh, 5 | 7)))
+                    && (matches!(g.kh, 1..=3) || (full_precision && matches!(g.kh, 5 | 7)))
                     && g.cout >= 8
                     && (g.cpg >= 8 || rgb_stem)
                 {
@@ -733,7 +644,7 @@ pub(super) fn specialize(
                     // pointwise reuse down to 48 groups instead of the general
                     // 128-group threshold. Keep the H1/channel/width guards.
                     // Keep the smaller maps and all other operators unchanged.
-                    narrow_pointwise = metal_f32
+                    narrow_pointwise = full_precision
                         && g.kh == 1
                         && g.sh == 1
                         && g.sw == 1
@@ -746,11 +657,11 @@ pub(super) fn specialize(
                         && g.cout >= 64
                         && g.ow >= 64;
                     // Large spatial maps provide enough groups even at 32/64
-                    // output channels. Measured Metal 3x3, 5x5 and 7x7 layers
+                    // output channels. Measured 3x3, 5x5 and 7x7 layers
                     // benefit from the larger tile's operand reuse. Require
                     // complete output-channel tiles and retain occupancy guards.
                     prefer_tile32 = rgb_stem
-                        || (metal_f32
+                        || (full_precision
                             && matches!(g.kh, 3 | 5 | 7)
                             && g.cin >= 32
                             && g.cout.is_multiple_of(32)
@@ -758,7 +669,7 @@ pub(super) fn specialize(
                         // Small recognition's H24 96->48 stride-two layer
                         // benefits from tile32 despite its partial channel tile.
                         // Retain the common minimum-group guard below.
-                        || (metal_f32
+                        || (full_precision
                             && g.height == 24
                             && g.cin == 96
                             && g.cout == 48
@@ -767,7 +678,7 @@ pub(super) fn specialize(
                             && g.sw == 2)
                         // Measured 192->96 recognition maps benefit from register
                         // reuse even though their channel count is below 128.
-                        || (metal_f32
+                        || (full_precision
                             && g.kh == 1
                             && g.cin == 192
                             && g.cout == 96

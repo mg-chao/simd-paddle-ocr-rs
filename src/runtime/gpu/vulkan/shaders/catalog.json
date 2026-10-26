@@ -360,42 +360,6 @@
     ]
   },
   {
-    "name": "pack_nhwc",
-    "neural": true,
-    "precision_mask": 35,
-    "bindings": [
-      {
-        "slot": 0,
-        "uniform": false,
-        "read": true,
-        "minimum": 4
-      },
-      {
-        "slot": 1,
-        "uniform": false,
-        "read": true,
-        "minimum": 4
-      },
-      {
-        "slot": 5,
-        "uniform": false,
-        "read": false,
-        "minimum": 4
-      },
-      {
-        "slot": 6,
-        "uniform": true,
-        "read": false,
-        "minimum": 512
-      }
-    ],
-    "workgroup": [
-      64,
-      1,
-      1
-    ]
-  },
-  {
     "name": "depthwise3",
     "neural": true,
     "precision_mask": 63,

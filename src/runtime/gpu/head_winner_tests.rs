@@ -61,7 +61,7 @@ fn serial(items: &[[u32; 4]]) -> [u32; 4] {
 }
 
 #[test]
-#[ignore = "requires a physical GPU; actual partial protocol, Metal compile fallback and guards"]
+#[ignore = "requires a physical GPU; actual partial protocol, Vulkan compile fallback and guards"]
 fn gpu_parallel_head_winner_protocol_and_pre_admission() {
     let context = hardware();
     let [rows, tiles] = [35usize, 293usize];

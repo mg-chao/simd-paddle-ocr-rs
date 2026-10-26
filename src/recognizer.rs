@@ -719,7 +719,7 @@ struct DecodeWorkspace {
     capture: bool,
 }
 impl DecodeWorkspace {
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     fn assemble_gpu(
         &mut self,
         dictionary: &Dictionary,
@@ -899,7 +899,7 @@ pub struct RecognizerPlan {
 }
 pub struct Recognizer {
     plan: Arc<RecognizerPlan>,
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     gpu: Option<crate::runtime::gpu::heads::Recognition>,
     session: Session,
     diagnostic: Option<Session>,
@@ -920,17 +920,17 @@ impl Recognizer {
     pub fn uses_gpu(&self) -> bool {
         self.session.is_gpu()
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub(crate) fn reset_run_statistics(&mut self) {
         if let Some(gpu) = &mut self.gpu {
             gpu.statistics = Default::default();
         }
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu.as_ref().map(|gpu| &gpu.statistics)
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     fn recognize_gpu<const PROFILE: bool>(
         &mut self,
         images: &[ImageView<'_>],
@@ -997,7 +997,7 @@ impl Recognizer {
         self.last_projection = None;
         Ok(())
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     fn resident_fallback(&mut self, error: ImageError) -> ImageResult<()> {
         let compiled = self
             .plan
@@ -1108,7 +1108,7 @@ impl Recognizer {
         session.set_execution_context(plan.execution.cpu.clone(), plan.execution.threads)?;
         Ok(Self {
             plan,
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             gpu: None,
             session,
             diagnostic: None,
@@ -1153,7 +1153,7 @@ impl Recognizer {
         if let Some(diagnostic) = &self.diagnostic {
             primary.add_diagnostics(diagnostic.counter_snapshot());
         }
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         if let Some(gpu) = &self.gpu {
             let mut counters = gpu.counter_snapshot();
             counters.add_diagnostics(primary);
@@ -1162,7 +1162,7 @@ impl Recognizer {
         primary
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         if let Some(gpu) = &self.gpu {
             return gpu
                 .execution_statistics()
@@ -1182,19 +1182,19 @@ impl Recognizer {
         self.last_projection
     }
     pub fn activation_bytes(&self) -> usize {
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.activation_bytes());
-        #[cfg(not(feature = "gpu"))]
+        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
         let resident = 0;
         resident + self.session.activation_bytes()
     }
     pub fn retained_device_bytes(&self) -> usize {
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         let resident = self.gpu.as_ref().map_or(0, |g| g.retained_bytes());
-        #[cfg(not(feature = "gpu"))]
+        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
         let resident = 0;
         resident
             + self.session.retained_device_bytes()
@@ -1204,12 +1204,12 @@ impl Recognizer {
                 .map_or(0, Session::retained_device_bytes)
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_activation_bytes());
-        #[cfg(not(feature = "gpu"))]
+        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
         let resident = 0;
         resident + self.session.retained_activation_bytes()
     }
@@ -1219,12 +1219,12 @@ impl Recognizer {
             .map_or(0, Session::retained_activation_bytes)
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_planning_bytes());
-        #[cfg(not(feature = "gpu"))]
+        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
         let resident = 0;
         resident
             + self.resize.retained_bytes()
@@ -1316,7 +1316,7 @@ impl Recognizer {
         if count == 0 {
             return Ok(RecognitionBatchView { decoded: &[] });
         }
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         if self.session.is_gpu() {
             let images = (0..count).map(image).collect::<ImageResult<Vec<_>>>()?;
             if let Err(error) = self.recognize_gpu::<PROFILE>(&images, capture, profile) {
@@ -1516,7 +1516,7 @@ impl Recognizer {
         capture: bool,
         profile: &mut StageProfile,
     ) -> ImageResult<RecognitionView<'_>> {
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         if self.session.is_gpu() {
             if let Err(error) = self.recognize_gpu::<PROFILE>(&[image], capture, profile) {
                 self.resident_fallback(error)?;

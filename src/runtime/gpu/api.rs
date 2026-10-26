@@ -2,7 +2,6 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum GpuApi {
     Vulkan,
-    Metal,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum GpuDeviceType {

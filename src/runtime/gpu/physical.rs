@@ -12,7 +12,6 @@ pub(super) fn lower(
     precision: GpuPrecision,
     descriptors: &mut Vec<GpuTensorDescriptor>,
     matrix_precision: GpuMatrixPrecision,
-    admit_matrix: &mut dyn FnMut(&Recipe) -> RuntimeResult<bool>,
 ) -> RuntimeResult<Vec<Recipe>> {
     let mut recipes = operators::recipes(program, plan, limits)?;
     let count = plan.steps.len();
@@ -20,30 +19,6 @@ pub(super) fn lower(
     let mut replacements = vec![None; count];
     for start in 0..count {
         if removed[start] {
-            continue;
-        }
-        if let Some(recipe) = super::linear_native::replacement(
-            program,
-            plan,
-            start,
-            selected,
-            limits,
-            descriptors,
-            matrix_precision,
-        )? && recipe.nodes.iter().all(|&i| !removed[i])
-            && let Some(recipe) = super::linear_mpp::admitted(
-                recipe,
-                descriptors,
-                limits,
-                matrix_precision,
-                admit_matrix,
-            )?
-        {
-            for &i in &recipe.nodes {
-                removed[i] = true;
-            }
-            let end = recipe.node;
-            replacements[end] = Some(recipe);
             continue;
         }
         if let Some(recipe) =
@@ -238,27 +213,8 @@ pub(super) fn lower(
         }
         staged.push(recipe);
     }
-    let mut physical = super::conv_mpp_lower::lower(
-        program,
-        plan,
-        staged,
-        descriptors,
-        limits,
-        matrix_precision,
-        admit_matrix,
-    )?;
+    let mut physical = staged;
     let mut aliases: Vec<_> = (0..plan.shapes.len()).collect();
-    if matrix_precision == GpuMatrixPrecision::F16 {
-        super::tail_projection::select(
-            program,
-            plan,
-            selected,
-            &mut physical,
-            descriptors,
-            limits,
-            admit_matrix,
-        )?;
-    }
     // Canonical movement operations preserve physical order. Extend the
     // source lifetime through every alias instead of copying its elements.
     physical.retain(|r| {

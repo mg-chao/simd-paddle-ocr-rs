@@ -188,7 +188,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     if let Some(target) = args.stages[2] {
         builder = builder.classifier_target(target);
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     {
         use simd_paddle_ocr_rs::runtime::gpu::*;
         let precision = match args.gpu_precision.as_str() {
@@ -222,9 +222,14 @@ fn run() -> Result<(), Box<dyn Error>> {
             ..Default::default()
         });
     }
-    #[cfg(not(feature = "gpu"))]
+    #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
     if args.gpu_precision != "f32" || args.gpu_matrix != "f32" {
-        return Err("GPU options require --features gpu".into());
+        return Err(if cfg!(target_os = "macos") {
+            "GPU options are not supported on macOS"
+        } else {
+            "GPU options require --features gpu"
+        }
+        .into());
     }
     if let Some(threads) = args.threads {
         builder = builder.cpu_context(Arc::new(CpuContext::new(threads)?));
@@ -240,7 +245,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .try_to_owned()?;
     if args.statistics {
         eprintln!("{}", serde_json::to_string_pretty(&request.latest_run())?);
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         if let Some(statistics) = request.gpu_pipeline_statistics() {
             eprintln!("{}", serde_json::to_string_pretty(&statistics)?);
         }

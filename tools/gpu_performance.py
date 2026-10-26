@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import time
 import zipfile
 
@@ -75,6 +76,8 @@ def main():
     parser.add_argument("--alignment", action="store_true")
     parser.add_argument("--budget-seconds", type=float, default=60)
     args = parser.parse_args()
+    if sys.platform == "darwin":
+        parser.error("GPU benchmark examples are not supported on macOS")
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
     executable = ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench")
@@ -99,7 +102,7 @@ def main():
         build = ROOT / "tools/reference/bin/Release/net10.0"
         reference_dll = build / "Sdcb.SimdPaddleOCR.GpuBench.dll"
         cs_inputs = [*filter(Path.is_file, (ROOT / "tools/reference").glob("*.cs*")),
-                     *[p for p in (REFERENCE / "src").rglob("*") if p.is_file() and p.suffix in (".cs", ".csproj", ".props", ".targets", ".spv", ".metal") and "obj" not in p.parts and "bin" not in p.parts],
+                     *[p for p in (REFERENCE / "src").rglob("*") if p.is_file() and p.suffix in (".cs", ".csproj", ".props", ".targets", ".spv") and "obj" not in p.parts and "bin" not in p.parts],
                      *[p for directory in (REFERENCE, REFERENCE.parent) for p in directory.iterdir()
                        if p.is_file() and (p.suffix in (".props", ".targets") or p.name in ("global.json", "NuGet.Config", "nuget.config"))]]
         if max(p.stat().st_mtime for p in cs_inputs) > reference_dll.stat().st_mtime:

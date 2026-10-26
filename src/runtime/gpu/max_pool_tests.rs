@@ -149,7 +149,6 @@ fn max_pool_vector_keeps_prefix_escaping_values_and_concat_offsets() {
             GpuPrecision::MixedF16,
             &mut descriptors,
             GpuMatrixPrecision::F16,
-            &mut |_| Ok(false),
         )
         .unwrap();
         let recipe = recipes.iter().find(|recipe| recipe.nodes == [0]).unwrap();
@@ -230,7 +229,7 @@ fn raw_run(session: &mut GpuSession, input: &[f32]) -> RuntimeResult<Vec<f32>> {
 }
 
 #[test]
-#[ignore = "requires physical Metal GPU; exact vector/scalar MaxPool including nonfinite values and offsets"]
+#[ignore = "requires physical Vulkan GPU; exact vector/scalar MaxPool including nonfinite values and offsets"]
 fn gpu_hardware_max_pool_vector_matches_scalar_bits_edges_and_offsets() {
     let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
     for (shape, usage) in [

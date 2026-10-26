@@ -182,7 +182,6 @@ fn classifier_recipes(case: &Case) -> (Program, Vec<Recipe>, Vec<GpuTensorDescri
         GpuPrecision::MixedF16,
         &mut descriptors,
         GpuMatrixPrecision::F16,
-        &mut |_| Ok(false),
     )
     .unwrap();
     (program, recipes, descriptors)
@@ -543,7 +542,7 @@ fn hardware() {
 
 #[test]
 #[ignore = "requires a physical GPU; native small projection, fused epilogue and offset guards"]
-fn gpu_hardware_small_projection_native_metal() {
+fn gpu_hardware_small_projection_native_vulkan() {
     hardware();
 }
 

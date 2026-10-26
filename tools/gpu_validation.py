@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-EXECUTOR = "Metal" if sys.platform == "darwin" else "Vulkan"
+EXECUTOR = "Vulkan"
 MODELS = ("cls", "det", "small_det", "medium_det", "rec", "small_rec", "medium_rec")
 
 
@@ -189,13 +189,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=["inventory", "compare"])
     parser.add_argument("--models", type=Path, default=ROOT.parent / "SimdPaddleOCR/models")
-    parser.add_argument("--report", type=Path, default=ROOT / "target/metal-tensor-validation")
+    parser.add_argument("--report", type=Path, default=ROOT / "target/gpu-tensor-validation")
     parser.add_argument("--model", choices=MODELS)
     parser.add_argument("--precision", choices=["f32", "mixed"], default="f32")
     parser.add_argument("--reference", action="store_true", help="also execute C# CPU and GPU")
     parser.add_argument("--boundary", help="original ONNX output tensor name, never a node index")
     parser.add_argument("--shape", nargs=4, type=int)
     args = parser.parse_args()
+    if args.mode == "compare" and sys.platform == "darwin":
+        parser.error("GPU execution is not supported on macOS")
     args.report.mkdir(parents=True, exist_ok=True)
     all_results = []
     for name in [args.model] if args.model else MODELS:

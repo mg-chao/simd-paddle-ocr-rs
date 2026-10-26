@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Sdcb.SimdPaddleOCR.OnnxSharp;
-using Sdcb.SimdPaddleOCR.Backends.Metal;
 using Sdcb.SimdPaddleOCR.Backends.Vulkan;
 
 if (args.Length > 0 && args[0] == "--ocr-bench") { OcrBench.Run(args); return; }
@@ -20,12 +19,8 @@ string adapter;
 using var cpu=new InferenceSession(compiled);
 cpu.Reshape(shape);
 outputShape=cpu.OutputShape.Dimensions;
-if(args[7]=="gpu" && OperatingSystem.IsMacOS()) {
-    var device=MetalBackend.TryGetDevice() ?? throw new NotSupportedException("physical Metal device required");
-    using var gpu=new MetalDetGraph(device,compiled);
-    output=gpu.Run(shape,input).ToArray();
-    adapter=device.Name;
-} else if(args[7]=="gpu") {
+if(args[7]=="gpu") {
+    if (OperatingSystem.IsMacOS()) throw new NotSupportedException("GPU comparison is not supported on macOS");
     var device=GpuBackend.TryGetDevice() ?? throw new NotSupportedException("physical Vulkan device required");
     using var gpu=new GpuDetGraph(device,compiled);
     output=gpu.Run(shape,input).ToArray();

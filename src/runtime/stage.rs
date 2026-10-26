@@ -25,15 +25,15 @@ pub enum ExecutionBackend {
 #[derive(Clone, Default)]
 pub struct ExecutionConfig {
     pub target: ExecutionTarget,
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub gpu: Option<Arc<super::gpu::GpuContext>>,
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub gpu_options: super::gpu::GpuContextOptions,
 }
 #[derive(Clone)]
 enum ModelPlan {
     Cpu(Arc<CpuCompiledModel>),
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     Gpu(Arc<super::gpu::GpuCompiledModel>),
 }
 struct CpuFallback {
@@ -68,7 +68,7 @@ impl From<Arc<CpuCompiledModel>> for CompiledModel {
         }
     }
 }
-#[cfg(feature = "gpu")]
+#[cfg(all(feature = "gpu", not(target_os = "macos")))]
 impl From<Arc<super::gpu::GpuCompiledModel>> for CompiledModel {
     fn from(value: Arc<super::gpu::GpuCompiledModel>) -> Self {
         Self {
@@ -87,9 +87,9 @@ impl CompiledModel {
         execution: ExecutionConfig,
     ) -> RuntimeResult<Self> {
         let compiler = super::Compiler::new(super::CompilerOptions {
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             gpu: execution.gpu,
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             gpu_options: execution.gpu_options,
         });
         compiler.compile(model, options, execution.target)
@@ -104,17 +104,21 @@ impl CompiledModel {
         if target == ExecutionTarget::Cpu {
             return resources.cpu(options).map(Into::into);
         }
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         let gpu = compiler
             .gpu()
             .and_then(|context| resources.gpu(context, options));
-        #[cfg(not(feature = "gpu"))]
+        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
         let gpu: RuntimeResult<()> = Err(RuntimeError::with_kind(
             ErrorKind::Unsupported,
-            "GPU execution requires the gpu Cargo feature",
+            if cfg!(target_os = "macos") {
+                "GPU execution is not supported on macOS"
+            } else {
+                "GPU execution requires the gpu Cargo feature"
+            },
         ));
         match gpu {
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             Ok(gpu) => {
                 let mut result: Self = gpu.into();
                 result.packed = resources.packed.clone();
@@ -128,7 +132,7 @@ impl CompiledModel {
                 }
                 Ok(result)
             }
-            #[cfg(not(feature = "gpu"))]
+            #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
             Ok(()) => unreachable!(),
             Err(error) if target == ExecutionTarget::Auto && fallback_allowed(&error) => {
                 let mut result: Self = resources.cpu(options)?.into();
@@ -141,7 +145,7 @@ impl CompiledModel {
     pub(crate) fn model_arc(&self) -> Arc<Model> {
         match &self.plan {
             ModelPlan::Cpu(c) => c.program.model.clone(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             ModelPlan::Gpu(c) => c.model_arc(),
         }
     }
@@ -158,25 +162,25 @@ impl CompiledModel {
     pub fn model(&self) -> &Model {
         match &self.plan {
             ModelPlan::Cpu(c) => c.model(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             ModelPlan::Gpu(c) => c.model(),
         }
     }
     pub fn execution_backend(&self) -> ExecutionBackend {
         match &self.plan {
             ModelPlan::Cpu(c) => ExecutionBackend::Cpu(c.backend()),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             ModelPlan::Gpu(_) => ExecutionBackend::Gpu,
         }
     }
     pub fn as_cpu(&self) -> Option<&Arc<CpuCompiledModel>> {
         match &self.plan {
             ModelPlan::Cpu(c) => Some(c),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             ModelPlan::Gpu(_) => None,
         }
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub fn as_gpu(&self) -> Option<&Arc<super::gpu::GpuCompiledModel>> {
         match &self.plan {
             ModelPlan::Cpu(_) => None,
@@ -189,7 +193,7 @@ impl CompiledModel {
     pub fn fallback_error(&self) -> Option<&RuntimeError> {
         self.reason.as_ref()
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub(crate) fn resident_fallback(&self, error: RuntimeError) -> RuntimeResult<Self> {
         if !fallback_allowed(&error) {
             return Err(error);
@@ -234,7 +238,7 @@ struct PendingSession {
 enum SessionKind {
     Pending(PendingSession),
     Cpu(Box<CpuSession>),
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     Gpu(Box<super::gpu::GpuSession>),
 }
 /// Output borrows this request; GPU waits do not occupy the CPU executor.
@@ -280,7 +284,7 @@ impl Session {
         }
         let graph = match &compiled.plan {
             ModelPlan::Cpu(c) => &c.program,
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             ModelPlan::Gpu(c) => &c.program,
         };
         let (count, output) = match mode {
@@ -374,7 +378,7 @@ impl Session {
             ModelPlan::Cpu(c) => Self::cpu_session(c.clone(), shape, limits, mode)
                 .map(Box::new)
                 .map(SessionKind::Cpu),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             ModelPlan::Gpu(c) => match mode {
                 Mode::Full => super::gpu::GpuSession::new(c.clone(), shape, limits),
                 Mode::Prefix(last) => {
@@ -429,7 +433,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => self.compiled.execution_backend(),
             SessionKind::Cpu(s) => ExecutionBackend::Cpu(s.compiled.backend()),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(_) => ExecutionBackend::Gpu,
         }
     }
@@ -455,7 +459,7 @@ impl Session {
         match &mut self.inner {
             SessionKind::Pending(_) => {}
             SessionKind::Cpu(s) => s.set_execution_context(cpu.clone(), threads)?,
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(_) => {}
         }
         self.cpu = cpu;
@@ -478,7 +482,7 @@ impl Session {
         let result = match &mut self.inner {
             SessionKind::Pending(_) => unreachable!(),
             SessionKind::Cpu(s) => s.reshape_with_limits(shape, limits),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.reshape_with_limits(shape, limits),
         };
         result.or_else(|error| self.fallback(error, shape, limits))
@@ -531,7 +535,7 @@ impl Session {
                     fill(input, layout).map_err(RuntimeError::callback)
                 })
                 .map(|_| ()),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s
                 .run_with_input_profiled::<PROFILE>(|input| {
                     fill(input, false).map_err(RuntimeError::callback)?;
@@ -544,7 +548,7 @@ impl Session {
             if !filled || !fallback_allowed(&error) {
                 return Err(error);
             }
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             {
                 let shape = self.input_shape().dimensions().to_vec();
                 let input = match &self.inner {
@@ -556,7 +560,7 @@ impl Session {
                     s.run(&input)?;
                 }
             }
-            #[cfg(not(feature = "gpu"))]
+            #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
             return Err(error);
         }
         self.output()
@@ -565,7 +569,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => Err(RuntimeError::new("session has not executed")),
             SessionKind::Cpu(s) => s.output_view(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.output_view(),
         }
     }
@@ -608,7 +612,7 @@ impl Session {
                 |input| fill(input).map_err(RuntimeError::callback),
                 |event| observer(event).map_err(RuntimeError::callback),
             ),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.run_with_input_and_trace(
                 |input| fill(input).map_err(RuntimeError::callback),
                 |event| observer(event).map_err(RuntimeError::callback),
@@ -618,7 +622,7 @@ impl Session {
     pub fn retained_device_bytes(&self) -> usize {
         match &self.inner {
             SessionKind::Pending(_) | SessionKind::Cpu(_) => 0,
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.retained_device_bytes(),
         }
     }
@@ -626,7 +630,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => super::StatisticsCounters::default(),
             SessionKind::Cpu(s) => s.counter_snapshot(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.counter_snapshot(),
         }
     }
@@ -634,7 +638,7 @@ impl Session {
         let mut stats = match &self.inner {
             SessionKind::Pending(_) => ExecutionStatistics::default(),
             SessionKind::Cpu(s) => s.statistics(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.statistics(),
         };
         stats.execution_backend =
@@ -650,7 +654,7 @@ impl Session {
         profile: &mut crate::profile::StageProfile,
     ) {
         let _ = profile;
-        #[cfg(feature = "gpu")]
+        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
         if PROFILE && let SessionKind::Gpu(s) = &self.inner {
             let t = s.gpu_execution_timings();
             profile.gpu_admission_wait_ns += t.admission_wait_ns;
@@ -669,7 +673,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(p) => p.input,
             SessionKind::Cpu(s) => s.input_shape(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.input_shape(),
         }
     }
@@ -679,7 +683,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(p) => p.output,
             SessionKind::Cpu(s) => s.output_shape(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.output_shape(),
         }
     }
@@ -689,7 +693,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(p) => p.limits,
             SessionKind::Cpu(s) => s.execution_limits(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.execution_limits(),
         }
     }
@@ -699,7 +703,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => 0,
             SessionKind::Cpu(s) => s.activation_bytes(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.activation_bytes(),
         }
     }
@@ -709,7 +713,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => 0,
             SessionKind::Cpu(s) => s.retained_activation_bytes(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.retained_activation_bytes(),
         }
     }
@@ -719,7 +723,7 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => 0,
             SessionKind::Cpu(s) => s.retained_scratch_bytes(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => s.retained_scratch_bytes(),
         }
     }
@@ -729,10 +733,60 @@ impl Session {
         match &self.inner {
             SessionKind::Pending(_) => 0,
             SessionKind::Cpu(s) => size_of::<CpuSession>() + s.retained_planning_bytes(),
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             SessionKind::Gpu(s) => {
                 size_of::<super::gpu::GpuSession>() + s.retained_planning_bytes()
             }
         }
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn macos_gpu_is_unsupported_and_auto_executes_on_cpu() {
+        let (source, _) = crate::ocr::tests::synthetic_sources();
+        let model = Arc::new(Model::load_bytes(&source).unwrap());
+        let compiler = super::super::Compiler::default();
+        let options = CompileOptions::default();
+        let error = compiler
+            .compile(model.clone(), options, ExecutionTarget::Gpu)
+            .err()
+            .expect("macOS must reject explicit GPU execution");
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
+        assert_eq!(error.to_string(), "GPU execution is not supported on macOS");
+
+        let auto = compiler
+            .compile(model.clone(), options, ExecutionTarget::Auto)
+            .unwrap();
+        assert!(matches!(auto.execution_backend(), ExecutionBackend::Cpu(_)));
+        assert_eq!(
+            auto.fallback_error().unwrap().kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            auto.fallback_error().unwrap().to_string(),
+            error.to_string()
+        );
+
+        let cpu = compiler
+            .compile(model, options, ExecutionTarget::Cpu)
+            .unwrap();
+        assert!(cpu.fallback_error().is_none());
+        let shape = [1, 3, 32, 32];
+        let input = vec![0.125; shape.iter().product()];
+        let mut auto = Session::new_serial(auto, &shape, ExecutionLimits::default()).unwrap();
+        let mut cpu = Session::new_serial(cpu, &shape, ExecutionLimits::default()).unwrap();
+        assert_eq!(
+            auto.run(&input).unwrap().data(),
+            cpu.run(&input).unwrap().data()
+        );
+        assert_eq!(
+            auto.fallback_error().unwrap().to_string(),
+            error.to_string()
+        );
+        assert_eq!(auto.statistics().production_submissions, 0);
     }
 }

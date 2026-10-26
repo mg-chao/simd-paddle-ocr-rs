@@ -75,6 +75,8 @@ def main():
     parser.add_argument("--classification-batch", type=int, choices=range(1, 17), default=4)
     parser.add_argument("--budget-seconds", type=float, default=60)
     args = parser.parse_args()
+    if sys.platform == "darwin":
+        parser.error("GPU execution is not supported on macOS")
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
     build_inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock",
@@ -86,7 +88,7 @@ def main():
     cases = list(corpus["cases"]) if args.all_cases else args.cases
     if not set(cases) <= set(corpus["cases"]):
         parser.error("unknown corpus case")
-    executor = "Metal" if sys.platform == "darwin" else "Vulkan"
+    executor = "Vulkan"
     manifest = dict(schema=2, platform=platform.platform(), compiler=output(["rustc", "-Vv"]),
                     cargo=output(["cargo", "-V"]), executor=executor, precision=args.precision, matrix=args.matrix,
                     wave=args.wave, classification_batch=args.classification_batch,

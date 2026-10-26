@@ -1,6 +1,6 @@
 //! Typed Vulkan pipeline cache. Platform-specific kernel admission stays here.
 use super::*;
-use operators::{Recipe, ShaderKind};
+use operators::ShaderKind;
 use std::collections::HashMap;
 pub(super) struct Pipelines {
     owner: Arc<Ledger>,
@@ -48,7 +48,6 @@ impl Pipelines {
             ShaderKind::Transposed => KernelId::Transposed,
             ShaderKind::Convolution => KernelId::Convolution,
             ShaderKind::General => KernelId::General,
-            ShaderKind::PackNhwc => KernelId::PackNhwc,
             ShaderKind::MatMul16 => KernelId::Matmul16,
             ShaderKind::MatMul32 => KernelId::Matmul32,
             ShaderKind::Conv16 => KernelId::Conv16,
@@ -62,12 +61,6 @@ impl Pipelines {
             ShaderKind::ReduceFinish => KernelId::ReduceFinish,
             ShaderKind::SoftmaxPartial => KernelId::SoftmaxPartial,
             ShaderKind::SoftmaxFinish => KernelId::SoftmaxFinish,
-            _ => {
-                return Err(RuntimeError::with_kind(
-                    ErrorKind::Unsupported,
-                    "kernel is not available on this device",
-                ));
-            }
         };
         let precision = storage.iter().enumerate().fold(0, |bits, (i, p)| {
             bits | ((u8::from(*p == GpuPrecision::MixedF16)) << i)
@@ -95,13 +88,5 @@ impl Pipelines {
         _: &[u32; 128],
     ) -> RuntimeResult<Arc<executor::NativePipeline>> {
         self.get(context, kind, storage)
-    }
-    pub fn supports_matrix(&self, context: &GpuContext, _: &Recipe) -> RuntimeResult<bool> {
-        self.ensure_context(context)?;
-        Ok(false)
-    }
-    pub fn supports_half(&self, context: &GpuContext, kind: ShaderKind) -> RuntimeResult<bool> {
-        self.ensure_context(context)?;
-        Ok(context.backend.supports_half() && kind.is_portable())
     }
 }

@@ -49,36 +49,10 @@ Disabled profiling allocates no timestamp queries.
 
 ## macOS
 
-The macOS backend requires **Apple Silicon and macOS 26 or newer**. It uses
-`objc2_metal` directly: Metal 4 command queues, reusable command allocators,
-argument tables, residency sets, shared events, and commit feedback. Unsupported
-systems return `ErrorKind::Unsupported` when GPU execution is requested.
+The previous macOS GPU backend has been removed. macOS currently supports CPU
+execution only, including builds with the `gpu` feature enabled. The
+`runtime::gpu` module and GPU context APIs are available only on non-macOS targets.
+`ExecutionTarget::Gpu` returns `ErrorKind::Unsupported` on macOS;
+`ExecutionTarget::Auto` falls back to CPU and records the unsupported reason.
 
-Embedded MSL is compiled through `MTL4Compiler`. Applications need neither a
-standalone shader compiler nor an Xcode installation at deployment. F32 storage
-and matrix operands remain the defaults. `MixedF16` changes storage with explicit
-IEEE rounding boundaries; `GpuMatrixPrecision::F16` independently permits half
-matrix operands with F32 accumulation. Compiler and execution errors propagate.
-
-Resident OCR keeps detection, classification, and recognition in F32 when matrix
-precision is F32, preserving geometry, orientation confidence, and CTC spans.
-Selecting F16 matrix precision explicitly enables the existing fast OCR accuracy
-contract. General tensor sessions still honor MixedF16 storage independently.
-
-Weights and activations use private buffers. Upload and parameter storage is
-reused, with each submitted range retained until completion. Each active command
-recording owns its allocator, command buffer, and argument table. Independent
-recordings can prepare and encode concurrently; commits and completion timeline
-values are serialized. Allocation-level dependencies order copies, clears,
-aliased activations, and dispatches. A timeout retires the context and retains
-resources that may still be in use by the GPU.
-
-With the `profiling` feature, dispatch durations come from Metal 4 timestamp
-counter heaps. These are separate from host encoding, submission, waiting, and
-readback durations. Profiling-disabled execution creates no counter heaps.
-
-See [Metal ownership and execution](metal-architecture.md) for the native safety
-and synchronization contract. Local validation covers the physical M4 used for
-development; other Apple GPU generations require their own hardware validation.
-
-See [local GPU validation](gpu-validation.md) for physical-device checks.
+See [local GPU validation](gpu-validation.md) for physical-device Vulkan checks.

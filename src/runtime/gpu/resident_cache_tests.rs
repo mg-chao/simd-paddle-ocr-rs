@@ -94,7 +94,7 @@ fn allocation_ids(session: &GpuSession) -> Vec<usize> {
 }
 
 #[test]
-#[ignore = "requires physical Metal; cached resident packets, quota rollback and two pending shapes"]
+#[ignore = "requires physical Vulkan; cached resident packets, quota rollback and two pending shapes"]
 fn gpu_hardware_resident_cached_bindings_reuse_and_submission_order() {
     {
         let quota = 128 * 1024;

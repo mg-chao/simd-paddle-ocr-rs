@@ -6,8 +6,7 @@ fn main() {
         hash::{Hash, Hasher},
         path::PathBuf,
     };
-    // A build script runs on the host; cross-checking the preserved Metal
-    // backend from Windows must not compile Windows shaders for that target.
+    // Build scripts run on the host; macOS targets have no GPU backend.
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         return;
     }

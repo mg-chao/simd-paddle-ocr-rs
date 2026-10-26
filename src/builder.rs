@@ -136,9 +136,9 @@ pub struct OcrBuilder {
     compiler: Option<Arc<crate::runtime::Compiler>>,
     target: ExecutionTarget,
     stage_targets: [Option<ExecutionTarget>; 3],
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     gpu: Option<Arc<crate::runtime::gpu::GpuContext>>,
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     gpu_options: crate::runtime::gpu::GpuContextOptions,
     cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
@@ -159,9 +159,9 @@ impl OcrBuilder {
             compiler: None,
             target: ExecutionTarget::default(),
             stage_targets: [None; 3],
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             gpu: None,
-            #[cfg(feature = "gpu")]
+            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
             gpu_options: Default::default(),
             cpu: None,
             cpu_options: CpuOptions::default(),
@@ -201,12 +201,12 @@ impl OcrBuilder {
         self.stage_targets[2] = Some(target);
         self
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub fn gpu_context(mut self, context: Arc<crate::runtime::gpu::GpuContext>) -> Self {
         self.gpu = Some(context);
         self
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub fn gpu_options(mut self, options: crate::runtime::gpu::GpuContextOptions) -> Self {
         self.gpu_options = options;
         self
@@ -259,9 +259,9 @@ impl OcrBuilder {
         let compiler = self.compiler.unwrap_or_else(|| {
             Arc::new(crate::runtime::Compiler::new(
                 crate::runtime::CompilerOptions {
-                    #[cfg(feature = "gpu")]
+                    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
                     gpu: self.gpu,
-                    #[cfg(feature = "gpu")]
+                    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
                     gpu_options: self.gpu_options,
                 },
             ))

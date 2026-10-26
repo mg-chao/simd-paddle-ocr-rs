@@ -25,45 +25,25 @@ use api::BufferUsage;
 pub use api::{GpuAdapterInfo, GpuApi, GpuDeviceType, GpuLimits};
 mod kernel;
 use kernel::{KernelId, KernelKey};
-#[cfg(not(target_os = "macos"))]
 #[path = "gpu/vulkan.rs"]
 mod backend;
-#[cfg(target_os = "macos")]
-#[path = "gpu/metal/mod.rs"]
-mod backend;
-mod conv_mpp;
-mod conv_mpp_lower;
-mod conv_mpp_staged;
-mod conv_weight_pack;
-#[cfg(not(target_os = "macos"))]
 use backend as executor;
-#[cfg(target_os = "macos")]
-use backend::execution as executor;
 mod fused_activation;
 mod fusions;
-mod half_native;
 pub(crate) mod heads;
-mod linear_mpp;
-mod linear_native;
 mod max_pool;
 mod operators;
 mod physical;
-#[cfg(target_os = "macos")]
-use backend::pipelines;
-#[cfg(not(target_os = "macos"))]
 mod pipelines;
 mod profile;
 pub(crate) mod resident;
 mod se_fusions;
 mod small_projection;
 mod storage;
-mod tail_projection;
 pub(crate) mod vision;
-mod weight_packing;
 pub use super::{GpuCompileOptions, GpuMatrixPrecision, GpuPrecision};
 pub use resident::{GpuPipelineStatistics, GpuPlacement};
 pub use storage::{GpuLayout, GpuTensorDescriptor};
-use weight_packing::WeightPacking;
 #[cfg(test)]
 mod resident_cache_tests;
 #[cfg(test)]
@@ -415,19 +395,8 @@ struct GpuWeights {
     _normalization: Mutex<Option<Arc<resident::Normalization>>>,
     _model: Arc<Model>,
     constants: Vec<Option<GpuBuffer>>,
-    // One immutable pack per constant/format, shared by every request.
-    // Buffers retain the normal context reservation and device-quota accounting.
-    packed: Mutex<std::collections::HashMap<(TensorId, WeightPacking), GpuBuffer>>,
     dummy: GpuBuffer,
     bytes: usize,
-}
-impl GpuWeights {
-    fn packed_bytes(&self) -> usize {
-        self.packed
-            .lock()
-            .map(|weights| weights.values().map(GpuBuffer::bytes).sum())
-            .unwrap_or(0)
-    }
 }
 pub struct GpuCompiledModel {
     precision: GpuPrecision,
@@ -441,22 +410,6 @@ pub struct GpuCompiledModel {
     pipelines: Arc<pipelines::Pipelines>,
 }
 impl GpuCompiledModel {
-    fn packed_weight_bytes(&self) -> usize {
-        self.unique_packed_weight_bytes(&mut std::collections::HashSet::new())
-    }
-    fn unique_packed_weight_bytes(&self, seen: &mut std::collections::HashSet<usize>) -> usize {
-        let mut bytes = if seen.insert(Arc::as_ptr(&self.weights) as usize) {
-            self.weights.packed_bytes()
-        } else {
-            0
-        };
-        if let Ok(compiled) = self.full_precision.lock()
-            && let Some(compiled) = &*compiled
-        {
-            bytes += compiled.unique_packed_weight_bytes(seen);
-        }
-        bytes
-    }
     /// Strict OCR preserves geometry, classifier confidence, and CTC spans.
     /// Half weights or activations can move each of those decision boundaries;
     /// only the explicit F16 matrix policy admits reduced-precision OCR stages.
@@ -609,7 +562,6 @@ impl GpuCompiledModel {
                     _normalization: Mutex::new(None),
                     _model: model.clone(),
                     constants,
-                    packed: Mutex::new(std::collections::HashMap::new()),
                     dummy,
                     bytes: weight_bytes,
                 });
@@ -633,7 +585,6 @@ impl GpuCompiledModel {
         let mut bytes = 0;
         if seen.insert(Arc::as_ptr(&self.weights) as usize) {
             bytes += self.weights.bytes;
-            bytes += self.weights.packed_bytes();
         }
         if let Ok(normalization) = self.weights._normalization.lock()
             && let Some(n) = &*normalization
@@ -657,9 +608,6 @@ impl GpuCompiledModel {
     }
     pub fn weight_bytes(&self) -> usize {
         self.unique_weight_bytes(&mut std::collections::HashSet::new())
-    }
-    fn original_weight_bytes(&self) -> usize {
-        self.weight_bytes() - self.packed_weight_bytes()
     }
     pub(crate) fn model_arc(&self) -> Arc<Model> {
         self.program.model.clone()
@@ -1000,11 +948,6 @@ impl GpuSession {
                 activation_precision,
                 &mut descriptors,
                 compiled.matrix_precision,
-                &mut |recipe| {
-                    compiled
-                        .pipelines
-                        .supports_matrix(&compiled.context, recipe)
-                },
             )?
         } else {
             operators::recipes(&compiled.program, &plan, &compiled.context.limits)?
@@ -1029,26 +972,6 @@ impl GpuSession {
                         dispatch_grid((bytes / 4) as usize, &compiled.context.limits)?;
                     recipe.words[1] = recipe.x * 64;
                     recipe.kind = operators::RecipeKind::Compute(operators::ShaderKind::General);
-                }
-            }
-        }
-        if optimized
-            && compiled.matrix_precision == GpuMatrixPrecision::F16
-            && compiled.precision == GpuPrecision::MixedF16
-        {
-            let generic = recipes.clone();
-            half_native::select(
-                &mut recipes,
-                &descriptors,
-                &compiled.context.limits,
-                compiled.matrix_precision,
-            )?;
-            for (recipe, original) in recipes.iter_mut().zip(generic) {
-                if let operators::RecipeKind::Compute(kind) = recipe.kind
-                    && half_native::supports_kind(kind)
-                    && !compiled.pipelines.supports_half(&compiled.context, kind)?
-                {
-                    *recipe = original;
                 }
             }
         }
@@ -1261,11 +1184,8 @@ impl GpuSession {
                     };
                     native.clone()
                 } else {
-                    let packed = compiled.specialized_weight(recipe)?;
                     let storage = std::array::from_fn(|i| {
-                        if i == 1 && compiled.packed_operand_precision(recipe).is_some() {
-                            compiled.packed_operand_precision(recipe).unwrap()
-                        } else if i == 5 {
+                        if i == 5 {
                             bound.descriptors[recipe.output.0].precision
                         } else {
                             recipe
@@ -1282,11 +1202,6 @@ impl GpuSession {
                     )?;
                     let mut owners: Vec<_> = (0..6)
                         .map(|i| {
-                            if i == 1
-                                && let Some(packed) = &packed
-                            {
-                                return packed.clone();
-                            }
                             let id = if i == 5 {
                                 Some(recipe.output)
                             } else {
@@ -1307,12 +1222,6 @@ impl GpuSession {
                         })
                         .collect();
                     for (index, owner) in owners.iter().enumerate() {
-                        // Packed weights have their own checked format/range
-                        // at cache construction; every logical tensor view is
-                        // checked against the actual chosen activation slot.
-                        if index == 1 && packed.is_some() {
-                            continue;
-                        }
                         let id = if index == 5 {
                             Some(recipe.output)
                         } else {
@@ -1775,30 +1684,14 @@ impl GpuSession {
                         r.kind,
                         operators::RecipeKind::Compute(operators::ShaderKind::General)
                     ) && r.words[2] == 24
-                        || matches!(
-                            r.kind,
-                            operators::RecipeKind::Compute(operators::ShaderKind::PackNhwc)
-                        )
                 })
                 .count(),
-            original_weight_bytes: self.compiled.original_weight_bytes() as u64,
-            packed_weight_bytes: self.compiled.packed_weight_bytes(),
+            original_weight_bytes: self.compiled.weight_bytes() as u64,
+            packed_weight_bytes: 0,
             normalized_nodes: self.node_count,
             selected_kernels: super::kernel_selections(self.recipes.iter().filter_map(|r| {
                 if let operators::RecipeKind::Compute(kind) = r.kind {
-                    Some((
-                        kind.name(),
-                        if kind == operators::ShaderKind::PointwiseF16
-                            || conv_mpp::Kernel::from_shader(kind).is_some()
-                        {
-                            "nhwc/hwio"
-                        } else if conv_mpp_staged::supports_kind(kind) {
-                            "nchw/hwio"
-                        } else {
-                            "nchw/row_major"
-                        },
-                        self.compiled.packed_operand_precision(r).is_some(),
-                    ))
+                    Some((kind.name(), "nchw/row_major", false))
                 } else {
                     None
                 }

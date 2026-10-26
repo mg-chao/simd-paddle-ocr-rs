@@ -3,24 +3,8 @@
 Run correctness checks on a physical machine before performance measurements.
 No CI, virtual machine, or software Vulkan device qualifies a hardware result.
 
-## Native Metal 4
-
-On Apple Silicon with macOS 26+, run release-mode native foundation and kernel
-checks locally:
-
-```sh
-cargo test --release --locked --features gpu,profiling runtime::gpu:: -- --ignored --test-threads=1
-cargo test --release --locked --features gpu,profiling gpu_integration_tests -- --ignored --test-threads=1
-```
-
-The native suite includes allocation and transfer ordering, immutable parameter
-snapshots, concurrent sessions, residency lifetime, foreign-context rejection,
-quota rollback, commit completion, profiling counters and bounded retirement
-faults. Numerical tests use CPU oracles with tail tiles, padding guards, offsets,
-reduction boundaries, and IEEE binary16 edge cases. They do not benchmark.
-
-See [M4 validation and measurements](metal-validation.md) for the migration's
-local evidence. Other Apple GPU generations are not established by those results.
+macOS has no GPU backend. Use CPU correctness checks there; GPU hardware
+qualification requires a physical machine running the Vulkan backend.
 
 ## Vulkan validation layers
 
@@ -69,4 +53,4 @@ original source archive, revision and executable identity, and bounded classifie
 and recognition comparisons in both storage modes.
 
 NVIDIA and Intel Vulkan hardware require separate physical-device validation;
-the Radeon RX 6750 XT and M4 results cannot establish behavior on those devices.
+the Radeon RX 6750 XT results cannot establish behavior on those devices.

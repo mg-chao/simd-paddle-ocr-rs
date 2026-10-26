@@ -23,7 +23,7 @@ pub struct GpuPipelineStatistics {
     pub admission_wait_ns: u64,
     pub dispatches: u64,
     pub layout_conversions: u64,
-    /// Neural dispatches recorded through the native concurrent Metal path.
+    /// Neural dispatches recorded through the native concurrent Vulkan path.
     pub native_graph_dispatches: u64,
     /// Image, geometry, projection and decoding dispatches on the native path.
     pub native_resident_dispatches: u64,
@@ -190,18 +190,6 @@ pub(super) struct Kernel {
 }
 
 impl Kernel {
-    #[cfg(all(test, target_os = "macos"))]
-    pub(super) fn test_pipeline(
-        context: &GpuContext,
-        pipeline: Arc<executor::NativePipeline>,
-        buffers: &[(&GpuBuffer, bool)],
-    ) -> Self {
-        Self {
-            ledger: context.ledger.clone(),
-            pipeline,
-            read_only: buffers.iter().map(|b| b.1).collect(),
-        }
-    }
     pub(super) fn get(
         context: &GpuContext,
         key: KernelKey,
@@ -655,9 +643,6 @@ impl Batch {
                 Command::Compute { native, shader } => {
                     self.statistics.native_graph_dispatches += 1;
                     self.statistics.dispatches += 1;
-                    if session.compiled.packed_operand_precision(recipe).is_some() {
-                        self.held.push(native.owners()[1].clone());
-                    }
                     self.schedule.push_prepared(
                         Operation::Compute {
                             native: native.clone(),
@@ -689,11 +674,8 @@ impl Batch {
                     self.statistics.layout_conversions += u64::from(
                         matches!(
                             recipe.kind,
-                            operators::RecipeKind::Compute(operators::ShaderKind::PackNhwc)
-                        ) || (matches!(
-                            recipe.kind,
                             operators::RecipeKind::Compute(operators::ShaderKind::General)
-                        ) && recipe.words[2] == 24),
+                        ) && recipe.words[2] == 24,
                     );
                 }
                 Command::Copy {
@@ -992,7 +974,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "requires physical Metal; reused readback, once-only consumers and foreign context validation"]
+    #[ignore = "requires physical Vulkan; reused readback, once-only consumers and foreign context validation"]
     fn gpu_resident_native_read_into_reuses_storage_and_recovers_after_consumer_error() {
         let context = GpuContext::new().unwrap();
         let foreign = GpuContext::new().unwrap();

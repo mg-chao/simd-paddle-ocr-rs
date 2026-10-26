@@ -16,7 +16,7 @@ fn reference_stage_statistics(
     request: &OcrRequest,
     resident: bool,
 ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::ExecutionStatistics>> {
-    #[cfg(not(feature = "gpu"))]
+    #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
     let _ = resident;
     let mut result = std::collections::BTreeMap::new();
     result.insert(
@@ -38,7 +38,7 @@ fn reference_stage_statistics(
     if !classifiers.is_empty() {
         result.insert(crate::error::OcrStage::Classifier, classifiers);
     }
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     if resident && let Some(pipeline) = request.execution.resident() {
         let diagnostics = result;
         result = pipeline.execution_statistics();
@@ -401,7 +401,7 @@ fn counter_snapshots_match_classifier_and_worker_session_selection() {
     );
 }
 
-#[cfg(feature = "gpu")]
+#[cfg(all(feature = "gpu", not(target_os = "macos")))]
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_hardware_counter_snapshots_match_resident_hybrid_and_trace() {

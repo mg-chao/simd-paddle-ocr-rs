@@ -22,8 +22,8 @@ HARDWARE = [
     "gpu_round_f16_ieee_edges_match_independent_oracle",
     "gpu_round_f16_tensor_stores_match_independent_oracle",
     "gpu_resident_image_pixel_reuse_matches_cpu_and_batch_offset",
-    "gpu_hardware_parallel_excitation_native_metal",
-    "gpu_hardware_small_projection_native_metal",
+    "gpu_hardware_parallel_excitation_native_vulkan",
+    "gpu_hardware_small_projection_native_vulkan",
     "gpu_hardware_small_projection_classifier_conv16_native",
 ]
 
@@ -34,6 +34,8 @@ def main():
     parser.add_argument("--hardware", action="store_true", help="run GPU integration contracts on the physical development machine")
     parser.add_argument("--report", type=Path, default=ROOT / "target/architecture-validation")
     args = parser.parse_args()
+    if args.hardware and sys.platform == "darwin":
+        parser.error("GPU execution is not supported on macOS")
     args.report.mkdir(parents=True, exist_ok=True)
     results = []
 
@@ -81,8 +83,8 @@ def main():
         check(f"examples-{name}", ["cargo", "build", "--locked", *profile, *flags, "--examples"])
         check(f"doctests-{name}", ["cargo", "test", "--locked", *profile, *flags, "--doc"])
     if args.hardware:
-        executor = "metal" if sys.platform == "darwin" else "vulkan"
-        for test in HARDWARE + ([] if sys.platform == "darwin" else ["vulkan_"]):
+        executor = "vulkan"
+        for test in HARDWARE + ["vulkan_"]:
             check(f"{executor}-{test}", ["cargo", "test", "--locked", *profile,
                   "--all-features", "--lib", test, "--", "--ignored", "--test-threads=1"], timeout=120)
     return 0

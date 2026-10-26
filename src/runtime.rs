@@ -3,10 +3,10 @@
 //! Models, graph lowering and shape binding are shared across execution backends.
 //! Compiled instructions are immutable and shareable. Each session binds concrete
 //! shapes and owns reusable activation buffers. The optional `gpu` module uses
-//! native Metal 4 on macOS and native Vulkan elsewhere for tensor and OCR inference. This deliberately does not claim
-//! general ONNX execution support.
+//! native Vulkan on non-macOS platforms for tensor and OCR inference. macOS uses
+//! CPU execution. General ONNX execution is outside the supported scope.
 
-#[cfg(feature = "gpu")]
+#[cfg(all(feature = "gpu", not(target_os = "macos")))]
 pub mod gpu;
 pub(crate) mod stage;
 pub use stage::Session;
@@ -14,7 +14,7 @@ pub use stage::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarge
 mod graph;
 mod graph_patterns;
 pub use graph::LogicalGraph;
-#[cfg(feature = "gpu")]
+#[cfg(all(feature = "gpu", not(target_os = "macos")))]
 use graph::compile_node;
 use graph::{BindScratch, Instruction, Op, Program, ShapePlan, bind_into};
 mod bound;
@@ -1538,8 +1538,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "gpu"))]
-    fn placement_without_gpu_feature_is_explicit() {
+    #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+    fn placement_without_gpu_backend_is_explicit() {
         let compile = |target| {
             CompiledModel::compile(
                 wide_head_model(),
@@ -1551,11 +1551,9 @@ mod tests {
         assert_eq!(strict.kind(), crate::error::ErrorKind::Unsupported);
         let auto = compile(ExecutionTarget::Auto).unwrap();
         assert!(matches!(auto.execution_backend(), ExecutionBackend::Cpu(_)));
-        assert!(
-            auto.fallback_error()
-                .unwrap()
-                .to_string()
-                .contains("gpu Cargo feature")
+        assert_eq!(
+            auto.fallback_error().unwrap().to_string(),
+            strict.to_string()
         );
         let mut session = Session::new_serial(auto, &[1, 2], ExecutionLimits::default()).unwrap();
         assert_eq!(session.run(&[1., 2.]).unwrap().data().len(), 1024);

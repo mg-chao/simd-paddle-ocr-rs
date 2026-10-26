@@ -113,7 +113,7 @@ fn standalone_activation_matches_private_chains_and_four_element_tails() {
 }
 
 #[test]
-#[ignore = "requires physical Metal GPU; compares fused and materialized activation boundaries"]
+#[ignore = "requires physical Vulkan GPU; compares fused and materialized activation boundaries"]
 fn gpu_hardware_standalone_activation_retains_half_intermediate_rounding() {
     let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
     let shape = [1, 1, 1, 67];

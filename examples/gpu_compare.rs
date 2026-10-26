@@ -1,11 +1,14 @@
 #![recursion_limit = "256"]
 //! Developer-only reproducible tensor comparison; no image preprocessing.
+#[cfg(not(target_os = "macos"))]
 use simd_paddle_ocr_rs::{
     model::Model,
     runtime::{CompileOptions, CpuCompiledModel, CpuSession, ExecutionLimits, gpu::*},
 };
+#[cfg(not(target_os = "macos"))]
 use std::{error::Error, path::PathBuf, sync::Arc};
 
+#[cfg(not(target_os = "macos"))]
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let measure = args.iter().any(|s| s == "measure");
@@ -162,4 +165,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err(format!("{failures} elements outside {precision:?} numerical gate").into());
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    Err("GPU execution is not supported on macOS".into())
 }

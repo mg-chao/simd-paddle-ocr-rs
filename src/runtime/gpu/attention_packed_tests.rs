@@ -4,9 +4,6 @@ use super::super::tests::{
 use super::*;
 use crate::runtime::CompileOptions;
 
-#[cfg(target_os = "macos")]
-include!("attention_native_graph_tests.rs");
-
 #[derive(Clone, Copy)]
 struct Case {
     n: usize,
@@ -188,7 +185,6 @@ fn lowered(
         precision,
         &mut descriptors,
         matrix,
-        &mut |_| Ok(false),
     )
     .unwrap();
     (plan, recipes)
@@ -338,7 +334,7 @@ fn packed_attention_rejects_escaping_views_and_wrong_slice_roles() {
 }
 
 #[test]
-#[ignore = "requires physical Metal GPU; packed QKV against materialized views and Q-scale"]
+#[ignore = "requires physical Vulkan GPU; packed QKV against materialized views and Q-scale"]
 fn gpu_hardware_packed_attention_preserves_half_scale_tails_and_output_offset() {
     let context = GpuContext::new_with_options(GpuContextOptions::default()).unwrap();
     for (case, precision) in [

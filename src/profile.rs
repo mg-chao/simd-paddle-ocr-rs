@@ -91,7 +91,7 @@ pub struct StageProfile {
 }
 
 impl StageProfile {
-    #[cfg(feature = "gpu")]
+    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
     pub(crate) fn record_gpu(&mut self, statistics: &crate::runtime::gpu::GpuPipelineStatistics) {
         self.gpu_admission_wait_ns += statistics.admission_wait_ns;
         self.gpu_encoding_ns += statistics.encoding_ns;

@@ -862,7 +862,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires physical Metal; exact DB parent/count flags and instrumented zero-add traffic for F32/Half"]
+    #[ignore = "requires physical Vulkan; exact DB parent/count flags and instrumented zero-add traffic for F32/Half"]
     fn gpu_resident_db_nonzero_boundary_counts() {
         let (w, h) = (19usize, 17usize);
         let pixels = w * h;

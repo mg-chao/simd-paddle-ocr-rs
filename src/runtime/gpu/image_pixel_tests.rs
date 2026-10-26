@@ -276,7 +276,7 @@ fn hardware() {
             assert_eq!(actual.len(), expected.len());
             if let Some(index) = actual.iter().zip(&expected).position(|(a, b)| a != b) {
                 panic!(
-                    "Metal {precision:?} {}: byte{index}, actual{}, CPU{}; includes NCHW sample1/p12, sample0/2 and11 suffix guards",
+                    "Vulkan {precision:?} {}: byte{index}, actual{}, CPU{}; includes NCHW sample1/p12, sample0/2 and11 suffix guards",
                     case.name, actual[index], expected[index]
                 );
             }

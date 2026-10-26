@@ -55,8 +55,6 @@ and `StageProfile` expose encoding and submission time separately. Trace traffic
 from primary diagnostic sessions remains visible alongside retained resident
 sessions.
 
-The Metal implementation lives in `src/runtime/gpu/metal`. Its typed kernel
-catalog selects embedded MSL templates and native function constants; Metal 4
-compiles libraries and pipelines on the device. Native ownership, residency,
-command ordering, and timing are isolated from the shared graph and OCR policies.
-See [Metal ownership and execution](metal-architecture.md).
+macOS currently supports CPU execution only. The previous macOS GPU
+implementation and its shader catalog have been removed. GPU modules are
+compiled only for non-macOS targets with the `gpu` feature enabled.

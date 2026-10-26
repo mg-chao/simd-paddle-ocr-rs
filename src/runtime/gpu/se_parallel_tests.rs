@@ -200,7 +200,6 @@ fn lower_case(
         precision,
         &mut descriptors,
         matrix,
-        &mut |_| Ok(false),
     )
     .unwrap()
 }
@@ -475,6 +474,6 @@ fn hardware() {
 
 #[test]
 #[ignore = "requires a physical GPU; native SE tree, gate boundaries and offset guards"]
-fn gpu_hardware_parallel_excitation_native_metal() {
+fn gpu_hardware_parallel_excitation_native_vulkan() {
     hardware();
 }

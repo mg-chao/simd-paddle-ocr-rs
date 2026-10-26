@@ -5,17 +5,8 @@ use crate::runtime::{
 };
 use std::sync::OnceLock;
 
-#[cfg(target_os = "macos")]
-#[path = "half_native_tests.rs"]
-mod half_native_tests;
 #[path = "library_tests.rs"]
 mod library_tests;
-#[cfg(target_os = "macos")]
-#[path = "metal_execution_tests.rs"]
-mod metal_execution_tests;
-#[cfg(target_os = "macos")]
-#[path = "pointwise_f16_tests.rs"]
-mod pointwise_f16_tests;
 
 // Small ONNX protobuf fixtures keep these tests independent of downloads and of
 // third-party model generators. Preserve arithmetic so every requested operator
@@ -606,7 +597,7 @@ fn gpu_hardware_physical_fusion_preserves_order_escapes_and_trace() {
 }
 
 #[test]
-#[ignore = "requires physical Metal; native dispatch reuse and same-executor profile attribution"]
+#[ignore = "requires physical Vulkan; native dispatch reuse and same-executor profile attribution"]
 fn gpu_hardware_profile_and_warmed_shape_bindings_are_bounded() {
     let compiled = Arc::new(GpuCompiledModel::compile(dynamic_relu_model(), hardware()).unwrap());
     let mut session = GpuSession::new(compiled, &[1, 1024], ExecutionLimits::default()).unwrap();
@@ -1664,7 +1655,7 @@ fn gpu_hardware_attention_se_resize_placement_and_rank_five() {
 }
 
 #[test]
-#[ignore = "requires a physical Metal GPU with Half storage"]
+#[ignore = "requires a physical Vulkan GPU with Half storage"]
 fn gpu_hardware_storage_policies_and_native_diagnostics() {
     for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
         let context = GpuContext::new_with_options(GpuContextOptions {
@@ -1921,11 +1912,3 @@ fn gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back()
     assert!(tensor.memory_statistics().host_output_bytes > 0);
     tensor.run(&values(70, 1)).unwrap();
 }
-
-#[cfg(target_os = "macos")]
-#[path = "conv_mpp_tests.rs"]
-mod conv_mpp_tests;
-
-#[cfg(target_os = "macos")]
-#[path = "conv_mpp_staged_tests.rs"]
-mod conv_mpp_staged_tests;

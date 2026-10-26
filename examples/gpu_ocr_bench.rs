@@ -1,31 +1,26 @@
 //! Bounded physical-device OCR comparison. Build release; one cold run and three warm measurements.
 #![recursion_limit = "256"]
+#[cfg(not(target_os = "macos"))]
 use simd_paddle_ocr_rs::ocr::OwnedOcr;
+#[cfg(not(target_os = "macos"))]
 use simd_paddle_ocr_rs::{
     ExecutionTarget, ModelPreset, OcrModelSet,
     cpu::{CpuContext, CpuOptions},
     image::{ImageView, PixelFormat},
     runtime::{CompileOptions, GpuMatrixPrecision, gpu::*},
 };
+#[cfg(not(target_os = "macos"))]
 use std::{error::Error, time::Instant};
 #[path = "support/ocr_compare.rs"]
+#[cfg(not(target_os = "macos"))]
 mod ocr_compare;
 
+#[cfg(not(target_os = "macos"))]
 fn process_cpu_seconds() -> Option<f64> {
-    #[cfg(all(target_os = "macos", feature = "profiling"))]
-    {
-        let mut time = libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        // SAFETY: A valid writable timespec is supplied for the process clock.
-        if unsafe { libc::clock_gettime(libc::CLOCK_PROCESS_CPUTIME_ID, &mut time) } == 0 {
-            return Some(time.tv_sec as f64 + time.tv_nsec as f64 * 1e-9);
-        }
-    }
     None
 }
 
+#[cfg(not(target_os = "macos"))]
 fn compare_output(
     actual: &OwnedOcr,
     expected: &serde_json::Value,
@@ -39,6 +34,7 @@ fn compare_output(
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn main() -> Result<(), Box<dyn Error>> {
     if cfg!(debug_assertions) {
         return Err("benchmark requires --release".into());
@@ -345,7 +341,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "score_comparison":if mixed_matrix { "mixed numeric gate for equivalent geometry and dimensions; finite values, probability bounds and raw differences for changed geometry" } else { "numeric gate" }
             },
             "timing_contract":"group start through last inference return; excludes decode, owned copy, validation, serialization and profile calls",
-            "host_cpu_contract":"process CPU clock across execute including owned copy; excludes validation and serialization; requires macOS and the profiling feature, otherwise null",
+            "host_cpu_contract":"process CPU clock is unavailable on the supported GPU platforms; values are null",
             "warm_process_cpu_ms":process_cpu_ms,
             "qualified":errors.is_empty(),"errors":errors,"failed_outputs":failed_outputs,"accuracy_differences":accuracy_differences,
             "startup_ms":startup_ms,"cold_run_ms":cold_ms,"warm_group_ms":measured,"median_group_ms":median,"images_per_second":median.map(|ms|requests as f64*1000./ms),
@@ -358,6 +354,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(test)]
+#[cfg(not(target_os = "macos"))]
 mod tests {
     use super::*;
     use simd_paddle_ocr_rs::{detector::DetectionBox, ocr::OwnedOcrLine, recognizer::OwnedCtcSpan};
@@ -429,4 +426,9 @@ mod tests {
         assert!(compare_output(&actual, &reference, true, false).is_err());
         assert!(compare_output(&actual, &reference, true, true).is_ok());
     }
+}
+
+#[cfg(target_os = "macos")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    Err("GPU execution is not supported on macOS".into())
 }
