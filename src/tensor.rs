@@ -5,7 +5,7 @@ use std::mem::size_of;
 
 pub const MAX_RANK: usize = 8;
 
-crate::error::stage_error!(TensorError, InvalidInput);
+pub use crate::error::TensorError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

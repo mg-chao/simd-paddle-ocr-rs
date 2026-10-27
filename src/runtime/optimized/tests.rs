@@ -136,9 +136,9 @@ fn compare(a: &[f32], b: &[f32]) {
         assert!((a - b).abs() <= 1e-4 + 1e-4 * a.abs(), "{i}: {a} != {b}");
     }
 }
-fn session(model: Arc<Model>, options: CompileOptions, shape: &[usize]) -> Session {
-    Session::new_serial(
-        Arc::new(CompiledModel::compile(model, options).unwrap()),
+fn session(model: Arc<Model>, options: CompileOptions, shape: &[usize]) -> CpuSession {
+    CpuSession::new_serial(
+        Arc::new(CpuCompiledModel::compile(model, options).unwrap()),
         shape,
         ExecutionLimits::default(),
     )
@@ -164,9 +164,9 @@ fn fusion_layout_prefix_and_trace_keep_normalized_identities() {
             let mut optimized = session(
                 model.clone(),
                 CompileOptions {
-                    kernels,
-                    layout,
+                    cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                     fusion: true,
+                    ..Default::default()
                 },
                 &shape,
             );
@@ -193,7 +193,7 @@ fn fusion_layout_prefix_and_trace_keep_normalized_identities() {
             for (last, event) in events.iter().enumerate() {
                 let compiled = optimized.compiled.clone();
                 let mut prefix =
-                    Session::new_prefix(compiled, &shape, ExecutionLimits::default(), last)
+                    CpuSession::new_prefix(compiled, &shape, ExecutionLimits::default(), last)
                         .unwrap();
                 let result = prefix.run(&input).unwrap();
                 compare(&event.3, result.data());
@@ -331,8 +331,7 @@ fn convolution_store_programs_preserve_order_tails_and_worker_bands() {
             [LayoutPolicy::Nchw, LayoutPolicy::Auto].map(|layout| (policy, layout))
         }) {
             let options = CompileOptions {
-                kernels,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                 ..CompileOptions::default()
             };
             let mut unfused = session(
@@ -344,8 +343,8 @@ fn convolution_store_programs_preserve_order_tails_and_worker_bands() {
                 &shape,
             );
             let expected = unfused.run(&input).unwrap().data().to_vec();
-            let mut fused = Session::new(
-                Arc::new(CompiledModel::compile(model.clone(), options).unwrap()),
+            let mut fused = CpuSession::new(
+                Arc::new(CpuCompiledModel::compile(model.clone(), options).unwrap()),
                 cpu.clone(),
                 &shape,
                 ExecutionOptions {
@@ -422,7 +421,10 @@ fn packed_dense_does_not_retain_an_im2row_tensor() {
         let mut request = session(
             model,
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
             &[1, channels, 5, 13],
@@ -480,7 +482,10 @@ fn standalone_batch_norm_keeps_canonical_storage_without_channel_workspace() {
     let mut optimized = session(
         model,
         CompileOptions {
-            kernels: KernelPolicy::Portable4,
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default().cpu
+            },
             ..CompileOptions::default()
         },
         &[2, 17, 3, 7],
@@ -567,8 +572,8 @@ fn channel_pool_and_resize_row_shards_match_one_thread() {
         let expected = request.run(&input).unwrap().data().to_vec();
         if cfg!(feature = "parallel") {
             let cpu = Arc::new(CpuContext::new(4).unwrap());
-            let mut parallel = Session::new(
-                Arc::new(CompiledModel::new(model).unwrap()),
+            let mut parallel = CpuSession::new(
+                Arc::new(CpuCompiledModel::new(model).unwrap()),
                 cpu,
                 &shape,
                 ExecutionOptions {
@@ -617,8 +622,10 @@ fn store_epilogue_reads_live_full_residual_and_preserves_intermediate_consumers(
             .collect::<Vec<_>>();
         for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
             let options = CompileOptions {
-                layout,
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    layout,
+                    kernels: KernelPolicy::Portable4,
+                },
                 ..CompileOptions::default()
             };
             let mut unfused = session(
@@ -662,9 +669,12 @@ fn packing_statistics_report_consumed_panels_for_each_operator() {
         let mut request = session(
             model.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    layout,
+                },
                 fusion: false,
+                ..Default::default()
             },
             &[2, 2],
         );
@@ -708,7 +718,10 @@ fn packing_statistics_exclude_prepared_panels_from_canonical_convolution() {
     let mut request = session(
         model,
         CompileOptions {
-            kernels: KernelPolicy::Portable4,
+            cpu: crate::runtime::CpuCompileOptions {
+                kernels: KernelPolicy::Portable4,
+                ..CompileOptions::default().cpu
+            },
             ..CompileOptions::default()
         },
         &[1, 2, 2, 3],
@@ -755,10 +768,13 @@ fn transpose_panels_are_shared_across_nodes_sessions_and_reshape() {
         &[-1, 17, -1, -1],
     );
     let compiled = Arc::new(
-        CompiledModel::compile(
+        CpuCompiledModel::compile(
             model.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
         )
@@ -771,9 +787,11 @@ fn transpose_panels_are_shared_across_nodes_sessions_and_reshape() {
     assert_eq!(compiled.packed_weight_bytes(), 4 * 5 * 32 * 4);
     let panels = compiled.transpose_packed[&0].clone();
     let mut first =
-        Session::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default()).unwrap();
+        CpuSession::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default())
+            .unwrap();
     let mut second =
-        Session::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default()).unwrap();
+        CpuSession::new_serial(compiled.clone(), &[2, 5, 3, 5], ExecutionLimits::default())
+            .unwrap();
     for width in [5, 7, 5] {
         let shape = [2, 5, 3, width];
         let input = (0..shape.iter().product())
@@ -869,9 +887,12 @@ fn initialized_arena_keeps_dirty_high_water_through_alternating_shapes() {
         let mut optimized = session(
             model.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    layout,
+                },
                 fusion: true,
+                ..Default::default()
             },
             &[1, 3, 8, 64],
         );
@@ -917,20 +938,24 @@ fn initialized_arena_keeps_dirty_high_water_through_alternating_shapes() {
 fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() {
     let model = conv_model(true);
     let compiled = Arc::new(
-        CompiledModel::compile(
+        CpuCompiledModel::compile(
             model,
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..CompileOptions::default().cpu
+                },
                 ..CompileOptions::default()
             },
         )
         .unwrap(),
     );
     let wide = [1, 3, 8, 64];
-    let probe = Session::new_serial(compiled.clone(), &wide, ExecutionLimits::default()).unwrap();
+    let probe =
+        CpuSession::new_serial(compiled.clone(), &wide, ExecutionLimits::default()).unwrap();
     let limit = probe.retained_activation_bytes();
     drop(probe);
-    let mut optimized = Session::new_serial(
+    let mut optimized = CpuSession::new_serial(
         compiled,
         &wide,
         ExecutionLimits {
@@ -966,7 +991,10 @@ fn rejected_arena_growth_keeps_the_active_plan_output_and_initialized_storage() 
 fn tighter_activation_budget_replaces_the_initialized_high_water_arena() {
     let model = conv_model(false);
     let options = CompileOptions {
-        kernels: KernelPolicy::Portable4,
+        cpu: crate::runtime::CpuCompileOptions {
+            kernels: KernelPolicy::Portable4,
+            ..CompileOptions::default().cpu
+        },
         ..CompileOptions::default()
     };
     let mut optimized = session(model.clone(), options, &[1, 3, 8, 64]);
@@ -1150,8 +1178,7 @@ fn compound_activations_execute_inside_convolution_stores_in_both_layouts() {
         for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
             for kernels in [KernelPolicy::Portable4, KernelPolicy::Auto] {
                 let options = CompileOptions {
-                    kernels,
-                    layout,
+                    cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                     ..CompileOptions::default()
                 };
                 let mut unfused = session(
@@ -1312,8 +1339,8 @@ fn activation_limit_is_checked_against_allocated_physical_storage() {
     let bytes = unlimited.activation_bytes();
     let reference = session(model.clone(), CompileOptions::reference(), &shape);
     assert!(bytes < reference.activation_bytes());
-    let compiled = Arc::new(CompiledModel::compile(model, CompileOptions::default()).unwrap());
-    let mut limited = Session::new_serial(
+    let compiled = Arc::new(CpuCompiledModel::compile(model, CompileOptions::default()).unwrap());
+    let mut limited = CpuSession::new_serial(
         compiled,
         &shape,
         ExecutionLimits {
@@ -1343,12 +1370,15 @@ fn constant_matmul_reuses_nhwc_panels_only_under_reference_eligibility_and_keeps
         );
         for layout in [LayoutPolicy::Nchw, LayoutPolicy::Auto] {
             let options = CompileOptions {
-                kernels: KernelPolicy::Portable4,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    layout,
+                },
                 fusion: true,
+                ..Default::default()
             };
             let mut request = session(parsed.clone(), options, &[7, 3]);
-            let cached = parsed.cached_packed_weight_bytes();
+            let cached = request.compiled.packed_cache.bytes();
             let input: Vec<_> = (0..7).flat_map(|_| [1e20, -1e20, 3.]).collect();
             for rows in [7, 6, 7] {
                 request.reshape(&[rows, 3]).unwrap();
@@ -1360,7 +1390,7 @@ fn constant_matmul_reuses_nhwc_panels_only_under_reference_eligibility_and_keeps
                     "bias Add must follow unbiased sum"
                 );
                 assert_eq!(
-                    parsed.cached_packed_weight_bytes(),
+                    request.compiled.packed_cache.bytes(),
                     cached,
                     "execution/reshape must reuse immutable panels"
                 );

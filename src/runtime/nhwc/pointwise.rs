@@ -76,7 +76,7 @@ pub(super) fn execute(
         Backend::Portable4 => portable(input, bias, packed, output, first, inner, columns, store),
         Backend::NeonFma => {
             #[cfg(target_arch = "aarch64")]
-            // SAFETY: CompiledModel validates the selected NEON/FMA policy;
+            // SAFETY: CpuCompiledModel validates the selected NEON/FMA policy;
             // the checked input and packed spans cover every complete tile.
             unsafe {
                 neon::execute(input, bias, packed, output, first, inner, columns, store)
@@ -84,21 +84,21 @@ pub(super) fn execute(
         }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates the selected AVX policy.
+            // SAFETY: CpuCompiledModel validates the selected AVX policy.
             unsafe {
                 avx(input, bias, packed, output, first, inner, columns, store)
             }
         }
         Backend::AvxFma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates AVX and FMA.
+            // SAFETY: CpuCompiledModel validates AVX and FMA.
             unsafe {
                 avx_fma(input, bias, packed, output, first, inner, columns, store)
             }
         }
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates AVX2 and FMA.
+            // SAFETY: CpuCompiledModel validates AVX2 and FMA.
             unsafe {
                 #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
                 if inline_avx2_eligible(backend, inner, columns) {
@@ -110,7 +110,7 @@ pub(super) fn execute(
         }
         Backend::Avx512 => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates AVX-512F, AVX2 and FMA.
+            // SAFETY: CpuCompiledModel validates AVX-512F, AVX2 and FMA.
             unsafe {
                 avx512(input, bias, packed, output, first, inner, columns, store)
             }

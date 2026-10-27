@@ -843,7 +843,7 @@ fn arc(
     }
     Ok(())
 }
-fn sort_reading_order(boxes: &mut [DetectionBox]) {
+pub(crate) fn sort_reading_order(boxes: &mut [DetectionBox]) {
     dotnet_sort(boxes, |a, b| {
         a.points[0][1]
             .partial_cmp(&b.points[0][1])

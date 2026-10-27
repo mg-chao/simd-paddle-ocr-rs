@@ -112,63 +112,137 @@ fn public_head(
     })
 }
 
+#[derive(Clone)]
+pub struct ClassifierPlan {
+    execution: crate::runtime::stage::RequestSettings,
+    compiled: CompiledModel,
+    options: ClassifierOptions,
+    limits: ExecutionLimits,
+    head: ProjectionHead,
+}
 pub struct Classifier {
-    compiled: Arc<CompiledModel>,
+    plan: Arc<ClassifierPlan>,
+    #[cfg(feature = "gpu")]
+    gpu: Option<crate::runtime::gpu::heads::Classification>,
     session: Session,
     diagnostic: Option<Session>,
-    head: ProjectionHead,
     resize: ResizeWorkspace,
-    options: ClassifierOptions,
 }
 impl Classifier {
-    pub fn compiled(&self) -> &Arc<CompiledModel> {
-        &self.compiled
+    pub fn plan(&self) -> &Arc<ClassifierPlan> {
+        &self.plan
     }
-    pub fn new(compiled: Arc<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
+    pub fn uses_gpu(&self) -> bool {
+        self.session.is_gpu()
+    }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn is_full_gpu(&self) -> bool {
+        self.session.is_gpu()
+    }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn resident(
+        &mut self,
+    ) -> crate::runtime::RuntimeResult<&mut crate::runtime::gpu::heads::Classification> {
+        if self.gpu.is_none() {
+            self.gpu = Some(crate::runtime::gpu::heads::Classification::new(
+                self.plan.compiled.as_gpu().unwrap().clone(),
+                self.session.execution_limits(),
+            )?);
+        }
+        Ok(self.gpu.as_mut().unwrap())
+    }
+    #[cfg(feature = "gpu")]
+    pub(crate) fn reset_run_statistics(&mut self) {
+        if let Some(gpu) = &mut self.gpu {
+            gpu.statistics = Default::default();
+        }
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
+        self.gpu.as_ref().map(|g| &g.statistics)
+    }
+    pub fn compiled(&self) -> &CompiledModel {
+        &self.plan.compiled
+    }
+    pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
+        let mut primary = self.session.counter_snapshot();
+        if let Some(diagnostic) = &self.diagnostic {
+            primary.add_diagnostics(diagnostic.counter_snapshot());
+        }
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            let mut counters = gpu.session.counter_snapshot();
+            counters.add_diagnostics(primary);
+            return counters;
+        }
+        primary
+    }
+    pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &self.gpu {
+            return gpu
+                .session
+                .statistics()
+                .with_diagnostics(self.counter_snapshot());
+        }
+        self.session
+            .statistics()
+            .with_diagnostics(self.counter_snapshot())
+    }
+    pub fn new(compiled: impl Into<CompiledModel>, limits: ExecutionLimits) -> ImageResult<Self> {
         Self::new_with_options(compiled, ClassifierOptions::default(), limits)
     }
-    pub fn new_with_options(
-        compiled: Arc<CompiledModel>,
+    fn validate(
+        compiled: impl Into<CompiledModel>,
         options: ClassifierOptions,
         limits: ExecutionLimits,
-    ) -> ImageResult<Self> {
+    ) -> ImageResult<ClassifierPlan> {
+        let compiled = compiled.into();
         if options.max_image_pixels == 0 {
             return Err(ImageError::new(
                 "classifier max_image_pixels must be positive",
             ));
         }
         let head = ProjectionHead::compile(compiled.model().graph(), 2, 2, "classifier")?;
-        let session = Session::new_prefix(
-            compiled.clone(),
-            &[1, 3, 80, 160],
-            limits,
-            head.feature_node,
-        )?;
-        if session.output_shape().element_count() != head.inner {
+        let output = compiled.validate_shape(&[1, 3, 80, 160], limits, Some(head.feature_node))?;
+        if output.element_count() != head.inner {
             return Err(ImageError::new("classifier feature must contain one row"));
         }
-        Ok(Self {
+        Ok(ClassifierPlan {
+            execution: Default::default(),
             compiled,
+            options,
+            limits,
+            head,
+        })
+    }
+    pub fn new_with_options(
+        compiled: impl Into<CompiledModel>,
+        options: ClassifierOptions,
+        limits: ExecutionLimits,
+    ) -> ImageResult<Self> {
+        ClassifierPlan::new(compiled, options, limits)?.request()
+    }
+    fn from_plan(plan: Arc<ClassifierPlan>) -> ImageResult<Self> {
+        let mut session = Session::deferred(
+            plan.compiled.clone(),
+            &[1, 3, 80, 160],
+            plan.limits,
+            Some(plan.head.feature_node),
+        )?;
+        session.set_execution_context(plan.execution.cpu.clone(), plan.execution.threads)?;
+        Ok(Self {
+            plan,
+            #[cfg(feature = "gpu")]
+            gpu: None,
             session,
             diagnostic: None,
-            head,
             resize: ResizeWorkspace::default(),
-            options,
         })
     }
     pub fn fork(&self) -> ImageResult<Self> {
-        let mut fork = Self::new_with_options(
-            self.compiled.clone(),
-            self.options,
-            self.session.execution_limits(),
-        )?;
-        fork.set_execution_context(
-            self.session.cpu_context().clone(),
-            self.session.intra_op_threads(),
-        )?;
-        Ok(fork)
+        self.plan.request()
     }
-    /// Validate the requested budget against the context and execute CLS with one thread.
     pub fn set_execution_context(
         &mut self,
         cpu: Arc<crate::cpu::CpuContext>,
@@ -181,8 +255,11 @@ impl Classifier {
         }
         self.session.set_execution_context(cpu.clone(), 1)?;
         if let Some(diagnostic) = &mut self.diagnostic {
-            diagnostic.set_execution_context(cpu, 1)?;
+            diagnostic.set_execution_context(cpu.clone(), 1)?;
         }
+        let execution = &mut Arc::make_mut(&mut self.plan).execution;
+        execution.cpu = cpu;
+        execution.threads = 1;
         Ok(())
     }
     pub fn classify(&mut self, image: ImageView<'_>) -> ImageResult<ClassificationResult> {
@@ -194,6 +271,9 @@ impl Classifier {
         profile: &mut StageProfile,
     ) -> ImageResult<ClassificationResult> {
         let cpu = self.session.cpu_context().clone();
+        if self.session.is_gpu() {
+            return self.classify_impl::<PROFILE>(image, profile);
+        }
         cpu.install(|| self.classify_impl::<PROFILE>(image, profile))
     }
     fn classify_impl<const PROFILE: bool>(
@@ -202,19 +282,61 @@ impl Classifier {
         profile: &mut StageProfile,
     ) -> ImageResult<ClassificationResult> {
         self.check_image(image)?;
+        #[cfg(feature = "gpu")]
+        if self.session.is_gpu() {
+            let candidate = (|| -> crate::runtime::RuntimeResult<_> {
+                if self.gpu.is_none() {
+                    self.gpu = Some(crate::runtime::gpu::heads::Classification::new(
+                        self.plan.compiled.as_gpu().unwrap().clone(),
+                        self.session.execution_limits(),
+                    )?);
+                }
+                self.gpu
+                    .as_mut()
+                    .unwrap()
+                    .run(image, PROFILE)
+                    .and_then(|(bytes, width)| parse_gpu_classification(&bytes, width))
+            })();
+            let result = match candidate {
+                Ok(result) => result,
+                Err(error) => {
+                    let compiled = self.plan.compiled.resident_fallback(error)?;
+                    let mut replacement = Self::new_with_options(
+                        compiled,
+                        self.plan.options,
+                        self.session.execution_limits(),
+                    )?;
+                    replacement.set_execution_context(
+                        self.session.cpu_context().clone(),
+                        self.session.intra_op_threads(),
+                    )?;
+                    *self = replacement;
+                    return self.classify_profiled::<PROFILE>(image, profile);
+                }
+            };
+            let gpu = self.gpu.as_ref().unwrap();
+            if PROFILE {
+                profile.record_gpu(&gpu.statistics);
+            }
+            return Ok(result);
+        }
         #[cfg(test)]
-        self.session.cpu_context().assert_production_thread("CLS");
+        if !self.session.is_gpu() {
+            self.session.cpu_context().assert_production_thread("CLS");
+        }
         let mut width = 0;
         let resize = &mut self.resize;
         let backbone_timer = Timer::<PROFILE>::start();
         let mut preprocessing_ns = 0;
-        let feature = self.session.run_with_layout_input(|input, nhwc| {
-            let timer = Timer::<PROFILE>::start();
-            width = preprocess::cls_with_layout(image, input, resize, nhwc)
-                .map_err(RuntimeError::from)?;
-            preprocessing_ns = timer.elapsed();
-            Ok(())
-        })?;
+        let feature =
+            self.session
+                .run_with_layout_input_profiled::<PROFILE, _>(|input, nhwc| {
+                    let timer = Timer::<PROFILE>::start();
+                    width = preprocess::cls_with_layout(image, input, resize, nhwc)
+                        .map_err(RuntimeError::from)?;
+                    preprocessing_ns = timer.elapsed();
+                    Ok(())
+                })?;
         if PROFILE {
             profile.cls_preprocess_ns = profile.cls_preprocess_ns.saturating_add(preprocessing_ns);
             profile.cls_backbone_ns = profile
@@ -222,9 +344,11 @@ impl Classifier {
                 .saturating_add(backbone_timer.elapsed().saturating_sub(preprocessing_ns));
         }
         let head_timer = Timer::<PROFILE>::start();
-        let result = self
-            .head
-            .evaluate(self.compiled.model().graph(), feature.data(), width);
+        let result =
+            self.plan
+                .head
+                .evaluate(self.plan.compiled.model().graph(), feature.data(), width);
+        self.session.accumulate_gpu_profile::<PROFILE>(profile);
         if PROFILE {
             profile.cls_head_ns = profile.cls_head_ns.saturating_add(head_timer.elapsed());
         }
@@ -241,7 +365,7 @@ impl Classifier {
         self.check_image(image)?;
         if self.diagnostic.is_none() {
             let mut diagnostic = Session::new_diagnostic(
-                self.compiled.clone(),
+                self.plan.compiled.clone(),
                 &[1, 3, 80, 160],
                 self.session.execution_limits(),
             )?;
@@ -255,8 +379,8 @@ impl Classifier {
         let width = Cell::new(0);
         let public = Cell::new(None);
         let resize = &mut self.resize;
-        let head = &self.head;
-        let graph = self.compiled.model().graph();
+        let head = &self.plan.head;
+        let graph = self.plan.compiled.model().graph();
         let probabilities = self.diagnostic.as_mut().unwrap().run_with_input_and_trace(
             |input| {
                 let actual = preprocess::cls(image, input, resize).map_err(RuntimeError::from)?;
@@ -286,28 +410,63 @@ impl Classifier {
         Ok(result)
     }
     pub(crate) fn activation_bytes(&self) -> usize {
-        self.session.activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident + self.session.activation_bytes()
     }
     pub fn options(&self) -> ClassifierOptions {
-        self.options
+        self.plan.options
     }
     fn check_image(&self, image: ImageView<'_>) -> ImageResult<()> {
-        if image.pixel_count()? > self.options.max_image_pixels {
+        if image.pixel_count()? > self.plan.options.max_image_pixels {
             return Err(ImageError::new(
                 "source image exceeds classifier max_image_pixels",
             ));
         }
         Ok(())
     }
+    pub fn retained_device_bytes(&self) -> usize {
+        #[cfg(feature = "gpu")]
+        let resident = self.gpu.as_ref().map_or(0, |g| g.retained_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.session.retained_device_bytes()
+            + self
+                .diagnostic
+                .as_ref()
+                .map_or(0, Session::retained_device_bytes)
+    }
     pub(crate) fn retained_activation_bytes(&self) -> usize {
-        self.session.retained_activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.session.retained_activation_bytes()
             + self
                 .diagnostic
                 .as_ref()
                 .map_or(0, Session::retained_activation_bytes)
     }
     pub(crate) fn retained_workspace_bytes(&self) -> usize {
-        self.resize.retained_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .gpu
+            .as_ref()
+            .map_or(0, |g| g.session.retained_planning_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.resize.retained_bytes()
             + (self.session.retained_planning_bytes() + self.session.retained_scratch_bytes())
             + self.diagnostic.as_ref().map_or(0, |s| {
                 s.retained_planning_bytes() + s.retained_scratch_bytes()
@@ -325,6 +484,43 @@ impl Classifier {
 
 pub fn should_rotate(result: ClassificationResult, threshold: f32) -> bool {
     result.label == 1 && result.score > threshold
+}
+
+impl ClassifierPlan {
+    pub fn new(
+        compiled: impl Into<CompiledModel>,
+        options: ClassifierOptions,
+        limits: ExecutionLimits,
+    ) -> ImageResult<Arc<Self>> {
+        Ok(Arc::new(Classifier::validate(compiled, options, limits)?))
+    }
+    pub fn request(self: &Arc<Self>) -> ImageResult<Classifier> {
+        Classifier::from_plan(self.clone())
+    }
+    pub fn options(&self) -> ClassifierOptions {
+        self.options
+    }
+    pub fn compiled(&self) -> &CompiledModel {
+        &self.compiled
+    }
+}
+
+#[cfg(feature = "gpu")]
+pub(crate) fn parse_gpu_classification(
+    bytes: &[u8],
+    resized_width: usize,
+) -> crate::runtime::RuntimeResult<ClassificationResult> {
+    let label = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+    let score = f32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    if label > 1 || !score.is_finite() || u32::from_le_bytes(bytes[12..16].try_into().unwrap()) != 0
+    {
+        return Err(RuntimeError::new("invalid GPU classifier result"));
+    }
+    Ok(crate::orientation::ClassificationResult {
+        label,
+        score,
+        resized_width,
+    })
 }
 
 #[cfg(test)]

@@ -194,8 +194,10 @@ fn delta_conv_gelu_graph_reaches_packed_store_with_independent_policy_bits() {
         let mut request = session(
             parsed.clone(),
             CompileOptions {
-                kernels,
-                layout: LayoutPolicy::Nchw,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels,
+                    layout: LayoutPolicy::Nchw,
+                },
                 ..CompileOptions::default()
             },
             &[batch, 1, height, width],

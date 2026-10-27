@@ -1,4 +1,6 @@
 //! Pixel-to-text composition with borrowed results and bounded CPU workers.
+#[cfg(feature = "gpu")]
+pub(crate) mod gpu;
 use crate::profile::{StageProfile, Timer};
 use crate::{
     cpu::{CpuBudgets, CpuContext, CpuOptions},
@@ -47,6 +49,10 @@ struct LineRecord {
     recognition_tensor_width: usize,
     recognition_time_steps: usize,
     spans: Option<(usize, usize)>,
+}
+#[cfg(feature = "gpu")]
+pub(crate) fn line_record_bytes() -> usize {
+    size_of::<LineRecord>()
 }
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct OcrLineView<'a> {
@@ -249,10 +255,8 @@ fn allocation(error: std::collections::TryReserveError) -> ImageError {
     )
 }
 
-pub struct Ocr {
-    extractor: OrientedLineExtractor,
-    recognizer: Recognizer,
-    options: OcrOptions,
+#[derive(Default)]
+struct ResultWorkspace {
     lines: Vec<LineRecord>,
     text: String,
     runs: Vec<CtcRun>,
@@ -261,14 +265,265 @@ pub struct Ocr {
     detector_resized_height: usize,
     width_ratio: f32,
     height_ratio: f32,
+}
+#[cfg(feature = "gpu")]
+impl ResultWorkspace {
+    fn clear(&mut self) {
+        self.lines.clear();
+        self.text.clear();
+        self.runs.clear();
+    }
+}
+
+/// Immutable OCR configuration and shared stage resources. Cloning never clones arenas.
+#[derive(Clone)]
+pub struct OcrPlan {
+    extractor: Arc<crate::lines::OrientedLinePlan>,
+    recognizer: Arc<crate::recognizer::RecognizerPlan>,
+    options: OcrOptions,
     cpu: Arc<CpuContext>,
-    pinned_cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
+    recognition_batch_size: usize,
+}
+impl OcrPlan {
+    pub fn new(
+        extractor: Arc<crate::lines::OrientedLinePlan>,
+        recognizer: Arc<crate::recognizer::RecognizerPlan>,
+        options: OcrOptions,
+        cpu: Arc<CpuContext>,
+        cpu_options: CpuOptions,
+        recognition_batch_size: usize,
+    ) -> ImageResult<Self> {
+        if options.max_total_result_bytes == 0 {
+            return Err(ImageError::new("max_total_result_bytes must be positive"));
+        }
+        validate_batch_size(recognition_batch_size)?;
+        cpu_options.resolve(
+            cpu.capacity(),
+            extractor
+                .detector()
+                .compiled()
+                .as_cpu()
+                .is_some_and(|c| c.options().cpu.layout == crate::runtime::LayoutPolicy::Auto),
+        )?;
+        let plan = Self {
+            extractor,
+            recognizer,
+            options,
+            cpu,
+            cpu_options,
+            recognition_batch_size,
+        };
+        #[cfg(feature = "gpu")]
+        plan.validate_contexts()?;
+        Ok(plan)
+    }
+    pub fn with_extractor(
+        mut self,
+        extractor: Arc<crate::lines::OrientedLinePlan>,
+    ) -> ImageResult<Self> {
+        self.extractor = extractor;
+        #[cfg(feature = "gpu")]
+        self.validate_contexts()?;
+        Ok(self)
+    }
+    pub fn with_recognizer(
+        mut self,
+        recognizer: Arc<crate::recognizer::RecognizerPlan>,
+    ) -> ImageResult<Self> {
+        self.recognizer = recognizer;
+        #[cfg(feature = "gpu")]
+        self.validate_contexts()?;
+        Ok(self)
+    }
+    pub fn request(&self) -> ImageResult<OcrRequest> {
+        #[cfg(feature = "gpu")]
+        self.validate_contexts()?;
+        OcrRequest::from_plan(self.clone())
+    }
+    /// Shared coefficient and packing storage. Excluded from request eviction totals.
+    pub fn shared_weights(&self) -> crate::runtime::MemorySnapshot {
+        let mut memory = crate::runtime::MemorySnapshot::default();
+        let mut models = std::collections::HashSet::new();
+        let mut packs = std::collections::HashSet::new();
+        #[cfg(feature = "gpu")]
+        let mut device_resources = std::collections::HashSet::new();
+        for compiled in [
+            Some(self.extractor.detector().compiled()),
+            Some(self.recognizer.compiled()),
+            self.extractor.classifier().map(|c| c.compiled()),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if models.insert(compiled.model() as *const _ as usize) {
+                memory.host_bytes += compiled.model().normalized_weight_bytes() as usize;
+            }
+            if packs.insert(Arc::as_ptr(&compiled.packed) as usize) {
+                memory.host_bytes += compiled.packed.bytes();
+            }
+            #[cfg(feature = "gpu")]
+            if let Some(gpu) = compiled.as_gpu() {
+                memory.device_bytes += gpu.unique_weight_bytes(&mut device_resources);
+            }
+        }
+        memory
+    }
+    pub fn cpu_context(&self) -> &Arc<CpuContext> {
+        &self.cpu
+    }
+    pub fn extractor(&self) -> &Arc<crate::lines::OrientedLinePlan> {
+        &self.extractor
+    }
+    pub fn recognizer(&self) -> &Arc<crate::recognizer::RecognizerPlan> {
+        &self.recognizer
+    }
+    #[cfg(feature = "gpu")]
+    fn validate_contexts(&self) -> ImageResult<()> {
+        let detector = self.extractor.detector().compiled().as_gpu();
+        let classifier = self
+            .extractor
+            .classifier()
+            .and_then(|p| p.compiled().as_gpu());
+        if let (Some(d), Some(c)) = (detector, classifier)
+            && !Arc::ptr_eq(d.context(), c.context())
+        {
+            return Err(ImageError::new(
+                "resident extraction requires one GPU context",
+            ));
+        }
+        if let (Some(d), Some(r)) = (detector, self.recognizer.compiled().as_gpu())
+            && self
+                .extractor
+                .classifier()
+                .is_none_or(|c| c.compiled().is_gpu())
+            && !Arc::ptr_eq(d.context(), r.context())
+        {
+            return Err(ImageError::new("resident OCR requires one GPU context"));
+        }
+        Ok(())
+    }
+}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RunOptions {
+    pub capture_spans: bool,
+}
+fn validate_batch_size(size: usize) -> ImageResult<()> {
+    if size == 0 || size > i32::MAX as usize {
+        return Err(ImageError::new(
+            "recognition_batch_size must be within 1..=i32::MAX",
+        ));
+    }
+    Ok(())
+}
+
+/// Production orchestration selected by the active request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub enum OcrExecution {
+    Cpu,
+    Hybrid,
+    Resident,
+}
+enum ActiveExecution {
+    Cpu,
+    Hybrid,
+    #[cfg(feature = "gpu")]
+    Resident(Box<gpu::Pipeline>),
+}
+impl ActiveExecution {
+    fn staged(gpu: bool) -> Self {
+        if gpu { Self::Hybrid } else { Self::Cpu }
+    }
+    fn kind(&self) -> OcrExecution {
+        match self {
+            Self::Cpu => OcrExecution::Cpu,
+            Self::Hybrid => OcrExecution::Hybrid,
+            #[cfg(feature = "gpu")]
+            Self::Resident(_) => OcrExecution::Resident,
+        }
+    }
+    #[cfg(feature = "gpu")]
+    fn resident(&self) -> Option<&gpu::Pipeline> {
+        match self {
+            Self::Resident(p) => Some(p),
+            _ => None,
+        }
+    }
+    #[cfg(feature = "gpu")]
+    fn resident_mut(&mut self) -> Option<&mut gpu::Pipeline> {
+        match self {
+            Self::Resident(p) => Some(p),
+            _ => None,
+        }
+    }
+}
+/// Placement, timings and traffic for exactly one invocation, including diagnostics.
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct RunStatistics {
+    pub execution: OcrExecution,
+    pub succeeded: bool,
+    pub stages: std::collections::BTreeMap<
+        crate::error::OcrStage,
+        Vec<crate::runtime::ExecutionStatistics>,
+    >,
+    #[cfg(feature = "gpu")]
+    pub gpu: Option<crate::runtime::gpu::GpuPipelineStatistics>,
+}
+
+impl RunStatistics {
+    fn retained_bytes(&self) -> usize {
+        let stages = self
+            .stages
+            .values()
+            .map(|sessions| {
+                sessions.capacity() * size_of::<crate::runtime::ExecutionStatistics>()
+                    + sessions
+                        .iter()
+                        .map(crate::runtime::ExecutionStatistics::retained_bytes)
+                        .sum::<usize>()
+            })
+            .sum::<usize>();
+        #[cfg(feature = "gpu")]
+        let gpu = self.gpu.as_ref().map_or(
+            0,
+            crate::runtime::gpu::GpuPipelineStatistics::retained_bytes,
+        );
+        #[cfg(not(feature = "gpu"))]
+        let gpu = 0;
+        stages + gpu
+    }
+}
+/// Exclusive reusable execution and result storage.
+///
+/// ```compile_fail,E0515
+/// use simd_paddle_ocr_rs::{OcrPlan, RunOptions, image::ImageView, ocr::OcrView};
+/// fn escape<'a>(plan: &OcrPlan, image: ImageView<'_>) -> OcrView<'a> {
+///     let mut request = plan.request().unwrap();
+///     request.run(image, RunOptions::default()).unwrap()
+/// }
+/// ```
+///
+/// ```compile_fail,E0499
+/// use simd_paddle_ocr_rs::{OcrRequest, RunOptions, image::ImageView};
+/// fn overwrite(request: &mut OcrRequest, image: ImageView<'_>) {
+///     let first = request.run(image, RunOptions::default()).unwrap();
+///     request.run(image, RunOptions::default()).unwrap();
+///     println!("{}", first.text);
+/// }
+/// ```
+pub struct OcrRequest {
+    plan: OcrPlan,
+    execution: ActiveExecution,
+    latest_run: Option<RunStatistics>,
+    counters: crate::runtime::ExecutionCounters,
+    extractor: OrientedLineExtractor,
+    recognizer: Recognizer,
+    result: ResultWorkspace,
+    pinned_cpu: Option<Arc<CpuContext>>,
     budgets: CpuBudgets,
     workers: Vec<RecognitionWorker>,
     recognition_results: Vec<Mutex<RecognitionSlot>>,
     recognition_order: Vec<usize>,
-    recognition_batch_size: usize,
     unwind_state: Arc<AtomicBool>,
 }
 struct RequestUnwindGuard(Arc<AtomicBool>);
@@ -288,115 +543,326 @@ struct RecognitionWorker {
     #[cfg(feature = "profiling")]
     owner_profile: crate::profile::RecognitionOwnerProfile,
 }
-impl Ocr {
-    pub fn new(
+impl OcrRequest {
+    #[cfg(test)]
+    pub(crate) fn new_with_execution(
         extractor: OrientedLineExtractor,
         recognizer: Recognizer,
-        options: OcrOptions,
-    ) -> ImageResult<Self> {
-        Self::new_with_execution(
-            extractor,
-            recognizer,
-            options,
-            CpuContext::shared_default()?,
-            CpuOptions::default(),
-        )
-    }
-    pub fn new_with_execution(
-        mut extractor: OrientedLineExtractor,
-        mut recognizer: Recognizer,
         options: OcrOptions,
         cpu: Arc<CpuContext>,
         cpu_options: CpuOptions,
     ) -> ImageResult<Self> {
+        OcrPlan::new(
+            extractor.plan().clone(),
+            recognizer.plan().clone(),
+            options,
+            cpu,
+            cpu_options,
+            1,
+        )?
+        .request()
+    }
+    fn from_plan(plan: OcrPlan) -> ImageResult<Self> {
+        let mut extractor = plan.extractor.request()?;
+        let mut recognizer = plan.recognizer.request()?;
+        let options = plan.options;
+        let cpu = plan.cpu.clone();
+        let cpu_options = plan.cpu_options;
         if options.max_total_result_bytes == 0 {
             return Err(ImageError::new("max_total_result_bytes must be positive"));
         }
         let budgets = cpu_options.resolve(
             cpu.capacity(),
-            matches!(
-                extractor.detector().compiled().options().layout,
-                crate::runtime::LayoutPolicy::Auto
-            ),
+            extractor
+                .detector()
+                .compiled()
+                .as_cpu()
+                .is_some_and(|c| c.options().cpu.layout == crate::runtime::LayoutPolicy::Auto),
         )?;
         extractor.set_execution_context(cpu.clone(), cpu_options)?;
         recognizer.set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         Ok(Self {
+            plan,
+            execution: ActiveExecution::staged(extractor.uses_gpu() || recognizer.uses_gpu()),
+            latest_run: None,
+            counters: Default::default(),
             extractor,
             recognizer,
-            options,
-            lines: Vec::new(),
-            text: String::new(),
-            runs: Vec::new(),
-            detected_count: 0,
-            detector_resized_width: 0,
-            detector_resized_height: 0,
-            width_ratio: 0.,
-            height_ratio: 0.,
-            cpu,
+            result: ResultWorkspace::default(),
             pinned_cpu: None,
-            cpu_options,
             budgets,
             workers: Vec::new(),
             recognition_results: Vec::new(),
             recognition_order: Vec::new(),
-            recognition_batch_size: 1,
             unwind_state: Arc::new(AtomicBool::new(false)),
         })
     }
-    /// A fresh mutable request sharing compiled models, packs and the CPU cap.
-    pub fn fork(&self) -> ImageResult<Self> {
-        let mut fork = Self::new_with_execution(
-            self.extractor.fork()?,
-            self.recognizer.fork()?,
-            self.options,
-            self.cpu.clone(),
-            self.cpu_options,
-        )?;
-        fork.recognition_batch_size = self.recognition_batch_size;
-        Ok(fork)
-    }
-    /// Consume a request into an arena-free factory sharing its immutable
-    /// models, packed weights, dictionary and CPU context. Warm activations,
-    /// crop slabs, decoding buffers and diagnostic sessions are released.
-    pub fn into_factory(self) -> impl Fn() -> ImageResult<Self> + Send + Sync + 'static {
-        let detector = self.extractor.detector();
-        let detector_model = detector.compiled().clone();
-        let detector_options = detector.resolved_options();
-        let detector_limits = detector.execution_limits();
-        let classifier_model = self.extractor.classifier_model().cloned();
-        let line_options = self.extractor.options();
-        let recognizer_model = self.recognizer.compiled().clone();
-        let dictionary = self.recognizer.dictionary().clone();
-        let recognizer_options = self.recognizer.resolved_options();
-        let recognizer_limits = self.recognizer.execution_limits();
-        let cpu = self.cpu.clone();
-        let cpu_options = self.cpu_options;
-        let options = self.options;
-        let recognition_batch_size = self.recognition_batch_size;
-        drop(self);
-        move || {
-            let detector = crate::detector::Detector::new(
-                detector_model.clone(),
-                detector_options,
-                detector_limits,
-            )?;
-            let extractor =
-                OrientedLineExtractor::new(detector, classifier_model.clone(), line_options)?;
-            let recognizer = Recognizer::new(
-                recognizer_model.clone(),
-                dictionary.clone(),
-                recognizer_options,
-                recognizer_limits,
-            )?;
-            let mut request =
-                Self::new_with_execution(extractor, recognizer, options, cpu.clone(), cpu_options)?;
-            request.recognition_batch_size = recognition_batch_size;
-            Ok(request)
+    /// Replace configuration transactionally. A rejected plan leaves this request usable.
+    pub fn reconfigure(&mut self, plan: OcrPlan) -> ImageResult<()> {
+        if self
+            .pinned_cpu
+            .as_ref()
+            .is_some_and(|cpu| !Arc::ptr_eq(cpu, plan.cpu_context()))
+        {
+            return Err(ImageError::new("CPU context is pinned to this OCR engine"));
         }
+        let mut replacement = plan.request()?;
+        replacement.pinned_cpu = self.pinned_cpu.clone();
+        replacement.result = std::mem::take(&mut self.result);
+        replacement.counters = self.counters;
+        *self = replacement;
+        Ok(())
+    }
+    pub fn plan(&self) -> &OcrPlan {
+        &self.plan
+    }
+    pub fn extractor(&self) -> &OrientedLineExtractor {
+        &self.extractor
+    }
+    pub fn recognizer(&self) -> &Recognizer {
+        &self.recognizer
+    }
+    /// A fresh request with independent storage and the same immutable plan.
+    pub fn fork(&self) -> ImageResult<Self> {
+        self.plan.request()
     }
     pub fn cpu_context(&self) -> &Arc<CpuContext> {
-        &self.cpu
+        &self.plan.cpu
+    }
+    /// Whether any neural stage uses the GPU. Host image work still uses the CPU context.
+    pub fn uses_gpu(&self) -> bool {
+        self.extractor.uses_gpu() || self.recognizer.uses_gpu()
+    }
+    #[cfg(feature = "gpu")]
+    fn collect_gpu_statistics(
+        &self,
+        stages: &std::collections::BTreeMap<
+            crate::error::OcrStage,
+            Vec<crate::runtime::ExecutionStatistics>,
+        >,
+        resident: bool,
+    ) -> Option<crate::runtime::gpu::GpuPipelineStatistics> {
+        use crate::runtime::gpu::{GpuPipelineStatistics, GpuPlacement};
+        if resident && let Some(pipeline) = self.execution.resident() {
+            let mut stats = pipeline.statistics.clone();
+            stats.diagnostic_readback_bytes = stages
+                .values()
+                .flatten()
+                .map(|s| s.diagnostic_readback_bytes)
+                .sum();
+            return Some(stats);
+        }
+        if !self.uses_gpu() {
+            return None;
+        }
+        let full = resident;
+        let det = full && self.extractor.detector().uses_gpu();
+        let rec = full && self.recognizer.uses_gpu();
+        let cls = full && self.extractor.classifier().is_none_or(|c| c.uses_gpu());
+        let extraction = self.extractor.gpu_pipeline_statistics();
+        let mut stats = GpuPipelineStatistics {
+            image_processing: if extraction.is_some() {
+                GpuPlacement::NotRun
+            } else {
+                GpuPlacement::Cpu
+            },
+            geometry: if det {
+                GpuPlacement::Gpu
+            } else {
+                GpuPlacement::Cpu
+            },
+            projection: if self.extractor.classifier().is_none() || rec == cls {
+                if rec {
+                    GpuPlacement::Gpu
+                } else {
+                    GpuPlacement::Cpu
+                }
+            } else {
+                GpuPlacement::Hybrid
+            },
+            decoding: if rec {
+                GpuPlacement::Gpu
+            } else {
+                GpuPlacement::Cpu
+            },
+            ..Default::default()
+        };
+        if extraction.is_none() {
+            stats
+                .cpu_compute_stages
+                .push("perspective crops and orientation".into());
+        }
+        if !det {
+            stats
+                .cpu_compute_stages
+                .extend(["detector preprocessing".into(), "DB geometry".into()]);
+        }
+        if !rec {
+            stats.cpu_compute_stages.extend([
+                "recognizer preprocessing".into(),
+                "recognition projection".into(),
+                "CTC decoding".into(),
+            ]);
+            stats.image_processing = GpuPlacement::Cpu;
+        }
+        if !cls && self.extractor.classifier().is_some() {
+            stats.cpu_compute_stages.extend([
+                "classifier preprocessing".into(),
+                "classifier projection".into(),
+            ]);
+        }
+        for (name, model) in [
+            ("detector", Some(self.extractor.detector().uses_gpu())),
+            ("recognizer", Some(self.recognizer.uses_gpu())),
+            (
+                "classifier",
+                self.extractor.classifier().map(|c| c.uses_gpu()),
+            ),
+        ] {
+            if model == Some(false) {
+                stats.cpu_compute_stages.push(format!("{name} inference"));
+            }
+        }
+        let detector = extraction.or_else(|| self.extractor.detector().gpu_pipeline_statistics());
+        let classifier = if extraction.is_some() {
+            None
+        } else {
+            self.extractor
+                .classifier()
+                .and_then(|c| c.gpu_pipeline_statistics())
+        };
+        let recognizer = self.recognizer.gpu_pipeline_statistics();
+        for source in [detector, recognizer, classifier].into_iter().flatten() {
+            crate::runtime::gpu::vision::merge_statistics(&mut stats, source.clone());
+        }
+        for (name, stages) in stages {
+            for stage in stages {
+                let resident = match name {
+                    crate::error::OcrStage::Detector => detector.is_some(),
+                    crate::error::OcrStage::Classifier => {
+                        classifier.is_some() || extraction.is_some()
+                    }
+                    crate::error::OcrStage::Recognizer => recognizer.is_some(),
+                    _ => false,
+                };
+                if !resident {
+                    stats.submissions += stage.production_submissions;
+                    stats.uploaded_bytes += stage.uploaded_bytes;
+                    stats.output_readback_bytes += stage.output_readback_bytes;
+                }
+                stats.diagnostic_readback_bytes += stage.diagnostic_readback_bytes;
+            }
+        }
+        Some(stats)
+    }
+    /// Statistics from each mutable stage, including CPU worker requests.
+    pub fn execution_statistics(
+        &self,
+    ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::ExecutionStatistics>>
+    {
+        self.stage_statistics(
+            self.latest_run
+                .as_ref()
+                .is_none_or(|run| run.execution == OcrExecution::Resident),
+        )
+    }
+    fn stage_counter_snapshots(
+        &self,
+        resident: bool,
+    ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::StatisticsCounters>>
+    {
+        #[cfg(not(feature = "gpu"))]
+        let _ = resident;
+        #[cfg(feature = "gpu")]
+        if resident && let Some(pipeline) = self.execution.resident() {
+            let mut result = pipeline.counter_snapshots();
+            for (stage, diagnostics) in self.primary_diagnostic_counters() {
+                if let Some(active) = result.get_mut(&stage).and_then(|s| s.first_mut()) {
+                    active.add_diagnostics(diagnostics);
+                }
+            }
+            return result;
+        }
+        let mut result = std::collections::BTreeMap::new();
+        result.insert(
+            crate::error::OcrStage::Detector,
+            vec![self.extractor.detector().counter_snapshot()],
+        );
+        result.insert(
+            crate::error::OcrStage::Recognizer,
+            std::iter::once(self.recognizer.counter_snapshot())
+                .chain(self.workers.iter().map(|w| w.recognizer.counter_snapshot()))
+                .collect(),
+        );
+        let classifiers: Vec<_> = self.extractor.classifier_counter_snapshots().collect();
+        if !classifiers.is_empty() {
+            result.insert(crate::error::OcrStage::Classifier, classifiers);
+        }
+        result
+    }
+    #[cfg(feature = "gpu")]
+    fn primary_diagnostic_counters(
+        &self,
+    ) -> [(crate::error::OcrStage, crate::runtime::StatisticsCounters); 3] {
+        let mut recognition = self.recognizer.counter_snapshot();
+        for worker in &self.workers {
+            recognition.add_diagnostics(worker.recognizer.counter_snapshot());
+        }
+        let mut classification = crate::runtime::StatisticsCounters::default();
+        for classifier in self.extractor.classifier_counter_snapshots() {
+            classification.add_diagnostics(classifier);
+        }
+        [
+            (
+                crate::error::OcrStage::Detector,
+                self.extractor.detector().counter_snapshot(),
+            ),
+            (crate::error::OcrStage::Recognizer, recognition),
+            (crate::error::OcrStage::Classifier, classification),
+        ]
+    }
+    fn stage_statistics(
+        &self,
+        resident: bool,
+    ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::ExecutionStatistics>>
+    {
+        #[cfg(not(feature = "gpu"))]
+        let _ = resident;
+        #[cfg(feature = "gpu")]
+        if resident && let Some(pipeline) = self.execution.resident() {
+            let mut result = pipeline.execution_statistics();
+            for (stage, diagnostics) in self.primary_diagnostic_counters() {
+                if let Some(active) = result.get_mut(&stage).and_then(|s| s.first_mut()) {
+                    active.diagnostic_readbacks += diagnostics.diagnostic_readbacks;
+                    active.diagnostic_readback_bytes += diagnostics.diagnostic_readback_bytes;
+                }
+            }
+            return result;
+        }
+        let mut result = std::collections::BTreeMap::new();
+        result.insert(
+            crate::error::OcrStage::Detector,
+            vec![self.extractor.detector().execution_statistics()],
+        );
+        result.insert(
+            crate::error::OcrStage::Recognizer,
+            std::iter::once(self.recognizer.execution_statistics())
+                .chain(
+                    self.workers
+                        .iter()
+                        .map(|w| w.recognizer.execution_statistics()),
+                )
+                .collect(),
+        );
+        let classifiers = self.extractor.classifier_statistics();
+        if !classifiers.is_empty() {
+            result.insert(crate::error::OcrStage::Classifier, classifiers);
+        }
+        result
+    }
+    #[cfg(all(test, feature = "gpu"))]
+    pub(crate) fn workers_len_for_gpu_test(&self) -> usize {
+        self.workers.len()
     }
     pub(crate) fn unwound(&self) -> bool {
         self.unwind_state.load(Ordering::Relaxed)
@@ -405,7 +871,7 @@ impl Ocr {
         self.budgets
     }
     pub fn set_cpu_context(&mut self, cpu: Arc<CpuContext>) -> ImageResult<()> {
-        self.set_execution_context(cpu, self.cpu_options)
+        self.set_execution_context(cpu, self.plan.cpu_options)
     }
     pub(crate) fn pin_cpu_context(&mut self, cpu: Arc<CpuContext>) -> ImageResult<()> {
         self.set_cpu_context(cpu.clone())?;
@@ -426,10 +892,11 @@ impl Ocr {
         }
         let budgets = options.resolve(
             cpu.capacity(),
-            matches!(
-                self.extractor.detector().compiled().options().layout,
-                crate::runtime::LayoutPolicy::Auto
-            ),
+            self.extractor
+                .detector()
+                .compiled()
+                .as_cpu()
+                .is_some_and(|c| c.options().cpu.layout == crate::runtime::LayoutPolicy::Auto),
         )?;
         self.extractor.set_execution_context(cpu.clone(), options)?;
         self.recognizer
@@ -439,17 +906,17 @@ impl Ocr {
                 .recognizer
                 .set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         }
-        self.cpu = cpu;
-        self.cpu_options = options;
+        self.plan.cpu = cpu;
+        self.plan.cpu_options = options;
         self.budgets = budgets;
         Ok(())
     }
     pub fn options(&self) -> OcrOptions {
-        self.options
+        self.plan.options
     }
     /// Maximum crops per exact selected-width recognition batch. Defaults to one.
     pub fn recognition_batch_size(&self) -> usize {
-        self.recognition_batch_size
+        self.plan.recognition_batch_size
     }
     /// Opt into same-width batching. Larger batches increase activation memory;
     /// each worker remains subject to its recognizer's execution limits.
@@ -459,20 +926,51 @@ impl Ocr {
                 "recognition_batch_size must be within 1..=i32::MAX",
             ));
         }
-        self.recognition_batch_size = size;
+        self.plan.recognition_batch_size = size;
         Ok(())
     }
-    pub fn recognizer_mut(&mut self) -> &mut Recognizer {
+    pub fn set_detector_resize(
+        &mut self,
+        policy: crate::detector::DetResizePolicy,
+        limit: usize,
+    ) -> ImageResult<()> {
+        self.extractor.set_resize_options(policy, limit)?;
+        self.plan.extractor = self.extractor.plan().clone();
+        #[cfg(feature = "gpu")]
+        {
+            self.execution = ActiveExecution::staged(self.uses_gpu());
+        }
+        Ok(())
+    }
+    #[cfg(test)]
+    pub(crate) fn recognizer_mut(&mut self) -> &mut Recognizer {
+        #[cfg(feature = "gpu")]
+        {
+            self.execution = ActiveExecution::staged(self.uses_gpu());
+        }
         // A caller can replace the recognizer through this reference. Worker
         // sessions must then be rebuilt from the new immutable model/options.
         self.workers.clear();
         &mut self.recognizer
     }
-    pub fn extractor_mut(&mut self) -> &mut OrientedLineExtractor {
+    #[cfg(test)]
+    pub(crate) fn extractor_mut(&mut self) -> &mut OrientedLineExtractor {
+        #[cfg(feature = "gpu")]
+        {
+            self.execution = ActiveExecution::staged(self.uses_gpu());
+        }
         &mut self.extractor
     }
     pub fn activation_bytes(&self) -> usize {
-        self.extractor.detector().activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .execution
+            .resident()
+            .map_or(0, |g| g.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.extractor.detector().activation_bytes()
             + self.extractor.classifier_activation_bytes()
             + self.recognizer.activation_bytes()
             + self
@@ -482,7 +980,15 @@ impl Ocr {
                 .sum::<usize>()
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        self.extractor.detector().retained_activation_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self
+            .execution
+            .resident()
+            .map_or(0, |g| g.activation_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.extractor.detector().retained_activation_bytes()
             + self.extractor.classifier_retained_activation_bytes()
             + self.recognizer.retained_activation_bytes()
             + self
@@ -499,12 +1005,36 @@ impl Ocr {
                 .map(|w| w.recognizer.diagnostic_retained_activation_bytes())
                 .sum::<usize>()
     }
+    /// Retained request-owned GPU buffers. Shared uploaded weights are excluded.
+    pub fn retained_device_bytes(&self) -> usize {
+        #[cfg(feature = "gpu")]
+        let resident = self.execution.resident().map_or(0, |g| g.retained_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        resident
+            + self.extractor.retained_device_bytes()
+            + self.recognizer.retained_device_bytes()
+            + self
+                .workers
+                .iter()
+                .map(|w| w.recognizer.retained_device_bytes())
+                .sum::<usize>()
+    }
     pub fn retained_workspace_bytes(&self) -> usize {
-        let buffers = self.extractor.retained_workspace_bytes()
+        #[cfg(feature = "gpu")]
+        let resident = self.execution.resident().map_or(0, |g| g.workspace_bytes());
+        #[cfg(not(feature = "gpu"))]
+        let resident = 0;
+        let buffers = self
+            .latest_run
+            .as_ref()
+            .map_or(0, RunStatistics::retained_bytes)
+            + resident
+            + self.extractor.retained_workspace_bytes()
             + self.recognizer.retained_workspace_bytes()
-            + self.lines.capacity() * size_of::<LineRecord>()
-            + self.text.capacity()
-            + self.runs.capacity() * size_of::<CtcRun>()
+            + self.result.lines.capacity() * size_of::<LineRecord>()
+            + self.result.text.capacity()
+            + self.result.runs.capacity() * size_of::<CtcRun>()
             + self.recognition_order.capacity() * size_of::<usize>()
             + self.recognition_results.capacity() * size_of::<Mutex<RecognitionSlot>>()
             + self
@@ -543,9 +1073,18 @@ impl Ocr {
     }
     /// Reuse one DET/optional CLS/REC pipeline in detector reading order.
     /// Errors expose no partial result; a later valid call can reuse the engine.
-    pub fn run(&mut self, image: ImageView<'_>, capture: bool) -> ImageResult<OcrView<'_>> {
-        let cpu = self.cpu.clone();
+    pub fn run(&mut self, image: ImageView<'_>, options: RunOptions) -> ImageResult<OcrView<'_>> {
+        let capture = options.capture_spans;
+        let cpu = self.plan.cpu.clone();
         let _demand = cpu.register_request();
+        if self.uses_gpu() {
+            return self.run_impl::<false, false, _>(
+                image,
+                capture,
+                |_| Ok(()),
+                &mut StageProfile::default(),
+            );
+        }
         cpu.install(|| {
             self.run_impl::<false, false, _>(
                 image,
@@ -564,11 +1103,15 @@ impl Ocr {
     ) -> ImageResult<(OcrView<'_>, StageProfile)> {
         let timer = Timer::<true>::start();
         let mut profile = StageProfile::default();
-        let cpu = self.cpu.clone();
+        let cpu = self.plan.cpu.clone();
         let _demand = cpu.register_request();
-        let result = cpu.install(|| {
+        let result = if self.uses_gpu() {
             self.run_impl::<false, true, _>(image, capture, |_| Ok(()), &mut profile)
-        })?;
+        } else {
+            cpu.install(|| {
+                self.run_impl::<false, true, _>(image, capture, |_| Ok(()), &mut profile)
+            })
+        }?;
         profile.total_ns = timer.elapsed();
         Ok((result, profile))
     }
@@ -583,9 +1126,31 @@ impl Ocr {
     where
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
-        let cpu = self.cpu.clone();
+        let cpu = self.plan.cpu.clone();
         let _demand = cpu.register_request();
         self.run_impl::<true, false, F>(image, capture, observer, &mut StageProfile::default())
+    }
+    pub fn latest_run(&self) -> Option<&RunStatistics> {
+        self.latest_run.as_ref()
+    }
+    pub fn counters(&self) -> crate::runtime::ExecutionCounters {
+        self.counters
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_pipeline_statistics(&self) -> Option<crate::runtime::gpu::GpuPipelineStatistics> {
+        self.latest_run.as_ref().and_then(|r| r.gpu.clone())
+    }
+    /// Retained capacity used for eviction; shared weights and transient peaks are excluded.
+    pub fn memory_snapshot(&self) -> crate::runtime::MemorySnapshot {
+        let total = self
+            .retained_activation_bytes()
+            .saturating_add(self.diagnostic_retained_activation_bytes())
+            .saturating_add(self.retained_workspace_bytes());
+        let device_bytes = self.retained_device_bytes();
+        crate::runtime::MemorySnapshot {
+            host_bytes: total.saturating_sub(device_bytes),
+            device_bytes,
+        }
     }
     fn run_impl<const TRACE: bool, const PROFILE: bool, F>(
         &mut self,
@@ -597,12 +1162,94 @@ impl Ocr {
     where
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
-        let inline_cpu = self.cpu.clone();
-        let _inline = inline_cpu.enter_inline();
+        let before = self.stage_counter_snapshots(!TRACE);
+        #[cfg(feature = "gpu")]
+        {
+            self.extractor.reset_run_statistics();
+            self.recognizer.reset_run_statistics();
+            for worker in &mut self.workers {
+                worker.recognizer.reset_run_statistics();
+            }
+        }
+        let mut observer = observer;
+        let result = self.execute_inner::<TRACE, PROFILE, _>(
+            image,
+            capture,
+            |event| observer(event).map_err(ImageError::callback),
+            profile,
+        );
+        let mut stages = self.stage_statistics(!TRACE);
+        for (stage, sessions) in &mut stages {
+            for (i, session) in sessions.iter_mut().enumerate() {
+                if let Some(previous) = before.get(stage).and_then(|s| s.get(i)) {
+                    session.since(previous);
+                }
+            }
+        }
+        #[cfg(feature = "gpu")]
+        let mut gpu = self.collect_gpu_statistics(&stages, !TRACE);
+        if result.is_ok() && self.result.detected_count == 0 {
+            for stage in [
+                crate::error::OcrStage::Recognizer,
+                crate::error::OcrStage::Classifier,
+            ] {
+                if let Some(sessions) = stages.get_mut(&stage) {
+                    for session in sessions {
+                        session.execution_backend = None;
+                    }
+                }
+            }
+            #[cfg(feature = "gpu")]
+            if let Some(stats) = &mut gpu {
+                stats.projection = crate::GpuPlacement::NotRun;
+                stats.decoding = crate::GpuPlacement::NotRun;
+            }
+        }
+        let execution = if TRACE || self.execution.kind() != OcrExecution::Resident {
+            if self.uses_gpu() {
+                OcrExecution::Hybrid
+            } else {
+                OcrExecution::Cpu
+            }
+        } else {
+            OcrExecution::Resident
+        };
+        self.counters.runs += 1;
+        self.counters.failures += u64::from(result.is_err());
+        #[cfg(feature = "gpu")]
+        if let Some(gpu) = &gpu {
+            self.counters.submissions += gpu.submissions;
+            self.counters.uploaded_bytes += gpu.uploaded_bytes;
+            self.counters.output_readback_bytes += gpu.output_readback_bytes;
+            self.counters.control_readback_bytes += gpu.control_readback_bytes;
+            self.counters.diagnostic_readback_bytes += gpu.diagnostic_readback_bytes;
+        }
+        self.latest_run = Some(RunStatistics {
+            execution,
+            succeeded: result.is_ok(),
+            stages,
+            #[cfg(feature = "gpu")]
+            gpu,
+        });
+        result?;
+        Ok(self.view())
+    }
+    fn execute_inner<const TRACE: bool, const PROFILE: bool, F>(
+        &mut self,
+        image: ImageView<'_>,
+        capture: bool,
+        observer: F,
+        profile: &mut StageProfile,
+    ) -> ImageResult<()>
+    where
+        F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
+    {
+        let inline_cpu = self.plan.cpu.clone();
+        let _inline = (!self.uses_gpu()).then(|| inline_cpu.enter_inline());
         let _active_request = inline_cpu.enter_request();
         #[cfg(test)]
-        if !TRACE {
-            self.cpu.assert_production_thread("OCR");
+        if !TRACE && !self.uses_gpu() {
+            self.plan.cpu.assert_production_thread("OCR");
         }
         if self.unwound() {
             return Err(ImageError::new(
@@ -611,18 +1258,104 @@ impl Ocr {
         }
         self.unwind_state.store(true, Ordering::Relaxed);
         let _unwind = RequestUnwindGuard(self.unwind_state.clone());
-        self.budgets = self.cpu_options.resolve(
-            self.cpu.capacity(),
-            matches!(
-                self.extractor.detector().compiled().options().layout,
-                crate::runtime::LayoutPolicy::Auto
-            ),
+        #[cfg(feature = "gpu")]
+        if !TRACE
+            && self.extractor.detector().uses_gpu()
+            && self.recognizer.uses_gpu()
+            && self.extractor.classifier().is_none_or(|c| c.uses_gpu())
+        {
+            let candidate = (|| -> Result<_, crate::ocr::gpu::Failure> {
+                if self.execution.resident().is_none() {
+                    self.execution = ActiveExecution::Resident(Box::new(
+                        crate::ocr::gpu::Pipeline::new(&self.plan)?,
+                    ));
+                }
+                self.execution.resident_mut().unwrap().run(
+                    image,
+                    &self.plan,
+                    RunOptions {
+                        capture_spans: capture,
+                    },
+                    PROFILE,
+                    &mut self.result,
+                )
+            })();
+            match candidate {
+                Ok(()) => (),
+                Err(failure) => {
+                    use crate::ocr::gpu::Stage;
+                    let fallback = |model: &crate::runtime::CompiledModel, stage| {
+                        if failure.stage == stage || failure.stage == Stage::Shared {
+                            model.resident_fallback(failure.error.clone())
+                        } else {
+                            Ok(model.clone())
+                        }
+                    };
+                    let det = self.plan.extractor.detector();
+                    let detector = crate::detector::DetectorPlan::new(
+                        fallback(det.compiled(), Stage::Detector)?,
+                        det.options(),
+                        det.execution_limits(),
+                    )?;
+                    let classifier = self
+                        .plan
+                        .extractor
+                        .classifier()
+                        .map(|stage| fallback(stage.compiled(), Stage::Classifier))
+                        .transpose()?;
+                    let extractor = crate::lines::OrientedLinePlan::new(
+                        detector,
+                        classifier,
+                        self.plan.extractor.options(),
+                    )?;
+                    let rec = &self.plan.recognizer;
+                    let recognizer = crate::recognizer::RecognizerPlan::new(
+                        fallback(rec.compiled(), Stage::Recognizer)?,
+                        rec.dictionary().clone(),
+                        rec.options(),
+                        rec.execution_limits(),
+                    )?;
+                    let mut replacement = OcrPlan::new(
+                        extractor,
+                        recognizer,
+                        self.plan.options,
+                        self.plan.cpu.clone(),
+                        self.plan.cpu_options,
+                        self.plan.recognition_batch_size,
+                    )?
+                    .request()?;
+                    replacement.pinned_cpu = self.pinned_cpu.clone();
+                    replacement.result = std::mem::take(&mut self.result);
+                    replacement.counters = self.counters;
+                    *self = replacement;
+                    let cpu = self.plan.cpu.clone();
+                    let ignore: for<'a> fn(OcrTrace<'a>) -> ImageResult<()> = |_| Ok(());
+                    return cpu.install(|| {
+                        self.execute_inner::<false, PROFILE, _>(image, capture, ignore, profile)
+                    });
+                }
+            };
+            let pipeline = self.execution.resident().unwrap();
+            if PROFILE {
+                profile.recognized_lines += self.result.lines.len();
+                profile.record_gpu(&pipeline.statistics);
+                profile.projection_ns += pipeline.statistics.projection_encoding_ns;
+            }
+            return Ok(());
+        }
+        self.budgets = self.plan.cpu_options.resolve(
+            self.plan.cpu.capacity(),
+            self.extractor
+                .detector()
+                .compiled()
+                .as_cpu()
+                .is_some_and(|c| c.options().cpu.layout == crate::runtime::LayoutPolicy::Auto),
         )?;
         self.extractor.set_execution_context(
-            self.cpu.clone(),
+            self.plan.cpu.clone(),
             self.budgets.extraction_options(
-                self.cpu.request_capacity(),
-                self.cpu_options.line_workers == 0,
+                self.plan.cpu.request_capacity(),
+                self.plan.cpu_options.line_workers == 0,
             ),
         )?;
         let observer = RefCell::new(observer);
@@ -639,7 +1372,7 @@ impl Ocr {
         let count = oriented.len();
         let metadata_bytes = count
             .checked_mul(size_of::<LineRecord>())
-            .filter(|&n| n <= self.options.max_total_result_bytes)
+            .filter(|&n| n <= self.plan.options.max_total_result_bytes)
             .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?;
         // All crop recognition shapes are checked before the first REC call.
         for line in oriented.iter() {
@@ -649,43 +1382,61 @@ impl Ocr {
             self.recognizer
                 .select_width(line.image.width(), line.image.height())?;
         }
-        self.lines.clear();
-        self.text.clear();
-        self.runs.clear();
-        self.lines.try_reserve_exact(count).map_err(allocation)?;
+        self.result.lines.clear();
+        self.result.text.clear();
+        self.result.runs.clear();
+        self.result
+            .lines
+            .try_reserve_exact(count)
+            .map_err(allocation)?;
         if PROFILE {
             profile.result_storage_ns = profile
                 .result_storage_ns
                 .saturating_add(storage_timer.elapsed());
         }
         let recognition_timer = Timer::<PROFILE>::start();
-        let scheduled =
-            !TRACE && count > 1 && (self.cpu.capacity() > 1 || self.recognition_batch_size > 1);
-        if scheduled {
+        let scheduled = !TRACE
+            && count > 1
+            && (self.plan.cpu.capacity() > 1 || self.plan.recognition_batch_size > 1);
+        let result_budget = self
+            .plan
+            .options
+            .max_total_result_bytes
+            .checked_sub(metadata_bytes)
+            .and_then(|bytes| bytes.checked_sub(count.saturating_sub(1)))
+            .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?;
+        if scheduled && self.recognizer.uses_gpu() {
+            recognize_gpu::<PROFILE>(
+                &mut self.recognizer,
+                &mut self.recognition_results,
+                &mut self.recognition_order,
+                self.plan.recognition_batch_size,
+                &oriented,
+                capture,
+                result_budget,
+                profile,
+            )?;
+        } else if scheduled {
             recognize_parallel::<PROFILE>(
-                &self.cpu,
+                &self.plan.cpu,
                 &mut self.budgets,
-                self.cpu_options.line_workers == 0,
+                self.plan.cpu_options.line_workers == 0,
                 &self.recognizer,
                 &mut self.workers,
                 &mut self.recognition_results,
                 &mut self.recognition_order,
-                self.recognition_batch_size,
+                self.plan.recognition_batch_size,
                 &oriented,
                 capture,
-                self.options
-                    .max_total_result_bytes
-                    .checked_sub(metadata_bytes)
-                    .and_then(|bytes| bytes.checked_sub(count.saturating_sub(1)))
-                    .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?,
+                result_budget,
                 profile,
             )?;
         }
         if !scheduled {
             self.recognizer.set_execution_context(
-                self.cpu.clone(),
+                self.plan.cpu.clone(),
                 self.budgets
-                    .recognizer_threads_for_capacity(count, self.cpu.request_capacity()),
+                    .recognizer_threads_for_capacity(count, self.plan.cpu.request_capacity()),
             )?;
         }
         for (index, line) in oriented.iter().enumerate() {
@@ -705,18 +1456,25 @@ impl Ocr {
                     .recognize_with_trace(line.image, capture, |event| {
                         observer.borrow_mut()(OcrTrace::Recognition { index, event })
                     })?
-            } else {
+            } else if self.recognizer.uses_gpu() {
                 self.recognizer
                     .recognize_impl::<PROFILE>(line.image, capture, profile)?
+            } else {
+                inline_cpu.install(|| {
+                    self.recognizer
+                        .recognize_impl::<PROFILE>(line.image, capture, profile)
+                })?
             };
             let storage_timer = Timer::<PROFILE>::start();
             let text_length = self
+                .result
                 .text
                 .len()
                 .checked_add(usize::from(index != 0))
                 .and_then(|n| n.checked_add(recognition.text.len()))
                 .ok_or_else(|| ImageError::new("OCR text size overflow"))?;
             let span_count = self
+                .result
                 .runs
                 .len()
                 .checked_add(recognition.ctc_spans.map_or(0, CtcSpans::len))
@@ -725,25 +1483,29 @@ impl Ocr {
                 .checked_mul(size_of::<CtcRun>())
                 .and_then(|n| n.checked_add(text_length))
                 .and_then(|n| n.checked_add(metadata_bytes))
-                .filter(|&n| n <= self.options.max_total_result_bytes && n <= isize::MAX as usize)
+                .filter(|&n| {
+                    n <= self.plan.options.max_total_result_bytes && n <= isize::MAX as usize
+                })
                 .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?;
             let _ = required;
-            self.text
-                .try_reserve_exact(text_length - self.text.len())
+            self.result
+                .text
+                .try_reserve_exact(text_length - self.result.text.len())
                 .map_err(allocation)?;
-            self.runs
-                .try_reserve_exact(span_count - self.runs.len())
+            self.result
+                .runs
+                .try_reserve_exact(span_count - self.result.runs.len())
                 .map_err(allocation)?;
             if index != 0 {
-                self.text.push('\n');
+                self.result.text.push('\n');
             }
-            let text_start = self.text.len();
-            self.text.push_str(recognition.text);
+            let text_start = self.result.text.len();
+            self.result.text.push_str(recognition.text);
             let spans = recognition.ctc_spans.map(|spans| {
-                let start = self.runs.len();
+                let start = self.result.runs.len();
                 let mut text_offset = text_start;
                 for s in spans.iter() {
-                    self.runs.push(CtcRun {
+                    self.result.runs.push(CtcRun {
                         text_start: text_offset,
                         text_end: text_offset + s.text.len(),
                         score: s.score,
@@ -752,12 +1514,12 @@ impl Ocr {
                     });
                     text_offset += s.text.len();
                 }
-                (start, self.runs.len())
+                (start, self.result.runs.len())
             });
-            self.lines.push(LineRecord {
+            self.result.lines.push(LineRecord {
                 detection: line.metadata.detection,
                 text_start,
-                text_end: self.text.len(),
+                text_end: self.result.text.len(),
                 recognition_score: recognition.score,
                 classification_score: line.metadata.classification.map_or(0., |c| c.score),
                 classification_label: line.metadata.classification.map_or(0, |c| c.label),
@@ -779,28 +1541,103 @@ impl Ocr {
                 .recognition_wall_ns
                 .saturating_add(recognition_timer.elapsed());
         }
-        self.detected_count = count;
-        self.detector_resized_width = oriented.resized_width();
-        self.detector_resized_height = oriented.resized_height();
-        self.width_ratio = oriented.width_ratio();
-        self.height_ratio = oriented.height_ratio();
+        self.result.detected_count = count;
+        self.result.detector_resized_width = oriented.resized_width();
+        self.result.detector_resized_height = oriented.resized_height();
+        self.result.width_ratio = oriented.width_ratio();
+        self.result.height_ratio = oriented.height_ratio();
         let output = self.view();
         if TRACE {
             observer.borrow_mut()(OcrTrace::Result(output))?;
         }
-        Ok(output)
+        Ok(())
     }
     fn view(&self) -> OcrView<'_> {
         OcrView {
-            text: &self.text,
-            detected_count: self.detected_count,
-            detector_resized_width: self.detector_resized_width,
-            detector_resized_height: self.detector_resized_height,
-            width_ratio: self.width_ratio,
-            height_ratio: self.height_ratio,
-            source: LineSource::Slab(&self.lines, &self.text, &self.runs),
+            text: &self.result.text,
+            detected_count: self.result.detected_count,
+            detector_resized_width: self.result.detector_resized_width,
+            detector_resized_height: self.result.detector_resized_height,
+            width_ratio: self.result.width_ratio,
+            height_ratio: self.result.height_ratio,
+            source: LineSource::Slab(&self.result.lines, &self.result.text, &self.result.runs),
         }
     }
+}
+
+/// One GPU owner executes width-homogeneous batches on the calling thread.
+/// Results are copied into the existing slots to restore detector reading order.
+#[allow(clippy::too_many_arguments)]
+fn recognize_gpu<const PROFILE: bool>(
+    recognizer: &mut Recognizer,
+    results: &mut Vec<Mutex<RecognitionSlot>>,
+    order: &mut Vec<usize>,
+    batch_size: usize,
+    lines: &OrientedLines<'_>,
+    capture: bool,
+    result_budget: usize,
+    profile: &mut StageProfile,
+) -> ImageResult<()> {
+    let count = lines.len();
+    order.clear();
+    order.try_reserve_exact(count).map_err(allocation)?;
+    order.extend(0..count);
+    results
+        .try_reserve(count.saturating_sub(results.len()))
+        .map_err(allocation)?;
+    results.resize_with(count.max(results.len()), || {
+        Mutex::new(RecognitionSlot::new())
+    });
+    sort_recognition_order(order, recognizer, lines.metadata());
+    let result_bytes = AtomicUsize::new(0);
+    let exceeded = AtomicBool::new(false);
+    let mut start = 0;
+    while start < count {
+        let end = recognition_unit_end(order, start, batch_size, recognizer, lines.metadata());
+        if end - start > 1 {
+            let batch = recognizer.recognize_batch_impl::<PROFILE, _>(
+                end - start,
+                |offset| {
+                    lines
+                        .get(order[start + offset])
+                        .map(|line| line.image)
+                        .ok_or_else(|| ImageError::new("invalid oriented line metadata"))
+                },
+                capture,
+                profile,
+            )?;
+            for (offset, recognition) in batch.iter().enumerate() {
+                store_recognition::<PROFILE>(
+                    order[start + offset],
+                    recognition,
+                    results,
+                    &result_bytes,
+                    &exceeded,
+                    result_budget,
+                    profile,
+                )?;
+            }
+        } else {
+            let line = lines
+                .get(order[start])
+                .ok_or_else(|| ImageError::new("invalid oriented line metadata"))?;
+            let recognition = recognizer.recognize_impl::<PROFILE>(line.image, capture, profile)?;
+            store_recognition::<PROFILE>(
+                order[start],
+                recognition,
+                results,
+                &result_bytes,
+                &exceeded,
+                result_budget,
+                profile,
+            )?;
+        }
+        if exceeded.load(Ordering::Relaxed) {
+            return Err(ImageError::new("OCR exceeds max_total_result_bytes"));
+        }
+        start = end;
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -835,8 +1672,12 @@ fn recognize_parallel<const PROFILE: bool>(
         position = recognition_unit_end(order, position, batch_size, template, lines.metadata());
         units += 1;
     }
-    *budgets =
-        budgets.for_recognition_units(units, automatic_line_workers, template.compiled().backend());
+    let backend = template
+        .compiled()
+        .as_cpu()
+        .ok_or_else(|| ImageError::new("CPU recognition scheduling requires a CPU model"))?
+        .backend();
+    *budgets = budgets.for_recognition_units(units, automatic_line_workers, backend);
     let active = budgets.line_workers().min(units).max(1);
     workers
         .try_reserve(active.saturating_sub(workers.len()))
@@ -864,7 +1705,7 @@ fn recognize_parallel<const PROFILE: bool>(
     let borrowing_owner = recognition_borrowing_owner(
         *budgets,
         automatic_line_workers,
-        template.compiled().backend(),
+        backend,
         request_capacity,
         workers[..active].iter().map(|worker| {
             (
@@ -1271,6 +2112,9 @@ fn remember_error(destination: &mut Option<(usize, ImageError)>, index: usize, e
 }
 
 #[cfg(test)]
+pub(crate) mod statistics_tests;
+
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::{
@@ -1279,8 +2123,76 @@ pub(crate) mod tests {
         lines::LineOptions,
         model::Model,
         recognizer::{Dictionary, RecognizerOptions},
-        runtime::{CompiledModel, ExecutionLimits},
+        runtime::{CpuCompiledModel, ExecutionLimits},
     };
+    #[test]
+    fn plan_reconfiguration_reports_and_borrowed_storage_are_independent() {
+        let mut request = synthetic_ocr(CpuContext::serial());
+        let pixels = two_lines();
+        let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+        let expected = request
+            .run(
+                image,
+                RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
+        assert!(request.set_recognition_batch_size(0).is_err());
+        assert!(
+            request
+                .set_detector_resize(crate::detector::DetResizePolicy::Max, 0)
+                .is_err()
+        );
+        assert_eq!(
+            request
+                .run(
+                    image,
+                    RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
+            expected
+        );
+        assert_eq!(request.counters().runs, 2);
+        assert_eq!(request.latest_run().unwrap().execution, OcrExecution::Cpu);
+        let mut other = request.fork().unwrap();
+        assert_eq!(other.activation_bytes(), 0);
+        let view = request.run(image, RunOptions::default()).unwrap();
+        other
+            .run(
+                image,
+                RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap();
+        assert_eq!(view.text, expected.text);
+        assert!(view.iter().all(|line| line.ctc_spans.is_none()));
+        let memory = request.memory_snapshot();
+        assert_eq!(memory.device_bytes, 0);
+        assert!(memory.host_bytes >= request.retained_activation_bytes());
+        let mut calls = 0;
+        let error = request
+            .run_with_trace(image, false, |_| {
+                calls += 1;
+                Err(ImageError::with_kind(
+                    crate::error::ErrorKind::DeviceLost,
+                    "callback failure",
+                ))
+            })
+            .err()
+            .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(error.origin(), crate::error::ErrorOrigin::Callback);
+        assert!(!request.latest_run().unwrap().succeeded);
+        assert_eq!(request.counters().failures, 1);
+    }
     fn varint(mut value: u64) -> Vec<u8> {
         let mut out = Vec::new();
         loop {
@@ -1370,8 +2282,10 @@ pub(crate) mod tests {
     fn source(graph: Vec<u8>) -> Vec<u8> {
         [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat()
     }
-    fn compile(graph: Vec<u8>) -> Arc<CompiledModel> {
-        Arc::new(CompiledModel::new(Arc::new(Model::load_bytes(&source(graph)).unwrap())).unwrap())
+    fn compile(graph: Vec<u8>) -> Arc<CpuCompiledModel> {
+        Arc::new(
+            CpuCompiledModel::new(Arc::new(Model::load_bytes(&source(graph)).unwrap())).unwrap(),
+        )
     }
     pub(crate) fn synthetic_sources() -> (Vec<u8>, Vec<u8>) {
         let detector = source(
@@ -1425,10 +2339,10 @@ pub(crate) mod tests {
         );
         (detector, rec)
     }
-    pub(crate) fn synthetic_ocr(cpu: Arc<CpuContext>) -> Ocr {
+    pub(crate) fn synthetic_ocr(cpu: Arc<CpuContext>) -> OcrRequest {
         let (detector, rec) = synthetic_sources();
         let load = |bytes: &[u8]| {
-            Arc::new(CompiledModel::new(Arc::new(Model::load_bytes(bytes).unwrap())).unwrap())
+            Arc::new(CpuCompiledModel::new(Arc::new(Model::load_bytes(bytes).unwrap())).unwrap())
         };
         let detector = Detector::new(
             load(&detector),
@@ -1447,7 +2361,7 @@ pub(crate) mod tests {
             ExecutionLimits::default(),
         )
         .unwrap();
-        Ocr::new_with_execution(
+        OcrRequest::new_with_execution(
             extractor,
             recognizer,
             OcrOptions::default(),
@@ -1467,7 +2381,10 @@ pub(crate) mod tests {
         }
         pixels
     }
-    pub(crate) fn synthetic_classifier() -> Arc<CompiledModel> {
+    pub(crate) fn synthetic_classifier() -> Arc<CpuCompiledModel> {
+        synthetic_classifier_with_batch(Some(1))
+    }
+    pub(crate) fn synthetic_classifier_with_batch(batch: Option<u64>) -> Arc<CpuCompiledModel> {
         let weights = [-0.25f32, 0.5, -0.5, 0.25, -0.75, 0.75];
         let tensor = bytes(
             5,
@@ -1497,8 +2414,8 @@ pub(crate) mod tests {
                 ),
                 node("MatMul", &["feature", "weights"], "logits", vec![]),
                 node("Softmax", &["logits"], "y", integer("axis", 1)),
-                info("x", &[Some(1), Some(3), Some(80), Some(160)]),
-                info("y", &[Some(1), Some(2)]),
+                info("x", &[batch, Some(3), Some(80), Some(160)]),
+                info("y", &[batch, Some(2)]),
             ]
             .concat(),
         )
@@ -1635,7 +2552,7 @@ pub(crate) mod tests {
         }
     }
     #[cfg(feature = "parallel")]
-    fn classified_ocr(cpu: Arc<CpuContext>, weights: [f32; 6], bias: [f32; 2]) -> Ocr {
+    fn classified_ocr(cpu: Arc<CpuContext>, weights: [f32; 6], bias: [f32; 2]) -> OcrRequest {
         let classifier = compile(
             [
                 float_tensor("weights", &[3, 2], &weights),
@@ -1655,13 +2572,20 @@ pub(crate) mod tests {
             .concat(),
         );
         let mut ocr = synthetic_ocr(cpu.clone());
-        ocr.extractor = OrientedLineExtractor::new(
+        let extractor = OrientedLineExtractor::new(
             ocr.extractor.detector().fork().unwrap(),
-            Some(classifier),
+            Some(classifier.into()),
             crate::lines::LineOptions {
                 classifier_threshold: 0.5,
                 ..Default::default()
             },
+        )
+        .unwrap();
+        ocr.reconfigure(
+            ocr.plan()
+                .clone()
+                .with_extractor(extractor.plan().clone())
+                .unwrap(),
         )
         .unwrap();
         ocr.set_execution_context(cpu, CpuOptions::default())
@@ -1696,14 +2620,34 @@ pub(crate) mod tests {
         let second = mixed_lines([230; 3]);
         let images = [&first, &second]
             .map(|pixels| ImageView::new(pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap());
-        let expected = images.map(|image| serial.run(image, true).unwrap().try_to_owned().unwrap());
+        let expected = images.map(|image| {
+            serial
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap()
+        });
         for (image, expected) in images.into_iter().zip(&expected) {
             assert_eq!(
-                &parallel.run(image, true).unwrap().try_to_owned().unwrap(),
+                &parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+                    .try_to_owned()
+                    .unwrap(),
                 expected
             );
         }
-        let worker_storage = |request: &Ocr| {
+        let worker_storage = |request: &OcrRequest| {
             request
                 .workers
                 .iter()
@@ -1732,7 +2676,16 @@ pub(crate) mod tests {
         let classifier_bytes = parallel.extractor.classifier_retained_activation_bytes();
         for (image, expected) in images.into_iter().zip(&expected) {
             assert_eq!(
-                &parallel.run(image, true).unwrap().try_to_owned().unwrap(),
+                &parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+                    .try_to_owned()
+                    .unwrap(),
                 expected
             );
             assert_eq!(worker_storage(&parallel), owners);
@@ -1750,20 +2703,30 @@ pub(crate) mod tests {
                 );
             }
         }
-        let limit = parallel.options.max_total_result_bytes;
+        let limit = parallel.plan.options.max_total_result_bytes;
         for failed_limit in [1, 4 * size_of::<LineRecord>() + 3] {
-            parallel.options.max_total_result_bytes = failed_limit;
+            parallel.plan.options.max_total_result_bytes = failed_limit;
             assert!(
                 parallel
-                    .run(images[0], true)
+                    .run(
+                        images[0],
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
                     .unwrap_err()
                     .to_string()
                     .contains("max_total_result_bytes")
             );
-            parallel.options.max_total_result_bytes = limit;
+            parallel.plan.options.max_total_result_bytes = limit;
             assert_eq!(
                 parallel
-                    .run(images[0], true)
+                    .run(
+                        images[0],
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
                     .unwrap()
                     .try_to_owned()
                     .unwrap(),
@@ -1785,10 +2748,28 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         let fewer = two_lines();
         let fewer = ImageView::new(&fewer, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let fewer_expected = serial.run(fewer, true).unwrap().try_to_owned().unwrap();
+        let fewer_expected = serial
+            .run(
+                fewer,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_eq!(fewer_expected.lines.len(), 2);
         assert_eq!(
-            parallel.run(fewer, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    fewer,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             fewer_expected
         );
         assert_eq!(parallel.recognition_results.len(), 4);
@@ -1807,7 +2788,12 @@ pub(crate) mod tests {
         }
         assert_eq!(
             parallel
-                .run(images[0], true)
+                .run(
+                    images[0],
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
                 .unwrap()
                 .try_to_owned()
                 .unwrap(),
@@ -1892,7 +2878,7 @@ pub(crate) mod tests {
         assert_eq!(ocr.recognition_batch_size(), 1);
         ocr.set_recognition_batch_size(7).unwrap();
         assert_eq!(ocr.fork().unwrap().recognition_batch_size(), 7);
-        assert_eq!(ocr.into_factory()().unwrap().recognition_batch_size(), 7);
+        assert_eq!(ocr.plan().request().unwrap().recognition_batch_size(), 7);
     }
 
     #[cfg(feature = "profiling")]
@@ -1904,7 +2890,13 @@ pub(crate) mod tests {
         let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
         let (_, profile) = ocr.run_profiled(image, true).unwrap();
         assert_eq!(profile.recognition_owner_count, 1);
-        ocr.run(image, true).unwrap();
+        ocr.run(
+            image,
+            crate::RunOptions {
+                capture_spans: true,
+            },
+        )
+        .unwrap();
         for worker in &ocr.workers {
             assert_eq!(
                 worker.owner_profile,
@@ -1927,11 +2919,21 @@ pub(crate) mod tests {
         }
         let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
         let mut serial = synthetic_ocr(CpuContext::serial());
-        let expected = serde_json::to_value(serial.run(image, true).unwrap()).unwrap();
-        assert_eq!(serial.detected_count, 2);
+        let expected = serde_json::to_value(
+            serial
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(serial.result.detected_count, 2);
         assert_eq!(
-            serial.lines[0].recognition_tensor_width,
-            serial.lines[1].recognition_tensor_width
+            serial.result.lines[0].recognition_tensor_width,
+            serial.result.lines[1].recognition_tensor_width
         );
         #[cfg(feature = "parallel")]
         let capacities = [1, 3];
@@ -1941,14 +2943,38 @@ pub(crate) mod tests {
             let mut ocr = synthetic_ocr(Arc::new(CpuContext::new(capacity).unwrap()));
             ocr.set_recognition_batch_size(2).unwrap();
             assert_eq!(
-                serde_json::to_value(ocr.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    ocr.run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+                )
+                .unwrap(),
                 expected
             );
             assert_eq!(ocr.workers.len(), 1);
             let retained = ocr.retained_workspace_bytes();
-            ocr.run(image, false).unwrap();
+            ocr.run(
+                image,
+                crate::RunOptions {
+                    capture_spans: false,
+                },
+            )
+            .unwrap();
             assert_eq!(
-                serde_json::to_value(ocr.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    ocr.run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+                )
+                .unwrap(),
                 expected
             );
             assert_eq!(ocr.retained_workspace_bytes(), retained);
@@ -1973,20 +2999,43 @@ pub(crate) mod tests {
                     .is_err()
             );
             assert_eq!(
-                serde_json::to_value(ocr.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    ocr.run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+                )
+                .unwrap(),
                 expected
             );
-            let budget = ocr.options.max_total_result_bytes;
-            ocr.options.max_total_result_bytes = 2 * size_of::<LineRecord>() + 1;
+            let budget = ocr.plan.options.max_total_result_bytes;
+            ocr.plan.options.max_total_result_bytes = 2 * size_of::<LineRecord>() + 1;
             assert!(
-                ocr.run(image, true)
-                    .unwrap_err()
-                    .to_string()
-                    .contains("max_total_result_bytes")
+                ocr.run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap_err()
+                .to_string()
+                .contains("max_total_result_bytes")
             );
-            ocr.options.max_total_result_bytes = budget;
+            ocr.plan.options.max_total_result_bytes = budget;
             assert_eq!(
-                serde_json::to_value(ocr.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    ocr.run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+                )
+                .unwrap(),
                 expected
             );
             #[cfg(feature = "profiling")]
@@ -2114,17 +3163,21 @@ pub(crate) mod tests {
             .unwrap()
         }
         fn run(
-            request: &mut Ocr,
+            request: &mut OcrRequest,
             lines: &crate::lines::OwnedOrientedLines,
             batch: usize,
         ) -> StageProfile {
-            let cpu = request.cpu.clone();
-            request.budgets = request.cpu_options.resolve(cpu.capacity(), true).unwrap();
+            let cpu = request.plan.cpu.clone();
+            request.budgets = request
+                .plan
+                .cpu_options
+                .resolve(cpu.capacity(), true)
+                .unwrap();
             let mut profile = StageProfile::default();
             recognize_parallel::<{ cfg!(feature = "profiling") }>(
                 &cpu,
                 &mut request.budgets,
-                request.cpu_options.line_workers == 0,
+                request.plan.cpu_options.line_workers == 0,
                 &request.recognizer,
                 &mut request.workers,
                 &mut request.recognition_results,
@@ -2152,14 +3205,14 @@ pub(crate) mod tests {
             }
             profile
         }
-        let threads = |request: &Ocr| {
+        let threads = |request: &OcrRequest| {
             request
                 .workers
                 .iter()
                 .map(|worker| worker.recognizer.projection_statistics().unwrap().threads)
                 .collect::<Vec<_>>()
         };
-        let storage = |request: &Ocr| {
+        let storage = |request: &OcrRequest| {
             request
                 .workers
                 .iter()
@@ -2175,12 +3228,12 @@ pub(crate) mod tests {
                 .collect::<Vec<_>>()
         };
         let cpu = Arc::new(CpuContext::new(8).unwrap());
-        // Direct recognition dispatch normally runs inside Ocr's registered
+        // Direct recognition dispatch normally runs inside OcrRequest's registered
         // request. Keep that same demand accounting while bypassing detection.
         let _active_request = cpu.register_request();
         let mut request = synthetic_ocr(cpu.clone());
         assert_eq!(
-            request.recognizer.compiled().backend(),
+            request.recognizer.compiled().as_cpu().unwrap().backend(),
             crate::runtime::Backend::NeonFma
         );
         let mixed = lines(&[512, 64, 64, 64, 64, 64, 64, 64, 64]);
@@ -2282,13 +3335,22 @@ pub(crate) mod tests {
             }
         }
         let dense = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let expected = serial.run(dense, true).unwrap().try_to_owned().unwrap();
+        let expected = serial
+            .run(
+                dense,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_eq!(expected.lines.len(), 9);
         assert!(expected.lines.iter().all(|line| {
             line.recognition_tensor_width == expected.lines[0].recognition_tensor_width
         }));
         let owners = if matches!(
-            parallel.recognizer.compiled().backend(),
+            parallel.recognizer.compiled().as_cpu().unwrap().backend(),
             crate::runtime::Backend::Avx2Fma | crate::runtime::Backend::NeonFma
         ) {
             8
@@ -2296,12 +3358,21 @@ pub(crate) mod tests {
             4
         };
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), owners);
         assert_eq!(parallel.workers.len(), owners);
-        let storage = |request: &Ocr| {
+        let storage = |request: &OcrRequest| {
             request
                 .workers
                 .iter()
@@ -2321,23 +3392,59 @@ pub(crate) mod tests {
         // or retained worker storage. The fixed executor still enforces its cap.
         let waiting = cpu.register_request();
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), owners);
         assert_eq!(storage(&parallel), warmed);
         drop(waiting);
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(storage(&parallel), warmed);
 
         let sparse_pixels = two_lines();
         let sparse = ImageView::new(&sparse_pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let sparse_expected = serial.run(sparse, true).unwrap().try_to_owned().unwrap();
+        let sparse_expected = serial
+            .run(
+                sparse,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_eq!(
-            parallel.run(sparse, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    sparse,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             sparse_expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 4);
@@ -2345,7 +3452,16 @@ pub(crate) mod tests {
 
         parallel.set_recognition_batch_size(3).unwrap();
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 4);
@@ -2374,7 +3490,16 @@ pub(crate) mod tests {
             .unwrap();
         parallel.set_recognition_batch_size(1).unwrap();
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 2);
@@ -2383,7 +3508,9 @@ pub(crate) mod tests {
     #[test]
     fn automatic_sixteen_recognition_owners_reuse_storage_across_page_and_budget_changes() {
         let mut serial = synthetic_ocr(CpuContext::serial());
-        if serial.recognizer.compiled().backend() != crate::runtime::Backend::Avx2Fma {
+        if serial.recognizer.compiled().as_cpu().unwrap().backend()
+            != crate::runtime::Backend::Avx2Fma
+        {
             return;
         }
         let cpu = Arc::new(CpuContext::new(24).unwrap());
@@ -2402,20 +3529,38 @@ pub(crate) mod tests {
             }
         }
         let dense = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let expected = serial.run(dense, true).unwrap().try_to_owned().unwrap();
+        let expected = serial
+            .run(
+                dense,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_eq!(expected.lines.len(), 36);
         assert!(expected.lines.iter().all(|line| {
             !line.text.is_empty()
                 && line.recognition_tensor_width == expected.lines[0].recognition_tensor_width
         }));
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 16);
         assert_eq!(parallel.cpu_budgets().recognizer_base_threads(), 1);
         assert_eq!(parallel.workers.len(), 16);
-        let storage = |request: &Ocr| {
+        let storage = |request: &OcrRequest| {
             request
                 .workers
                 .iter()
@@ -2433,7 +3578,16 @@ pub(crate) mod tests {
         let warmed = storage(&parallel);
         let waiting = cpu.register_request();
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 16);
@@ -2442,15 +3596,42 @@ pub(crate) mod tests {
 
         let sparse_pixels = two_lines();
         let sparse = ImageView::new(&sparse_pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let sparse_expected = serial.run(sparse, true).unwrap().try_to_owned().unwrap();
+        let sparse_expected = serial
+            .run(
+                sparse,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_eq!(
-            parallel.run(sparse, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    sparse,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             sparse_expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 4);
         assert_eq!(parallel.workers.len(), 16);
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 16);
@@ -2459,7 +3640,16 @@ pub(crate) mod tests {
         // counts these indivisible jobs rather than the number of text boxes.
         parallel.set_recognition_batch_size(2).unwrap();
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 8);
@@ -2479,7 +3669,16 @@ pub(crate) mod tests {
         );
         parallel.set_recognition_batch_size(1).unwrap();
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 16);
@@ -2489,19 +3688,33 @@ pub(crate) mod tests {
         let warmed = storage(&parallel);
         let activation_bytes = parallel.retained_activation_bytes();
         let workspace_bytes = parallel.retained_workspace_bytes();
-        let limit = parallel.options.max_total_result_bytes;
-        parallel.options.max_total_result_bytes =
+        let limit = parallel.plan.options.max_total_result_bytes;
+        parallel.plan.options.max_total_result_bytes =
             expected.lines.len() * size_of::<LineRecord>() + expected.lines.len() - 1;
         assert!(
             parallel
-                .run(dense, true)
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
                 .unwrap_err()
                 .to_string()
                 .contains("max_total_result_bytes")
         );
-        parallel.options.max_total_result_bytes = limit;
+        parallel.plan.options.max_total_result_bytes = limit;
         assert_eq!(
-            parallel.run(dense, true).unwrap().try_to_owned().unwrap(),
+            parallel
+                .run(
+                    dense,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert_eq!(parallel.cpu_budgets().line_workers(), 16);
@@ -2515,7 +3728,17 @@ pub(crate) mod tests {
         let mut template = synthetic_ocr(cpu.clone());
         let pixels = two_lines();
         let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let expected = serde_json::to_value(template.run(image, true).unwrap()).unwrap();
+        let expected = serde_json::to_value(
+            template
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap(),
+        )
+        .unwrap();
         template.run_with_trace(image, true, |_| Ok(())).unwrap();
         assert!(template.diagnostic_retained_activation_bytes() > 0);
         let request_lifetime = Arc::downgrade(&template.unwind_state);
@@ -2523,19 +3746,21 @@ pub(crate) mod tests {
         let dictionary = template.recognizer.dictionary().clone();
         let detector_limit = template.extractor.detector().execution_limits();
         let recognizer_limit = template.recognizer.execution_limits();
-        let factory = template.into_factory();
+        let plan = template.plan().clone();
+        drop(template);
+        let factory = move || plan.request();
         assert!(request_lifetime.upgrade().is_none());
         let mut first = factory().unwrap();
         let mut second = factory().unwrap();
         for request in [&mut first, &mut second] {
             assert!(Arc::ptr_eq(request.cpu_context(), &cpu));
             assert!(Arc::ptr_eq(
-                request.recognizer.compiled(),
-                &recognizer_model
+                request.recognizer.compiled().as_cpu().unwrap(),
+                recognizer_model.as_cpu().unwrap()
             ));
             assert!(Arc::ptr_eq(request.recognizer.dictionary(), &dictionary));
             assert_eq!(request.diagnostic_retained_activation_bytes(), 0);
-            assert_eq!(request.text.capacity(), 0);
+            assert_eq!(request.result.text.capacity(), 0);
             assert!(request.workers.is_empty());
             assert!(request.recognition_results.is_empty());
             assert_eq!(
@@ -2551,7 +3776,17 @@ pub(crate) mod tests {
                 recognizer_limit.max_activation_bytes
             );
             assert_eq!(
-                serde_json::to_value(request.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    request
+                        .run(
+                            image,
+                            crate::RunOptions {
+                                capture_spans: true
+                            }
+                        )
+                        .unwrap()
+                )
+                .unwrap(),
                 expected
             );
         }
@@ -2589,13 +3824,33 @@ pub(crate) mod tests {
         let mut serial = synthetic_ocr(CpuContext::serial());
         let pixels = two_lines();
         let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let expected = serde_json::to_value(serial.run(image, true).unwrap()).unwrap();
+        let expected = serde_json::to_value(
+            serial
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(
-            serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+            serde_json::to_value(
+                parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+            )
+            .unwrap(),
             expected
         );
         assert_eq!(parallel.workers.len(), 2);
-        let worker_storage = |request: &Ocr| {
+        let worker_storage = |request: &OcrRequest| {
             request
                 .workers
                 .iter()
@@ -2625,8 +3880,22 @@ pub(crate) mod tests {
             })
             .collect();
         let retained = parallel.retained_workspace_bytes();
-        parallel.run(image, false).unwrap();
-        parallel.run(image, true).unwrap();
+        parallel
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: false,
+                },
+            )
+            .unwrap();
+        parallel
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap();
         assert_eq!(parallel.retained_workspace_bytes(), retained);
         assert_eq!(worker_storage(&parallel), worker_buffers);
         for (slot, (pointer, bytes)) in parallel.recognition_results.iter().zip(buffers) {
@@ -2634,18 +3903,33 @@ pub(crate) mod tests {
             assert_eq!(slot.text.as_ptr() as usize, pointer);
             assert_eq!(slot.retained_bytes(), bytes);
         }
-        let original_budget = parallel.options.max_total_result_bytes;
-        parallel.options.max_total_result_bytes = 2 * size_of::<LineRecord>() + 1;
+        let original_budget = parallel.plan.options.max_total_result_bytes;
+        parallel.plan.options.max_total_result_bytes = 2 * size_of::<LineRecord>() + 1;
         assert!(
             parallel
-                .run(image, true)
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
                 .unwrap_err()
                 .to_string()
                 .contains("max_total_result_bytes")
         );
-        parallel.options.max_total_result_bytes = original_budget;
+        parallel.plan.options.max_total_result_bytes = original_budget;
         assert_eq!(
-            serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+            serde_json::to_value(
+                parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+            )
+            .unwrap(),
             expected
         );
         assert_eq!(worker_storage(&parallel), worker_buffers);
@@ -2655,14 +3939,44 @@ pub(crate) mod tests {
                 .is_err()
         );
         assert_eq!(
-            serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+            serde_json::to_value(
+                parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+            )
+            .unwrap(),
             expected
         );
         assert_eq!(worker_storage(&parallel), worker_buffers);
         let bad = ImageView::new(&[0; 3], 1, 1, 0, PixelFormat::Bgr24).unwrap();
-        assert!(parallel.run(bad, false).unwrap().is_empty());
+        assert!(
+            parallel
+                .run(
+                    bad,
+                    crate::RunOptions {
+                        capture_spans: false
+                    }
+                )
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(
-            serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+            serde_json::to_value(
+                parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+            )
+            .unwrap(),
             expected
         );
         assert_eq!(worker_storage(&parallel), worker_buffers);
@@ -2709,12 +4023,12 @@ pub(crate) mod tests {
         recognize_parallel::<false>(
             &cpu,
             &mut parallel.budgets,
-            parallel.cpu_options.line_workers == 0,
+            parallel.plan.cpu_options.line_workers == 0,
             &parallel.recognizer,
             &mut parallel.workers,
             &mut parallel.recognition_results,
             &mut parallel.recognition_order,
-            parallel.recognition_batch_size,
+            parallel.plan.recognition_batch_size,
             &oriented.as_view(),
             true,
             original_budget,
@@ -2729,7 +4043,17 @@ pub(crate) mod tests {
         }
         assert_eq!(worker_storage(&parallel), worker_buffers);
         assert_eq!(
-            serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+            serde_json::to_value(
+                parallel
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: true
+                        }
+                    )
+                    .unwrap()
+            )
+            .unwrap(),
             expected
         );
         assert_eq!(worker_storage(&parallel), worker_buffers);
@@ -2747,14 +4071,41 @@ pub(crate) mod tests {
                 )
                 .unwrap();
             assert_eq!(
-                serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    parallel
+                        .run(
+                            image,
+                            crate::RunOptions {
+                                capture_spans: true
+                            }
+                        )
+                        .unwrap()
+                )
+                .unwrap(),
                 expected
             );
             let storage = worker_storage(&parallel);
             let retained = parallel.retained_workspace_bytes();
-            parallel.run(image, false).unwrap();
+            parallel
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: false,
+                    },
+                )
+                .unwrap();
             assert_eq!(
-                serde_json::to_value(parallel.run(image, true).unwrap()).unwrap(),
+                serde_json::to_value(
+                    parallel
+                        .run(
+                            image,
+                            crate::RunOptions {
+                                capture_spans: true
+                            }
+                        )
+                        .unwrap()
+                )
+                .unwrap(),
                 expected
             );
             assert_eq!(worker_storage(&parallel), storage);

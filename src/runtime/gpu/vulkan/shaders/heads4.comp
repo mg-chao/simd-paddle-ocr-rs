@@ -1,0 +1,258 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "storage.glsl"
+
+struct Params {
+    uvec4 words[64];
+};
+layout(std430, set = 0, binding = 0) readonly buffer type_4_block_0Compute { STORAGE_0 _group_0_binding_0_cs[]; };
+
+layout(std430, set = 0, binding = 1) readonly buffer type_4_block_1Compute { float _group_0_binding_1_cs[]; };
+
+layout(std430, set = 0, binding = 2) readonly buffer type_4_block_2Compute { float _group_0_binding_2_cs[]; };
+
+layout(std430, set = 0, binding = 3) buffer type_5_block_3Compute { uvec4 _group_0_binding_3_cs[]; };
+
+layout(std140, set = 0, binding = 4) uniform Params_block_4Compute { Params _group_0_binding_4_cs; };
+
+shared vec4 scores[64];
+
+shared uvec4 indices[64];
+
+shared vec4 sums[64];
+
+shared uvec4 invalid[64];
+
+uint p(uint i) {
+    uint _e9 = _group_0_binding_4_cs.words[(i / 4u)][(i % 4u)];
+    return _e9;
+}
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        scores = vec4[64](vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
+        indices = uvec4[64](uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u));
+        sums = vec4[64](vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0), vec4(0.0));
+        invalid = uvec4[64](uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u), uvec4(0u));
+    }
+    memoryBarrierShared();
+    barrier();
+    uint lane = gl_LocalInvocationIndex;
+    uvec3 group = gl_WorkGroupID;
+    vec4 value = vec4(-3.402823e38);
+    uint k = 0u;
+    uint stride = 32u;
+    uint r = 0u;
+    bool local = false;
+    uint stride_1 = 32u;
+    uint r_1 = 0u;
+    uint column = ((group.x * 64u) + lane);
+    uint row = (group.y * 4u);
+    uint _e13 = p(2u);
+    if ((column < _e13)) {
+        float _e17 = _group_0_binding_2_cs[column];
+        value = vec4(_e17);
+        bool loop_init = true;
+        while(true) {
+            if (!loop_init) {
+                uint _e107 = k;
+                k = (_e107 + 1u);
+            }
+            loop_init = false;
+            uint _e21 = k;
+            uint _e23 = p(1u);
+            if ((_e21 < _e23)) {
+            } else {
+                break;
+            }
+            {
+                uint _e26 = k;
+                uint _e28 = p(2u);
+                float weight = _group_0_binding_1_cs[((_e26 * _e28) + column)];
+                float _e34 = value.x;
+                uint _e37 = p(1u);
+                uint _e39 = k;
+                float _e42 = _group_0_binding_0_cs[((row * _e37) + _e39)];
+                value.x = (_e34 + (float(_e42) * weight));
+                uint _e49 = p(0u);
+                if (((row + 1u) < _e49)) {
+                    float _e52 = value.y;
+                    uint _e57 = p(1u);
+                    uint _e59 = k;
+                    float _e62 = _group_0_binding_0_cs[(((row + 1u) * _e57) + _e59)];
+                    value.y = (_e52 + (float(_e62) * weight));
+                }
+                uint _e69 = p(0u);
+                if (((row + 2u) < _e69)) {
+                    float _e72 = value.z;
+                    uint _e77 = p(1u);
+                    uint _e79 = k;
+                    float _e82 = _group_0_binding_0_cs[(((row + 2u) * _e77) + _e79)];
+                    value.z = (_e72 + (float(_e82) * weight));
+                }
+                uint _e89 = p(0u);
+                if (((row + 3u) < _e89)) {
+                    float _e92 = value.w;
+                    uint _e97 = p(1u);
+                    uint _e99 = k;
+                    float _e102 = _group_0_binding_0_cs[(((row + 3u) * _e97) + _e99)];
+                    value.w = (_e92 + (float(_e102) * weight));
+                }
+            }
+        }
+    }
+    vec4 _e111 = value;
+    scores[lane] = _e111;
+    indices[lane] = uvec4(column);
+    vec4 _e121 = value;
+    vec4 _e125 = value;
+    invalid[lane] = mix(uvec4(0u), uvec4(1u), not(bvec4(lessThanEqual(_e121, vec4(3.402823e38)).x && greaterThanEqual(_e125, vec4(-3.402823e38)).x, lessThanEqual(_e121, vec4(3.402823e38)).y && greaterThanEqual(_e125, vec4(-3.402823e38)).y, lessThanEqual(_e121, vec4(3.402823e38)).z && greaterThanEqual(_e125, vec4(-3.402823e38)).z, lessThanEqual(_e121, vec4(3.402823e38)).w && greaterThanEqual(_e125, vec4(-3.402823e38)).w)));
+    memoryBarrierShared();
+    barrier();
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e184 = stride;
+            stride = (_e184 / 2u);
+        }
+        loop_init_1 = false;
+        uint _e134 = stride;
+        if ((_e134 > 0u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e137 = stride;
+            if ((lane < _e137)) {
+                uint _e140 = stride;
+                vec4 other = scores[(lane + _e140)];
+                uint _e145 = stride;
+                uvec4 index = indices[(lane + _e145)];
+                vec4 _e151 = scores[lane];
+                vec4 _e155 = scores[lane];
+                uvec4 _e159 = indices[lane];
+                bvec4 replace = bvec4(greaterThan(other, _e151).x || bvec4(equal(other, _e155).x && lessThan(index, _e159).x, equal(other, _e155).y && lessThan(index, _e159).y, equal(other, _e155).z && lessThan(index, _e159).z, equal(other, _e155).w && lessThan(index, _e159).w).x, greaterThan(other, _e151).y || bvec4(equal(other, _e155).x && lessThan(index, _e159).x, equal(other, _e155).y && lessThan(index, _e159).y, equal(other, _e155).z && lessThan(index, _e159).z, equal(other, _e155).w && lessThan(index, _e159).w).y, greaterThan(other, _e151).z || bvec4(equal(other, _e155).x && lessThan(index, _e159).x, equal(other, _e155).y && lessThan(index, _e159).y, equal(other, _e155).z && lessThan(index, _e159).z, equal(other, _e155).w && lessThan(index, _e159).w).z, greaterThan(other, _e151).w || bvec4(equal(other, _e155).x && lessThan(index, _e159).x, equal(other, _e155).y && lessThan(index, _e159).y, equal(other, _e155).z && lessThan(index, _e159).z, equal(other, _e155).w && lessThan(index, _e159).w).w);
+                vec4 _e167 = scores[lane];
+                scores[lane] = mix(_e167, other, replace);
+                uvec4 _e173 = indices[lane];
+                indices[lane] = mix(_e173, index, replace);
+                uvec4 _e177 = invalid[lane];
+                uint _e179 = stride;
+                uvec4 _e182 = invalid[(lane + _e179)];
+                invalid[lane] = (_e177 | _e182);
+            }
+            memoryBarrierShared();
+            barrier();
+        }
+    }
+    uint _e188 = p(4u);
+    if ((_e188 == 0u)) {
+        if ((lane == 0u)) {
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e231 = r;
+                    r = (_e231 + 1u);
+                }
+                loop_init_2 = false;
+                uint _e195 = r;
+                if ((_e195 < 4u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e198 = r;
+                    uint _e201 = p(0u);
+                    if (((row + _e198) < _e201)) {
+                        uint _e204 = r;
+                        uint _e207 = p(3u);
+                        uint _e214 = r;
+                        uint _e216 = indices[0][_e214];
+                        uint _e219 = r;
+                        float _e221 = scores[0][_e219];
+                        uint _e226 = r;
+                        uint _e228 = invalid[0][_e226];
+                        _group_0_binding_3_cs[(((row + _e204) * _e207) + group.x)] = uvec4(_e216, floatBitsToUint(_e221), 0u, _e228);
+                    }
+                }
+            }
+        }
+        return;
+    }
+    sums[lane] = vec4(0.0);
+    uint _e238 = p(2u);
+    if ((column < _e238)) {
+        uint _e243 = p(4u);
+        local = (_e243 != 0u);
+    } else {
+        local = false;
+    }
+    bool _e247 = local;
+    if (_e247) {
+        vec4 _e250 = value;
+        vec4 _e253 = scores[0];
+        sums[lane] = exp((_e250 - _e253));
+    }
+    memoryBarrierShared();
+    barrier();
+    bool loop_init_3 = true;
+    while(true) {
+        if (!loop_init_3) {
+            uint _e272 = stride_1;
+            stride_1 = (_e272 / 2u);
+        }
+        loop_init_3 = false;
+        uint _e258 = stride_1;
+        if ((_e258 > 0u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e261 = stride_1;
+            if ((lane < _e261)) {
+                vec4 _e265 = sums[lane];
+                uint _e267 = stride_1;
+                vec4 _e270 = sums[(lane + _e267)];
+                sums[lane] = (_e265 + _e270);
+            }
+            memoryBarrierShared();
+            barrier();
+        }
+    }
+    if ((lane == 0u)) {
+        bool loop_init_4 = true;
+        while(true) {
+            if (!loop_init_4) {
+                uint _e320 = r_1;
+                r_1 = (_e320 + 1u);
+            }
+            loop_init_4 = false;
+            uint _e279 = r_1;
+            if ((_e279 < 4u)) {
+            } else {
+                break;
+            }
+            {
+                uint _e282 = r_1;
+                uint _e285 = p(0u);
+                if (((row + _e282) < _e285)) {
+                    uint _e288 = r_1;
+                    uint _e291 = p(3u);
+                    uint _e298 = r_1;
+                    uint _e300 = indices[0][_e298];
+                    uint _e303 = r_1;
+                    float _e305 = scores[0][_e303];
+                    uint _e309 = r_1;
+                    float _e311 = sums[0][_e309];
+                    uint _e315 = r_1;
+                    uint _e317 = invalid[0][_e315];
+                    _group_0_binding_3_cs[(((row + _e288) * _e291) + group.x)] = uvec4(_e300, floatBitsToUint(_e305), floatBitsToUint(_e311), _e317);
+                }
+            }
+        }
+        return;
+    } else {
+        return;
+    }
+}
+

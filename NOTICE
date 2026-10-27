@@ -1,5 +1,5 @@
 This project includes Rust adaptations of the ONNX importer, normalization,
-inference, preprocessing and image geometry algorithms from Sdcb.SimdPaddleOCR
+inference, GPU scheduling and kernel algorithms, preprocessing and image geometry algorithms from Sdcb.SimdPaddleOCR
 by sdcb and its contributors:
 https://github.com/sdcb/SimdPaddleOCR
 

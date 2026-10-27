@@ -3,6 +3,8 @@ target/
 # Old local comparison-tool builds can remain after removing their sources.
 /tools/csharp-*/bin/
 /tools/csharp-*/obj/
+/tools/reference/bin/
+/tools/reference/obj/
 *.rs.bk
 *.profraw
 *.profdata

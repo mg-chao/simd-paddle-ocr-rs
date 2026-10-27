@@ -620,7 +620,7 @@ fn selectors_reject_unreachable_shapes_and_keep_scalar_oracle() {
 fn transpose_eight_output_reuse_preserves_every_tap_batch_and_tail() {
     for width in [3, 4, 7, 8, 9, 17] {
         for cout in [1, 4, 8, 9, 16] {
-            let p = super::super::kernels::ConvTranspose {
+            let p = super::super::bound::ConvTranspose {
                 batch: 2,
                 cin: 3,
                 cout,
@@ -934,7 +934,7 @@ fn canonical_epilogues_transform_every_final_output_once_with_global_indices() {
 fn transpose_epilogue_indices_cover_interleaved_taps_batches_and_channel_bands() {
     let cpu = CpuContext::new(if cfg!(feature = "parallel") { 4 } else { 1 }).unwrap();
     for batch in [1, 2] {
-        let p = super::super::kernels::ConvTranspose {
+        let p = super::super::bound::ConvTranspose {
             batch,
             cin: 5,
             cout: 17,

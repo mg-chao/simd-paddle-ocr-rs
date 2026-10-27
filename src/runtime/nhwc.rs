@@ -1,5 +1,5 @@
 //! Channels-last kernels. Logical shapes always retain ONNX NCHW dimensions.
-use super::kernels::{BinaryOp, BoundKind, Conv};
+use super::bound::{BinaryOp, BoundKind, Conv};
 use super::optimized::Layout;
 #[cfg(test)]
 use super::simd::IdentityStore;
@@ -359,7 +359,7 @@ fn conv_row_workers(p: &Conv, budget: usize) -> usize {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn execute<'a>(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     index: usize,
     kind: &BoundKind,
     info: impl Fn(usize) -> (Shape, Layout),
@@ -377,7 +377,7 @@ pub(super) fn execute<'a>(
     match kind {
         BoundKind::Conv(p) => {
             let weights = data(1);
-            let bias = if compiled.instructions[index].inputs.len() > 2 {
+            let bias = if compiled.program.instructions[index].inputs.len() > 2 {
                 data(2)
             } else {
                 &[]
@@ -481,7 +481,7 @@ pub(super) fn execute<'a>(
         }
         BoundKind::ConvTranspose(p) => {
             let weights = data(1);
-            let bias = if compiled.instructions[index].inputs.len() > 2 {
+            let bias = if compiled.program.instructions[index].inputs.len() > 2 {
                 data(2)
             } else {
                 &[]
@@ -660,7 +660,7 @@ pub(super) fn execute<'a>(
             assert_eq!(p.axis, 1);
             let dimensions = shape.dimensions();
             concat::execute(
-                compiled.instructions[index].inputs.len(),
+                compiled.program.instructions[index].inputs.len(),
                 data,
                 dimensions[0] * dimensions[2] * dimensions[3],
                 out,
@@ -669,7 +669,7 @@ pub(super) fn execute<'a>(
             );
         }
         _ => {
-            let logical = &compiled.instructions[index].inputs;
+            let logical = &compiled.program.instructions[index].inputs;
             kernels::execute_optimized(
                 kind,
                 logical,
@@ -688,7 +688,7 @@ pub(super) fn execute<'a>(
 /// General logical-coordinate fallback, also retained as the measured oracle
 /// for the channel specialization. No activation or coefficient is copied.
 pub(super) fn binary_generic(
-    plan: &kernels::Broadcast,
+    plan: &bound::Broadcast,
     op: BinaryOp,
     info: impl Fn(usize) -> (Shape, Layout),
     a: &[f32],
@@ -731,7 +731,7 @@ pub(super) fn binary_generic(
 
 #[cfg(test)]
 pub(super) fn transpose_scalar(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -741,7 +741,7 @@ pub(super) fn transpose_scalar(
 }
 
 fn transpose_scalar_store(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -772,7 +772,7 @@ fn transpose_scalar_store(
 #[cfg(test)]
 pub(super) fn transpose_packed_rows(
     backend: Backend,
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -796,7 +796,7 @@ pub(super) fn transpose_packed_rows(
 #[allow(clippy::too_many_arguments)]
 fn transpose_packed_rows_store(
     backend: Backend,
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -807,13 +807,13 @@ fn transpose_packed_rows_store(
 ) {
     #[cfg(target_arch = "aarch64")]
     if transpose::neon_direct_eligible(backend, p) {
-        // SAFETY: CompiledModel validates the selected NEON backend.
+        // SAFETY: CpuCompiledModel validates the selected NEON backend.
         unsafe { transpose::neon_packed_direct(p, input, bias, panels, out, first_row, store) };
         return;
     }
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     if backend == Backend::Avx2Fma {
-        // SAFETY: CompiledModel validates AVX2/FMA before selecting this backend.
+        // SAFETY: CpuCompiledModel validates AVX2/FMA before selecting this backend.
         unsafe { transpose::packed_direct(p, input, bias, panels, out, first_row, store) };
         return;
     }
@@ -909,28 +909,28 @@ fn conv_dispatch_store(
     match backend {
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates the selected backend's target features.
+            // SAFETY: CpuCompiledModel validates the selected backend's target features.
             unsafe {
                 conv_avx2(p, input, weights, bias, packed, out, first, store);
             }
         }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates the selected backend's target features.
+            // SAFETY: CpuCompiledModel validates the selected backend's target features.
             unsafe {
                 conv_avx(p, input, weights, bias, packed, out, first, store);
             }
         }
         Backend::AvxFma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates the selected backend's target features.
+            // SAFETY: CpuCompiledModel validates the selected backend's target features.
             unsafe {
                 conv_avx_fma(p, input, weights, bias, packed, out, first, store);
             }
         }
         Backend::Avx512 => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates the selected backend's target features.
+            // SAFETY: CpuCompiledModel validates the selected backend's target features.
             unsafe {
                 conv_avx512(p, input, weights, bias, packed, out, first, store);
             }
@@ -1035,28 +1035,28 @@ fn depthwise_dispatch(
         }
         Backend::Avx2Fma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates the selected backend's target features.
+            // SAFETY: CpuCompiledModel validates the selected backend's target features.
             unsafe {
                 depthwise_avx2(p, input, weights, bias, packed, out, first, store)
             }
         }
         Backend::Avx => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates Avx before this selection.
+            // SAFETY: CpuCompiledModel validates Avx before this selection.
             unsafe {
                 depthwise_avx(p, input, weights, bias, packed, out, first, store)
             }
         }
         Backend::AvxFma => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates AvxFma before this selection.
+            // SAFETY: CpuCompiledModel validates AvxFma before this selection.
             unsafe {
                 depthwise_avx_fma(p, input, weights, bias, packed, out, first, store)
             }
         }
         Backend::Avx512 => {
             #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            // SAFETY: CompiledModel validates Avx512 before this selection.
+            // SAFETY: CpuCompiledModel validates Avx512 before this selection.
             unsafe {
                 depthwise_avx512(p, input, weights, bias, packed, out, first, store)
             }

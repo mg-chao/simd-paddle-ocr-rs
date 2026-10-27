@@ -4,7 +4,7 @@ use super::*;
 
 /// Local macOS graph measurements favor direct stores for the larger ARM64 head.
 /// Narrow heads retain the existing matrix path; their benefit was inconclusive.
-pub(super) fn neon_direct_eligible(backend: Backend, p: &kernels::ConvTranspose) -> bool {
+pub(super) fn neon_direct_eligible(backend: Backend, p: &bound::ConvTranspose) -> bool {
     cfg!(all(target_arch = "aarch64", target_os = "macos"))
         && backend == Backend::NeonFma
         && p.cin >= 64
@@ -17,7 +17,7 @@ pub(super) fn neon_direct_eligible(backend: Backend, p: &kernels::ConvTranspose)
 #[target_feature(enable = "neon")]
 #[allow(clippy::too_many_arguments)]
 pub(super) unsafe fn neon_packed_direct(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -51,7 +51,7 @@ pub(super) unsafe fn neon_packed_direct(
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 unsafe fn neon_direct_tile<const ROWS: usize>(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -101,7 +101,7 @@ unsafe fn neon_direct_tile<const ROWS: usize>(
 #[target_feature(enable = "avx2,fma")]
 #[allow(clippy::too_many_arguments)]
 pub(super) unsafe fn packed_direct(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -133,7 +133,7 @@ pub(super) unsafe fn packed_direct(
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 fn direct_tile<const ROWS: usize>(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     bias: &[f32],
     panels: &[PackedMatrix; 4],
@@ -191,7 +191,7 @@ fn direct_tile<const ROWS: usize>(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn single(
     backend: Backend,
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],
@@ -234,7 +234,7 @@ macro_rules! x86_kernel {
         #[target_feature(enable=$features)]
         #[allow(clippy::too_many_arguments)]
         unsafe fn $name(
-            p: &kernels::ConvTranspose,
+            p: &bound::ConvTranspose,
             input: &[f32],
             weights: &[f32],
             bias: &[f32],
@@ -253,7 +253,7 @@ x86_kernel!(avx2, "avx2,fma", true);
 #[allow(clippy::too_many_arguments)]
 #[inline(always)]
 fn kernel<const LANES: usize, const FUSED: bool>(
-    p: &kernels::ConvTranspose,
+    p: &bound::ConvTranspose,
     input: &[f32],
     weights: &[f32],
     bias: &[f32],

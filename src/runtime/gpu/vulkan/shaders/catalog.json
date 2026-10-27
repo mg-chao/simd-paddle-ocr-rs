@@ -1,0 +1,1780 @@
+[
+  {
+    "name": "attention",
+    "neural": true,
+    "precision_mask": 47,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "attention_views",
+    "neural": true,
+    "precision_mask": 47,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "squeeze_excite",
+    "neural": true,
+    "precision_mask": 47,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "small_projection",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "transposed",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "convolution",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "general",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "depthwise3",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "depthwise5",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "reduce",
+    "neural": true,
+    "precision_mask": 39,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "softmax",
+    "neural": true,
+    "precision_mask": 39,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "layer_norm",
+    "neural": true,
+    "precision_mask": 39,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "reduce_partial",
+    "neural": true,
+    "precision_mask": 35,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "reduce_finish",
+    "neural": true,
+    "precision_mask": 35,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "softmax_partial",
+    "neural": true,
+    "precision_mask": 35,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "softmax_finish",
+    "neural": true,
+    "precision_mask": 35,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "matmul16",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "conv16",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "matmul32",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "conv32",
+    "neural": true,
+    "precision_mask": 63,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "crop",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 3,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      },
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "crop_meta",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      },
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "pack_bgr",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "rotate",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "db_rows",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "db_sort",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      1,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "head_reduce",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "head_reduce_parallel",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "ctc",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "db_label",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 7,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "db_geometry",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 5,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      },
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      }
+    ],
+    "workgroup": [
+      1,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "heads",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "heads4",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "db_geometry_fast",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 5,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      },
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      }
+    ],
+    "workgroup": [
+      1,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "heads_features_f32",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "image",
+    "neural": false,
+    "precision_mask": 4,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "binding_probe",
+    "neural": false,
+    "precision_mask": 0,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": true,
+        "minimum": 512
+      }
+    ],
+    "workgroup": [
+      1,
+      1,
+      1
+    ]
+  },
+  {
+    "name": "counter_probe",
+    "precision_mask": 0,
+    "workgroup": [
+      1,
+      1,
+      1
+    ],
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      }
+    ]
+  },
+  {
+    "name": "round_half_probe",
+    "precision_mask": 0,
+    "workgroup": [
+      64,
+      1,
+      1
+    ],
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ]
+  },
+  {
+    "name": "half_store_probe",
+    "precision_mask": 32,
+    "workgroup": [
+      64,
+      1,
+      1
+    ],
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 5,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 6,
+        "uniform": true,
+        "read": false,
+        "minimum": 512
+      }
+    ]
+  },
+  {
+    "name": "projection_matrix_f16",
+    "precision_mask": 0,
+    "workgroup": [
+      256,
+      1,
+      1
+    ],
+    "specialization": [
+      {
+        "id": 0,
+        "value": 16
+      }
+    ],
+    "bindings": [
+      {
+        "slot": 0,
+        "read": true,
+        "uniform": false,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "read": true,
+        "uniform": false,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "read": true,
+        "uniform": false,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "read": false,
+        "uniform": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "read": false,
+        "uniform": true,
+        "minimum": 1024
+      }
+    ]
+  },
+  {
+    "name": "heads4_subgroup",
+    "neural": false,
+    "precision_mask": 1,
+    "bindings": [
+      {
+        "slot": 0,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 1,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 2,
+        "uniform": false,
+        "read": true,
+        "minimum": 4
+      },
+      {
+        "slot": 3,
+        "uniform": false,
+        "read": false,
+        "minimum": 4
+      },
+      {
+        "slot": 4,
+        "uniform": true,
+        "read": false,
+        "minimum": 1024
+      }
+    ],
+    "workgroup": [
+      64,
+      1,
+      1
+    ]
+  }
+]

@@ -12,7 +12,14 @@ fn minimum_side_scaling_keeps_narrow_images_runnable() {
     for (width, height) in [(192, 32), (32, 192)] {
         let pixels = vec![255; width * height * 3];
         let image = ImageView::new(&pixels, width, height, 0, PixelFormat::Bgr24).unwrap();
-        let result = pipeline.run(image, false).unwrap();
+        let result = pipeline
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: false,
+                },
+            )
+            .unwrap();
         assert_eq!(result.detected_count, 1);
         assert!(!result.get(0).unwrap().text.is_empty());
         assert!(result.detector_resized_width <= 4096);

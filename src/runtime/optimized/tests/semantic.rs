@@ -28,9 +28,9 @@ fn options() -> impl Iterator<Item = CompileOptions> {
             ]
             .into_iter()
             .map(move |kernels| CompileOptions {
-                kernels,
-                layout,
+                cpu: crate::runtime::CpuCompileOptions { kernels, layout },
                 fusion: true,
+                ..Default::default()
             })
         })
 }
@@ -152,11 +152,11 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
         })
         .unwrap();
     for options in options() {
-        let compiled = Arc::new(CompiledModel::compile(model.clone(), options).unwrap());
+        let compiled = Arc::new(CpuCompiledModel::compile(model.clone(), options).unwrap());
         let mut full =
-            Session::new_serial(compiled.clone(), &INPUT_SHAPE, ExecutionLimits::default())
+            CpuSession::new_serial(compiled.clone(), &INPUT_SHAPE, ExecutionLimits::default())
                 .unwrap();
-        let mut prefix = Session::new_prefix(
+        let mut prefix = CpuSession::new_prefix(
             compiled.clone(),
             &INPUT_SHAPE,
             ExecutionLimits::default(),
@@ -173,8 +173,8 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
 
         // A selected intermediate remains available even when binding more
         // instructions than its producer; do not absorb it into an epilogue.
-        let selected = compiled.instructions[2].output;
-        let mut selected_session = Session::new_selected(
+        let selected = compiled.program.instructions[2].output;
+        let mut selected_session = CpuSession::new_selected(
             compiled.clone(),
             &INPUT_SHAPE,
             ExecutionLimits::default(),
@@ -184,7 +184,7 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
         .unwrap();
         assert_eq!(selected_session.statistics().fused_nodes, 1);
         compare(&expected[2], selected_session.run(&values).unwrap().data());
-        let graph_before = format!("{:?}", compiled.model.graph());
+        let graph_before = format!("{:?}", compiled.program.model.graph());
         let mut traced = 0;
         full.run_with_trace(&values, |event| {
             compare(&expected[event.index], event.values);
@@ -193,7 +193,10 @@ fn shared_dataflow_keeps_prefix_exclusivity_and_selected_outputs() {
         })
         .unwrap();
         assert_eq!(traced, expected.len());
-        assert_eq!(graph_before, format!("{:?}", compiled.model.graph()));
+        assert_eq!(
+            graph_before,
+            format!("{:?}", compiled.program.model.graph())
+        );
     }
 }
 
@@ -258,7 +261,7 @@ fn gapped_full_constant_residual_only_fuses_with_canonical_storage() {
     let mut reference = session(model.clone(), CompileOptions::reference(), &INPUT_SHAPE);
     let expected = reference.run(&values).unwrap().data().to_vec();
     for options in options() {
-        let expected_fused = if options.layout == LayoutPolicy::Nchw {
+        let expected_fused = if options.cpu.layout == LayoutPolicy::Nchw {
             3
         } else {
             0
@@ -297,7 +300,7 @@ fn gapped_group_prefix_endpoints_and_trace_keep_each_normalized_value() {
             .unwrap();
         assert_eq!(seen, expected.len());
         for (last, (_, shape, expected)) in expected.iter().enumerate() {
-            let mut prefix = Session::new_prefix(
+            let mut prefix = CpuSession::new_prefix(
                 optimized.compiled.clone(),
                 &INPUT_SHAPE,
                 ExecutionLimits::default(),
@@ -358,7 +361,7 @@ fn gapped_physical_limit_failure_preserves_the_previous_runnable_binding() {
     let mut unlimited = session(model.clone(), CompileOptions::default(), &INPUT_SHAPE);
     let values = input();
     let expected = unlimited.run(&values).unwrap().data().to_vec();
-    let mut limited = Session::new_serial(
+    let mut limited = CpuSession::new_serial(
         unlimited.compiled.clone(),
         &INPUT_SHAPE,
         ExecutionLimits {

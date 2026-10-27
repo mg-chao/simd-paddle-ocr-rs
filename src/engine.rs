@@ -2,7 +2,7 @@
 use crate::{
     cpu::CpuContext,
     image::{ImageError, ImageResult, ImageView},
-    ocr::{Ocr, OcrTrace, OcrView, OwnedOcr},
+    ocr::{OcrPlan, OcrRequest, OcrTrace, OcrView, OwnedOcr, RunOptions},
 };
 use std::{
     ops::{Deref, DerefMut},
@@ -22,25 +22,29 @@ pub struct EngineStats {
     pub live_requests: usize,
     pub idle_requests: usize,
     pub idle_bytes: usize,
+    pub idle_host_bytes: usize,
+    /// Request-owned device buffers; shared compiled resources are excluded.
+    pub idle_device_bytes: usize,
 }
 
 struct State<T> {
     live: usize,
     bytes: usize,
-    idle: Vec<(T, usize)>,
+    device_bytes: usize,
+    idle: Vec<(T, usize, usize)>,
 }
 struct Pool<T> {
     limits: EngineLimits,
     state: Mutex<State<T>>,
     available: Condvar,
     factory: Box<dyn Fn() -> ImageResult<T> + Send + Sync>,
-    measure: fn(&T) -> usize,
+    measure: fn(&T) -> crate::runtime::MemorySnapshot,
 }
 impl<T> Pool<T> {
     fn new(
         limits: EngineLimits,
         factory: impl Fn() -> ImageResult<T> + Send + Sync + 'static,
-        measure: fn(&T) -> usize,
+        measure: fn(&T) -> crate::runtime::MemorySnapshot,
     ) -> ImageResult<Self> {
         if limits.max_requests == 0 {
             return Err(ImageError::new("max_requests must be positive"));
@@ -50,6 +54,7 @@ impl<T> Pool<T> {
             state: Mutex::new(State {
                 live: 0,
                 bytes: 0,
+                device_bytes: 0,
                 idle: Vec::new(),
             }),
             available: Condvar::new(),
@@ -69,13 +74,16 @@ impl<T> Pool<T> {
             live_requests: state.live,
             idle_requests: state.idle.len(),
             idle_bytes: state.bytes,
+            idle_host_bytes: state.bytes.saturating_sub(state.device_bytes),
+            idle_device_bytes: state.device_bytes,
         }
     }
     fn acquire(&self, wait: bool) -> ImageResult<Option<Lease<'_, T>>> {
         let mut state = self.lock();
         loop {
-            if let Some((value, bytes)) = state.idle.pop() {
+            if let Some((value, bytes, device_bytes)) = state.idle.pop() {
                 state.bytes -= bytes;
+                state.device_bytes -= device_bytes;
                 return Ok(Some(Lease {
                     pool: self,
                     value: Some(value),
@@ -138,7 +146,9 @@ impl<T> Drop for Lease<'_, T> {
         let Some(value) = self.value.take() else {
             return;
         };
-        let bytes = (self.pool.measure)(&value);
+        let memory = (self.pool.measure)(&value);
+        let bytes = memory.total_bytes();
+        let device_bytes = memory.device_bytes;
         let mut state = self.pool.lock();
         if !std::thread::panicking()
             && bytes <= self.pool.limits.max_idle_bytes.saturating_sub(state.bytes)
@@ -146,7 +156,8 @@ impl<T> Drop for Lease<'_, T> {
             && state.idle.try_reserve(1).is_ok()
         {
             state.bytes += bytes;
-            state.idle.push((value, bytes));
+            state.device_bytes += device_bytes;
+            state.idle.push((value, bytes, device_bytes));
             drop(state);
         } else {
             state.live -= 1;
@@ -162,21 +173,20 @@ impl<T> Drop for Lease<'_, T> {
 /// and immutable inspection; configure stage budgets on the template first.
 pub struct OcrEngine {
     cpu: Arc<CpuContext>,
-    pool: Pool<Ocr>,
+    pool: Pool<OcrRequest>,
 }
 impl OcrEngine {
-    /// Consume a request into an immutable model/options factory, releasing its
-    /// warm mutable workspace before admitting the first pooled request.
-    pub fn new(template: Ocr, limits: EngineLimits) -> ImageResult<Self> {
-        let cpu = template.cpu_context().clone();
-        Self::from_factory(cpu, limits, template.into_factory())
+    /// Admit independent requests from a shared immutable plan.
+    pub fn new(plan: Arc<OcrPlan>, limits: EngineLimits) -> ImageResult<Self> {
+        let cpu = plan.cpu_context().clone();
+        Self::from_factory(cpu, limits, move || plan.request())
     }
     /// The factory should share immutable models. Every created request is
     /// rebound to this engine's executor before it can execute any work.
-    pub fn from_factory(
+    fn from_factory(
         cpu: Arc<CpuContext>,
         limits: EngineLimits,
-        factory: impl Fn() -> ImageResult<Ocr> + Send + Sync + 'static,
+        factory: impl Fn() -> ImageResult<OcrRequest> + Send + Sync + 'static,
     ) -> ImageResult<Self> {
         let shared = cpu.clone();
         let pool = Pool::new(
@@ -186,12 +196,7 @@ impl OcrEngine {
                 request.pin_cpu_context(shared.clone())?;
                 Ok(request)
             },
-            |request| {
-                request
-                    .retained_activation_bytes()
-                    .saturating_add(request.diagnostic_retained_activation_bytes())
-                    .saturating_add(request.retained_workspace_bytes())
-            },
+            OcrRequest::memory_snapshot,
         )?;
         Ok(Self { cpu, pool })
     }
@@ -228,19 +233,19 @@ impl OcrEngine {
     pub fn try_request(&self) -> ImageResult<Option<OcrLease<'_>>> {
         self.try_acquire()
     }
-    pub fn run_owned(&self, image: ImageView<'_>, capture: bool) -> ImageResult<OwnedOcr> {
-        self.acquire()?.run(image, capture)?.try_to_owned()
+    pub fn run_owned(&self, image: ImageView<'_>, options: RunOptions) -> ImageResult<OwnedOcr> {
+        self.acquire()?.run(image, options)?.try_to_owned()
     }
 }
 /// Controlled execution and immutable request inspection. Component replacement
-/// and CPU-context mutation are available on standalone `Ocr`, rather than a
+/// and CPU-context mutation are available on standalone `OcrRequest`, rather than a
 /// pooled lease. A borrowed view cannot outlive its lease or another mutable use.
 ///
 /// ```compile_fail
 /// use simd_paddle_ocr_rs::{engine::OcrEngine, image::ImageView, ocr::OcrView};
 /// fn escape<'a>(engine: &'a OcrEngine, image: ImageView<'_>) -> OcrView<'a> {
 ///     let mut lease = engine.acquire().unwrap();
-///     lease.run(image, false).unwrap()
+///     lease.run(image, simd_paddle_ocr_rs::RunOptions { capture_spans: false }).unwrap()
 /// }
 /// ```
 ///
@@ -248,7 +253,7 @@ impl OcrEngine {
 /// use simd_paddle_ocr_rs::{engine::OcrEngine, image::ImageView};
 /// fn release_while_borrowed(engine: &OcrEngine, image: ImageView<'_>) {
 ///     let mut lease = engine.acquire().unwrap();
-///     let result = lease.run(image, false).unwrap();
+///     let result = lease.run(image, simd_paddle_ocr_rs::RunOptions { capture_spans: false }).unwrap();
 ///     drop(lease);
 ///     println!("{}", result.text);
 /// }
@@ -271,18 +276,18 @@ impl OcrEngine {
 /// ```
 ///
 /// ```compile_fail
-/// use simd_paddle_ocr_rs::{engine::OcrEngine, ocr::Ocr};
-/// fn replace_request(engine: &OcrEngine, replacement: Ocr) {
+/// use simd_paddle_ocr_rs::{engine::OcrEngine, ocr::OcrRequest};
+/// fn replace_request(engine: &OcrEngine, replacement: OcrRequest) {
 ///     let mut lease = engine.request().unwrap();
 ///     *lease = replacement;
 /// }
 /// ```
 pub struct OcrLease<'a> {
-    lease: Lease<'a, Ocr>,
+    lease: Lease<'a, OcrRequest>,
 }
 impl OcrLease<'_> {
-    pub fn run(&mut self, image: ImageView<'_>, capture: bool) -> ImageResult<OcrView<'_>> {
-        self.lease.run(image, capture)
+    pub fn run(&mut self, image: ImageView<'_>, options: RunOptions) -> ImageResult<OcrView<'_>> {
+        self.lease.run(image, options)
     }
     #[cfg(feature = "profiling")]
     pub fn run_profiled(
@@ -305,14 +310,14 @@ impl OcrLease<'_> {
     }
 }
 impl Deref for OcrLease<'_> {
-    type Target = Ocr;
-    fn deref(&self) -> &Ocr {
+    type Target = OcrRequest;
+    fn deref(&self) -> &OcrRequest {
         &self.lease
     }
 }
 impl Drop for OcrLease<'_> {
     fn drop(&mut self) {
-        if self.lease.value.as_ref().is_some_and(Ocr::unwound) {
+        if self.lease.value.as_ref().is_some_and(OcrRequest::unwound) {
             let value = self.lease.value.take();
             self.lease.pool.lock().live -= 1;
             self.lease.pool.available.notify_one();
@@ -326,10 +331,40 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     #[test]
+    fn idle_accounting_separates_host_and_device_and_removes_both_on_acquire() {
+        let pool = Pool::new(
+            EngineLimits {
+                max_requests: 1,
+                max_idle_bytes: 100,
+            },
+            || Ok((40usize, 24usize)),
+            |&(host_bytes, device_bytes)| crate::runtime::MemorySnapshot {
+                host_bytes,
+                device_bytes,
+            },
+        )
+        .unwrap();
+        let lease = pool.acquire(false).unwrap().unwrap();
+        drop(lease);
+        assert_eq!(pool.stats().idle_bytes, 64);
+        assert_eq!(pool.stats().idle_host_bytes, 40);
+        assert_eq!(pool.stats().idle_device_bytes, 24);
+        let mut lease = pool.acquire(false).unwrap().unwrap();
+        assert_eq!(pool.stats().idle_bytes, 0);
+        assert_eq!(pool.stats().idle_device_bytes, 0);
+        *lease = (80, 24);
+        drop(lease);
+        assert_eq!(pool.stats(), EngineStats::default());
+    }
+    #[test]
     fn leased_requests_cannot_change_the_engine_context_or_pollute_cached_requests() {
         let cpu = CpuContext::serial();
         let engine = OcrEngine::new(
-            crate::ocr::tests::synthetic_ocr(cpu.clone()),
+            std::sync::Arc::new(
+                (crate::ocr::tests::synthetic_ocr(cpu.clone()))
+                    .plan()
+                    .clone(),
+            ),
             EngineLimits {
                 max_requests: 1,
                 max_idle_bytes: 16 << 20,
@@ -358,7 +393,11 @@ mod tests {
     fn caller_thread_trace_rejects_reentrant_wait_and_clears_admission_after_panics() {
         let cpu = Arc::new(CpuContext::new(2).unwrap());
         let engine = OcrEngine::new(
-            crate::ocr::tests::synthetic_ocr(cpu.clone()),
+            std::sync::Arc::new(
+                (crate::ocr::tests::synthetic_ocr(cpu.clone()))
+                    .plan()
+                    .clone(),
+            ),
             EngineLimits {
                 max_requests: 1,
                 max_idle_bytes: 16 << 20,
@@ -397,7 +436,11 @@ mod tests {
     #[test]
     fn caught_callback_panic_still_discards_the_request() {
         let engine = OcrEngine::new(
-            crate::ocr::tests::synthetic_ocr(CpuContext::serial()),
+            std::sync::Arc::new(
+                (crate::ocr::tests::synthetic_ocr(CpuContext::serial()))
+                    .plan()
+                    .clone(),
+            ),
             EngineLimits {
                 max_requests: 1,
                 max_idle_bytes: 16 << 20,
@@ -413,15 +456,35 @@ mod tests {
             }))
             .is_err()
         );
-        assert!(request.run(image, false).is_err());
+        assert!(
+            request
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: false
+                    }
+                )
+                .is_err()
+        );
         drop(request);
         assert_eq!(engine.stats(), EngineStats::default());
         let mut replacement = engine.try_request().unwrap().unwrap();
-        assert_eq!(replacement.run(image, false).unwrap().detected_count, 2);
+        assert_eq!(
+            replacement
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: false
+                    }
+                )
+                .unwrap()
+                .detected_count,
+            2
+        );
     }
     #[test]
     fn traced_requests_are_evicted_when_diagnostics_exceed_the_idle_budget() {
-        fn bytes(request: &Ocr) -> usize {
+        fn bytes(request: &OcrRequest) -> usize {
             request.retained_activation_bytes()
                 + request.diagnostic_retained_activation_bytes()
                 + request.retained_workspace_bytes()
@@ -429,10 +492,17 @@ mod tests {
         let pixels = crate::ocr::tests::two_lines();
         let image = ImageView::new(&pixels, 96, 96, 0, crate::image::PixelFormat::Bgr24).unwrap();
         let mut template = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
-        template.run(image, true).unwrap();
+        template
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap();
         let production_bytes = bytes(&template);
         let engine = OcrEngine::new(
-            template,
+            std::sync::Arc::new((template).plan().clone()),
             EngineLimits {
                 max_requests: 1,
                 max_idle_bytes: production_bytes,
@@ -441,7 +511,14 @@ mod tests {
         .unwrap();
         {
             let mut request = engine.acquire().unwrap();
-            request.run(image, true).unwrap();
+            request
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap();
             assert!(bytes(&request) <= production_bytes);
         }
         assert_eq!(engine.stats().idle_requests, 1);
@@ -456,7 +533,18 @@ mod tests {
         }
         assert_eq!(engine.stats(), EngineStats::default());
         let mut replacement = engine.acquire().unwrap();
-        assert_eq!(replacement.run(image, true).unwrap().detected_count, 2);
+        assert_eq!(
+            replacement
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .detected_count,
+            2
+        );
         drop(replacement);
         assert_eq!(engine.stats().idle_requests, 1);
     }
@@ -473,7 +561,7 @@ mod tests {
                 count.fetch_add(1, Ordering::SeqCst);
                 Ok(Vec::<u8>::new())
             },
-            |v| v.capacity(),
+            |v| crate::runtime::MemorySnapshot::host(v.capacity()),
         )
         .unwrap();
         let mut first = pool.acquire(false).unwrap().unwrap();
@@ -504,7 +592,7 @@ mod tests {
                     1 => panic!("injected creation panic"),
                     _ => Ok(7usize),
                 },
-                |_| 8,
+                |_| crate::runtime::MemorySnapshot::host(8),
             )
             .unwrap(),
         );
@@ -548,7 +636,7 @@ mod tests {
                     max_idle_bytes: 16,
                 },
                 || Ok(0usize),
-                |_| 8,
+                |_| crate::runtime::MemorySnapshot::host(8),
             )
             .unwrap(),
         );
@@ -574,7 +662,11 @@ mod tests {
 
         let cpu = CpuContext::serial();
         let engine = OcrEngine::new(
-            crate::ocr::tests::synthetic_ocr(cpu.clone()),
+            std::sync::Arc::new(
+                (crate::ocr::tests::synthetic_ocr(cpu.clone()))
+                    .plan()
+                    .clone(),
+            ),
             EngineLimits {
                 max_requests: 3,
                 max_idle_bytes: 32 << 20,
@@ -637,7 +729,7 @@ mod tests {
         let template = crate::ocr::tests::synthetic_ocr(cpu.clone());
         let engine = Arc::new(
             OcrEngine::new(
-                template,
+                std::sync::Arc::new((template).plan().clone()),
                 EngineLimits {
                     max_requests: 2,
                     max_idle_bytes: 16 << 20,
@@ -659,7 +751,14 @@ mod tests {
                                 .unwrap();
                         let mut request = engine.acquire().unwrap();
                         assert!(Arc::ptr_eq(request.cpu_context(), cpu));
-                        let borrowed = request.run(image, true).unwrap();
+                        let borrowed = request
+                            .run(
+                                image,
+                                crate::RunOptions {
+                                    capture_spans: true,
+                                },
+                            )
+                            .unwrap();
                         assert_eq!(borrowed.detected_count, 2);
                         let owned = borrowed.try_to_owned().unwrap();
                         drop(request);
@@ -692,7 +791,14 @@ mod tests {
             }
             let image = ImageView::new(&pixels, width, 96, stride, PixelFormat::Bgr24).unwrap();
             let expected = [false, true].map(|capture| {
-                let result = baseline.run(image, capture).unwrap();
+                let result = baseline
+                    .run(
+                        image,
+                        crate::RunOptions {
+                            capture_spans: capture,
+                        },
+                    )
+                    .unwrap();
                 assert_eq!(result.detected_count, 2);
                 serde_json::to_value(result.try_to_owned().unwrap()).unwrap()
             });
@@ -712,7 +818,7 @@ mod tests {
                 )
                 .unwrap();
             let engine = OcrEngine::new(
-                template,
+                std::sync::Arc::new((template).plan().clone()),
                 EngineLimits {
                     max_requests: 3,
                     max_idle_bytes: 64 << 20,
@@ -743,8 +849,16 @@ mod tests {
                             assert!(Arc::ptr_eq(request.cpu_context(), cpu));
                             assert_eq!(request.cpu_budgets().line_workers(), budget);
                             assert_eq!(request.cpu_budgets().detector_threads(), budget);
-                            let owned =
-                                request.run(image, capture).unwrap().try_to_owned().unwrap();
+                            let owned = request
+                                .run(
+                                    image,
+                                    crate::RunOptions {
+                                        capture_spans: capture,
+                                    },
+                                )
+                                .unwrap()
+                                .try_to_owned()
+                                .unwrap();
                             drop(request);
                             assert_eq!(
                                 serde_json::to_value(owned).unwrap(),

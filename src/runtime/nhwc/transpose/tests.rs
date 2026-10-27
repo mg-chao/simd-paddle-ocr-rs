@@ -1,9 +1,10 @@
 use super::*;
+use crate::runtime::bound;
 
 #[test]
 fn direct_transpose_selection_keeps_narrow_heads_and_other_backends_on_fallback() {
     for (cin, cout) in [(16, 16), (24, 24), (63, 64), (64, 63), (64, 64), (65, 65)] {
-        let p = kernels::ConvTranspose {
+        let p = bound::ConvTranspose {
             batch: 1,
             cin,
             cout,
@@ -61,7 +62,7 @@ fn direct_transpose_matches_buffered_bits_with_fused_stores_and_row_bands() {
         (65, 31, 3, 5),
         (65, 65, 3, 5),
     ] {
-        let p = kernels::ConvTranspose {
+        let p = bound::ConvTranspose {
             batch: 2,
             cin,
             cout,

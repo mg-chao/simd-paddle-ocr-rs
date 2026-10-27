@@ -1,0 +1,129 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    float sum = 0.0;
+    uint ci = 0u;
+    uint ky = 0u;
+    bool local = false;
+    uint kx = 0u;
+    bool local_1 = false;
+    uint _e4 = p(1u);
+    uint index_1 = (id.x + (id.y * _e4));
+    uint _e8 = p(0u);
+    if ((index_1 >= _e8)) {
+        return;
+    }
+    uint _e11 = p(3u);
+    uint _e13 = p(4u);
+    uint _e15 = p(5u);
+    uint _e17 = p(6u);
+    uint _e19 = p(7u);
+    uint _e21 = p(8u);
+    uint _e23 = p(9u);
+    uint _e25 = p(10u);
+    uint _e27 = p(11u);
+    uint _e29 = p(12u);
+    uint _e31 = p(13u);
+    uint _e33 = p(14u);
+    uint _e35 = p(15u);
+    uint _e37 = p(16u);
+    uint _e39 = p(17u);
+    uint _e41 = p(18u);
+    uint ox = (index_1 % _e21);
+    uint oy = ((index_1 / _e21) % _e19);
+    uint co = ((index_1 / (_e21 * _e19)) % _e13);
+    uint batch = (index_1 / ((_e21 * _e19) * _e13));
+    uint first = ((co / _e25) * _e23);
+    uint _e56 = p(19u);
+    if ((_e56 != 0u)) {
+        float _e59 = load_c(co);
+        sum = _e59;
+    }
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e135 = ci;
+            ci = (_e135 + 1u);
+        }
+        loop_init_1 = false;
+        uint _e62 = ci;
+        if ((_e62 < _e23)) {
+        } else {
+            break;
+        }
+        {
+            ky = 0u;
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    uint _e132 = ky;
+                    ky = (_e132 + 1u);
+                }
+                loop_init_2 = false;
+                uint _e66 = ky;
+                if ((_e66 < _e27)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e69 = ky;
+                    int iy = (int(((oy * _e31) + (_e69 * _e35))) - int(_e39));
+                    if (!((iy < 0))) {
+                        local = (iy >= int(_e15));
+                    } else {
+                        local = true;
+                    }
+                    bool _e83 = local;
+                    if (_e83) {
+                        continue;
+                    }
+                    kx = 0u;
+                    bool loop_init_3 = true;
+                    while(true) {
+                        if (!loop_init_3) {
+                            uint _e129 = kx;
+                            kx = (_e129 + 1u);
+                        }
+                        loop_init_3 = false;
+                        uint _e86 = kx;
+                        if ((_e86 < _e29)) {
+                        } else {
+                            break;
+                        }
+                        {
+                            uint _e89 = kx;
+                            int ix = (int(((ox * _e33) + (_e89 * _e37))) - int(_e41));
+                            if (!((ix < 0))) {
+                                local_1 = (ix >= int(_e17));
+                            } else {
+                                local_1 = true;
+                            }
+                            bool _e103 = local_1;
+                            if (_e103) {
+                                continue;
+                            }
+                            uint _e106 = ci;
+                            uint source = (((((((batch * _e11) + first) + _e106) * _e15) + uint(iy)) * _e17) + uint(ix));
+                            uint _e115 = ci;
+                            uint _e118 = ky;
+                            uint _e121 = kx;
+                            uint weight = ((((((co * _e23) + _e115) * _e27) + _e118) * _e29) + _e121);
+                            float _e123 = sum;
+                            float _e124 = load_a(source);
+                            float _e125 = load_b(weight);
+                            sum = (_e123 + (_e124 * _e125));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    float _e137 = sum;
+    float _e138 = epilogue(_e137, index_1);
+    store_output(index_1, _e138);
+    return;
+}
+

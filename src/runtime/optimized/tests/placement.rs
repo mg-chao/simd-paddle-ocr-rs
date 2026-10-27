@@ -117,10 +117,13 @@ fn placement_extends_alias_root_lifetime_and_preserves_relative_offset() {
 fn smaller_arena_plan_still_enforces_limits_and_rejected_growth_is_reusable() {
     let source = conv_model(false);
     let compiled = Arc::new(
-        CompiledModel::compile(
+        CpuCompiledModel::compile(
             source.clone(),
             CompileOptions {
-                kernels: KernelPolicy::Portable4,
+                cpu: crate::runtime::CpuCompileOptions {
+                    kernels: KernelPolicy::Portable4,
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         )
@@ -128,11 +131,11 @@ fn smaller_arena_plan_still_enforces_limits_and_rejected_growth_is_reusable() {
     );
     let shape = [1, 3, 8, 8];
     let unlimited =
-        Session::new_serial(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
+        CpuSession::new_serial(compiled.clone(), &shape, ExecutionLimits::default()).unwrap();
     let bytes = unlimited.activation_bytes();
     drop(unlimited);
     assert!(
-        Session::new_serial(
+        CpuSession::new_serial(
             compiled.clone(),
             &shape,
             ExecutionLimits {
@@ -141,7 +144,7 @@ fn smaller_arena_plan_still_enforces_limits_and_rejected_growth_is_reusable() {
         )
         .is_err()
     );
-    let mut request = Session::new_serial(
+    let mut request = CpuSession::new_serial(
         compiled,
         &shape,
         ExecutionLimits {

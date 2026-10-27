@@ -294,7 +294,7 @@ mod broadcast_tests {
         if !avx2_fma_available() {
             return;
         }
-        let (_, kind) = crate::runtime::kernels::bind_matmul(
+        let (_, kind) = crate::runtime::bound::bind_matmul(
             crate::tensor::Shape::new(&[2, 1, 5, 7]).unwrap(),
             crate::tensor::Shape::new(&[1, 3, 7, 33]).unwrap(),
         )

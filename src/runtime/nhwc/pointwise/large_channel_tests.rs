@@ -36,6 +36,7 @@ fn larger_group_preserves_order_and_row_channel_tails() {
 
 #[test]
 #[ignore = "local release AVX2 grouping probe: two actual large shapes, one warmup and three single-call pairs"]
+#[allow(clippy::needless_range_loop, clippy::assertions_on_constants)]
 fn large_channel_group_comparison() {
     assert!(!cfg!(debug_assertions), "use a release build");
     assert!(simd::avx2_fma_available());

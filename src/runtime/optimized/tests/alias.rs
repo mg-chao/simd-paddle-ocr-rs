@@ -79,7 +79,10 @@ fn first_and_last_scalar_slices_materialize_before_inplace_broadcast() {
             let mut request = session(
                 parsed.clone(),
                 CompileOptions {
-                    kernels: policy,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels: policy,
+                        ..CompileOptions::default().cpu
+                    },
                     ..CompileOptions::default()
                 },
                 &[4],
@@ -138,7 +141,10 @@ fn full_self_binary_aliases_use_each_current_element_in_both_directions() {
             let mut request = session(
                 parsed.clone(),
                 CompileOptions {
-                    kernels: policy,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels: policy,
+                        ..CompileOptions::default().cpu
+                    },
                     ..CompileOptions::default()
                 },
                 &[4],

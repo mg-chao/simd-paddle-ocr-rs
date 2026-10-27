@@ -1,9 +1,25 @@
-//! Scalar and dispatched SIMD CPU execution of the shipped CLS, DET and REC networks.
+//! Shared logical graphs with independent SIMD CPU and native GPU execution.
 //!
-//! Models and compiled instructions are immutable and shareable. Each session
-//! binds concrete shapes and owns reusable activation buffers. This deliberately
-//! does not claim general ONNX execution support.
+//! Models, graph lowering and shape binding are shared across execution backends.
+//! Compiled instructions are immutable and shareable. Each session binds concrete
+//! shapes and owns reusable activation buffers. The optional `gpu` module uses
+//! native Vulkan on non-macOS platforms for tensor and OCR inference. macOS uses
+//! CPU execution. General ONNX execution is outside the supported scope.
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
+pub(crate) mod stage;
+pub use stage::Session;
+pub use stage::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget};
+mod graph;
+mod graph_patterns;
+pub use graph::LogicalGraph;
+#[cfg(feature = "gpu")]
+use graph::compile_node;
+use graph::{BindScratch, Instruction, Op, Program, ShapePlan, bind_into};
+mod bound;
+mod compiler;
+pub use compiler::{Compiler, CompilerOptions};
 mod kernels;
 mod nchw;
 mod nhwc;
@@ -23,36 +39,74 @@ pub enum LayoutPolicy {
     Nchw,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize)]
+pub enum GpuPrecision {
+    #[default]
+    F32,
+    MixedF16,
+}
+
+/// Arithmetic precision for eligible GPU matrix operations, independent of
+/// activation storage precision. F16 converts matrix operands to half precision
+/// and accumulates in F32; other operations retain their storage policy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize)]
+pub enum GpuMatrixPrecision {
+    #[default]
+    F32,
+    F16,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct GpuCompileOptions {
+    pub precision: GpuPrecision,
+    pub matrix_precision: GpuMatrixPrecision,
+}
+/// Settings shared by all compilation backends.
 #[derive(Clone, Copy, Debug, serde::Serialize)]
 pub struct CompileOptions {
+    pub fusion: bool,
+    pub cpu: CpuCompileOptions,
+    pub gpu: GpuCompileOptions,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct CpuCompileOptions {
     pub kernels: KernelPolicy,
     pub layout: LayoutPolicy,
-    pub fusion: bool,
 }
-impl Default for CompileOptions {
+impl Default for CpuCompileOptions {
     fn default() -> Self {
         Self {
             kernels: KernelPolicy::Auto,
             layout: LayoutPolicy::Auto,
+        }
+    }
+}
+impl Default for CompileOptions {
+    fn default() -> Self {
+        Self {
             fusion: true,
+            cpu: Default::default(),
+            gpu: Default::default(),
         }
     }
 }
 impl CompileOptions {
-    /// Disable execution rewrites. Pair with `OptimizationPolicy::PreserveArithmetic`
-    /// at import time to also preserve source BN and branch arithmetic.
+    /// Preserve execution arithmetic. Pair with `OptimizationPolicy::PreserveArithmetic` at import.
     pub fn reference() -> Self {
         Self {
-            kernels: KernelPolicy::Scalar,
-            layout: LayoutPolicy::Nchw,
             fusion: false,
+            cpu: CpuCompileOptions {
+                kernels: KernelPolicy::Scalar,
+                layout: LayoutPolicy::Nchw,
+            },
+            ..Default::default()
         }
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct ExecutionOptions {
-    /// Total retained F32 activation capacity for this Session, including lazy
+    /// Total retained F32 activation capacity for this CpuSession, including lazy
     /// diagnostic execution. Shared weights, plans and scratch are separate.
     pub max_activation_bytes: usize,
     /// Requested budget, validated against the context capacity before capping at 16.
@@ -69,6 +123,16 @@ impl Default for ExecutionOptions {
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct ExecutionStatistics {
+    pub execution_backend: Option<ExecutionBackend>,
+    pub fallback: Option<crate::error::FailureProvenance>,
+    pub effective_precision: String,
+    pub adapter: Option<String>,
+    pub production_submissions: u64,
+    pub production_readbacks: u64,
+    pub diagnostic_readbacks: u64,
+    pub uploaded_bytes: u64,
+    pub output_readback_bytes: u64,
+    pub diagnostic_readback_bytes: u64,
     pub selected_kernels: Vec<KernelSelection>,
     /// Shape-selected physical families, separate from logical operator counts.
     pub specialized_kernels: Vec<KernelSpecialization>,
@@ -81,7 +145,7 @@ pub struct ExecutionStatistics {
     pub nhwc_values: usize,
     pub layout_conversions: usize,
     pub packed_weight_bytes: usize,
-    /// All formats cached on the shared parsed Model, including other policies.
+    /// All CPU formats retained by the shared compiler cache, including other policies.
     pub shared_cached_weight_bytes: usize,
     pub activation_bytes: usize,
     pub retained_activation_bytes: usize,
@@ -90,6 +154,115 @@ pub struct ExecutionStatistics {
     pub plan_cache_misses: u64,
     pub backend: String,
 }
+/// The cumulative fields used to compute a run's deltas, without kernel metadata.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct StatisticsCounters {
+    pub production_submissions: u64,
+    pub production_readbacks: u64,
+    pub diagnostic_readbacks: u64,
+    pub uploaded_bytes: u64,
+    pub output_readback_bytes: u64,
+    pub diagnostic_readback_bytes: u64,
+    pub plan_cache_hits: u64,
+    pub plan_cache_misses: u64,
+}
+impl StatisticsCounters {
+    pub(crate) fn add_diagnostics(&mut self, other: Self) {
+        self.diagnostic_readbacks += other.diagnostic_readbacks;
+        self.diagnostic_readback_bytes += other.diagnostic_readback_bytes;
+    }
+}
+/// Disjoint retained request allocations. Shared weights and transition peaks are separate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct MemorySnapshot {
+    pub host_bytes: usize,
+    pub device_bytes: usize,
+}
+impl MemorySnapshot {
+    pub fn total_bytes(self) -> usize {
+        self.host_bytes.saturating_add(self.device_bytes)
+    }
+    pub fn host(host_bytes: usize) -> Self {
+        Self {
+            host_bytes,
+            device_bytes: 0,
+        }
+    }
+}
+/// Cumulative traffic, separate from the latest execution's placement and timing.
+#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
+pub struct ExecutionCounters {
+    pub runs: u64,
+    pub failures: u64,
+    pub submissions: u64,
+    pub uploaded_bytes: u64,
+    pub output_readback_bytes: u64,
+    pub control_readback_bytes: u64,
+    pub diagnostic_readback_bytes: u64,
+}
+impl ExecutionStatistics {
+    /// Diagnostic sessions can coexist with a retained resident session.
+    /// Replace only their aggregate traffic, keeping production metadata intact.
+    pub(crate) fn with_diagnostics(mut self, counters: StatisticsCounters) -> Self {
+        self.diagnostic_readbacks = counters.diagnostic_readbacks;
+        self.diagnostic_readback_bytes = counters.diagnostic_readback_bytes;
+        self
+    }
+
+    pub(crate) fn retained_bytes(&self) -> usize {
+        self.effective_precision.capacity()
+            + self.backend.capacity()
+            + self.adapter.as_ref().map_or(0, String::capacity)
+            + self.fallback.as_ref().map_or(0, |f| f.message.capacity())
+            + self.selected_kernels.capacity() * size_of::<KernelSelection>()
+            + self
+                .selected_kernels
+                .iter()
+                .map(|k| k.operator.capacity() + k.layout.capacity())
+                .sum::<usize>()
+            + self.specialized_kernels.capacity() * size_of::<KernelSpecialization>()
+            + self
+                .specialized_kernels
+                .iter()
+                .map(|k| k.operator.capacity() + k.family.capacity() + k.isa.capacity())
+                .sum::<usize>()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn counter_snapshot(&self) -> StatisticsCounters {
+        StatisticsCounters {
+            production_submissions: self.production_submissions,
+            production_readbacks: self.production_readbacks,
+            diagnostic_readbacks: self.diagnostic_readbacks,
+            uploaded_bytes: self.uploaded_bytes,
+            output_readback_bytes: self.output_readback_bytes,
+            diagnostic_readback_bytes: self.diagnostic_readback_bytes,
+            plan_cache_hits: self.plan_cache_hits,
+            plan_cache_misses: self.plan_cache_misses,
+        }
+    }
+
+    pub(crate) fn since(&mut self, previous: &StatisticsCounters) {
+        // A fallback may replace a session; its counters start from zero.
+        fn delta(now: u64, before: u64) -> u64 {
+            now.checked_sub(before).unwrap_or(now)
+        }
+        self.production_submissions =
+            delta(self.production_submissions, previous.production_submissions);
+        self.production_readbacks = delta(self.production_readbacks, previous.production_readbacks);
+        self.diagnostic_readbacks = delta(self.diagnostic_readbacks, previous.diagnostic_readbacks);
+        self.uploaded_bytes = delta(self.uploaded_bytes, previous.uploaded_bytes);
+        self.output_readback_bytes =
+            delta(self.output_readback_bytes, previous.output_readback_bytes);
+        self.diagnostic_readback_bytes = delta(
+            self.diagnostic_readback_bytes,
+            previous.diagnostic_readback_bytes,
+        );
+        self.plan_cache_hits = delta(self.plan_cache_hits, previous.plan_cache_hits);
+        self.plan_cache_misses = delta(self.plan_cache_misses, previous.plan_cache_misses);
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct KernelSelection {
     pub operator: String,
@@ -148,31 +321,22 @@ fn kernel_selections<'a>(
 }
 
 use crate::{
-    model::{Model, Node, Operator, TensorId},
-    tensor::{DType, Dim, Shape, ShapeSpec, TensorData, TensorError, TensorView},
+    model::{Model, TensorId},
+    tensor::{Shape, TensorData, TensorView},
 };
-use kernels::{BoundKind, BoundStep};
-use shapes::ShapeProgram;
+use bound::BoundStep;
 use std::{fmt, sync::Arc};
 
-crate::error::stage_error!(RuntimeError, Execution);
+pub use crate::error::RuntimeError;
 
-impl From<TensorError> for RuntimeError {
-    fn from(value: TensorError) -> Self {
-        Self::caused_by(value.kind(), "tensor", value)
-    }
-}
-impl From<crate::image::ImageError> for RuntimeError {
-    fn from(value: crate::image::ImageError) -> Self {
-        Self::caused_by(value.kind(), "image stage", value)
-    }
-}
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ExecutionLimits {
-    /// Bound on total active/retained F32 activation capacity for one Session,
-    /// including its diagnostic/prefix children; weights, plans and scratch are separate.
+    /// Bound on total active/retained F32 activation capacity for one CpuSession,
+    /// including its diagnostic/prefix children. For a GPU session, this bounds
+    /// device activations, device readback staging and host output capacity combined.
+    /// Weights, plans and scratch are separate for both execution backends.
     /// Transactional rebinding can temporarily hold old and new allocations.
     pub max_activation_bytes: usize,
 }
@@ -200,213 +364,35 @@ pub struct NodeTrace<'a> {
     pub elapsed_ns: u64,
 }
 
-#[derive(Clone)]
-struct Instruction {
-    /// Validated F32 operands in semantic input order. Integer reshape operands
-    /// belong to the compiled shape program rather than kernel execution.
-    inputs: Box<[TensorId]>,
-    output: TensorId,
-    kind: Op,
-}
-#[derive(Clone)]
-enum Op {
-    Add,
-    Mul,
-    Div,
-    Sub,
-    Square,
-    Sqrt,
-    Relu,
-    Erf,
-    Sigmoid,
-    HardSigmoid {
-        alpha: f32,
-        beta: f32,
-    },
-    Conv(crate::model::ConvAttributes),
-    ConvTranspose,
-    MaxPool,
-    AveragePool,
-    BatchNormalization {
-        epsilon: f32,
-    },
-    Squeeze {
-        axes: Vec<i64>,
-    },
-    Unsqueeze {
-        axes: Vec<i64>,
-    },
-    Transpose {
-        permutation: Vec<i64>,
-    },
-    Slice(shapes::SliceParameters),
-    Concat {
-        axis: i64,
-    },
-    Resize {
-        factor: usize,
-    },
-    GlobalAveragePool,
-    ReduceMean {
-        axes: Vec<i64>,
-        keepdims: bool,
-        noop: bool,
-    },
-    Reshape {
-        allowzero: bool,
-        target: Option<Vec<i64>>,
-    },
-    MatMul,
-    Softmax {
-        axis: i64,
-    },
-}
-
-/// Shape-independent dataflow shared by every session and shape binding.
-/// Consumers are stored in source order, including repeated operands such as
-/// Add(x, x), so prefix queries retain the same exclusivity rules as a scan.
-struct GraphUses {
-    offsets: Vec<usize>,
-    consumers: Vec<usize>,
-    producers: Vec<usize>,
-}
-impl GraphUses {
-    fn new(instructions: &[Instruction], tensors: usize) -> Self {
-        let mut offsets = vec![0; tensors + 1];
-        for instruction in instructions {
-            for input in &instruction.inputs {
-                offsets[input.0 + 1] += 1;
-            }
-        }
-        for index in 1..offsets.len() {
-            offsets[index] += offsets[index - 1];
-        }
-        let mut consumers = vec![0; offsets[tensors]];
-        let mut cursor = offsets[..tensors].to_vec();
-        let mut producers = vec![usize::MAX; tensors];
-        for (index, instruction) in instructions.iter().enumerate() {
-            producers[instruction.output.0] = index;
-            for input in &instruction.inputs {
-                consumers[cursor[input.0]] = index;
-                cursor[input.0] += 1;
-            }
-        }
-        Self {
-            offsets,
-            consumers,
-            producers,
-        }
-    }
-    fn consumers(&self, id: TensorId) -> &[usize] {
-        &self.consumers[self.offsets[id.0]..self.offsets[id.0 + 1]]
-    }
-    fn producer(&self, id: TensorId) -> Option<usize> {
-        let index = self.producers[id.0];
-        (index != usize::MAX).then_some(index)
-    }
-    fn unique_consumer(&self, id: TensorId, count: usize) -> Option<usize> {
-        let (first, rest) = self.consumers(id).split_first()?;
-        if *first >= count || rest.first().is_some_and(|&next| next < count) {
-            None
-        } else {
-            Some(*first)
-        }
-    }
-    fn used_after(&self, id: TensorId, end: usize, count: usize) -> bool {
-        let uses = self.consumers(id);
-        let after = uses.partition_point(|&index| index <= end);
-        uses.get(after).is_some_and(|&index| index < count)
-    }
-}
-
-/// Immutable instructions over one owned model; constants are never copied.
-pub struct CompiledModel {
-    model: Arc<Model>,
-    instructions: Vec<Instruction>,
-    shape_program: ShapeProgram,
-    last_use: Vec<isize>,
-    graph_uses: GraphUses,
-    input: TensorId,
-    output: TensorId,
+/// Immutable CPU instructions over one owned model; constants are never copied.
+pub struct CpuCompiledModel {
+    program: Arc<LogicalGraph>,
+    pub(crate) packed_cache: Arc<packing::WeightCache>,
     options: CompileOptions,
     backend: Backend,
     packed: HashMap<TensorId, Arc<PackedMatrix>>,
     conv_packed: HashMap<usize, Arc<PackedMatrix>>,
     transpose_packed: HashMap<usize, Arc<[PackedMatrix; 4]>>,
 }
-impl CompiledModel {
+impl CpuCompiledModel {
     pub fn new(model: Arc<Model>) -> RuntimeResult<Self> {
         Self::compile(model, CompileOptions::default())
     }
     pub fn compile(model: Arc<Model>, options: CompileOptions) -> RuntimeResult<Self> {
-        let backend = simd::select_backend(options.kernels).map_err(RuntimeError::new)?;
-        let graph = model.graph();
-        if graph.inputs.len() != 1 || graph.outputs.len() != 1 {
-            return Err(RuntimeError::new(
-                "CPU runtime requires one graph input and output",
-            ));
-        }
-        let input = graph.inputs[0];
-        let output = graph.outputs[0];
-        if graph.tensors[input.0].dtype != DType::F32 || graph.tensors[output.0].dtype != DType::F32
-        {
-            return Err(RuntimeError::new("graph input and output must be F32"));
-        }
-        if graph.tensors[input.0].constant.is_some() || graph.tensors[output.0].constant.is_some() {
-            return Err(RuntimeError::new(
-                "constant graph inputs/outputs are unsupported by CPU runtime",
-            ));
-        }
-        for tensor in &graph.tensors {
-            if let Some(TensorData::F32(values)) = &tensor.constant {
-                positive_shape(values.shape()).map_err(|error| {
-                    RuntimeError::new(format!("constant {}: {error}", tensor.name))
-                })?;
-                if values.data().iter().any(|v| !v.is_finite()) {
-                    return Err(RuntimeError::new(format!(
-                        "constant {} contains nonfinite F32",
-                        tensor.name
-                    )));
-                }
-            }
-        }
-        let mut instructions = Vec::with_capacity(graph.nodes.len());
-        let mut last_use = vec![-1; graph.tensors.len()];
-        let mut defined: Vec<_> = graph
-            .tensors
-            .iter()
-            .map(|tensor| tensor.constant.is_some())
-            .collect();
-        defined[input.0] = true;
-        for (index, node) in graph.nodes.iter().enumerate() {
-            let instruction = compile_node(&model, index, node)?;
-            if defined[instruction.output.0] {
-                return Err(node_error(
-                    index,
-                    node,
-                    "output overwrites an already defined tensor",
-                ));
-            }
-            for id in node.inputs.iter().flatten() {
-                if !defined[id.0] {
-                    return Err(node_error(index, node, "input tensor is not yet defined"));
-                }
-                last_use[id.0] = index as isize;
-            }
-            defined[instruction.output.0] = true;
-            instructions.push(instruction);
-        }
-        last_use[output.0] = graph.nodes.len() as isize;
-        let shape_program = ShapeProgram::compile(&model)?;
-        let graph_uses = GraphUses::new(&instructions, graph.tensors.len());
+        Self::from_graph(Arc::new(LogicalGraph::compile(model)?), options)
+    }
+    pub fn from_graph(program: Arc<LogicalGraph>, options: CompileOptions) -> RuntimeResult<Self> {
+        Self::from_graph_cached(program, options, Arc::default())
+    }
+    pub(crate) fn from_graph_cached(
+        program: Arc<LogicalGraph>,
+        options: CompileOptions,
+        packed_cache: Arc<packing::WeightCache>,
+    ) -> RuntimeResult<Self> {
+        let backend = simd::select_backend(options.cpu.kernels).map_err(RuntimeError::new)?;
         let mut compiled = Self {
-            model,
-            instructions,
-            shape_program,
-            last_use,
-            graph_uses,
-            input,
-            output,
+            program,
+            packed_cache,
             options,
             backend,
             packed: HashMap::new(),
@@ -446,7 +432,7 @@ impl CompiledModel {
     /// Resolve the format prepared for the physical instruction. Convolution
     /// panels have a different source order from row-major MatMul panels.
     pub(crate) fn instruction_packed(&self, index: usize) -> Option<&PackedMatrix> {
-        let instruction = &self.instructions[index];
+        let instruction = &self.program.instructions[index];
         match instruction.kind {
             Op::Conv(_) => self.conv_packed.get(&index).map(Arc::as_ref),
             Op::MatMul => instruction
@@ -460,11 +446,12 @@ impl CompiledModel {
         if self.backend == Backend::Scalar {
             return Ok(());
         }
-        for (index, instruction) in self.instructions.iter().enumerate() {
+        for (index, instruction) in self.program.instructions.iter().enumerate() {
             let Some(&id) = instruction.inputs.get(1) else {
                 continue;
             };
-            let Some(TensorData::F32(weight)) = &self.model.graph().tensors[id.0].constant else {
+            let Some(TensorData::F32(weight)) = &self.program.model.graph().tensors[id.0].constant
+            else {
                 continue;
             };
             let weight_shape = weight.shape();
@@ -473,7 +460,7 @@ impl CompiledModel {
                 Op::MatMul if dims.len() == 2 => {
                     if let std::collections::hash_map::Entry::Vacant(entry) = self.packed.entry(id)
                     {
-                        entry.insert(self.model.packed_weights.matrix(
+                        entry.insert(self.packed_cache.matrix(
                             id,
                             packing::MatrixPacking::RowMajor,
                             || {
@@ -488,10 +475,10 @@ impl CompiledModel {
                         && (attr.group == 1
                             || (usize::try_from(attr.group).ok() == Some(dims[0])
                                 && dims[1] == 1))
-                        && (self.options.layout == LayoutPolicy::Auto
+                        && (self.options.cpu.layout == LayoutPolicy::Auto
                             || nchw::pack_eligible(attr, dims)) =>
                 {
-                    let pack = self.model.packed_weights.matrix::<RuntimeError>(
+                    let pack = self.packed_cache.matrix::<RuntimeError>(
                         id,
                         packing::MatrixPacking::ConvOutputMajor,
                         || {
@@ -514,7 +501,7 @@ impl CompiledModel {
                     if dims.len() == 4
                         && dims[2..] == [2, 2]
                         && dims[1] >= 16
-                        && self.options.layout == LayoutPolicy::Auto =>
+                        && self.options.cpu.layout == LayoutPolicy::Auto =>
                 {
                     let (inner, columns) = (dims[0], dims[1]);
                     let pack_tap = |tap: usize| -> RuntimeResult<PackedMatrix> {
@@ -524,12 +511,9 @@ impl CompiledModel {
                         }
                         PackedMatrix::new(&matrix, inner, columns).map_err(RuntimeError::new)
                     };
-                    let pack = self
-                        .model
-                        .packed_weights
-                        .transpose::<RuntimeError>(id, || {
-                            Ok([pack_tap(0)?, pack_tap(1)?, pack_tap(2)?, pack_tap(3)?])
-                        })?;
+                    let pack = self.packed_cache.transpose::<RuntimeError>(id, || {
+                        Ok([pack_tap(0)?, pack_tap(1)?, pack_tap(2)?, pack_tap(3)?])
+                    })?;
                     self.transpose_packed.insert(index, pack);
                 }
                 _ => {}
@@ -538,10 +522,10 @@ impl CompiledModel {
         Ok(())
     }
     pub fn model(&self) -> &Model {
-        &self.model
+        &self.program.model
     }
     pub fn node_count(&self) -> usize {
-        self.instructions.len()
+        self.program.instructions.len()
     }
     /// Bind metadata without reserving activation storage or executing kernels.
     #[cfg(test)]
@@ -555,393 +539,10 @@ impl CompiledModel {
     }
 }
 
-fn node_error(index: usize, node: &Node, message: impl Into<RuntimeError>) -> RuntimeError {
-    message.into().context(format!(
-        "node {index} '{}' ({}, {})",
-        node.name,
-        node.op_type(),
-        node.key
-    ))
-}
-fn integer_values(data: &TensorData) -> RuntimeResult<Vec<i64>> {
-    if data.shape().element_count() > crate::tensor::MAX_RANK {
-        return Err(RuntimeError::new(
-            "integer parameter exceeds rank-eight vector limit",
-        ));
-    }
-    match data {
-        TensorData::I64(t) => Ok(t.data().to_vec()),
-        TensorData::I32(t) => Ok(t.data().iter().map(|&v| i64::from(v)).collect()),
-        _ => Err(RuntimeError::new(
-            "expected constant I32/I64 reshape target",
-        )),
-    }
-}
-fn compile_node(model: &Model, index: usize, node: &Node) -> RuntimeResult<Instruction> {
-    let graph = model.graph();
-    let fail = |message: &str| node_error(index, node, message);
-    if !matches!(node.domain.as_str(), "" | "ai.onnx") {
-        return Err(fail("unsupported operator domain"));
-    }
-    if node.outputs.len() != 1 || node.outputs[0].is_none() {
-        return Err(fail("requires exactly one output"));
-    }
-    let output = node.outputs[0].unwrap();
-    if graph.tensors[output.0].dtype != DType::F32 || graph.tensors[output.0].constant.is_some() {
-        return Err(fail("output must be a nonconstant F32 tensor"));
-    }
-    let a = node
-        .inputs
-        .first()
-        .copied()
-        .flatten()
-        .ok_or_else(|| fail("missing first input"))?;
-    if graph.tensors[a.0].dtype != DType::F32 {
-        return Err(fail("data input must be F32"));
-    }
-    let b = node.inputs.get(1).copied().flatten();
-    let bias = node.inputs.get(2).copied().flatten();
-    let require_inputs = |count: usize| -> RuntimeResult<()> {
-        if node.inputs.len() != count || node.inputs.iter().any(Option::is_none) {
-            Err(fail("invalid required input slots"))
-        } else {
-            Ok(())
-        }
-    };
-    let constant_f32 = |id: Option<TensorId>| -> RuntimeResult<()> {
-        if id.is_none_or(|id| !matches!(graph.tensors[id.0].constant, Some(TensorData::F32(_)))) {
-            Err(fail("requires constant F32 weights/bias"))
-        } else {
-            Ok(())
-        }
-    };
-    let kind = match &node.operator {
-        Operator::Add | Operator::Mul | Operator::Div | Operator::Sub => {
-            require_inputs(2)?;
-            if graph.tensors[b.unwrap().0].dtype != DType::F32 {
-                return Err(fail("second data input must be F32"));
-            }
-            match node.operator {
-                Operator::Add => Op::Add,
-                Operator::Mul => Op::Mul,
-                Operator::Div => Op::Div,
-                _ => Op::Sub,
-            }
-        }
-        Operator::Pow => {
-            require_inputs(2)?;
-            match &graph.tensors[b.unwrap().0].constant {
-                Some(TensorData::F32(t)) if t.data() == [2.0] => Op::Square,
-                _ => return Err(fail("Pow supports constant scalar exponent two only")),
-            }
-        }
-        Operator::Sqrt => {
-            require_inputs(1)?;
-            Op::Sqrt
-        }
-        Operator::Relu => {
-            require_inputs(1)?;
-            Op::Relu
-        }
-        Operator::Erf | Operator::Sigmoid => {
-            require_inputs(1)?;
-            if matches!(node.operator, Operator::Erf) {
-                Op::Erf
-            } else {
-                Op::Sigmoid
-            }
-        }
-        Operator::HardSigmoid { alpha, beta } => {
-            require_inputs(1)?;
-            if !alpha.is_finite() || !beta.is_finite() {
-                return Err(fail("nonfinite HardSigmoid parameter"));
-            }
-            Op::HardSigmoid {
-                alpha: *alpha,
-                beta: *beta,
-            }
-        }
-        Operator::Conv(attributes) => {
-            if !(2..=3).contains(&node.inputs.len()) || b.is_none() {
-                return Err(fail("Conv requires data, weights and optional bias"));
-            }
-            constant_f32(b)?;
-            if bias.is_some() {
-                constant_f32(bias)?;
-            }
-            Op::Conv(attributes.clone())
-        }
-        Operator::ConvTranspose(attributes) => {
-            if !(2..=3).contains(&node.inputs.len()) || b.is_none() {
-                return Err(fail(
-                    "ConvTranspose requires data, weights and optional bias",
-                ));
-            }
-            constant_f32(b)?;
-            if bias.is_some() {
-                constant_f32(bias)?;
-            }
-            if attributes.kernel_shape != [2, 2]
-                || attributes.strides != [2, 2]
-                || attributes.dilations != [1, 1]
-                || attributes.pads != [0; 4]
-                || attributes.group != 1
-            {
-                return Err(fail(
-                    "ConvTranspose requires 2x2 stride-two, group-one, unpadded parameters",
-                ));
-            }
-            Op::ConvTranspose
-        }
-        Operator::MaxPool(attributes) => {
-            require_inputs(1)?;
-            if attributes.kernel_shape != [2, 2]
-                || attributes.strides != [1, 1]
-                || attributes.pads != [0, 0, 1, 1]
-                || attributes.ceil_mode != 0
-                || attributes.count_include_pad != 0
-            {
-                return Err(fail(
-                    "MaxPool requires 2x2 stride-one with trailing padding",
-                ));
-            }
-            Op::MaxPool
-        }
-        Operator::AveragePool(attributes) => {
-            require_inputs(1)?;
-            if attributes.kernel_shape != [3, 2]
-                || attributes.strides != [3, 2]
-                || attributes.pads != [0; 4]
-                || attributes.ceil_mode != 0
-                || attributes.count_include_pad != 0
-            {
-                return Err(fail(
-                    "AveragePool requires unpadded 3x2 kernel/stride and zero flags",
-                ));
-            }
-            Op::AveragePool
-        }
-        Operator::BatchNormalization {
-            epsilon,
-            momentum,
-            training_mode,
-        } => {
-            require_inputs(5)?;
-            if !epsilon.is_finite()
-                || *epsilon < 0.0
-                || !momentum.is_finite()
-                || *training_mode != 0
-            {
-                return Err(fail(
-                    "BatchNormalization requires finite nonnegative epsilon and inference mode",
-                ));
-            }
-            for &id in &node.inputs[1..] {
-                constant_f32(id)?;
-            }
-            Op::BatchNormalization { epsilon: *epsilon }
-        }
-        Operator::Squeeze(axes) => {
-            require_inputs(1)?;
-            Op::Squeeze { axes: axes.clone() }
-        }
-        Operator::Unsqueeze(axes) => {
-            require_inputs(1)?;
-            if axes.is_empty() {
-                return Err(fail("Unsqueeze requires nonempty axes"));
-            }
-            Op::Unsqueeze { axes: axes.clone() }
-        }
-        Operator::Transpose(permutation) => {
-            require_inputs(1)?;
-            if permutation.is_empty() {
-                return Err(fail("Transpose requires an explicit permutation"));
-            }
-            Op::Transpose {
-                permutation: permutation.clone(),
-            }
-        }
-        Operator::Concat(axis) => {
-            if node.inputs.iter().any(Option::is_none)
-                || node
-                    .inputs
-                    .iter()
-                    .flatten()
-                    .any(|id| graph.tensors[id.0].dtype != DType::F32)
-            {
-                return Err(fail("Concat requires nonempty F32 input slots"));
-            }
-            Op::Concat { axis: *axis }
-        }
-        Operator::Resize(attributes) => {
-            require_inputs(1)?;
-            if attributes.mode != b"nearest"
-                || attributes.coordinate_transformation_mode != b"asymmetric"
-                || attributes.nearest_mode != b"floor"
-                || attributes.scales.len() != 4
-                || attributes.scales[..2] != [1.0, 1.0]
-                || attributes.scales[2] != attributes.scales[3]
-            {
-                return Err(node_error(
-                    index,
-                    node,
-                    RuntimeError::with_kind(
-                        crate::error::ErrorKind::Unsupported,
-                        "Resize requires nearest/asymmetric/floor spatial-only equal scales",
-                    ),
-                ));
-            }
-            let factor = match attributes.scales[2] {
-                2.0 => 2,
-                4.0 => 4,
-                8.0 => 8,
-                _ => return Err(fail("Resize requires spatial scale two, four or eight")),
-            };
-            Op::Resize { factor }
-        }
-        Operator::GlobalAveragePool => {
-            require_inputs(1)?;
-            Op::GlobalAveragePool
-        }
-        Operator::ReduceMean {
-            axes,
-            keepdims,
-            noop_with_empty_axes,
-        } => {
-            require_inputs(1)?;
-            if !matches!(keepdims, 0 | 1) || !matches!(noop_with_empty_axes, 0 | 1) {
-                return Err(fail("ReduceMean flags must be 0 or 1"));
-            }
-            Op::ReduceMean {
-                axes: axes.clone(),
-                keepdims: *keepdims == 1,
-                noop: *noop_with_empty_axes == 1,
-            }
-        }
-        Operator::Reshape { allowzero } => {
-            if !matches!(allowzero, 0 | 1) {
-                return Err(fail("Reshape allowzero must be 0 or 1"));
-            }
-            let target = match node.inputs.as_slice() {
-                [Some(_)] => None,
-                [Some(_), Some(id)] => {
-                    let data = graph.tensors[id.0].constant.as_ref().ok_or_else(|| {
-                        fail("reshape target must be constant or a retained shape recipe")
-                    })?;
-                    if data.dimensions().len() != 1 {
-                        return Err(fail("reshape target must have rank one"));
-                    }
-                    Some(integer_values(data).map_err(|e| node_error(index, node, e))?)
-                }
-                _ => return Err(fail("invalid Reshape input slots")),
-            };
-            Op::Reshape {
-                allowzero: *allowzero == 1,
-                target,
-            }
-        }
-        Operator::MatMul => {
-            require_inputs(2)?;
-            if graph.tensors[b.unwrap().0].dtype != DType::F32 {
-                return Err(fail("MatMul second data input must be F32"));
-            }
-            Op::MatMul
-        }
-        Operator::Slice => {
-            if !(3..=5).contains(&node.inputs.len()) {
-                return Err(fail("Slice requires constant input-form parameters"));
-            }
-            let parameter = |slot: usize| -> RuntimeResult<Option<Vec<i64>>> {
-                node.inputs
-                    .get(slot)
-                    .copied()
-                    .flatten()
-                    .map(|id| {
-                        let data = graph.tensors[id.0].constant.as_ref().ok_or_else(|| {
-                            fail("Slice parameters must be constant integer vectors")
-                        })?;
-                        if data.dimensions().len() != 1 {
-                            return Err(fail("Slice parameters must have rank one"));
-                        }
-                        integer_values(data)
-                    })
-                    .transpose()
-            };
-            Op::Slice(shapes::SliceParameters::new(
-                parameter(1)?.ok_or_else(|| fail("Slice is missing starts"))?,
-                parameter(2)?.ok_or_else(|| fail("Slice is missing ends"))?,
-                parameter(3)?,
-                parameter(4)?,
-            )?)
-        }
-        Operator::Softmax(axis) => {
-            require_inputs(1)?;
-            Op::Softmax { axis: *axis }
-        }
-    };
-    Ok(Instruction {
-        inputs: node
-            .inputs
-            .iter()
-            .flatten()
-            .copied()
-            .filter(|id| graph.tensors[id.0].dtype == DType::F32)
-            .collect(),
-        output,
-        kind,
-    })
-}
-
-#[derive(Clone)]
-struct ShapePlan {
-    input_shape: Shape,
-    shapes: Vec<Shape>,
-    steps: Vec<BoundStep>,
-    slots: Vec<usize>,
-    lengths: Vec<usize>,
-    activation_bytes: usize,
-    naive_activation_bytes: usize,
-}
-impl ShapePlan {
-    fn empty(tensors: usize, nodes: usize) -> Self {
-        let scalar = Shape::new(&[]).expect("scalar shape");
-        Self {
-            input_shape: scalar,
-            shapes: vec![scalar; tensors],
-            steps: Vec::with_capacity(nodes),
-            slots: vec![usize::MAX; tensors],
-            lengths: Vec::with_capacity(tensors),
-            activation_bytes: 0,
-            naive_activation_bytes: 0,
-        }
-    }
-}
-struct BindScratch {
-    resolved: Vec<Option<Shape>>,
-    shape_cache: Vec<Option<shapes::Integers>>,
-    starts: Vec<isize>,
-    last_use: Vec<isize>,
-    lifetimes: Vec<(isize, isize, usize, usize)>,
-    ends: Vec<isize>,
-}
-impl BindScratch {
-    fn new(compiled: &CompiledModel) -> Self {
-        let count = compiled.model.graph().tensors.len();
-        Self {
-            resolved: vec![None; count],
-            shape_cache: compiled.shape_program.cache(),
-            starts: vec![-2; count],
-            last_use: vec![-1; count],
-            lifetimes: Vec::with_capacity(count),
-            ends: Vec::with_capacity(count),
-        }
-    }
-}
-
 /// One mutable request. Borrowed output remains valid until the next mutable
 /// operation; Rust prevents running or reshaping while that borrow is held.
-pub struct Session {
-    compiled: Arc<CompiledModel>,
+pub struct CpuSession {
+    compiled: Arc<CpuCompiledModel>,
     limits: ExecutionLimits,
     plan: ShapePlan,
     staging: ShapePlan,
@@ -953,16 +554,16 @@ pub struct Session {
     cpu: Arc<CpuContext>,
     threads: usize,
     optimized: Option<optimized::State>,
-    diagnostic: Option<Box<Session>>,
-    prefix: Option<Box<Session>>,
+    diagnostic: Option<Box<CpuSession>>,
+    prefix: Option<Box<CpuSession>>,
     cache: VecDeque<ShapePlan>,
     cache_metadata: bool,
     cache_hits: u64,
     cache_misses: u64,
 }
-impl fmt::Debug for Session {
+impl fmt::Debug for CpuSession {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Session")
+        f.debug_struct("CpuSession")
             .field("input_shape", &self.input_shape())
             .field("output_shape", &self.output_shape())
             .field("activation_bytes", &self.activation_bytes())
@@ -973,9 +574,9 @@ impl fmt::Debug for Session {
             .finish_non_exhaustive()
     }
 }
-impl Session {
+impl CpuSession {
     pub fn new(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         cpu: Arc<CpuContext>,
         input_shape: &[usize],
         options: ExecutionOptions,
@@ -985,8 +586,8 @@ impl Session {
                 "intra-op threads must be within CPU context capacity",
             ));
         }
-        let node_count = compiled.instructions.len();
-        let output = compiled.output;
+        let node_count = compiled.program.instructions.len();
+        let output = compiled.program.output;
         let mut session = Self::new_selected(
             compiled,
             input_shape,
@@ -1001,7 +602,7 @@ impl Session {
         Ok(session)
     }
     pub fn new_serial(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
     ) -> RuntimeResult<Self> {
@@ -1042,6 +643,13 @@ impl Session {
     pub fn set_intra_op_threads(&mut self, threads: usize) -> RuntimeResult<()> {
         self.set_execution_context(self.cpu.clone(), threads)
     }
+    pub(crate) fn counter_snapshot(&self) -> StatisticsCounters {
+        StatisticsCounters {
+            plan_cache_hits: self.cache_hits,
+            plan_cache_misses: self.cache_misses,
+            ..Default::default()
+        }
+    }
     pub fn statistics(&self) -> ExecutionStatistics {
         let mut stats = self
             .optimized
@@ -1050,16 +658,18 @@ impl Session {
                 state.statistics(&self.compiled, self.threads)
             });
         stats.normalized_nodes = self.node_count;
+        stats.execution_backend = Some(ExecutionBackend::Cpu(self.compiled.backend));
+        stats.effective_precision = "F32".into();
         stats.original_weight_bytes = self.compiled.model().normalized_weight_bytes();
         if self.optimized.is_none() {
             stats.physical_steps = self.node_count;
             stats.selected_kernels = kernel_selections(
-                self.compiled.instructions[..self.node_count]
+                self.compiled.program.instructions[..self.node_count]
                     .iter()
                     .enumerate()
                     .map(|(i, _)| {
                         (
-                            self.compiled.model.graph().nodes[i].op_type(),
+                            self.compiled.program.model.graph().nodes[i].op_type(),
                             "canonical",
                             optimized::native_consumes_packed(
                                 &self.plan.steps[i].kind,
@@ -1081,7 +691,7 @@ impl Session {
                             false,
                         );
                         (
-                            self.compiled.model.graph().nodes[index].op_type(),
+                            self.compiled.program.model.graph().nodes[index].op_type(),
                             family,
                             isa,
                             false,
@@ -1090,7 +700,7 @@ impl Session {
                 ));
         }
         stats.packed_weight_bytes = self.compiled.packed_weight_bytes();
-        stats.shared_cached_weight_bytes = self.compiled.model.cached_packed_weight_bytes();
+        stats.shared_cached_weight_bytes = self.compiled.packed_cache.bytes();
         stats.activation_bytes = self.activation_bytes();
         stats.retained_activation_bytes = self.retained_activation_bytes();
         stats.plan_cache_hits = self.cache_hits;
@@ -1102,12 +712,13 @@ impl Session {
     /// Construct an inclusive prefix with no storage for the unexecuted suffix.
     /// Rebinding preserves this endpoint and the borrowed output is its feature.
     pub(crate) fn new_prefix(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
         inclusive_last_node: usize,
     ) -> RuntimeResult<Self> {
         let output = compiled
+            .program
             .instructions
             .get(inclusive_last_node)
             .ok_or_else(|| RuntimeError::new("prefix node index is outside the compiled graph"))?
@@ -1121,7 +732,7 @@ impl Session {
         )
     }
     fn new_selected(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
         node_count: usize,
@@ -1137,31 +748,31 @@ impl Session {
         )
     }
     pub(crate) fn new_diagnostic(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
     ) -> RuntimeResult<Self> {
-        let count = compiled.instructions.len();
-        let output = compiled.output;
+        let count = compiled.program.instructions.len();
+        let output = compiled.program.output;
         Self::new_selected_mode(compiled, input_shape, limits, count, output, true)
     }
     fn new_selected_mode(
-        compiled: Arc<CompiledModel>,
+        compiled: Arc<CpuCompiledModel>,
         input_shape: &[usize],
         limits: ExecutionLimits,
         node_count: usize,
         selected_output: TensorId,
         diagnostic: bool,
     ) -> RuntimeResult<Self> {
-        let tensors = compiled.model.graph().tensors.len();
+        let tensors = compiled.program.model.graph().tensors.len();
         let physical = !diagnostic
-            && (compiled.options.layout == LayoutPolicy::Auto || compiled.options.fusion);
+            && (compiled.options.cpu.layout == LayoutPolicy::Auto || compiled.options.fusion);
         let cache_metadata = diagnostic || physical || compiled.backend != Backend::Scalar;
         let mut plan = ShapePlan::empty(tensors, node_count);
         let staging = ShapePlan::empty(tensors, node_count);
-        let mut scratch = BindScratch::new(&compiled);
+        let mut scratch = BindScratch::new(&compiled.program);
         bind_into(
-            &compiled,
+            &compiled.program,
             input_shape,
             if physical {
                 ExecutionLimits {
@@ -1250,10 +861,13 @@ impl Session {
                 let mut next = if self.cache.len() >= 8 {
                     self.cache.pop_back().unwrap()
                 } else {
-                    ShapePlan::empty(self.compiled.model.graph().tensors.len(), self.node_count)
+                    ShapePlan::empty(
+                        self.compiled.program.model.graph().tensors.len(),
+                        self.node_count,
+                    )
                 };
                 bind_into(
-                    &self.compiled,
+                    &self.compiled.program,
                     input_shape,
                     if self.optimized.is_some() {
                         ExecutionLimits {
@@ -1291,7 +905,7 @@ impl Session {
             return Ok(());
         }
         bind_into(
-            &self.compiled,
+            &self.compiled.program,
             input_shape,
             limits,
             self.node_count,
@@ -1351,7 +965,7 @@ impl Session {
         }
         result
     }
-    /// Total F32 capacity retained by this Session and its cached diagnostic or
+    /// Total F32 capacity retained by this CpuSession and its cached diagnostic or
     /// prefix execution. Smaller bindings can retain larger slots, within the
     /// configured aggregate activation limit.
     pub fn retained_activation_bytes(&self) -> usize {
@@ -1572,7 +1186,7 @@ impl Session {
     where
         F: FnOnce(&mut [f32]) -> RuntimeResult<()>,
     {
-        let slot = self.plan.slots[self.compiled.input.0];
+        let slot = self.plan.slots[self.compiled.program.input.0];
         let input = &mut self.buffers[slot][..self.plan.input_shape.element_count()];
         fill(input)?;
         if let Some(index) = input.iter().position(|value| !value.is_finite()) {
@@ -1585,8 +1199,14 @@ impl Session {
     fn output_for(&self, id: TensorId) -> RuntimeResult<TensorView<'_, f32>> {
         TensorView::from_slice(self.plan.shapes[id.0], self.data(id)).map_err(Into::into)
     }
+    fn output_view(&self) -> RuntimeResult<TensorView<'_, f32>> {
+        match &self.optimized {
+            Some(state) => state.output(),
+            None => self.output_for(self.selected_output),
+        }
+    }
     fn data(&self, id: TensorId) -> &[f32] {
-        match &self.compiled.model.graph().tensors[id.0].constant {
+        match &self.compiled.program.model.graph().tensors[id.0].constant {
             Some(TensorData::F32(values)) => values.data(),
             _ => &self.buffers[self.plan.slots[id.0]][..self.plan.shapes[id.0].element_count()],
         }
@@ -1610,7 +1230,7 @@ impl Session {
             self.cpu.install(|| {
                 kernels::execute_optimized(
                     &step.kind,
-                    &self.compiled.instructions[index].inputs,
+                    &self.compiled.program.instructions[index].inputs,
                     |id| self.data(id),
                     &mut output[..count],
                     self.compiled.backend,
@@ -1627,7 +1247,7 @@ impl Session {
                     .as_nanos()
                     .try_into()
                     .unwrap_or(u64::MAX);
-                let node = &self.compiled.model.graph().nodes[index];
+                let node = &self.compiled.program.model.graph().nodes[index];
                 let shape = self.plan.shapes[step.output.0];
                 observer(NodeTrace {
                     index,
@@ -1806,288 +1426,26 @@ fn rebind_buffers(
 
 #[cfg(test)]
 fn bind(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     dimensions: &[usize],
     limits: ExecutionLimits,
 ) -> RuntimeResult<ShapePlan> {
     let mut plan = ShapePlan::empty(
-        compiled.model.graph().tensors.len(),
-        compiled.instructions.len(),
+        compiled.program.model.graph().tensors.len(),
+        compiled.program.instructions.len(),
     );
-    let mut scratch = BindScratch::new(compiled);
+    let mut scratch = BindScratch::new(&compiled.program);
     bind_into(
-        compiled,
+        &compiled.program,
         dimensions,
         limits,
-        compiled.instructions.len(),
-        compiled.output,
+        compiled.program.instructions.len(),
+        compiled.program.output,
         &mut plan,
         &mut scratch,
     )?;
     Ok(plan)
 }
-#[allow(clippy::too_many_arguments)]
-fn bind_into(
-    compiled: &CompiledModel,
-    dimensions: &[usize],
-    limits: ExecutionLimits,
-    node_count: usize,
-    selected_output: TensorId,
-    plan: &mut ShapePlan,
-    scratch: &mut BindScratch,
-) -> RuntimeResult<()> {
-    if limits.max_activation_bytes == 0 {
-        return Err(RuntimeError::new("max_activation_bytes must be positive"));
-    }
-    let input_shape = Shape::new(dimensions)?;
-    positive_shape(input_shape)?;
-    let graph = compiled.model.graph();
-    if let ShapeSpec::Ranked(template) = &graph.tensors[compiled.input.0].shape {
-        if template.len() != dimensions.len() {
-            return Err(RuntimeError::new("input rank does not match model"));
-        }
-        for (dim, &value) in template.iter().zip(dimensions) {
-            if matches!(dim, Dim::Known(expected) if *expected != value) {
-                return Err(RuntimeError::new("input dimension does not match model"));
-            }
-        }
-    }
-    scratch.resolved.fill(None);
-    scratch.shape_cache.fill(None);
-    let resolved = &mut scratch.resolved;
-    for (id, tensor) in graph.tensors.iter().enumerate() {
-        if let Some(data) = &tensor.constant {
-            resolved[id] = Some(data.shape());
-        }
-    }
-    resolved[compiled.input.0] = Some(input_shape);
-    plan.steps.clear();
-    for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
-        let node = &graph.nodes[index];
-        let a = resolved[instruction.inputs[0].0]
-            .ok_or_else(|| node_error(index, node, "unresolved input shape"))?;
-        let b = instruction.inputs.get(1).and_then(|id| resolved[id.0]);
-        let bias = instruction.inputs.get(2).and_then(|id| resolved[id.0]);
-        let result = (|| -> RuntimeResult<(Shape, BoundKind)> {
-            match &instruction.kind {
-                Op::Add | Op::Mul | Op::Div | Op::Sub => {
-                    let b = b.ok_or_else(|| RuntimeError::new("unresolved binary input shape"))?;
-                    let output = a.broadcast(b)?;
-                    Ok((
-                        output,
-                        BoundKind::Binary(
-                            kernels::Broadcast::new(a, b, output),
-                            match instruction.kind {
-                                Op::Add => kernels::BinaryOp::Add,
-                                Op::Mul => kernels::BinaryOp::Mul,
-                                Op::Div => kernels::BinaryOp::Div,
-                                _ => kernels::BinaryOp::Sub,
-                            },
-                        ),
-                    ))
-                }
-                Op::Square => Ok((a.broadcast(b.unwrap())?, BoundKind::Square)),
-                Op::Sqrt => Ok((a, BoundKind::Sqrt)),
-                Op::Relu => Ok((a, BoundKind::Relu)),
-                Op::Erf => Ok((a, BoundKind::Erf)),
-                Op::Sigmoid => Ok((a, BoundKind::Sigmoid)),
-                Op::HardSigmoid { alpha, beta } => Ok((a, BoundKind::HardSigmoid(*alpha, *beta))),
-                Op::Conv(attrs) => kernels::bind_conv(a, b.unwrap(), bias, attrs),
-                Op::ConvTranspose => kernels::bind_conv_transpose(a, b.unwrap(), bias),
-                Op::MaxPool => kernels::bind_max_pool(a),
-                Op::AveragePool => kernels::bind_average_pool(a),
-                Op::BatchNormalization { epsilon } => {
-                    let mut parameters = [Shape::new(&[])?; 4];
-                    for (shape, id) in parameters.iter_mut().zip(&instruction.inputs[1..]) {
-                        *shape = resolved[id.0].ok_or_else(|| {
-                            RuntimeError::new("unresolved BatchNormalization parameter")
-                        })?;
-                    }
-                    kernels::bind_batch_normalization(a, &parameters, *epsilon)
-                }
-                Op::Squeeze { axes } => Ok((shapes::squeeze(a, axes)?, BoundKind::Copy)),
-                Op::Unsqueeze { axes } => Ok((shapes::unsqueeze(a, axes)?, BoundKind::Copy)),
-                Op::Transpose { permutation } => kernels::bind_transpose(a, permutation),
-                Op::Slice(parameters) => kernels::bind_slice(a, parameters),
-                Op::Concat { axis } => kernels::bind_concat(&instruction.inputs, resolved, *axis),
-                Op::Resize { factor } => kernels::bind_resize(a, *factor),
-                Op::GlobalAveragePool => {
-                    if a.rank() < 3 {
-                        return Err(RuntimeError::new(
-                            "GlobalAveragePool requires at least one spatial dimension",
-                        ));
-                    }
-                    let axes = (2..a.rank()).map(|axis| axis as i64).collect::<Vec<_>>();
-                    kernels::bind_reduce(a, &axes, true, false)
-                }
-                Op::ReduceMean {
-                    axes,
-                    keepdims,
-                    noop,
-                } => kernels::bind_reduce(a, axes, *keepdims, *noop),
-                Op::Reshape { allowzero, target } => {
-                    let evaluated;
-                    let values = if let Some(values) = target {
-                        values.as_slice()
-                    } else {
-                        evaluated = compiled.shape_program.evaluate(
-                            index,
-                            resolved,
-                            &mut scratch.shape_cache,
-                        )?;
-                        evaluated.values()
-                    };
-                    Ok((shapes::reshape(a, values, *allowzero)?, BoundKind::Copy))
-                }
-                Op::MatMul => kernels::bind_matmul(a, b.unwrap()),
-                Op::Softmax { axis } => {
-                    let axis = shapes::axis(*axis, a.rank())?;
-                    if a.rank() < 2 || axis != a.rank() - 1 {
-                        return Err(RuntimeError::new(
-                            "Softmax requires rank-at-least-two, last-axis input",
-                        ));
-                    }
-                    Ok((
-                        a,
-                        BoundKind::Softmax {
-                            rows: a.element_count() / a.dimensions()[axis],
-                            columns: a.dimensions()[axis],
-                        },
-                    ))
-                }
-            }
-        })()
-        .map_err(|e| node_error(index, node, e))?;
-        positive_shape(result.0).map_err(|e| node_error(index, node, e))?;
-        result.0.byte_count(DType::F32)?;
-        resolved[instruction.output.0] = Some(result.0);
-        plan.steps.push(BoundStep {
-            output: instruction.output,
-            kind: result.1,
-        });
-    }
-    if node_count == compiled.instructions.len()
-        && let Some(index) = resolved.iter().position(Option::is_none)
-    {
-        return Err(RuntimeError::new(format!(
-            "unresolved tensor shape at {index}"
-        )));
-    }
-    for (destination, &shape) in plan.shapes.iter_mut().zip(resolved.iter()) {
-        if let Some(shape) = shape {
-            *destination = shape;
-        }
-    }
-    plan.input_shape = input_shape;
-    plan_slots_into(compiled, node_count, selected_output, plan, scratch, limits)
-}
-fn positive_shape(shape: Shape) -> RuntimeResult<()> {
-    if shape
-        .dimensions()
-        .iter()
-        .any(|&d| d == 0 || i64::try_from(d).is_err())
-    {
-        return Err(RuntimeError::new(
-            "runtime dimensions must be positive and fit I64",
-        ));
-    }
-    shape.byte_count(DType::F32)?;
-    Ok(())
-}
-fn plan_slots_into(
-    compiled: &CompiledModel,
-    node_count: usize,
-    selected_output: TensorId,
-    plan: &mut ShapePlan,
-    scratch: &mut BindScratch,
-    limits: ExecutionLimits,
-) -> RuntimeResult<()> {
-    let graph = compiled.model.graph();
-    scratch.starts.fill(-2);
-    scratch.starts[compiled.input.0] = -1;
-    scratch.last_use.copy_from_slice(&compiled.last_use);
-    if node_count != compiled.instructions.len() {
-        scratch.last_use.fill(-1);
-        for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
-            for id in &instruction.inputs {
-                scratch.last_use[id.0] = index as isize;
-            }
-        }
-    }
-    scratch.last_use[selected_output.0] = node_count as isize;
-    for (index, instruction) in compiled.instructions[..node_count].iter().enumerate() {
-        scratch.starts[instruction.output.0] = index as isize;
-    }
-    scratch.lifetimes.clear();
-    let mut naive = 0usize;
-    for (id, tensor) in graph.tensors.iter().enumerate() {
-        if tensor.constant.is_some() || scratch.starts[id] == -2 {
-            continue;
-        }
-        naive = naive
-            .checked_add(plan.shapes[id].byte_count(DType::F32)?)
-            .ok_or_else(|| RuntimeError::new("activation byte count overflow"))?;
-        scratch.lifetimes.push((
-            scratch.starts[id],
-            scratch.last_use[id].max(scratch.starts[id]),
-            id,
-            plan.shapes[id].element_count(),
-        ));
-    }
-    scratch
-        .lifetimes
-        .sort_unstable_by_key(|&(start, _, id, _)| (start, id));
-    plan.slots.fill(usize::MAX);
-    plan.lengths.clear();
-    scratch.ends.clear();
-    for &(start, end, id, length) in &scratch.lifetimes {
-        let fitting = plan
-            .lengths
-            .iter()
-            .enumerate()
-            .filter(|&(i, &len)| scratch.ends[i] < start && len >= length)
-            .min_by_key(|&(i, &len)| (len, i))
-            .map(|(i, _)| i);
-        let reusable = fitting.or_else(|| {
-            plan.lengths
-                .iter()
-                .enumerate()
-                .filter(|&(i, _)| scratch.ends[i] < start)
-                .max_by_key(|&(i, &len)| (len, std::cmp::Reverse(i)))
-                .map(|(i, _)| i)
-        });
-        let slot = if let Some(slot) = reusable {
-            plan.lengths[slot] = plan.lengths[slot].max(length);
-            scratch.ends[slot] = end;
-            slot
-        } else {
-            plan.lengths.push(length);
-            scratch.ends.push(end);
-            plan.lengths.len() - 1
-        };
-        plan.slots[id] = slot;
-    }
-    let bytes = plan
-        .lengths
-        .iter()
-        .try_fold(0usize, |sum, &len| {
-            len.checked_mul(4).and_then(|bytes| sum.checked_add(bytes))
-        })
-        .ok_or_else(|| RuntimeError::new("activation plan byte count overflow"))?;
-    if bytes > limits.max_activation_bytes {
-        return Err(RuntimeError::with_kind(
-            crate::error::ErrorKind::ResourceLimit,
-            format!(
-                "activation plan needs {bytes} bytes, limit is {}",
-                limits.max_activation_bytes
-            ),
-        ));
-    }
-    plan.activation_bytes = bytes;
-    plan.naive_activation_bytes = naive;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2148,7 +1506,7 @@ mod tests {
         ]
         .concat()
     }
-    fn wide_head() -> Arc<CompiledModel> {
+    fn wide_head_model() -> Arc<Model> {
         let weights = bytes(
             5,
             &[
@@ -2170,45 +1528,98 @@ mod tests {
         ]
         .concat();
         let source = [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat();
-        Arc::new(
-            CompiledModel::compile(
-                Arc::new(Model::load_bytes(&source).unwrap()),
-                CompileOptions::reference(),
-            )
-            .unwrap(),
-        )
+        Arc::new(Model::load_bytes(&source).unwrap())
     }
-    fn physical_wide_head() -> Arc<CompiledModel> {
-        Arc::new(CompiledModel::new(wide_head().model.clone()).unwrap())
+    fn wide_head() -> Arc<CpuCompiledModel> {
+        Arc::new(CpuCompiledModel::compile(wide_head_model(), CompileOptions::reference()).unwrap())
+    }
+    fn physical_wide_head() -> Arc<CpuCompiledModel> {
+        Arc::new(CpuCompiledModel::new(wide_head().program.model.clone()).unwrap())
+    }
+
+    #[test]
+    #[cfg(not(feature = "gpu"))]
+    fn placement_without_gpu_backend_is_explicit() {
+        let compile = |target| {
+            CompiledModel::compile(
+                wide_head_model(),
+                CompileOptions::default(),
+                ExecutionConfig { target },
+            )
+        };
+        let strict = compile(ExecutionTarget::Gpu).err().unwrap();
+        assert_eq!(strict.kind(), crate::error::ErrorKind::Unsupported);
+        let auto = compile(ExecutionTarget::Auto).unwrap();
+        assert!(matches!(auto.execution_backend(), ExecutionBackend::Cpu(_)));
+        assert_eq!(
+            auto.fallback_error().unwrap().to_string(),
+            strict.to_string()
+        );
+        let mut session = Session::new_serial(auto, &[1, 2], ExecutionLimits::default()).unwrap();
+        assert_eq!(session.run(&[1., 2.]).unwrap().data().len(), 1024);
+        assert!(session.statistics().fallback.is_some());
+    }
+
+    #[test]
+    fn shared_program_binds_dynamic_shapes_without_cpu_weight_packing() {
+        let model = wide_head_model();
+        let compiler = Compiler::default();
+        let program = compiler.resources(model.clone()).unwrap().graph.clone();
+        let count = program.instructions.len();
+        let mut plan = ShapePlan::empty(model.graph().tensors.len(), count);
+        let mut scratch = BindScratch::new(&program);
+        bind_into(
+            &program,
+            &[3, 2],
+            ExecutionLimits::default(),
+            count,
+            program.output,
+            &mut plan,
+            &mut scratch,
+        )
+        .unwrap();
+        assert_eq!(plan.input_shape.dimensions(), [3, 2]);
+        assert_eq!(plan.shapes[program.output.0].dimensions(), [3, 1024]);
+        assert_eq!(compiler.cached_packed_weight_bytes(), 0);
     }
 
     #[test]
     fn parsed_models_share_packed_weights_across_concurrent_compilation_policies() {
-        let model = wide_head().model.clone();
-        assert_eq!(model.cached_packed_weight_bytes(), 0);
+        let model = wide_head().program.model.clone();
+        let compiler = Arc::new(Compiler::default());
+        assert_eq!(compiler.cached_packed_weight_bytes(), 0);
         let handles: Vec<_> = (0..4)
             .map(|index| {
                 let model = model.clone();
+                let compiler = compiler.clone();
                 std::thread::spawn(move || {
-                    CompiledModel::compile(
-                        model,
-                        CompileOptions {
-                            kernels: KernelPolicy::Portable4,
-                            layout: if index % 2 == 0 {
-                                LayoutPolicy::Auto
-                            } else {
-                                LayoutPolicy::Nchw
+                    compiler
+                        .compile(
+                            model,
+                            CompileOptions {
+                                cpu: crate::runtime::CpuCompileOptions {
+                                    kernels: KernelPolicy::Portable4,
+                                    layout: if index % 2 == 0 {
+                                        LayoutPolicy::Auto
+                                    } else {
+                                        LayoutPolicy::Nchw
+                                    },
+                                },
+                                fusion: index % 2 == 0,
+                                ..Default::default()
                             },
-                            fusion: index % 2 == 0,
-                        },
-                    )
-                    .unwrap()
+                            ExecutionTarget::Cpu,
+                        )
+                        .unwrap()
+                        .as_cpu()
+                        .unwrap()
+                        .clone()
                 })
             })
             .collect();
         let compiled: Vec<_> = handles
             .into_iter()
-            .map(|thread| Arc::new(thread.join().unwrap()))
+            .map(|thread| thread.join().unwrap())
             .collect();
         let first = &compiled[0];
         assert!(!first.packed.is_empty());
@@ -2217,11 +1628,11 @@ mod tests {
                 assert!(Arc::ptr_eq(panel, &other.packed[id]));
             }
         }
-        let cached = model.cached_packed_weight_bytes();
+        let cached = compiler.cached_packed_weight_bytes();
         assert_eq!(cached, first.packed_weight_bytes());
         for view in compiled {
             let mut request =
-                Session::new_serial(view, &[1, 2], ExecutionLimits::default()).unwrap();
+                CpuSession::new_serial(view, &[1, 2], ExecutionLimits::default()).unwrap();
             assert!(
                 request
                     .run(&[1., 2.])
@@ -2247,8 +1658,8 @@ mod tests {
                     .any(|entry| entry.operator == "MatMul" && entry.packed)
             );
         }
-        assert_eq!(model.cached_packed_weight_bytes(), cached);
-        let scalar = CompiledModel::compile(model, CompileOptions::reference()).unwrap();
+        assert_eq!(compiler.cached_packed_weight_bytes(), cached);
+        let scalar = CpuCompiledModel::compile(model, CompileOptions::reference()).unwrap();
         assert_eq!(scalar.packed_weight_bytes(), 0);
     }
 
@@ -2256,11 +1667,12 @@ mod tests {
     fn aggregate_activation_limit_rejects_lazy_trace_before_callbacks() {
         let compiled = physical_wide_head();
         let production =
-            Session::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
         let diagnostic =
-            Session::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default())
+                .unwrap();
         let total = production.retained_activation_bytes() + diagnostic.retained_activation_bytes();
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled.clone(),
             &[1, 2],
             ExecutionLimits {
@@ -2292,7 +1704,7 @@ mod tests {
             vec![1. / 1024.; 1024]
         );
         assert!(request.retained_activation_bytes() <= request.limits.max_activation_bytes);
-        let mut fitting = Session::new_serial(
+        let mut fitting = CpuSession::new_serial(
             compiled,
             &[1, 2],
             ExecutionLimits {
@@ -2315,11 +1727,12 @@ mod tests {
     fn aggregate_activation_limit_rebinds_existing_diagnostic_transactionally() {
         let compiled = physical_wide_head();
         let production =
-            Session::new_serial(compiled.clone(), &[2, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled.clone(), &[2, 2], ExecutionLimits::default()).unwrap();
         let diagnostic =
-            Session::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default())
+                .unwrap();
         let limit = production.retained_activation_bytes() + diagnostic.retained_activation_bytes();
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled,
             &[1, 2],
             ExecutionLimits {
@@ -2374,15 +1787,17 @@ mod tests {
     fn aggregate_activation_limit_counts_test_prefix_and_diagnostic_siblings() {
         let compiled = physical_wide_head();
         let production =
-            Session::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
         let prefix =
-            Session::new_prefix(compiled.clone(), &[1, 2], ExecutionLimits::default(), 0).unwrap();
+            CpuSession::new_prefix(compiled.clone(), &[1, 2], ExecutionLimits::default(), 0)
+                .unwrap();
         let primary = production.retained_activation_bytes();
         let prefix_bytes = prefix.retained_activation_bytes();
         let diagnostic =
-            Session::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_diagnostic(compiled.clone(), &[1, 2], ExecutionLimits::default())
+                .unwrap();
         let total = primary + prefix_bytes + diagnostic.retained_activation_bytes();
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled.clone(),
             &[1, 2],
             ExecutionLimits {
@@ -2401,7 +1816,7 @@ mod tests {
         );
         assert!(!filled);
         assert!(request.prefix.is_none());
-        let mut request = Session::new_serial(
+        let mut request = CpuSession::new_serial(
             compiled,
             &[1, 2],
             ExecutionLimits {
@@ -2442,7 +1857,7 @@ mod tests {
         let (capacity, requests, invalid) = (1, &[1][..], [0, 2]);
         let cpu = Arc::new(CpuContext::new(capacity).unwrap());
         for &requested in requests {
-            let session = Session::new(
+            let session = CpuSession::new(
                 compiled.clone(),
                 cpu.clone(),
                 &[1, 2],
@@ -2457,7 +1872,7 @@ mod tests {
         }
         for requested in invalid {
             assert!(
-                Session::new(
+                CpuSession::new(
                     compiled.clone(),
                     cpu.clone(),
                     &[1, 2],
@@ -2470,7 +1885,7 @@ mod tests {
             );
         }
         let mut session =
-            Session::new_serial(compiled, &[1, 2], ExecutionLimits::default()).unwrap();
+            CpuSession::new_serial(compiled, &[1, 2], ExecutionLimits::default()).unwrap();
         let original = session.cpu_context().clone();
         for requested in invalid {
             assert!(
@@ -2498,12 +1913,15 @@ mod tests {
     fn diagnostic_and_nchw_simd_plans_cache_eight_shapes_without_extra_arenas() {
         let reference = wide_head();
         let simd = Arc::new(
-            CompiledModel::compile(
-                reference.model.clone(),
+            CpuCompiledModel::compile(
+                reference.program.model.clone(),
                 CompileOptions {
-                    kernels: KernelPolicy::Portable4,
-                    layout: LayoutPolicy::Nchw,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels: KernelPolicy::Portable4,
+                        layout: LayoutPolicy::Nchw,
+                    },
                     fusion: false,
+                    ..Default::default()
                 },
             )
             .unwrap(),
@@ -2511,8 +1929,8 @@ mod tests {
         let limits = ExecutionLimits {
             max_activation_bytes: 128 << 10,
         };
-        let diagnostic = Session::new_diagnostic(reference, &[1, 2], limits).unwrap();
-        let production = Session::new_serial(simd, &[1, 2], limits).unwrap();
+        let diagnostic = CpuSession::new_diagnostic(reference, &[1, 2], limits).unwrap();
+        let production = CpuSession::new_serial(simd, &[1, 2], limits).unwrap();
         for mut request in [diagnostic, production] {
             for batch in 2..=9 {
                 request.reshape(&[batch, 2]).unwrap();
@@ -2540,14 +1958,14 @@ mod tests {
         let limits = ExecutionLimits {
             max_activation_bytes: 256,
         };
-        assert!(Session::new_serial(compiled.clone(), &[1, 2], limits).is_err());
-        assert!(Session::new_prefix(compiled.clone(), &[1, 2], limits, 3).is_err());
-        let mut request = Session::new_prefix(compiled, &[1, 2], limits, 0).unwrap();
+        assert!(CpuSession::new_serial(compiled.clone(), &[1, 2], limits).is_err());
+        assert!(CpuSession::new_prefix(compiled.clone(), &[1, 2], limits, 3).is_err());
+        let mut request = CpuSession::new_prefix(compiled, &[1, 2], limits, 0).unwrap();
         assert_eq!(request.activation_bytes(), 16);
         assert_eq!(request.naive_activation_bytes(), 16);
         assert_eq!(request.output_shape().dimensions(), &[1, 2]);
         assert_eq!(request.plan.steps.len(), 1);
-        let suffix = request.compiled.instructions[1].output;
+        let suffix = request.compiled.program.instructions[1].output;
         assert_eq!(request.plan.slots[suffix.0], usize::MAX);
         request.reshape(&[16, 2]).unwrap();
         let storage = request
@@ -2638,7 +2056,7 @@ mod tests {
             .concat(),
         )
     }
-    fn prefix_session() -> Session {
+    fn prefix_session() -> CpuSession {
         let constant = bytes(
             5,
             &[
@@ -2660,8 +2078,8 @@ mod tests {
         .concat();
         let source = [number(1, 8), bytes(8, &number(2, 7)), bytes(7, &graph)].concat();
         let model = Arc::new(Model::load_bytes(&source).unwrap());
-        Session::new_serial(
-            Arc::new(CompiledModel::new(model).unwrap()),
+        CpuSession::new_serial(
+            Arc::new(CpuCompiledModel::new(model).unwrap()),
             &[2],
             ExecutionLimits::default(),
         )

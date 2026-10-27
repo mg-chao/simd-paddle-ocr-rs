@@ -1,7 +1,8 @@
-//! Decode a JPEG/PNG in application code, then run the Rust-only CPU pipeline.
+#![recursion_limit = "256"]
+//! Decode a JPEG/PNG in application code, then run CPU or native GPU inference.
 use serde::Serialize;
 use simd_paddle_ocr_rs::{
-    ModelPreset, OcrModelSet, OwnedCharacterBox,
+    ExecutionTarget, ModelPreset, OcrModelSet, OwnedCharacterBox,
     cpu::CpuContext,
     image::{ImageView, PixelFormat},
     ocr::OwnedOcr,
@@ -13,6 +14,11 @@ const USAGE: &str = "Usage: ocr [OPTIONS] IMAGE\n\
     --preset NAME       tiny, small, or medium (default: tiny)\n\
     --no-cls            Do not load or run cls.onnx\n\
     --threads N         Shared CPU worker capacity (default: automatic)\n\
+    --execution TARGET cpu, auto, or gpu (default: cpu)\n\
+    --det-execution TARGET / --rec-execution TARGET / --cls-execution TARGET\n\
+    --gpu-precision P   f32 (default), or mixed-f16\n\
+    --gpu-matrix P      f32 (default), or f16 (explicit reduced precision)\n\
+    --statistics       Print actual stage backends, kernels, and memory to stderr\n\
     --json              Print owned OCR output as JSON instead of joined text\n\
     --alignment         Capture CTC spans and token boxes; implies --json\n\
     -h, --help          Show this help\n\n\
@@ -27,6 +33,11 @@ struct Args {
     threads: Option<usize>,
     json: bool,
     alignment: bool,
+    target: ExecutionTarget,
+    stages: [Option<ExecutionTarget>; 3],
+    gpu_precision: String,
+    gpu_matrix: String,
+    statistics: bool,
 }
 
 #[derive(Serialize)]
@@ -46,12 +57,44 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
     let mut json = false;
     let mut alignment = false;
     let mut image = None;
+    let mut target = ExecutionTarget::Cpu;
+    let mut stages = [None; 3];
+    let mut gpu_precision = "f32".to_string();
+    let mut gpu_matrix = "f32".to_string();
+    let mut statistics = false;
     let value = |args: &mut std::iter::Skip<std::env::ArgsOs>, flag: &str| {
         args.next()
             .ok_or_else(|| format!("{flag} requires a value"))
     };
     while let Some(arg) = args.next() {
         match arg.to_str() {
+            Some("--statistics") => statistics = true,
+            Some(
+                flag @ ("--execution" | "--det-execution" | "--rec-execution" | "--cls-execution"),
+            ) => {
+                let selected = match value(&mut args, flag)?.to_str() {
+                    Some("cpu") => ExecutionTarget::Cpu,
+                    Some("auto") => ExecutionTarget::Auto,
+                    Some("gpu") => ExecutionTarget::Gpu,
+                    _ => return Err("execution target must be cpu, auto, or gpu".into()),
+                };
+                match flag {
+                    "--det-execution" => stages[0] = Some(selected),
+                    "--rec-execution" => stages[1] = Some(selected),
+                    "--cls-execution" => stages[2] = Some(selected),
+                    _ => target = selected,
+                };
+            }
+            Some("--gpu-precision") => {
+                gpu_precision = value(&mut args, "--gpu-precision")?
+                    .into_string()
+                    .map_err(|_| "invalid precision")?
+            }
+            Some("--gpu-matrix") => {
+                gpu_matrix = value(&mut args, "--gpu-matrix")?
+                    .into_string()
+                    .map_err(|_| "invalid GPU matrix precision")?;
+            }
             Some("-h" | "--help") => return Ok(None),
             Some("--models-dir") => models = value(&mut args, "--models-dir")?.into(),
             Some("--preset") => {
@@ -96,6 +139,11 @@ fn parse_args() -> Result<Option<Args>, Box<dyn Error>> {
         threads,
         json,
         alignment,
+        target,
+        stages,
+        gpu_precision,
+        gpu_matrix,
+        statistics,
     }))
 }
 
@@ -129,12 +177,74 @@ fn run() -> Result<(), Box<dyn Error>> {
     let models = OcrModelSet::from_directory(args.models, args.preset, args.classification)?;
     let mut builder = models
         .builder()
+        .execution_target(args.target)
         .direction_classification(args.classification);
+    if let Some(target) = args.stages[0] {
+        builder = builder.detector_target(target);
+    }
+    if let Some(target) = args.stages[1] {
+        builder = builder.recognizer_target(target);
+    }
+    if let Some(target) = args.stages[2] {
+        builder = builder.classifier_target(target);
+    }
+    #[cfg(feature = "gpu")]
+    {
+        use simd_paddle_ocr_rs::runtime::gpu::*;
+        let precision = match args.gpu_precision.as_str() {
+            "f32" => GpuPrecision::F32,
+            "mixed-f16" => GpuPrecision::MixedF16,
+            _ => return Err("invalid GPU precision".into()),
+        };
+        let matrix_precision = match args.gpu_matrix.as_str() {
+            "f32" => GpuMatrixPrecision::F32,
+            "f16" => GpuMatrixPrecision::F16,
+            _ => return Err("GPU matrix precision must be f32 or f16".into()),
+        };
+        builder = builder.compile_options(simd_paddle_ocr_rs::runtime::CompileOptions {
+            gpu: GpuCompileOptions {
+                precision,
+                matrix_precision,
+            },
+            ..Default::default()
+        });
+        builder = builder.gpu_options(GpuContextOptions {
+            recognition_wave_size: if matrix_precision == GpuMatrixPrecision::F16 {
+                4
+            } else {
+                1
+            },
+            classification_batch_size: if matrix_precision == GpuMatrixPrecision::F16 {
+                16
+            } else {
+                4
+            },
+            ..Default::default()
+        });
+    }
+    #[cfg(not(feature = "gpu"))]
+    if args.gpu_precision != "f32" || args.gpu_matrix != "f32" {
+        return Err("GPU options require --features gpu".into());
+    }
     if let Some(threads) = args.threads {
         builder = builder.cpu_context(Arc::new(CpuContext::new(threads)?));
     }
-    let mut request = builder.build()?;
-    let result = request.run(image, args.alignment)?.try_to_owned()?;
+    let mut request = builder.build()?.request()?;
+    let result = request
+        .run(
+            image,
+            simd_paddle_ocr_rs::RunOptions {
+                capture_spans: args.alignment,
+            },
+        )?
+        .try_to_owned()?;
+    if args.statistics {
+        eprintln!("{}", serde_json::to_string_pretty(&request.latest_run())?);
+        #[cfg(feature = "gpu")]
+        if let Some(statistics) = request.gpu_pipeline_statistics() {
+            eprintln!("{}", serde_json::to_string_pretty(&statistics)?);
+        }
+    }
     let mut output = std::io::BufWriter::new(std::io::stdout().lock());
     if args.json {
         let character_boxes = args

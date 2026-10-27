@@ -1,12 +1,25 @@
 # simd-paddle-ocr-rs
 
-Rust CPU implementation of SimdPaddleOCR, with portable SIMD and runtime CPU
-dispatch. Detection, perspective cropping, optional orientation classification,
+Rust implementation of SimdPaddleOCR, with portable SIMD, runtime CPU dispatch,
+and optional Vulkan or Metal OCR. Detection, perspective cropping, optional orientation classification,
 CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 
 The project uses `nightly-2026-09-08`, selected by `rust-toolchain.toml`.
-Windows x64 and native macOS Apple Silicon are supported; see
+CPU execution supports Windows x64 and native macOS Apple Silicon; see
 [CPU usage](docs/cpu-usage.md) and [macOS setup](docs/macos-cpu-validation.md).
+The optional GPU implementation uses native Vulkan 1.3 through `ash` on Windows.
+GLSL shaders are compiled to embedded SPIR-V at build time. Applications need the
+Vulkan loader and a supported physical GPU driver; they do not compile shaders
+at runtime. On Apple Silicon with macOS 14 or newer, the same `gpu` feature
+selects native Metal with build-time MSL compilation. CPU-only builds skip both GPU stacks.
+The [final Metal report](docs/metal-final-report.md) records passing correctness
+and cold-start checks; the all-preset warm-latency target against C# remains unmet.
+See [GPU usage](docs/gpu-usage.md) for configuration and validation.
+The [Windows migration results](docs/vulkan-performance.md) include local correctness
+checks, bounded measurements, and hardware validation limits.
+CPU execution and FP32 remain the defaults.
+See [GPU architecture](docs/architecture.md) for device ownership, scheduling,
+and shader interfaces.
 
 ## Run OCR
 
@@ -40,15 +53,16 @@ simd-paddle-ocr-rs = { path = "../simd-paddle-ocr-rs" }
 ```
 
 ```rust,no_run
-use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet};
+use simd_paddle_ocr_rs::{ModelPreset, OcrModelSet, RunOptions};
 use simd_paddle_ocr_rs::image::{ImageView, PixelFormat};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let models = OcrModelSet::from_directory("models", ModelPreset::ChineseV6Tiny, true)?;
-    let mut request = models.builder().build()?;
+    let plan = models.builder().build()?;
+    let mut request = plan.request()?;
     let pixels = vec![255u8; 640 * 480 * 3]; // Replace with decoded RGB pixels.
     let image = ImageView::new(&pixels, 640, 480, 0, PixelFormat::Rgb24)?;
-    let result = request.run(image, false)?;
+    let result = request.run(image, RunOptions::default())?;
     println!("{}", result.text);
     Ok(())
 }

@@ -19,18 +19,18 @@ pub(super) struct SemanticGroup {
 /// Return nonoverlapping groups containing at least one unrelated source node.
 /// Adjacent groups stay with the existing activation/LayerNorm matcher.
 pub(super) fn groups(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     logical: &ShapePlan,
     count: usize,
     selected: TensorId,
 ) -> Vec<SemanticGroup> {
     if !compiled.options.fusion
-        || count > compiled.instructions.len()
+        || count > compiled.program.instructions.len()
         || count > logical.steps.len()
     {
         return Vec::new();
     }
-    let nodes = &compiled.instructions[..count];
+    let nodes = &compiled.program.instructions[..count];
     let mut occupied = vec![false; count];
     let mut result = Vec::new();
     for (start, base) in nodes.iter().enumerate() {
@@ -49,7 +49,7 @@ pub(super) fn groups(
         while current != selected {
             // Duplicate operands and later branches count as separate uses;
             // consumers beyond the selected execution prefix do not.
-            let Some(next) = compiled.graph_uses.unique_consumer(current, count) else {
+            let Some(next) = compiled.program.graph_uses.unique_consumer(current, count) else {
                 break;
             };
             if next <= group.end || occupied[next] {
@@ -68,6 +68,7 @@ pub(super) fn groups(
                     };
                     if other == current
                         || compiled
+                            .program
                             .graph_uses
                             .producer(other)
                             .is_some_and(|p| p >= next || group.members.contains(&p))
@@ -102,7 +103,7 @@ pub(super) fn groups(
 }
 
 fn compatible_add(
-    compiled: &CompiledModel,
+    compiled: &CpuCompiledModel,
     logical: &ShapePlan,
     other: TensorId,
     output: Shape,
@@ -116,6 +117,8 @@ fn compatible_add(
             && shape.rank() == 4
             && shape.dimensions() == [1, output.dimensions()[1], 1, 1])
         || (shape == output
-            && (compiled.options.layout == LayoutPolicy::Nchw
-                || compiled.model.graph().tensors[other.0].constant.is_none()))
+            && (compiled.options.cpu.layout == LayoutPolicy::Nchw
+                || compiled.program.model.graph().tensors[other.0]
+                    .constant
+                    .is_none()))
 }

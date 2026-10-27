@@ -82,7 +82,7 @@ impl Plan {
 pub(super) fn binary_inplace(
     backend: Backend,
     op: BinaryOp,
-    plan: &kernels::Broadcast,
+    plan: &bound::Broadcast,
     info: impl Fn(usize) -> (Shape, Layout),
     alias_slot: usize,
     other: Option<&[f32]>,

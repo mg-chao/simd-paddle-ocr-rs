@@ -1,0 +1,100 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+shared float partial[64];
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        partial = float[64](0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    }
+    memoryBarrierShared();
+    barrier();
+    uvec3 group = gl_WorkGroupID;
+    uint lane = gl_LocalInvocationIndex;
+    float sum = 0.0;
+    bool local = false;
+    uint k = 0u;
+    uint stride = 32u;
+    uint _e5 = p(1u);
+    uint row = (group.x + (group.y * _e5));
+    uint _e9 = p(0u);
+    if ((row >= _e9)) {
+        return;
+    }
+    uint _e12 = p(3u);
+    uint _e14 = p(4u);
+    uint batch = (row / _e14);
+    uint channel = (row % _e14);
+    if ((lane == 0u)) {
+        uint _e24 = p(19u);
+        local = (_e24 != 0u);
+    } else {
+        local = false;
+    }
+    bool _e28 = local;
+    if (_e28) {
+        float _e29 = load_c(channel);
+        sum = _e29;
+    }
+    k = lane;
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            uint _e44 = k;
+            k = (_e44 + 64u);
+        }
+        loop_init_1 = false;
+        uint _e31 = k;
+        if ((_e31 < _e12)) {
+        } else {
+            break;
+        }
+        {
+            float _e33 = sum;
+            uint _e35 = k;
+            float _e37 = load_a(((batch * _e12) + _e35));
+            uint _e39 = k;
+            float _e41 = load_b(((channel * _e12) + _e39));
+            sum = (_e33 + (_e37 * _e41));
+        }
+    }
+    float _e49 = sum;
+    partial[lane] = _e49;
+    memoryBarrierShared();
+    barrier();
+    bool loop_init_2 = true;
+    while(true) {
+        if (!loop_init_2) {
+            uint _e66 = stride;
+            stride = (_e66 / 2u);
+        }
+        loop_init_2 = false;
+        uint _e52 = stride;
+        if ((_e52 > 1u)) {
+        } else {
+            break;
+        }
+        {
+            uint _e55 = stride;
+            if ((lane < _e55)) {
+                float _e59 = partial[lane];
+                uint _e61 = stride;
+                float _e64 = partial[(lane + _e61)];
+                partial[lane] = (_e59 + _e64);
+            }
+            memoryBarrierShared();
+            barrier();
+        }
+    }
+    if ((lane == 0u)) {
+        float _e73 = partial[0];
+        float _e76 = partial[1];
+        float _e78 = epilogue((_e73 + _e76), row);
+        store_output(row, _e78);
+        return;
+    } else {
+        return;
+    }
+}
+

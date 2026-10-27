@@ -1,0 +1,355 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+#include "neural.glsl"
+
+const bool SOFTMAX = false;
+const bool FINISH = true;
+
+shared float values[64];
+
+shared float maximum;
+
+shared float denominator;
+
+void main() {
+    if (gl_LocalInvocationID == uvec3(0u)) {
+        values = float[64](0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        maximum = 0.0;
+        denominator = 0.0;
+    }
+    memoryBarrierShared();
+    barrier();
+    uvec3 group = gl_WorkGroupID;
+    uint lane = gl_LocalInvocationIndex;
+    uint row = 0u;
+    uint chunk = 0u;
+    float value = 0.0;
+    uint part = 0u;
+    uint stride = 32u;
+    uint part_1 = 0u;
+    uint stride_1 = 32u;
+    uint col = 0u;
+    float value_1 = 0.0;
+    uint col_1 = 0u;
+    uint stride_2 = 32u;
+    uint col_2 = 0u;
+    uint stride_3 = 32u;
+    uint _e5 = p(1u);
+    uint flat_ = (group.x + (group.y * _e5));
+    uint _e9 = p(3u);
+    uint _e11 = p(4u);
+    row = flat_;
+    if (false) {
+        row = (flat_ / _e11);
+        chunk = (flat_ % _e11);
+    }
+    uint _e18 = row;
+    uint _e20 = p(0u);
+    if ((_e18 >= _e20)) {
+        return;
+    }
+    if (FINISH) {
+        if (SOFTMAX) {
+            value = -3.4028235e38;
+        }
+        part = lane;
+        bool loop_init = true;
+        while(true) {
+            if (!loop_init) {
+                uint _e42 = part;
+                part = (_e42 + 64u);
+            }
+            loop_init = false;
+            uint _e28 = part;
+            if ((_e28 < _e11)) {
+            } else {
+                break;
+            }
+            {
+                uint _e30 = row;
+                uint _e32 = part;
+                float _e36 = load_b((((_e30 * _e11) + _e32) * 2u));
+                if (SOFTMAX) {
+                    float _e38 = value;
+                    value = max(_e38, _e36);
+                } else {
+                    float _e40 = value;
+                    value = (_e40 + _e36);
+                }
+            }
+        }
+        float _e47 = value;
+        values[lane] = _e47;
+        memoryBarrierShared();
+        barrier();
+        bool loop_init_1 = true;
+        while(true) {
+            if (!loop_init_1) {
+                uint _e76 = stride;
+                stride = (_e76 / 2u);
+            }
+            loop_init_1 = false;
+            uint _e50 = stride;
+            if ((_e50 > 0u)) {
+            } else {
+                break;
+            }
+            {
+                uint _e53 = stride;
+                if ((lane < _e53)) {
+                    if (SOFTMAX) {
+                        float _e60 = values[lane];
+                        uint _e62 = stride;
+                        float _e65 = values[(lane + _e62)];
+                        values[lane] = max(_e60, _e65);
+                    } else {
+                        float _e69 = values[lane];
+                        uint _e71 = stride;
+                        float _e74 = values[(lane + _e71)];
+                        values[lane] = (_e69 + _e74);
+                    }
+                }
+                memoryBarrierShared();
+                barrier();
+            }
+        }
+        if (true) {
+            if ((lane == 0u)) {
+                uint _e82 = row;
+                float _e85 = values[0];
+                store_output(_e82, (_e85 / float(_e9)));
+            }
+            return;
+        }
+        if ((lane == 0u)) {
+            float _e93 = values[0];
+            maximum = _e93;
+        }
+        memoryBarrierShared();
+        barrier();
+        value = 0.0;
+        part_1 = lane;
+        bool loop_init_2 = true;
+        while(true) {
+            if (!loop_init_2) {
+                uint _e115 = part_1;
+                part_1 = (_e115 + 64u);
+            }
+            loop_init_2 = false;
+            uint _e96 = part_1;
+            if ((_e96 < _e11)) {
+            } else {
+                break;
+            }
+            {
+                uint _e98 = row;
+                uint _e100 = part_1;
+                uint offset_1 = (((_e98 * _e11) + _e100) * 2u);
+                float _e104 = value;
+                float _e107 = load_b((offset_1 + 1u));
+                float _e108 = load_b(offset_1);
+                float _e110 = maximum;
+                value = (_e104 + (_e107 * exp((_e108 - _e110))));
+            }
+        }
+        float _e120 = value;
+        values[lane] = _e120;
+        memoryBarrierShared();
+        barrier();
+        bool loop_init_3 = true;
+        while(true) {
+            if (!loop_init_3) {
+                uint _e137 = stride_1;
+                stride_1 = (_e137 / 2u);
+            }
+            loop_init_3 = false;
+            uint _e123 = stride_1;
+            if ((_e123 > 0u)) {
+            } else {
+                break;
+            }
+            {
+                uint _e126 = stride_1;
+                if ((lane < _e126)) {
+                    float _e130 = values[lane];
+                    uint _e132 = stride_1;
+                    float _e135 = values[(lane + _e132)];
+                    values[lane] = (_e130 + _e135);
+                }
+                memoryBarrierShared();
+                barrier();
+            }
+        }
+        if ((lane == 0u)) {
+            float _e145 = values[0];
+            denominator = _e145;
+        }
+        memoryBarrierShared();
+        barrier();
+        col = lane;
+        bool loop_init_4 = true;
+        while(true) {
+            if (!loop_init_4) {
+                uint _e165 = col;
+                col = (_e165 + 64u);
+            }
+            loop_init_4 = false;
+            uint _e147 = col;
+            if ((_e147 < _e9)) {
+            } else {
+                break;
+            }
+            {
+                uint _e149 = row;
+                uint _e151 = col;
+                uint _e153 = row;
+                uint _e155 = col;
+                float _e157 = load_a(((_e153 * _e9) + _e155));
+                float _e159 = maximum;
+                float _e163 = denominator;
+                store_output(((_e149 * _e9) + _e151), (exp((_e157 - _e159)) / _e163));
+            }
+        }
+        return;
+    } else {
+        uint _e168 = chunk;
+        uint end = min(_e9, ((_e168 + 1u) * 1024u));
+        uint _e174 = chunk;
+        uint start = (_e174 * 1024u);
+        if (SOFTMAX) {
+            value_1 = -3.4028235e38;
+        }
+        col_1 = (start + lane);
+        bool loop_init_5 = true;
+        while(true) {
+            if (!loop_init_5) {
+                uint _e195 = col_1;
+                col_1 = (_e195 + 64u);
+            }
+            loop_init_5 = false;
+            uint _e183 = col_1;
+            if ((_e183 < end)) {
+            } else {
+                break;
+            }
+            {
+                uint _e185 = row;
+                uint _e187 = col_1;
+                float _e189 = load_a(((_e185 * _e9) + _e187));
+                if (SOFTMAX) {
+                    float _e191 = value_1;
+                    value_1 = max(_e191, _e189);
+                } else {
+                    float _e193 = value_1;
+                    value_1 = (_e193 + _e189);
+                }
+            }
+        }
+        float _e200 = value_1;
+        values[lane] = _e200;
+        memoryBarrierShared();
+        barrier();
+        bool loop_init_6 = true;
+        while(true) {
+            if (!loop_init_6) {
+                uint _e229 = stride_2;
+                stride_2 = (_e229 / 2u);
+            }
+            loop_init_6 = false;
+            uint _e203 = stride_2;
+            if ((_e203 > 0u)) {
+            } else {
+                break;
+            }
+            {
+                uint _e206 = stride_2;
+                if ((lane < _e206)) {
+                    if (SOFTMAX) {
+                        float _e213 = values[lane];
+                        uint _e215 = stride_2;
+                        float _e218 = values[(lane + _e215)];
+                        values[lane] = max(_e213, _e218);
+                    } else {
+                        float _e222 = values[lane];
+                        uint _e224 = stride_2;
+                        float _e227 = values[(lane + _e224)];
+                        values[lane] = (_e222 + _e227);
+                    }
+                }
+                memoryBarrierShared();
+                barrier();
+            }
+        }
+        if ((lane == 0u)) {
+            float _e237 = values[0];
+            maximum = _e237;
+            float _e241 = maximum;
+            store_output((flat_ * 2u), _e241);
+        }
+        memoryBarrierShared();
+        barrier();
+        if (SOFTMAX) {
+            value_1 = 0.0;
+            col_2 = (start + lane);
+            bool loop_init_7 = true;
+            while(true) {
+                if (!loop_init_7) {
+                    uint _e259 = col_2;
+                    col_2 = (_e259 + 64u);
+                }
+                loop_init_7 = false;
+                uint _e246 = col_2;
+                if ((_e246 < end)) {
+                } else {
+                    break;
+                }
+                {
+                    float _e248 = value_1;
+                    uint _e249 = row;
+                    uint _e251 = col_2;
+                    float _e253 = load_a(((_e249 * _e9) + _e251));
+                    float _e255 = maximum;
+                    value_1 = (_e248 + exp((_e253 - _e255)));
+                }
+            }
+            float _e264 = value_1;
+            values[lane] = _e264;
+            memoryBarrierShared();
+            barrier();
+            bool loop_init_8 = true;
+            while(true) {
+                if (!loop_init_8) {
+                    uint _e281 = stride_3;
+                    stride_3 = (_e281 / 2u);
+                }
+                loop_init_8 = false;
+                uint _e267 = stride_3;
+                if ((_e267 > 0u)) {
+                } else {
+                    break;
+                }
+                {
+                    uint _e270 = stride_3;
+                    if ((lane < _e270)) {
+                        float _e274 = values[lane];
+                        uint _e276 = stride_3;
+                        float _e279 = values[(lane + _e276)];
+                        values[lane] = (_e274 + _e279);
+                    }
+                    memoryBarrierShared();
+                    barrier();
+                }
+            }
+            if ((lane == 0u)) {
+                float _e292 = values[0];
+                store_output(((flat_ * 2u) + 1u), _e292);
+                return;
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+}
+

@@ -17,7 +17,7 @@ fn binary_step(values: &[Value], inputs: [usize; 2], output: usize, op: BinaryOp
         op: Operation::Native {
             index: 0,
             kind: BoundKind::Binary(
-                kernels::Broadcast::new(
+                bound::Broadcast::new(
                     values[inputs[0]].shape,
                     values[inputs[1]].shape,
                     values[output].shape,
@@ -191,7 +191,7 @@ fn broadcast_alias_execution_matches_materialized_order_for_both_operands() {
             } else {
                 [&gate_values, &full_values]
             };
-            let broadcast = kernels::Broadcast::new(shapes[0], shapes[1], full);
+            let broadcast = bound::Broadcast::new(shapes[0], shapes[1], full);
             for op in [BinaryOp::Add, BinaryOp::Sub, BinaryOp::Mul, BinaryOp::Div] {
                 let mut expected = vec![0.; full.element_count()];
                 kernels::execute(
@@ -254,7 +254,7 @@ fn row_scalar_aliases_preserve_operand_order_tails_and_parallel_row_offsets() {
             } else {
                 ([gate, full], [&gate_values, &full_values])
             };
-            let broadcast = kernels::Broadcast::new(shapes[0], shapes[1], full);
+            let broadcast = bound::Broadcast::new(shapes[0], shapes[1], full);
             for op in [BinaryOp::Add, BinaryOp::Sub, BinaryOp::Mul, BinaryOp::Div] {
                 let mut expected = vec![0.; full.element_count()];
                 kernels::execute(
@@ -352,7 +352,10 @@ fn matmul_vector_bias_alias_preserves_unbiased_sum_and_warm_reuse() {
             let mut request = session(
                 source.clone(),
                 CompileOptions {
-                    kernels,
+                    cpu: crate::runtime::CpuCompileOptions {
+                        kernels,
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 &[2, 3],

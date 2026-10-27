@@ -16,6 +16,12 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
         cls_backbone_ns: 7,
         cls_head_ns: 11,
         cls_rotation_ns: 13,
+        gpu_admission_wait_ns: u64::MAX - 1,
+        gpu_encoding_ns: 73,
+        gpu_submission_ns: 31,
+        gpu_completion_wait_ns: 37,
+        gpu_readback_ns: 41,
+        gpu_compute_ns: Some(59),
         recognized_lines: 1,
         ..Default::default()
     };
@@ -27,6 +33,12 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
         cls_backbone_ns: 19,
         cls_head_ns: 23,
         cls_rotation_ns: 29,
+        gpu_admission_wait_ns: 2,
+        gpu_encoding_ns: 79,
+        gpu_submission_ns: 43,
+        gpu_completion_wait_ns: 47,
+        gpu_readback_ns: 53,
+        gpu_compute_ns: Some(61),
         recognized_lines: 2,
         ..Default::default()
     });
@@ -39,6 +51,12 @@ fn profile_merge_keeps_reshape_work_separate_and_serializable() {
     assert_eq!(json["cls_backbone_ns"], 26);
     assert_eq!(json["cls_head_ns"], 34);
     assert_eq!(json["cls_rotation_ns"], 42);
+    assert_eq!(json["gpu_admission_wait_ns"], u64::MAX);
+    assert_eq!(json["gpu_encoding_ns"], 152);
+    assert_eq!(json["gpu_submission_ns"], 74);
+    assert_eq!(json["gpu_completion_wait_ns"], 84);
+    assert_eq!(json["gpu_readback_ns"], 94);
+    assert_eq!(json["gpu_compute_ns"], 120);
     assert_eq!(json["recognized_lines"], 3);
     // Work deliberately exceeds wall time; merging must not subtract it from
     // either wall counter or relabel it as binding.
@@ -142,7 +160,16 @@ fn recognition_owner_records_account_for_serial_parallel_and_same_width_batches(
             let cpu = Arc::new(CpuContext::new(capacity).unwrap());
             let mut pipeline = crate::ocr::tests::synthetic_ocr(cpu);
             pipeline.set_recognition_batch_size(batch_size).unwrap();
-            let expected = pipeline.run(image, true).unwrap().try_to_owned().unwrap();
+            let expected = pipeline
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true,
+                    },
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap();
             let (actual, profile) = pipeline.run_profiled(image, true).unwrap();
             assert_eq!(actual.try_to_owned().unwrap(), expected);
             let expected_count = if batch_size == 2 {
@@ -306,14 +333,32 @@ fn profiled_classifier_and_oriented_ocr_preserve_complete_results() {
             source_detector.execution_limits(),
         )
         .unwrap();
-        *pipeline.extractor_mut() = OrientedLineExtractor::new(
+        let extractor = OrientedLineExtractor::new(
             detector,
-            Some(crate::ocr::tests::synthetic_classifier()),
+            Some(crate::ocr::tests::synthetic_classifier().into()),
             LineOptions::default(),
         )
         .unwrap();
+        pipeline
+            .reconfigure(
+                pipeline
+                    .plan()
+                    .clone()
+                    .with_extractor(extractor.plan().clone())
+                    .unwrap(),
+            )
+            .unwrap();
         pipeline.set_cpu_context(cpu).unwrap();
-        let expected = pipeline.run(image, true).unwrap().try_to_owned().unwrap();
+        let expected = pipeline
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert!(expected.lines.iter().all(|line| {
             line.classification_label == 1 && line.applied_rotation_degrees == 180
         }));
@@ -337,7 +382,16 @@ fn profiled_ocr_and_batch_preserve_results_and_publish_separate_fields() {
     let mut pipeline = crate::ocr::tests::synthetic_ocr(cpu.clone());
     let pixels = crate::ocr::tests::two_lines();
     let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-    let expected = pipeline.run(image, true).unwrap().try_to_owned().unwrap();
+    let expected = pipeline
+        .run(
+            image,
+            crate::RunOptions {
+                capture_spans: true,
+            },
+        )
+        .unwrap()
+        .try_to_owned()
+        .unwrap();
     let (result, profile) = pipeline.run_profiled(image, true).unwrap();
     assert_eq!(result.try_to_owned().unwrap(), expected);
     assert_eq!(profile.recognized_lines, 2);

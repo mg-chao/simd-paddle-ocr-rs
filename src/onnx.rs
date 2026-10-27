@@ -1,21 +1,11 @@
 //! Streaming ONNX protobuf subset used by the shipped OCR models.
 //! Wire decoding is safe, bounded, and independent of graph normalization.
 
-use crate::tensor::{DType, Dim, Shape, ShapeSpec, Tensor, TensorData, TensorError};
+use crate::tensor::{DType, Dim, Shape, ShapeSpec, Tensor, TensorData};
 use std::{collections::BTreeMap, fmt, io::BufRead};
 
-crate::error::stage_error!(ImportError, InvalidModel);
+pub use crate::error::ImportError;
 
-impl From<TensorError> for ImportError {
-    fn from(error: TensorError) -> Self {
-        Self::caused_by(error.kind(), "tensor", error)
-    }
-}
-impl From<std::io::Error> for ImportError {
-    fn from(error: std::io::Error) -> Self {
-        Self::caused_by(crate::error::ErrorKind::Io, "I/O", error)
-    }
-}
 type Result<T> = std::result::Result<T, ImportError>;
 
 fn push<T>(values: &mut Vec<T>, value: T) -> Result<()> {

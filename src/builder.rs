@@ -1,14 +1,14 @@
 //! Convenient model loading and composition over the low-level CPU APIs.
 use crate::{
     cpu::{CpuContext, CpuOptions},
-    detector::{Detector, DetectorOptions},
+    detector::{DetectorOptions, DetectorPlan},
     engine::{EngineLimits, OcrEngine},
     image::{ImageError, ImageResult},
-    lines::{LineOptions, OrientedLineExtractor},
+    lines::{LineOptions, OrientedLinePlan},
     model::Model,
-    ocr::{Ocr, OcrOptions},
-    recognizer::{Dictionary, Recognizer, RecognizerOptions},
-    runtime::{CompileOptions, CompiledModel, ExecutionLimits},
+    ocr::{OcrOptions, OcrPlan},
+    recognizer::{Dictionary, RecognizerOptions, RecognizerPlan},
+    runtime::{CompileOptions, CompiledModel, ExecutionLimits, ExecutionTarget},
 };
 use std::{io::BufRead, path::Path, sync::Arc};
 
@@ -133,6 +133,13 @@ impl OcrModelSet {
 pub struct OcrBuilder {
     models: OcrModelSet,
     compile: CompileOptions,
+    compiler: Option<Arc<crate::runtime::Compiler>>,
+    target: ExecutionTarget,
+    stage_targets: [Option<ExecutionTarget>; 3],
+    #[cfg(feature = "gpu")]
+    gpu: Option<Arc<crate::runtime::gpu::GpuContext>>,
+    #[cfg(feature = "gpu")]
+    gpu_options: crate::runtime::gpu::GpuContextOptions,
     cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
     detector: DetectorOptions,
@@ -149,6 +156,13 @@ impl OcrBuilder {
         Self {
             models,
             compile: CompileOptions::default(),
+            compiler: None,
+            target: ExecutionTarget::default(),
+            stage_targets: [None; 3],
+            #[cfg(feature = "gpu")]
+            gpu: None,
+            #[cfg(feature = "gpu")]
+            gpu_options: Default::default(),
             cpu: None,
             cpu_options: CpuOptions::default(),
             detector: DetectorOptions::default(),
@@ -161,8 +175,40 @@ impl OcrBuilder {
             batch_size: 1,
         }
     }
+    pub fn compiler(mut self, compiler: Arc<crate::runtime::Compiler>) -> Self {
+        self.compiler = Some(compiler);
+        self
+    }
     pub fn compile_options(mut self, options: CompileOptions) -> Self {
         self.compile = options;
+        self
+    }
+    /// Select inference placement explicitly. CPU options continue to configure
+    /// image processing when inference uses a GPU.
+    pub fn execution_target(mut self, target: ExecutionTarget) -> Self {
+        self.target = target;
+        self
+    }
+    pub fn detector_target(mut self, target: ExecutionTarget) -> Self {
+        self.stage_targets[0] = Some(target);
+        self
+    }
+    pub fn recognizer_target(mut self, target: ExecutionTarget) -> Self {
+        self.stage_targets[1] = Some(target);
+        self
+    }
+    pub fn classifier_target(mut self, target: ExecutionTarget) -> Self {
+        self.stage_targets[2] = Some(target);
+        self
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_context(mut self, context: Arc<crate::runtime::gpu::GpuContext>) -> Self {
+        self.gpu = Some(context);
+        self
+    }
+    #[cfg(feature = "gpu")]
+    pub fn gpu_options(mut self, options: crate::runtime::gpu::GpuContextOptions) -> Self {
+        self.gpu_options = options;
         self
     }
     pub fn cpu_context(mut self, cpu: Arc<CpuContext>) -> Self {
@@ -205,39 +251,68 @@ impl OcrBuilder {
         self.batch_size = count;
         self
     }
-    pub fn build(self) -> ImageResult<Ocr> {
+    pub fn build(self) -> ImageResult<OcrPlan> {
         let cpu = match self.cpu {
             Some(cpu) => cpu,
             None => CpuContext::shared_default()?,
         };
-        let detection = Arc::new(CompiledModel::compile(self.models.detection, self.compile)?);
-        let recognition = Arc::new(CompiledModel::compile(
-            self.models.recognition,
-            self.compile,
-        )?);
+        let compiler = self.compiler.unwrap_or_else(|| {
+            Arc::new(crate::runtime::Compiler::new(
+                crate::runtime::CompilerOptions {
+                    #[cfg(feature = "gpu")]
+                    gpu: self.gpu,
+                    #[cfg(feature = "gpu")]
+                    gpu_options: self.gpu_options,
+                },
+            ))
+        });
+        let compile = |model, stage: usize| -> ImageResult<CompiledModel> {
+            Ok(compiler
+                .compile(
+                    model,
+                    self.compile,
+                    self.stage_targets[stage].unwrap_or(self.target),
+                )
+                .map_err(|e| {
+                    e.at_stage(
+                        [
+                            crate::error::OcrStage::Detector,
+                            crate::error::OcrStage::Recognizer,
+                            crate::error::OcrStage::Classifier,
+                        ][stage],
+                    )
+                })?)
+        };
+        let detection = compile(self.models.detection, 0)?;
+        let recognition = compile(self.models.recognition, 1)?;
         let classification = if self.classification {
             self.models
                 .classification
-                .map(|model| CompiledModel::compile(model, self.compile).map(Arc::new))
+                .map(|model| compile(model, 2))
                 .transpose()?
         } else {
             None
         };
-        let detector = Detector::new(detection, self.detector, self.detector_limits)?;
-        let extractor = OrientedLineExtractor::new(detector, classification, self.lines)?;
-        let recognizer = Recognizer::new(
+        let detector = DetectorPlan::new(detection, self.detector, self.detector_limits)?;
+        let extractor = OrientedLinePlan::new(detector, classification, self.lines)?;
+        let recognizer = RecognizerPlan::new(
             recognition,
             self.models.dictionary,
             self.recognizer,
             self.recognizer_limits,
         )?;
-        let mut ocr =
-            Ocr::new_with_execution(extractor, recognizer, self.ocr, cpu, self.cpu_options)?;
-        ocr.set_recognition_batch_size(self.batch_size)?;
-        Ok(ocr)
+        let plan = OcrPlan::new(
+            extractor,
+            recognizer,
+            self.ocr,
+            cpu,
+            self.cpu_options,
+            self.batch_size,
+        )?;
+        Ok(plan)
     }
     pub fn build_engine(self, limits: EngineLimits) -> ImageResult<OcrEngine> {
-        OcrEngine::new(self.build()?, limits)
+        OcrEngine::new(Arc::new(self.build()?), limits)
     }
 }
 
@@ -279,13 +354,33 @@ mod tests {
             })
             .recognition_batch_size(2)
             .build()
+            .unwrap()
+            .request()
             .unwrap();
         let mut low_level = crate::ocr::tests::synthetic_ocr(cpu.clone());
         let pixels = crate::ocr::tests::two_lines();
         let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
-        let expected = low_level.run(image, true).unwrap().try_to_owned().unwrap();
+        let expected = low_level
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap()
+            .try_to_owned()
+            .unwrap();
         assert_eq!(
-            request.run(image, true).unwrap().try_to_owned().unwrap(),
+            request
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
         assert!(Arc::ptr_eq(request.cpu_context(), &cpu));
@@ -293,12 +388,23 @@ mod tests {
         let fork = request.fork().unwrap();
         assert!(Arc::ptr_eq(fork.cpu_context(), &cpu));
         assert_eq!(fork.recognition_batch_size(), 2);
-        let factory = request.into_factory();
+        let plan = request.plan().clone();
+        drop(request);
+        let factory = move || plan.request();
         let mut recreated = factory().unwrap();
         assert!(Arc::ptr_eq(recreated.cpu_context(), &cpu));
         assert_eq!(recreated.recognition_batch_size(), 2);
         assert_eq!(
-            recreated.run(image, true).unwrap().try_to_owned().unwrap(),
+            recreated
+                .run(
+                    image,
+                    crate::RunOptions {
+                        capture_spans: true
+                    }
+                )
+                .unwrap()
+                .try_to_owned()
+                .unwrap(),
             expected
         );
     }
@@ -316,20 +422,18 @@ mod tests {
                 ..Default::default()
             })
             .build()
+            .unwrap()
+            .request()
             .unwrap();
         request
-            .extractor_mut()
-            .detector_mut()
-            .set_resize_options(crate::detector::DetResizePolicy::Min, 736)
+            .set_detector_resize(crate::detector::DetResizePolicy::Min, 736)
             .unwrap();
         assert!(
             request
-                .extractor_mut()
-                .detector_mut()
-                .set_resize_options(crate::detector::DetResizePolicy::Max, 0)
+                .set_detector_resize(crate::detector::DetResizePolicy::Max, 0)
                 .is_err()
         );
-        for mut copy in [request.fork().unwrap(), request.into_factory()().unwrap()] {
+        for mut copy in [request.fork().unwrap(), request.plan().request().unwrap()] {
             assert_eq!(
                 copy.recognizer_mut().resolved_options().score_mode,
                 crate::recognizer::RecognitionScoreMode::Probability
@@ -362,6 +466,8 @@ mod tests {
                 ..Default::default()
             })
             .build()
+            .unwrap()
+            .request()
             .unwrap();
         assert_eq!(
             accuracy

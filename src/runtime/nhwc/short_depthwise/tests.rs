@@ -288,6 +288,7 @@ fn short_depthwise_eligibility_requires_a_complete_receptive_field_tile() {
 
 #[test]
 #[ignore = "local release AVX2 short-depthwise probe: two actual shapes, one warmup and three single-call pairs"]
+#[allow(clippy::needless_range_loop, clippy::assertions_on_constants)]
 fn short_depthwise_interior_comparison() {
     assert!(!cfg!(debug_assertions), "use a release build");
     assert!(simd::avx2_fma_available());
