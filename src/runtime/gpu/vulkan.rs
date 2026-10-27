@@ -2,7 +2,7 @@
 use super::*;
 use ash::{Entry, vk};
 use gpu_allocator::{
-    MemoryLocation,
+    AllocationSizes, MemoryLocation,
     vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator, AllocatorCreateDesc},
 };
 use std::{
@@ -41,6 +41,7 @@ pub(super) fn compile_resident(
 pub(super) struct Device {
     raw: ash::Device,
     instance: ash::Instance,
+    physical: vk::PhysicalDevice,
     _entry: Entry,
     allocator: Mutex<Option<Allocator>>,
     queue: vk::Queue,
@@ -66,6 +67,24 @@ pub(super) struct Device {
     )>,
 }
 impl Device {
+    fn new_allocator(
+        instance: &ash::Instance,
+        raw: &ash::Device,
+        physical: vk::PhysicalDevice,
+    ) -> RuntimeResult<Allocator> {
+        Allocator::new(&AllocatorCreateDesc {
+            instance: instance.clone(),
+            device: raw.clone(),
+            physical_device: physical,
+            debug_settings: Default::default(),
+            buffer_device_address: false,
+            // OCR weights are small; the general-purpose defaults retain a
+            // 256 MiB device block and 64 MiB per host-visible memory type.
+            // Larger tensors still receive dedicated allocations automatically.
+            allocation_sizes: AllocationSizes::new(16 << 20, 4 << 20),
+        })
+        .map_err(|e| RuntimeError::caused_by(ErrorKind::Allocation, "Vulkan allocator", e))
+    }
     fn result<T>(&self, value: Result<T, vk::Result>, stage: &str) -> RuntimeResult<T> {
         value.map_err(|e| {
             let kind = match e {
@@ -219,6 +238,64 @@ unsafe extern "system" fn debug_callback(
     vk::FALSE
 }
 impl Context {
+    pub(super) fn release_cached_resources(&self) -> RuntimeResult<()> {
+        self.collect_garbage();
+        // Pending uploads own their staging pages individually. Dropping the
+        // append cursor is safe even when live model uploads have not run yet.
+        self.uploads
+            .lock()
+            .map_err(|_| RuntimeError::new("upload queue poisoned"))?
+            .page = None;
+        self.transfer_pool
+            .pages
+            .lock()
+            .map_err(|_| RuntimeError::new("upload pool poisoned"))?
+            .clear();
+        let owner = &self.owner;
+        // Only completed submissions and retired dispatches enter these pools.
+        // Live work retains its own objects and never appears in these caches.
+        unsafe {
+            for pool in owner
+                .command_pools
+                .lock()
+                .map_err(|_| RuntimeError::new("command pool cache poisoned"))?
+                .drain(..)
+            {
+                owner.raw.destroy_command_pool(pool, None);
+            }
+            for pool in owner
+                .descriptor_pools
+                .lock()
+                .map_err(|_| RuntimeError::new("descriptor cache poisoned"))?
+                .drain(..)
+            {
+                owner.raw.destroy_descriptor_pool(pool, None);
+            }
+            let mut cache = owner
+                .pipeline_cache
+                .lock()
+                .map_err(|_| RuntimeError::new("Vulkan pipeline cache poisoned"))?;
+            // Keep compiled pipelines, but retire the driver's compilation cache.
+            // Compilation holds this same mutex and recreates it lazily.
+            owner.raw.destroy_pipeline_cache(*cache, None);
+            *cache = vk::PipelineCache::null();
+        }
+        let mut allocator = owner
+            .allocator
+            .lock()
+            .map_err(|_| RuntimeError::new("Vulkan allocator poisoned"))?;
+        let current = allocator.as_ref().unwrap();
+        if current.capacity() != 0 && current.generate_report().total_allocated_bytes == 0 {
+            // gpu-allocator retains its last empty block of each memory type.
+            // Replace only an entirely empty allocator, under the allocation lock.
+            *allocator = Some(Device::new_allocator(
+                &owner.instance,
+                &owner.raw,
+                owner.physical,
+            )?);
+        }
+        Ok(())
+    }
     pub(super) fn collect_garbage(&self) {
         if let Ok(mut pending) = self.uploads.lock() {
             pending
@@ -553,31 +630,13 @@ impl Context {
                             None,
                         )
                         .map_err(init_error)?;
-                    let cache = match raw.create_pipeline_cache(&Default::default(), None) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            raw.destroy_semaphore(timeline, None);
-                            return Err(init_error(e));
-                        }
-                    };
-                    let allocation = Allocator::new(&AllocatorCreateDesc {
-                        instance: instance.clone(),
-                        device: raw.clone(),
-                        physical_device: physical,
-                        debug_settings: Default::default(),
-                        buffer_device_address: false,
-                        allocation_sizes: Default::default(),
-                    });
+                    let cache = vk::PipelineCache::null();
+                    let allocation = Device::new_allocator(&instance, &raw, physical);
                     let allocator = match allocation {
                         Ok(a) => a,
                         Err(e) => {
-                            raw.destroy_pipeline_cache(cache, None);
                             raw.destroy_semaphore(timeline, None);
-                            return Err(RuntimeError::caused_by(
-                                ErrorKind::Allocation,
-                                "Vulkan allocator",
-                                e,
-                            ));
+                            return Err(e);
                         }
                     };
                     Ok((timeline, cache, allocator))
@@ -606,7 +665,7 @@ impl Context {
                 ))
             })();
             let (
-                _physical,
+                physical,
                 properties,
                 family,
                 timestamp_bits,
@@ -633,6 +692,7 @@ impl Context {
                 queue: raw.get_device_queue(family, 0),
                 raw,
                 instance,
+                physical,
                 _entry: entry,
                 allocator: Mutex::new(Some(allocator)),
                 family,

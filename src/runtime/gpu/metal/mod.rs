@@ -213,6 +213,10 @@ impl Context {
             uploads.retain(|upload| upload.reservation.strong_count() != 0);
         }
     }
+    pub(super) fn release_cached_resources(&self) -> RuntimeResult<()> {
+        self.collect_garbage();
+        Ok(())
+    }
     pub(super) fn checked<T>(
         &self,
         _: &str,

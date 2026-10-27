@@ -3,6 +3,122 @@ use crate::runtime::gpu::resident::Batch;
 use crate::runtime::gpu::resident::schedule::Operation;
 
 #[test]
+#[ignore = "requires a physical Vulkan GPU; offscreen cache and device lifetime regression"]
+fn vulkan_idle_cleanup_preserves_live_work_and_releases_unused_resources() {
+    let context = GpuContext::new().unwrap();
+    let device = Arc::downgrade(&context.backend.owner);
+    assert_eq!(
+        *context.backend.owner.pipeline_cache.lock().unwrap(),
+        vk::PipelineCache::null(),
+        "device discovery must not create a compilation cache"
+    );
+
+    // An abandoned model upload must release both its destination and staging.
+    let abandoned = context
+        .create_buffer_init("abandoned model", &[9; 128], BufferUsage::STORAGE)
+        .unwrap();
+    drop(abandoned);
+    context.release_cached_resources().unwrap();
+    assert_eq!(context.memory_statistics().used_bytes, 0);
+    assert_eq!(context.memory_statistics().committed_bytes, 0);
+
+    let value = context
+        .create_buffer_init("counter", &0u32.to_le_bytes(), BufferUsage::STORAGE)
+        .unwrap();
+    assert!(context.memory_statistics().committed_bytes <= 20 << 20);
+    // Trimming before the first submission cannot discard the live upload.
+    context.release_cached_resources().unwrap();
+    for expected in 1..=2u32 {
+        let mut batch = Batch::new(context.clone()).unwrap();
+        batch
+            .dispatch(
+                "counter",
+                KernelKey::new(KernelId::CounterProbe),
+                &[(&value, false)],
+                &[],
+                [1; 3],
+            )
+            .unwrap();
+        let gate = context.acquire_gate().unwrap();
+        let pending = batch.submit(&value, 4, false, &gate).unwrap();
+        // A submitted operation still owns its descriptors, buffers and command
+        // pool. Cleanup must be safe before that operation is collected too.
+        context.release_cached_resources().unwrap();
+        let (bytes, _) = pending.finish().unwrap();
+        drop(gate);
+        assert_eq!(u32::from_le_bytes(bytes.try_into().unwrap()), expected);
+        assert!(
+            !context
+                .backend
+                .owner
+                .command_pools
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            !context
+                .backend
+                .owner
+                .descriptor_pools
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        let kernel =
+            resident::Kernel::get(&context, KernelKey::new(KernelId::CounterProbe), &[false])
+                .unwrap();
+        context.release_cached_resources().unwrap();
+        assert!(
+            context
+                .backend
+                .owner
+                .command_pools
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            context
+                .backend
+                .owner
+                .descriptor_pools
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            context
+                .backend
+                .transfer_pool
+                .pages
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            *context.backend.owner.pipeline_cache.lock().unwrap(),
+            vk::PipelineCache::null(),
+        );
+        assert!(
+            Arc::ptr_eq(
+                &kernel,
+                &resident::Kernel::get(&context, KernelKey::new(KernelId::CounterProbe), &[false],)
+                    .unwrap()
+            ),
+            "idle cleanup must preserve compiled kernels"
+        );
+    }
+    drop(value);
+    context.release_cached_resources().unwrap();
+    assert_eq!(context.memory_statistics().used_bytes, 0);
+    assert_eq!(context.memory_statistics().committed_bytes, 0);
+    // Cached compiled kernels must not keep the native device alive after disable.
+    drop(context);
+    assert!(device.upgrade().is_none());
+}
+
+#[test]
 #[ignore = "requires a physical Vulkan GPU; three cooperative-matrix tail shapes"]
 fn vulkan_cooperative_projection_matches_half_operand_oracle() {
     let context = GpuContext::new().unwrap();

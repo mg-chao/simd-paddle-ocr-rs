@@ -287,6 +287,12 @@ impl GpuContext {
             peak_committed_bytes: self.backend.owner.peak_committed_bytes(),
         }
     }
+    /// Release unused transfer storage and native compilation/command caches at
+    /// an application idle boundary. Live buffers, pending uploads and compiled
+    /// pipelines remain valid. Concurrent work may populate the caches again.
+    pub fn release_cached_resources(&self) -> RuntimeResult<()> {
+        self.backend.release_cached_resources()
+    }
     fn check_alive(&self) -> RuntimeResult<()> {
         let value = self
             .failure

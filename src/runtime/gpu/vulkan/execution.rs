@@ -122,13 +122,19 @@ pub(in crate::runtime::gpu) fn compile(
         .collect::<Vec<_>>();
     let code = ash::util::read_spv(&mut std::io::Cursor::new(shader.bytes))
         .map_err(|e| RuntimeError::caused_by(ErrorKind::GpuValidation, "embedded SPIR-V", e))?;
-    let cache = owner
+    let mut cache = owner
         .pipeline_cache
         .lock()
         .map_err(|_| RuntimeError::new("Vulkan pipeline cache poisoned"))?;
     // SAFETY: compiled, reflected SPIR-V and layout metadata share one build
     // catalog. Every partial construction is destroyed on failure.
     unsafe {
+        if *cache == vk::PipelineCache::null() {
+            *cache = owner.result(
+                owner.raw.create_pipeline_cache(&Default::default(), None),
+                "pipeline cache",
+            )?;
+        }
         let descriptors = owner.result(
             owner.raw.create_descriptor_set_layout(
                 &vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings),
