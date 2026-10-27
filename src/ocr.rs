@@ -1,5 +1,5 @@
 //! Pixel-to-text composition with borrowed results and bounded CPU workers.
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub(crate) mod gpu;
 use crate::profile::{StageProfile, Timer};
 use crate::{
@@ -50,7 +50,7 @@ struct LineRecord {
     recognition_time_steps: usize,
     spans: Option<(usize, usize)>,
 }
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub(crate) fn line_record_bytes() -> usize {
     size_of::<LineRecord>()
 }
@@ -266,7 +266,7 @@ struct ResultWorkspace {
     width_ratio: f32,
     height_ratio: f32,
 }
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 impl ResultWorkspace {
     fn clear(&mut self) {
         self.lines.clear();
@@ -314,7 +314,7 @@ impl OcrPlan {
             cpu_options,
             recognition_batch_size,
         };
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         plan.validate_contexts()?;
         Ok(plan)
     }
@@ -323,7 +323,7 @@ impl OcrPlan {
         extractor: Arc<crate::lines::OrientedLinePlan>,
     ) -> ImageResult<Self> {
         self.extractor = extractor;
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         self.validate_contexts()?;
         Ok(self)
     }
@@ -332,12 +332,12 @@ impl OcrPlan {
         recognizer: Arc<crate::recognizer::RecognizerPlan>,
     ) -> ImageResult<Self> {
         self.recognizer = recognizer;
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         self.validate_contexts()?;
         Ok(self)
     }
     pub fn request(&self) -> ImageResult<OcrRequest> {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         self.validate_contexts()?;
         OcrRequest::from_plan(self.clone())
     }
@@ -346,7 +346,7 @@ impl OcrPlan {
         let mut memory = crate::runtime::MemorySnapshot::default();
         let mut models = std::collections::HashSet::new();
         let mut packs = std::collections::HashSet::new();
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let mut device_resources = std::collections::HashSet::new();
         for compiled in [
             Some(self.extractor.detector().compiled()),
@@ -362,7 +362,7 @@ impl OcrPlan {
             if packs.insert(Arc::as_ptr(&compiled.packed) as usize) {
                 memory.host_bytes += compiled.packed.bytes();
             }
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             if let Some(gpu) = compiled.as_gpu() {
                 memory.device_bytes += gpu.unique_weight_bytes(&mut device_resources);
             }
@@ -378,7 +378,7 @@ impl OcrPlan {
     pub fn recognizer(&self) -> &Arc<crate::recognizer::RecognizerPlan> {
         &self.recognizer
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn validate_contexts(&self) -> ImageResult<()> {
         let detector = self.extractor.detector().compiled().as_gpu();
         let classifier = self
@@ -427,7 +427,7 @@ pub enum OcrExecution {
 enum ActiveExecution {
     Cpu,
     Hybrid,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     Resident(Box<gpu::Pipeline>),
 }
 impl ActiveExecution {
@@ -438,18 +438,18 @@ impl ActiveExecution {
         match self {
             Self::Cpu => OcrExecution::Cpu,
             Self::Hybrid => OcrExecution::Hybrid,
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             Self::Resident(_) => OcrExecution::Resident,
         }
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn resident(&self) -> Option<&gpu::Pipeline> {
         match self {
             Self::Resident(p) => Some(p),
             _ => None,
         }
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn resident_mut(&mut self) -> Option<&mut gpu::Pipeline> {
         match self {
             Self::Resident(p) => Some(p),
@@ -466,7 +466,7 @@ pub struct RunStatistics {
         crate::error::OcrStage,
         Vec<crate::runtime::ExecutionStatistics>,
     >,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub gpu: Option<crate::runtime::gpu::GpuPipelineStatistics>,
 }
 
@@ -483,12 +483,12 @@ impl RunStatistics {
                         .sum::<usize>()
             })
             .sum::<usize>();
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let gpu = self.gpu.as_ref().map_or(
             0,
             crate::runtime::gpu::GpuPipelineStatistics::retained_bytes,
         );
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let gpu = 0;
         stages + gpu
     }
@@ -633,7 +633,7 @@ impl OcrRequest {
     pub fn uses_gpu(&self) -> bool {
         self.extractor.uses_gpu() || self.recognizer.uses_gpu()
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn collect_gpu_statistics(
         &self,
         stages: &std::collections::BTreeMap<
@@ -771,9 +771,9 @@ impl OcrRequest {
         resident: bool,
     ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::StatisticsCounters>>
     {
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let _ = resident;
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if resident && let Some(pipeline) = self.execution.resident() {
             let mut result = pipeline.counter_snapshots();
             for (stage, diagnostics) in self.primary_diagnostic_counters() {
@@ -800,7 +800,7 @@ impl OcrRequest {
         }
         result
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn primary_diagnostic_counters(
         &self,
     ) -> [(crate::error::OcrStage, crate::runtime::StatisticsCounters); 3] {
@@ -826,9 +826,9 @@ impl OcrRequest {
         resident: bool,
     ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::ExecutionStatistics>>
     {
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let _ = resident;
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if resident && let Some(pipeline) = self.execution.resident() {
             let mut result = pipeline.execution_statistics();
             for (stage, diagnostics) in self.primary_diagnostic_counters() {
@@ -860,7 +860,7 @@ impl OcrRequest {
         }
         result
     }
-    #[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+    #[cfg(all(test, feature = "gpu"))]
     pub(crate) fn workers_len_for_gpu_test(&self) -> usize {
         self.workers.len()
     }
@@ -936,7 +936,7 @@ impl OcrRequest {
     ) -> ImageResult<()> {
         self.extractor.set_resize_options(policy, limit)?;
         self.plan.extractor = self.extractor.plan().clone();
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         {
             self.execution = ActiveExecution::staged(self.uses_gpu());
         }
@@ -944,7 +944,7 @@ impl OcrRequest {
     }
     #[cfg(test)]
     pub(crate) fn recognizer_mut(&mut self) -> &mut Recognizer {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         {
             self.execution = ActiveExecution::staged(self.uses_gpu());
         }
@@ -955,19 +955,19 @@ impl OcrRequest {
     }
     #[cfg(test)]
     pub(crate) fn extractor_mut(&mut self) -> &mut OrientedLineExtractor {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         {
             self.execution = ActiveExecution::staged(self.uses_gpu());
         }
         &mut self.extractor
     }
     pub fn activation_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .execution
             .resident()
             .map_or(0, |g| g.activation_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.extractor.detector().activation_bytes()
@@ -980,12 +980,12 @@ impl OcrRequest {
                 .sum::<usize>()
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .execution
             .resident()
             .map_or(0, |g| g.activation_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.extractor.detector().retained_activation_bytes()
@@ -1007,9 +1007,9 @@ impl OcrRequest {
     }
     /// Retained request-owned GPU buffers. Shared uploaded weights are excluded.
     pub fn retained_device_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self.execution.resident().map_or(0, |g| g.retained_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.extractor.retained_device_bytes()
@@ -1021,9 +1021,9 @@ impl OcrRequest {
                 .sum::<usize>()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self.execution.resident().map_or(0, |g| g.workspace_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         let buffers = self
             .latest_run
@@ -1136,7 +1136,7 @@ impl OcrRequest {
     pub fn counters(&self) -> crate::runtime::ExecutionCounters {
         self.counters
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<crate::runtime::gpu::GpuPipelineStatistics> {
         self.latest_run.as_ref().and_then(|r| r.gpu.clone())
     }
@@ -1163,7 +1163,7 @@ impl OcrRequest {
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
         let before = self.stage_counter_snapshots(!TRACE);
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         {
             self.extractor.reset_run_statistics();
             self.recognizer.reset_run_statistics();
@@ -1186,7 +1186,7 @@ impl OcrRequest {
                 }
             }
         }
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let mut gpu = self.collect_gpu_statistics(&stages, !TRACE);
         if result.is_ok() && self.result.detected_count == 0 {
             for stage in [
@@ -1199,7 +1199,7 @@ impl OcrRequest {
                     }
                 }
             }
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             if let Some(stats) = &mut gpu {
                 stats.projection = crate::GpuPlacement::NotRun;
                 stats.decoding = crate::GpuPlacement::NotRun;
@@ -1216,7 +1216,7 @@ impl OcrRequest {
         };
         self.counters.runs += 1;
         self.counters.failures += u64::from(result.is_err());
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if let Some(gpu) = &gpu {
             self.counters.submissions += gpu.submissions;
             self.counters.uploaded_bytes += gpu.uploaded_bytes;
@@ -1228,7 +1228,7 @@ impl OcrRequest {
             execution,
             succeeded: result.is_ok(),
             stages,
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu,
         });
         result?;
@@ -1258,7 +1258,7 @@ impl OcrRequest {
         }
         self.unwind_state.store(true, Ordering::Relaxed);
         let _unwind = RequestUnwindGuard(self.unwind_state.clone());
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if !TRACE
             && self.extractor.detector().uses_gpu()
             && self.recognizer.uses_gpu()

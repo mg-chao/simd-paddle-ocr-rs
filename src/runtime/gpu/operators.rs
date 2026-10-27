@@ -20,8 +20,14 @@ pub(super) enum ShaderKind {
     MatMul32,
     Conv16,
     Conv32,
+    #[cfg(target_os = "macos")]
+    Conv64,
+    #[cfg(target_os = "macos")]
+    MatMul64,
     Depthwise3,
     Depthwise5,
+    #[cfg(target_os = "macos")]
+    Depthwise7,
     Reduce,
     Softmax,
     LayerNorm,
@@ -44,8 +50,14 @@ impl ShaderKind {
             Self::MatMul32 => "matmul_tile32",
             Self::Conv16 => "conv_implicit16",
             Self::Conv32 => "conv_implicit32",
+            #[cfg(target_os = "macos")]
+            Self::Conv64 => "conv_implicit64",
+            #[cfg(target_os = "macos")]
+            Self::MatMul64 => "matmul_tile64",
             Self::Depthwise3 => "depthwise3",
             Self::Depthwise5 => "depthwise5",
+            #[cfg(target_os = "macos")]
+            Self::Depthwise7 => "depthwise7",
             Self::Reduce => "reduce_contiguous",
             Self::Softmax => "softmax_rows",
             Self::LayerNorm => "layer_norm",
@@ -613,7 +625,7 @@ pub(super) fn specialize(
         let mut narrow_pointwise = false;
         match &plan.steps[r.nodes[0]].kind {
             BoundKind::Conv(g) if g.dh == 1 && g.dw == 1 && g.sh <= 2 && g.sw <= 2 => {
-                let rgb_stem = full_precision
+                let rgb_stem = (full_precision || cfg!(target_os = "macos"))
                     && g.cin == 3
                     && g.kh == 3
                     && g.kw == 3
@@ -624,18 +636,27 @@ pub(super) fn specialize(
                     && g.opg == 1
                     && g.cin == g.cout
                     && g.kh == g.kw
-                    && matches!(g.kh, 3 | 5)
+                    && (matches!(g.kh, 3 | 5) || (cfg!(target_os = "macos") && g.kh == 7))
                 {
-                    r.kind = RecipeKind::Compute(if g.kh == 3 {
-                        ShaderKind::Depthwise3
-                    } else {
-                        ShaderKind::Depthwise5
+                    r.kind = RecipeKind::Compute(match g.kh {
+                        3 => ShaderKind::Depthwise3,
+                        #[cfg(target_os = "macos")]
+                        7 => ShaderKind::Depthwise7,
+                        _ => ShaderKind::Depthwise5,
                     });
-                    (r.x, r.y) = dispatch_grid(r.words[0] as usize, limits)?;
+                    (r.x, r.y) = dispatch_grid(
+                        if cfg!(target_os = "macos") {
+                            (r.words[0] as usize).div_ceil(4)
+                        } else {
+                            r.words[0] as usize
+                        },
+                        limits,
+                    )?;
                     r.words[1] = r.x * 64;
                 } else if g.cpg == g.cin
                     && g.kh == g.kw
-                    && (matches!(g.kh, 1..=3) || (full_precision && matches!(g.kh, 5 | 7)))
+                    && (matches!(g.kh, 1..=3)
+                        || ((full_precision || cfg!(target_os = "macos")) && matches!(g.kh, 5 | 7)))
                     && g.cout >= 8
                     && (g.cpg >= 8 || rgb_stem)
                 {
@@ -730,15 +751,46 @@ pub(super) fn specialize(
             // shapes use more 16x16 groups before moving to 32x32 tiles.
             let groups16 = rows.div_ceil(16) * columns.div_ceil(16) * batches;
             let groups32 = rows.div_ceil(32) * columns.div_ceil(32) * batches;
-            if groups16 < 128 && !(narrow_pointwise && groups16 >= 48) {
+            if !cfg!(target_os = "macos") && groups16 < 128 && !(narrow_pointwise && groups16 >= 48)
+            {
                 continue;
             }
-            let tile = if (rows >= 128 || prefer_tile32) && columns >= 64 && groups32 >= 64 {
-                32usize
+            let tile =
+                if (cfg!(target_os = "macos") && rows >= 32 && columns >= 64 && groups32 >= 8)
+                    || ((rows >= 128 || prefer_tile32) && columns >= 64 && groups32 >= 64)
+                {
+                    32usize
+                } else {
+                    16
+                };
+            #[cfg(target_os = "macos")]
+            let tile = if rows >= 64
+                && columns >= 64
+                && rows.div_ceil(64) * columns.div_ceil(64) * batches >= 16
+            {
+                64
             } else {
-                16
+                tile
+            };
+            // Complete pointwise channel tiles use direct device matrix
+            // fragments. A larger partial tile would stage every K block.
+            #[cfg(target_os = "macos")]
+            let tile = if conv && r.words[11..15] == [1, 1, 1, 1] && r.words[17..19] == [0, 0] {
+                if tile == 64 && rows.is_multiple_of(64) {
+                    64
+                } else if tile >= 32 && rows.is_multiple_of(32) {
+                    32
+                } else {
+                    16
+                }
+            } else {
+                tile
             };
             r.kind = RecipeKind::Compute(match (conv, tile) {
+                #[cfg(target_os = "macos")]
+                (true, 64) => ShaderKind::Conv64,
+                #[cfg(target_os = "macos")]
+                (false, 64) => ShaderKind::MatMul64,
                 (true, 32) => ShaderKind::Conv32,
                 (true, _) => ShaderKind::Conv16,
                 (false, 32) => ShaderKind::MatMul32,

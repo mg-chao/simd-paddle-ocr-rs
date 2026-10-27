@@ -1,26 +1,20 @@
 //! Bounded physical-device OCR comparison. Build release; one cold run and three warm measurements.
 #![recursion_limit = "256"]
-#[cfg(not(target_os = "macos"))]
 use simd_paddle_ocr_rs::ocr::OwnedOcr;
-#[cfg(not(target_os = "macos"))]
 use simd_paddle_ocr_rs::{
     ExecutionTarget, ModelPreset, OcrModelSet,
     cpu::{CpuContext, CpuOptions},
     image::{ImageView, PixelFormat},
     runtime::{CompileOptions, GpuMatrixPrecision, gpu::*},
 };
-#[cfg(not(target_os = "macos"))]
 use std::{error::Error, time::Instant};
 #[path = "support/ocr_compare.rs"]
-#[cfg(not(target_os = "macos"))]
 mod ocr_compare;
 
-#[cfg(not(target_os = "macos"))]
 fn process_cpu_seconds() -> Option<f64> {
     None
 }
 
-#[cfg(not(target_os = "macos"))]
 fn compare_output(
     actual: &OwnedOcr,
     expected: &serde_json::Value,
@@ -34,7 +28,6 @@ fn compare_output(
     }
 }
 
-#[cfg(not(target_os = "macos"))]
 fn main() -> Result<(), Box<dyn Error>> {
     if cfg!(debug_assertions) {
         return Err("benchmark requires --release".into());
@@ -130,6 +123,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(_) => return Err("SIMD_OCR_BENCH_STORAGE must be f32 or f16".into()),
     };
     let mixed_matrix = matrix_precision == GpuMatrixPrecision::F16;
+    let detector_precision = match std::env::var("SIMD_OCR_BENCH_DETECTOR_STORAGE").as_deref() {
+        Ok("f16") => GpuPrecision::MixedF16,
+        Ok("f32") | Err(_) => GpuPrecision::F32,
+        Ok(_) => return Err("SIMD_OCR_BENCH_DETECTOR_STORAGE must be f32 or f16".into()),
+    };
+    if !cfg!(target_os = "macos") && detector_precision != GpuPrecision::F32 {
+        return Err("detector storage override is only supported on Metal".into());
+    }
     let measurements: usize = std::env::var("SIMD_OCR_BENCH_MEASUREMENTS")
         .ok()
         .map(|s| s.parse())
@@ -162,6 +163,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let context = if target == ExecutionTarget::Gpu {
         Some(GpuContext::new_with_options(GpuContextOptions {
             max_in_flight: slots,
+            #[cfg(target_os = "macos")]
+            metal_detector_precision: detector_precision,
             recognition_wave_size: std::env::var("SIMD_OCR_BENCH_WAVE")
                 .ok()
                 .map(|s| s.parse())
@@ -328,6 +331,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             "classification_batch_size":context.as_ref().map(|c|c.options().classification_batch_size),
             "matrix_precision":if mixed_matrix { "f16" } else { "f32" },
             "storage_precision":format!("{storage_precision:?}"),
+            "metal_detector_storage_precision":cfg!(target_os = "macos").then_some(detector_precision),
             "accuracy_contract":{
                 "name":if mixed_matrix { "f16_text_geometry" } else { "fp32" },
                 "text":"exact",
@@ -354,7 +358,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(test)]
-#[cfg(not(target_os = "macos"))]
 mod tests {
     use super::*;
     use simd_paddle_ocr_rs::{detector::DetectionBox, ocr::OwnedOcrLine, recognizer::OwnedCtcSpan};
@@ -426,9 +429,4 @@ mod tests {
         assert!(compare_output(&actual, &reference, true, false).is_err());
         assert!(compare_output(&actual, &reference, true, true).is_ok());
     }
-}
-
-#[cfg(target_os = "macos")]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Err("GPU execution is not supported on macOS".into())
 }

@@ -1,7 +1,7 @@
 # simd-paddle-ocr-rs
 
 Rust implementation of SimdPaddleOCR, with portable SIMD, runtime CPU dispatch,
-and optional Vulkan OCR. Detection, perspective cropping, optional orientation classification,
+and optional Vulkan or Metal OCR. Detection, perspective cropping, optional orientation classification,
 CTC recognition and token boxes run without a .NET or ONNX Runtime dependency.
 
 The project uses `nightly-2026-09-08`, selected by `rust-toolchain.toml`.
@@ -10,8 +10,10 @@ CPU execution supports Windows x64 and native macOS Apple Silicon; see
 The optional GPU implementation uses native Vulkan 1.3 through `ash` on Windows.
 GLSL shaders are compiled to embedded SPIR-V at build time. Applications need the
 Vulkan loader and a supported physical GPU driver; they do not compile shaders
-at runtime. CPU-only builds skip the GPU stack. macOS currently supports CPU
-execution only; enabling `gpu` does not add a macOS GPU backend.
+at runtime. On Apple Silicon with macOS 14 or newer, the same `gpu` feature
+selects native Metal with build-time MSL compilation. CPU-only builds skip both GPU stacks.
+The [final Metal report](docs/metal-final-report.md) records passing correctness
+and cold-start checks; the all-preset warm-latency target against C# remains unmet.
 See [GPU usage](docs/gpu-usage.md) for configuration and validation.
 The [Windows migration results](docs/vulkan-performance.md) include local correctness
 checks, bounded measurements, and hardware validation limits.

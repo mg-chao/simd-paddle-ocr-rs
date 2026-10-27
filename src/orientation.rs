@@ -122,7 +122,7 @@ pub struct ClassifierPlan {
 }
 pub struct Classifier {
     plan: Arc<ClassifierPlan>,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     gpu: Option<crate::runtime::gpu::heads::Classification>,
     session: Session,
     diagnostic: Option<Session>,
@@ -135,11 +135,11 @@ impl Classifier {
     pub fn uses_gpu(&self) -> bool {
         self.session.is_gpu()
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn is_full_gpu(&self) -> bool {
         self.session.is_gpu()
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn resident(
         &mut self,
     ) -> crate::runtime::RuntimeResult<&mut crate::runtime::gpu::heads::Classification> {
@@ -151,13 +151,13 @@ impl Classifier {
         }
         Ok(self.gpu.as_mut().unwrap())
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn reset_run_statistics(&mut self) {
         if let Some(gpu) = &mut self.gpu {
             gpu.statistics = Default::default();
         }
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu.as_ref().map(|g| &g.statistics)
     }
@@ -169,7 +169,7 @@ impl Classifier {
         if let Some(diagnostic) = &self.diagnostic {
             primary.add_diagnostics(diagnostic.counter_snapshot());
         }
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
             let mut counters = gpu.session.counter_snapshot();
             counters.add_diagnostics(primary);
@@ -178,7 +178,7 @@ impl Classifier {
         primary
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
             return gpu
                 .session
@@ -233,7 +233,7 @@ impl Classifier {
         session.set_execution_context(plan.execution.cpu.clone(), plan.execution.threads)?;
         Ok(Self {
             plan,
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu: None,
             session,
             diagnostic: None,
@@ -282,7 +282,7 @@ impl Classifier {
         profile: &mut StageProfile,
     ) -> ImageResult<ClassificationResult> {
         self.check_image(image)?;
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if self.session.is_gpu() {
             let candidate = (|| -> crate::runtime::RuntimeResult<_> {
                 if self.gpu.is_none() {
@@ -410,12 +410,12 @@ impl Classifier {
         Ok(result)
     }
     pub(crate) fn activation_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.activation_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.activation_bytes()
     }
@@ -431,9 +431,9 @@ impl Classifier {
         Ok(())
     }
     pub fn retained_device_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self.gpu.as_ref().map_or(0, |g| g.retained_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.session.retained_device_bytes()
@@ -443,12 +443,12 @@ impl Classifier {
                 .map_or(0, Session::retained_device_bytes)
     }
     pub(crate) fn retained_activation_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_activation_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.session.retained_activation_bytes()
@@ -458,12 +458,12 @@ impl Classifier {
                 .map_or(0, Session::retained_activation_bytes)
     }
     pub(crate) fn retained_workspace_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_planning_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.resize.retained_bytes()
@@ -505,7 +505,7 @@ impl ClassifierPlan {
     }
 }
 
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub(crate) fn parse_gpu_classification(
     bytes: &[u8],
     resized_width: usize,

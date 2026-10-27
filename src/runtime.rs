@@ -6,7 +6,7 @@
 //! native Vulkan on non-macOS platforms for tensor and OCR inference. macOS uses
 //! CPU execution. General ONNX execution is outside the supported scope.
 
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub mod gpu;
 pub(crate) mod stage;
 pub use stage::Session;
@@ -14,7 +14,7 @@ pub use stage::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarge
 mod graph;
 mod graph_patterns;
 pub use graph::LogicalGraph;
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 use graph::compile_node;
 use graph::{BindScratch, Instruction, Op, Program, ShapePlan, bind_into};
 mod bound;
@@ -1538,7 +1538,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+    #[cfg(not(feature = "gpu"))]
     fn placement_without_gpu_backend_is_explicit() {
         let compile = |target| {
             CompiledModel::compile(

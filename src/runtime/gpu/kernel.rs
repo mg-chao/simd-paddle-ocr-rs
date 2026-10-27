@@ -21,6 +21,8 @@ pub(super) enum KernelId {
     General,
     Depthwise3,
     Depthwise5,
+    #[cfg(target_os = "macos")]
+    Depthwise7,
     Reduce,
     Softmax,
     LayerNorm,
@@ -32,6 +34,10 @@ pub(super) enum KernelId {
     Conv16,
     Matmul32,
     Conv32,
+    #[cfg(target_os = "macos")]
+    Conv64,
+    #[cfg(target_os = "macos")]
+    Matmul64,
     Crop,
     CropMeta,
     PackBgr,
@@ -69,6 +75,8 @@ impl KernelId {
             Self::General => 63,
             Self::Depthwise3 => 63,
             Self::Depthwise5 => 63,
+            #[cfg(target_os = "macos")]
+            Self::Depthwise7 => 63,
             Self::Reduce => 39,
             Self::Softmax => 39,
             Self::LayerNorm => 39,
@@ -80,6 +88,8 @@ impl KernelId {
             Self::Conv16 => 63,
             Self::Matmul32 => 63,
             Self::Conv32 => 63,
+            #[cfg(target_os = "macos")]
+            Self::Conv64 | Self::Matmul64 => 63,
             Self::Crop => 0,
             Self::CropMeta => 0,
             Self::PackBgr => 0,

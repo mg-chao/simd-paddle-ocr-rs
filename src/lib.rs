@@ -27,14 +27,14 @@ mod projection;
 #[cfg(feature = "profiling")]
 pub use profile::{RecognitionOwnerProfile, StageProfile};
 
-#[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+#[cfg(all(test, feature = "gpu"))]
 mod gpu_integration_tests;
 pub mod recognizer;
 pub mod runtime;
 pub mod tensor;
 pub use builder::{ModelPreset, OcrBuilder, OcrModelSet};
 pub use characters::{CharacterBox, OwnedCharacterBox};
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub use runtime::gpu::{GpuPipelineStatistics, GpuPlacement};
 pub use runtime::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTarget, Session};
 

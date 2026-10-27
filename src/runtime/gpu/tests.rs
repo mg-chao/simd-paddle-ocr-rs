@@ -351,6 +351,16 @@ fn gpu_hardware_convolution_matches_scalar() {
             bias: false,
             ..base
         },
+        ConvCase {
+            name: "5x5 depthwise batch stride and asymmetric borders",
+            input: [2, 3, 9, 11],
+            channels: 3,
+            kernel: [5, 5],
+            stride: [2, 1],
+            pads: [1, 2, 3, 1],
+            group: 3,
+            ..base
+        },
     ];
     for case in cases {
         compare(case.model(), &case.input, case.name);
@@ -444,12 +454,14 @@ fn gpu_hardware_dense_two_by_two_padding_and_tails() {
         };
         let compiled = Arc::new(GpuCompiledModel::compile(case.model(), hardware()).unwrap());
         let session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
-        assert!(session.recipes.iter().any(|r| matches!(
-            r.kind,
+        assert!(session.recipes.iter().any(|r| match r.kind {
             operators::RecipeKind::Compute(
-                operators::ShaderKind::Conv16 | operators::ShaderKind::Conv32
-            )
-        )));
+                operators::ShaderKind::Conv16 | operators::ShaderKind::Conv32,
+            ) => true,
+            #[cfg(target_os = "macos")]
+            operators::RecipeKind::Compute(operators::ShaderKind::Conv64) => true,
+            _ => false,
+        }));
         compare_paths(case.model(), &input, case.name);
         let data = values(input.iter().product(), 3);
         let (_, expected) = reference(case.model(), &input, &data);
@@ -485,6 +497,327 @@ fn compare_paths(model: Arc<Model>, shape: &[usize], label: &str) {
         GpuSession::new_diagnostic(compiled, shape, ExecutionLimits::default()).unwrap();
     assert_close(label, fast.run(&input).unwrap().data(), &expected);
     assert_close(label, generic.run(&input).unwrap().data(), &expected);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "physical Metal; fused matrix bias/residual and exact half-store boundaries"]
+fn gpu_metal_matrix_add_fusion_preserves_rounding_and_broadcasts() {
+    for (batch, rows, inner, columns, bias_shape) in [
+        (2, 3, 2, 5, vec![5]),
+        (2, 9, 16, 35, vec![1, 1, 35]),
+        (2, 67, 32, 131, vec![1, 131]),
+    ] {
+        let input = [batch, rows, inner];
+        let output = [batch, rows, columns];
+        let mut weights = vec![0.0; inner * columns];
+        weights[..2 * columns].fill(1.0);
+        let graph = model(
+            vec![
+                tensor("w", &[inner, columns], &weights),
+                tensor("bias", &bias_shape, &vec![1.0 / 2048.0; columns]),
+                tensor(
+                    "residual",
+                    &output,
+                    &vec![1.0 / 1024.0; output.iter().product()],
+                ),
+                node("MatMul", &["x", "w"], "product", &[]),
+                node("Add", &["product", "bias"], "biased", &[]),
+                node("Add", &["biased", "residual"], "y", &[]),
+            ],
+            &input,
+            &output,
+        );
+        let mut data = vec![0.0; input.iter().product()];
+        for row in data.chunks_mut(inner) {
+            row[0] = 1.0;
+            row[1] = 1.0 / 2048.0;
+        }
+        for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+            let compiled = Arc::new(
+                GpuCompiledModel::compile_with_options(
+                    graph.clone(),
+                    hardware(),
+                    CompileOptions {
+                        gpu: GpuCompileOptions {
+                            precision,
+                            matrix_precision: GpuMatrixPrecision::F16,
+                        },
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
+            );
+            let mut session =
+                GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+            assert_eq!(session.recipes.len(), 1, "both Add nodes must be fused");
+            assert_eq!(session.recipes[0].words[64], 2);
+            let actual = session.run(&data).unwrap();
+            let expected = if precision == GpuPrecision::MixedF16 {
+                1.0 + 1.0 / 1024.0
+            } else {
+                1.0 + 1.0 / 512.0
+            };
+            assert!(
+                actual.data().iter().all(|&v| v == expected),
+                "{input:?} -> {output:?}, {precision:?}"
+            );
+        }
+        compare_paths(graph, &input, "matrix bias/residual fusion");
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "physical Metal; common bias/GELU and bias/residual epilogues"]
+fn gpu_metal_common_convolution_epilogues_match_scalar() {
+    let input = [2, 16, 5, 137];
+    let output = [2, 64, 5, 137];
+    for gelu in [true, false] {
+        let mut parts = vec![
+            tensor("w", &[64, 16, 1, 1], &values(64 * 16, 7)),
+            tensor("bias", &[64, 1, 1], &values(64, 13)),
+            node(
+                "Conv",
+                &["x", "w"],
+                "conv",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+            node("Add", &["conv", "bias"], "biased", &[]),
+        ];
+        if gelu {
+            parts.extend([
+                tensor("sqrt2", &[], &[std::f32::consts::SQRT_2]),
+                tensor("one", &[], &[1.]),
+                tensor("half", &[], &[0.5]),
+                node("Div", &["biased", "sqrt2"], "scaled", &[]),
+                node("Erf", &["scaled"], "erf", &[]),
+                node("Add", &["erf", "one"], "plus", &[]),
+                node("Mul", &["plus", "biased"], "product", &[]),
+                node("Mul", &["product", "half"], "y", &[]),
+            ]);
+        } else {
+            parts.extend([
+                tensor("residual", &output, &values(output.iter().product(), 17)),
+                node("Add", &["biased", "residual"], "y", &[]),
+            ]);
+        }
+        let graph = model(parts, &input, &output);
+        let data = values(input.iter().product(), 3);
+        let (_, expected) = reference(graph.clone(), &input, &data);
+        for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+            let compiled = Arc::new(
+                GpuCompiledModel::compile_with_options(
+                    graph.clone(),
+                    hardware(),
+                    CompileOptions {
+                        gpu: GpuCompileOptions {
+                            precision,
+                            matrix_precision: GpuMatrixPrecision::F16,
+                        },
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
+            );
+            let mut session =
+                GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+            assert_eq!(session.recipes.len(), 1);
+            assert_eq!(session.recipes[0].words[64], 2);
+            assert_eq!(session.recipes[0].words[71], if gelu { 7 } else { 2 });
+            let actual = session.run(&data).unwrap();
+            if precision == GpuPrecision::F32 {
+                assert_close("common convolution epilogue", actual.data(), &expected);
+            } else {
+                for (&a, &b) in actual.data().iter().zip(&expected) {
+                    assert!(a.is_finite() && (a - b).abs() <= 0.05 + 0.01 * b.abs());
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "physical Metal; channel bias across batches, matrix and spatial tails"]
+fn gpu_metal_convolution_epilogue_channel_identity() {
+    for (input, channels, kernel, group, pads) in [
+        ([2, 16, 9, 137], 64, [1, 1], 1, [0, 0, 0, 0]),
+        ([2, 5, 9, 137], 5, [3, 3], 5, [1, 1, 1, 1]),
+        ([2, 8, 9, 137], 12, [2, 2], 2, [0, 1, 1, 0]),
+    ] {
+        let case = ConvCase {
+            name: "fused convolution channel identity",
+            input,
+            channels,
+            kernel,
+            group,
+            pads,
+            stride: [1, 1],
+            dilation: [1, 1],
+            bias: true,
+        };
+        let output = case.output();
+        let weights = [channels, input[1] / group, kernel[0], kernel[1]];
+        let graph = model(
+            vec![
+                tensor("w", &weights, &values(weights.iter().product(), 7)),
+                tensor("conv_bias", &[channels], &values(channels, 11)),
+                tensor("channel_bias", &[channels, 1, 1], &values(channels, 13)),
+                tensor("residual", &output, &values(output.iter().product(), 17)),
+                node(
+                    "Conv",
+                    &["x", "w", "conv_bias"],
+                    "conv",
+                    &[
+                        integers("kernel_shape", &kernel),
+                        integers("pads", &pads),
+                        integer("group", group),
+                    ],
+                ),
+                node("Add", &["conv", "channel_bias"], "biased", &[]),
+                node("Relu", &["biased"], "active", &[]),
+                node("Add", &["active", "residual"], "y", &[]),
+            ],
+            &input,
+            &output,
+        );
+        compare_paths(graph.clone(), &input, case.name);
+        let data = values(input.iter().product(), 3);
+        let (_, expected) = reference(graph.clone(), &input, &data);
+        let compiled = Arc::new(
+            GpuCompiledModel::compile_with_options(
+                graph,
+                hardware(),
+                CompileOptions {
+                    gpu: GpuCompileOptions {
+                        precision: GpuPrecision::MixedF16,
+                        matrix_precision: GpuMatrixPrecision::F16,
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let mut session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        assert!(
+            session
+                .recipes
+                .iter()
+                .any(|r| r.words[64] == 3 && r.words[68..77] == [1, 1, 0, 3, 0, 0, 2, 2, 0])
+        );
+        let actual = session.run(&data).unwrap();
+        assert_eq!(actual.data().len(), expected.len());
+        for (&a, &b) in actual.data().iter().zip(&expected) {
+            assert!(a.is_finite() && (a - b).abs() <= 0.05 + 0.01 * b.abs());
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires a physical Metal GPU; run explicitly"]
+fn gpu_metal_pointwise_padding_preserves_spatial_coordinates() {
+    for (input, channels, pads) in [
+        ([2, 16, 7, 19], 32, [0, 0, 1, 2]),
+        ([1, 33, 11, 17], 48, [0, 0, 2, 1]),
+        ([2, 16, 7, 19], 32, [0, 1, 1, 0]),
+    ] {
+        let case = ConvCase {
+            name: "padded pointwise spatial extents",
+            input,
+            channels,
+            kernel: [1; 2],
+            stride: [1; 2],
+            dilation: [1; 2],
+            pads,
+            group: 1,
+            bias: true,
+        };
+        let model = case.model();
+        // Padding requires convolution coordinates, not an output-plane input stride.
+        compare_paths(model.clone(), &input, case.name);
+        let data = values(input.iter().product(), 3);
+        let (_, expected) = reference(model.clone(), &input, &data);
+        let compiled = Arc::new(
+            GpuCompiledModel::compile_with_options(
+                model,
+                hardware(),
+                CompileOptions {
+                    gpu: GpuCompileOptions {
+                        precision: GpuPrecision::MixedF16,
+                        matrix_precision: GpuMatrixPrecision::F16,
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let mut session = GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+        let actual = session.run(&data).unwrap();
+        assert_eq!(actual.data().len(), expected.len());
+        for (&a, &b) in actual.data().iter().zip(&expected) {
+            assert!(a.is_finite() && (a - b).abs() <= 0.05 + 0.01 * b.abs());
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires a physical Metal GPU; run explicitly"]
+fn gpu_metal_depthwise7_borders_strides_batches_and_storage() {
+    let context = hardware();
+    for (input, stride, pads, bias) in [
+        ([2, 3, 11, 19], [1, 1], [3, 3, 3, 3], true),
+        ([2, 5, 13, 17], [2, 1], [1, 2, 3, 1], false),
+        ([1, 3, 3, 5], [1, 2], [3, 3, 3, 3], true),
+    ] {
+        let case = ConvCase {
+            name: "7x7 depthwise",
+            input,
+            channels: input[1],
+            kernel: [7, 7],
+            stride,
+            dilation: [1, 1],
+            pads,
+            group: input[1],
+            bias,
+        };
+        let model = case.model();
+        let data = values(input.iter().product(), 3);
+        let (_, expected) = reference(model.clone(), &input, &data);
+        for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+            let compiled = Arc::new(
+                GpuCompiledModel::compile_with_options(
+                    model.clone(),
+                    context.clone(),
+                    CompileOptions {
+                        gpu: GpuCompileOptions {
+                            precision,
+                            matrix_precision: GpuMatrixPrecision::F16,
+                        },
+                        ..Default::default()
+                    },
+                )
+                .unwrap(),
+            );
+            let mut session =
+                GpuSession::new(compiled, &input, ExecutionLimits::default()).unwrap();
+            assert!(session.recipes.iter().any(|r| matches!(
+                r.kind,
+                operators::RecipeKind::Compute(operators::ShaderKind::Depthwise7)
+            )));
+            let actual = session.run(&data).unwrap();
+            if precision == GpuPrecision::F32 {
+                assert_close(case.name, actual.data(), &expected);
+            } else {
+                assert_eq!(actual.data().len(), expected.len());
+                for (&a, &b) in actual.data().iter().zip(&expected) {
+                    assert!(a.is_finite() && (a - b).abs() <= 0.05 + 0.01 * b.abs());
+                }
+            }
+        }
+    }
 }
 
 #[test]
@@ -1881,6 +2214,74 @@ fn gpu_hardware_full_precision_variant_shares_context_and_isolates_weights() {
     assert_eq!(session.statistics().effective_precision, "F32");
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires a physical Metal GPU"]
+fn gpu_metal_detector_precision_requires_both_explicit_opt_ins() {
+    let (source, _) = crate::ocr::tests::synthetic_sources();
+    let model = Arc::new(Model::load_bytes(&source).unwrap());
+    assert_eq!(
+        GpuContextOptions::default().metal_detector_precision,
+        GpuPrecision::F32
+    );
+    for detector_precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+        let context = GpuContext::new_with_options(GpuContextOptions {
+            metal_detector_precision: detector_precision,
+            ..Default::default()
+        })
+        .unwrap();
+        for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+            for matrix_precision in [GpuMatrixPrecision::F32, GpuMatrixPrecision::F16] {
+                let original = Arc::new(
+                    GpuCompiledModel::compile_with_options(
+                        model.clone(),
+                        context.clone(),
+                        CompileOptions {
+                            gpu: GpuCompileOptions {
+                                precision,
+                                matrix_precision,
+                            },
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap(),
+                );
+                let detector = original.for_resident_detector().unwrap();
+                let expected_precision = if detector_precision == GpuPrecision::MixedF16
+                    && matrix_precision == GpuMatrixPrecision::F16
+                {
+                    precision
+                } else {
+                    GpuPrecision::F32
+                };
+                assert_eq!(detector.precision, expected_precision);
+                assert_eq!(original.precision, precision);
+                assert!(Arc::ptr_eq(
+                    &detector,
+                    &original.for_resident_detector().unwrap()
+                ));
+                let mut session =
+                    GpuSession::new(detector, &[1, 3, 32, 32], ExecutionLimits::default()).unwrap();
+                assert_eq!(session.input_precision(), expected_precision);
+                let input = vec![0.1234567; 3 * 32 * 32];
+                let result = session.run(&input).unwrap();
+                let expected = 1.0 / (1.0 + (-0.1234567f32).exp());
+                let tolerance = if expected_precision == GpuPrecision::F32 {
+                    1e-6
+                } else {
+                    1e-3
+                };
+                assert!(
+                    result
+                        .data()
+                        .iter()
+                        .all(|&v| (v - expected).abs() < tolerance)
+                );
+            }
+        }
+    }
+}
+
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back() {
@@ -1911,4 +2312,84 @@ fn gpu_hardware_resident_storage_has_no_dense_transfers_and_reshape_rolls_back()
     let mut tensor = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
     assert!(tensor.memory_statistics().host_output_bytes > 0);
     tensor.run(&values(70, 1)).unwrap();
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "physical Metal; matrix tails inside reused allocation capacity"]
+fn gpu_metal_matrix_tail_guard_tracks_reused_capacity() {
+    for precision in [GpuPrecision::F32, GpuPrecision::MixedF16] {
+        let parts = vec![
+            tensor("w", &[16, 16, 1, 1], &values(256, 3)),
+            node(
+                "Conv",
+                &["x", "w"],
+                "y",
+                &[integers("kernel_shape", &[1, 1])],
+            ),
+        ];
+        let dynamic = |name: &str| {
+            let dims = (0..4).flat_map(|_| bytes(1, &[])).collect::<Vec<_>>();
+            [
+                bytes(1, name.as_bytes()),
+                bytes(2, &bytes(1, &[number(1, 1), bytes(2, &dims)].concat())),
+            ]
+            .concat()
+        };
+        let encoded = [
+            parts.concat(),
+            bytes(11, &dynamic("x")),
+            bytes(12, &dynamic("y")),
+        ]
+        .concat();
+        let graph = Arc::new(
+            Model::load_bytes(
+                &[number(1, 8), bytes(8, &number(2, 13)), bytes(7, &encoded)].concat(),
+            )
+            .unwrap(),
+        );
+        let compiled = Arc::new(
+            GpuCompiledModel::compile_with_options(
+                graph.clone(),
+                hardware(),
+                crate::runtime::CompileOptions {
+                    gpu: GpuCompileOptions {
+                        precision,
+                        matrix_precision: GpuMatrixPrecision::F16,
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let mut session =
+            GpuSession::new(compiled, &[2, 16, 1, 63], ExecutionLimits::default()).unwrap();
+        let flag = |s: &GpuSession| {
+            u32::from_ne_bytes(s.parameter_data[61 * 4..62 * 4].try_into().unwrap())
+        };
+        assert_eq!(flag(&session), 0);
+        session.reshape(&[2, 16, 1, 128]).unwrap();
+        session.reshape(&[2, 16, 1, 63]).unwrap();
+        assert_eq!(flag(&session), 1);
+        let id = session.compiled.program.input;
+        let buffer = session.buffers[session.plan.slots[id.0]].clone();
+        let count = 2 * 16 * 63;
+        let poison = precision.encode(&vec![f32::NAN; 64]);
+        session
+            .compiled
+            .context
+            .upload(&buffer, precision.bytes(count) as u64, &poison)
+            .unwrap();
+        let input = values(count, 2);
+        let (_, expected) = reference(graph, &[2, 16, 1, 63], &input);
+        let output = session.run(&input).unwrap();
+        for (&a, &b) in output.data().iter().zip(&expected) {
+            assert!(
+                a.is_finite() && (a - b).abs() < 0.01,
+                "tail result {a} != {b}"
+            );
+        }
+        session.reshape(&[2, 16, 1, 128]).unwrap();
+        assert_eq!(flag(&session), 0);
+    }
 }

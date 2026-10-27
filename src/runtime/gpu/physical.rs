@@ -57,16 +57,32 @@ pub(super) fn lower(
                 continue;
             }
         }
-        if !matches!(
-            plan.steps[start].kind,
-            BoundKind::Conv(_) | BoundKind::ConvTranspose(_)
-        ) {
+        let matrix = cfg!(target_os = "macos")
+            && matches!(
+                plan.steps[start].kind,
+                BoundKind::MatMul { .. } | BoundKind::BatchedMatMul(_)
+            );
+        if !matrix
+            && !matches!(
+                plan.steps[start].kind,
+                BoundKind::Conv(_) | BoundKind::ConvTranspose(_)
+            )
+        {
             continue;
         }
         let mut r = recipes.iter().find(|r| r.node == start).unwrap().clone();
         let shape = plan.shapes[r.output.0];
-        let channels = shape.dimensions()[1];
-        let plane = shape.element_count() / (shape.dimensions()[0] * channels);
+        // Matrix bias broadcasts over the last axis; convolution bias uses
+        // NCHW channels. Keep all fused outputs in the original logical shape.
+        let (channels, plane) = if matrix {
+            (*shape.dimensions().last().unwrap(), 1)
+        } else {
+            let channels = shape.dimensions()[1];
+            (
+                channels,
+                shape.element_count() / (shape.dimensions()[0] * channels),
+            )
+        };
         r.words[65] = channels as u32;
         r.words[66] = plane as u32;
         while r.inputs.len() < 3 {
@@ -95,13 +111,16 @@ pub(super) fn lower(
             let mut packet = [0; 3];
             let mut operand = None;
             let end;
-            if matrix_precision == GpuMatrixPrecision::F16
+            if !matrix
+                && matrix_precision == GpuMatrixPrecision::F16
                 && let Some(last) = patterns::swish(program, next, value, count)
             {
                 end = last;
                 packet[0] = 8;
                 candidate.extend(next..=end);
-            } else if let Some((act, last)) = patterns::activation(program, next, value, count) {
+            } else if !matrix
+                && let Some((act, last)) = patterns::activation(program, next, value, count)
+            {
                 end = last;
                 packet[0] = match act {
                     patterns::Activation::Relu => 3,
@@ -110,7 +129,9 @@ pub(super) fn lower(
                     patterns::Activation::Gelu => 7,
                 };
                 candidate.extend(next..=end);
-            } else if let Op::HardSigmoid { alpha, beta } = program.instructions[next].kind {
+            } else if !matrix
+                && let Op::HardSigmoid { alpha, beta } = program.instructions[next].kind
+            {
                 end = next;
                 packet = [5, alpha.to_bits(), beta.to_bits()];
                 candidate.push(next);
@@ -123,8 +144,15 @@ pub(super) fn lower(
                     0
                 } else if operand_shape == shape {
                     2
-                } else if operand_shape.dimensions() == [channels, 1, 1]
-                    || operand_shape.dimensions() == [1, channels, 1, 1]
+                } else if (matrix
+                    && operand_shape.rank() <= shape.rank()
+                    && operand_shape.dimensions().last() == Some(&channels)
+                    && operand_shape.dimensions()[..operand_shape.rank() - 1]
+                        .iter()
+                        .all(|&n| n == 1))
+                    || (!matrix
+                        && (operand_shape.dimensions() == [channels, 1, 1]
+                            || operand_shape.dimensions() == [1, channels, 1, 1]))
                 {
                     1
                 } else {

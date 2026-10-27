@@ -6,6 +6,10 @@ use crate::{
     preprocess::{DetSize, DetSourceGeometry},
 };
 
+#[cfg(all(test, target_os = "macos"))]
+#[path = "detector_precision_tests.rs"]
+mod detector_precision_tests;
+
 pub(crate) struct Detection {
     pub image: Image,
     pub boxes: Vec<DetectionBox>,
@@ -19,7 +23,7 @@ pub(crate) struct Detector {
 }
 impl Detector {
     pub fn new(compiled: Arc<GpuCompiledModel>, limits: ExecutionLimits) -> RuntimeResult<Self> {
-        let compiled = compiled.for_resident_ocr()?;
+        let compiled = compiled.for_resident_detector()?;
         compiled.prepare_images()?;
         Ok(Self {
             context: compiled.context.clone(),

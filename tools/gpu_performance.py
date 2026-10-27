@@ -76,8 +76,6 @@ def main():
     parser.add_argument("--alignment", action="store_true")
     parser.add_argument("--budget-seconds", type=float, default=60)
     args = parser.parse_args()
-    if sys.platform == "darwin":
-        parser.error("GPU benchmark examples are not supported on macOS")
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
     executable = ROOT / ("target/release/examples/gpu_ocr_bench.exe" if os.name == "nt" else "target/release/examples/gpu_ocr_bench")

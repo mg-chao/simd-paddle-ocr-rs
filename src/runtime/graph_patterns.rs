@@ -92,7 +92,7 @@ pub(super) fn activation(
 
 /// Keep the two-node Swish form distinct from a bare Sigmoid. Callers that
 /// fuse both nodes must also prove that the Sigmoid result does not escape.
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub(super) fn swish(
     program: &Program,
     start: usize,
@@ -164,7 +164,7 @@ pub(super) fn layer_norm(
     Some((inner, epsilon, gamma, beta))
 }
 
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 pub(super) fn closed_group(
     program: &Program,
     members: &[usize],

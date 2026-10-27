@@ -63,6 +63,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--precision", choices=["f32", "mixed-f16"], default="f32")
     parser.add_argument("--matrix", choices=["f32", "f16"], default="f32")
+    parser.add_argument("--metal-detector-storage", choices=["f32", "f16"], default="f32")
     parser.add_argument("--presets", nargs="+", choices=["tiny", "small", "medium"], default=["tiny"])
     parser.add_argument("--cases", nargs="+", default=["typical", "dense", "vertical"])
     parser.add_argument("--all-cases", action="store_true")
@@ -75,10 +76,10 @@ def main():
     parser.add_argument("--classification-batch", type=int, choices=range(1, 17), default=4)
     parser.add_argument("--budget-seconds", type=float, default=60)
     args = parser.parse_args()
-    if sys.platform == "darwin":
-        parser.error("GPU execution is not supported on macOS")
     if args.budget_seconds <= 0:
         parser.error("positive execution budget required")
+    if sys.platform != "darwin" and args.metal_detector_storage != "f32":
+        parser.error("detector storage override is only supported on Metal")
     build_inputs = [*filter(Path.is_file, (ROOT / "src").rglob("*")), ROOT / "Cargo.toml", ROOT / "Cargo.lock",
                     ROOT / "build.rs", ROOT / "rust-toolchain.toml", ROOT / "examples/gpu_ocr_bench.rs", ROOT / "examples/support/ocr_compare.rs"]
     if max(p.stat().st_mtime for p in build_inputs) > args.executable.stat().st_mtime:
@@ -88,10 +89,11 @@ def main():
     cases = list(corpus["cases"]) if args.all_cases else args.cases
     if not set(cases) <= set(corpus["cases"]):
         parser.error("unknown corpus case")
-    executor = "Vulkan"
+    executor = "Metal" if sys.platform == "darwin" else "Vulkan"
     manifest = dict(schema=2, platform=platform.platform(), compiler=output(["rustc", "-Vv"]),
                     cargo=output(["cargo", "-V"]), executor=executor, precision=args.precision, matrix=args.matrix,
                     wave=args.wave, classification_batch=args.classification_batch,
+                    metal_detector_storage=args.metal_detector_storage if sys.platform == "darwin" else None,
                     source_sha256={str(p.relative_to(ROOT)): digest(p) for p in build_inputs},
                     executable_sha256=digest(args.executable), models={p.name: digest(p) for p in sorted(args.models.glob("*.onnx"))},
                     corpus=corpus, measurements=0, qualification=f"physical {executor}; unchanged Rust accuracy contracts", results=[])
@@ -118,6 +120,7 @@ def main():
                            SIMD_OCR_BENCH_MODELS=str(args.models.resolve()), SIMD_OCR_BENCH_WAVE=str(args.wave),
                            SIMD_OCR_BENCH_CLASSIFICATION_BATCH=str(args.classification_batch),
                            SIMD_OCR_BENCH_MATRIX=args.matrix if target == "gpu" else "f32",
+                           SIMD_OCR_BENCH_DETECTOR_STORAGE=args.metal_detector_storage if target == "gpu" else "f32",
                            SIMD_OCR_BENCH_STORAGE="f16" if target == "gpu" and args.precision == "mixed-f16" else "f32")
                 for key in ["SIMD_OCR_BENCH_REFERENCE", "SIMD_OCR_BENCH_RGB", "SIMD_OCR_BENCH_WIDTH", "SIMD_OCR_BENCH_HEIGHT"]:
                     env.pop(key, None)

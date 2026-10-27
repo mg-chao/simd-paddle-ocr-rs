@@ -52,8 +52,14 @@ impl Pipelines {
             ShaderKind::MatMul32 => KernelId::Matmul32,
             ShaderKind::Conv16 => KernelId::Conv16,
             ShaderKind::Conv32 => KernelId::Conv32,
+            #[cfg(target_os = "macos")]
+            ShaderKind::Conv64 => KernelId::Conv64,
+            #[cfg(target_os = "macos")]
+            ShaderKind::MatMul64 => KernelId::Matmul64,
             ShaderKind::Depthwise3 => KernelId::Depthwise3,
             ShaderKind::Depthwise5 => KernelId::Depthwise5,
+            #[cfg(target_os = "macos")]
+            ShaderKind::Depthwise7 => KernelId::Depthwise7,
             ShaderKind::Reduce => KernelId::Reduce,
             ShaderKind::Softmax => KernelId::Softmax,
             ShaderKind::LayerNorm => KernelId::LayerNorm,

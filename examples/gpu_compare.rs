@@ -1,27 +1,32 @@
 #![recursion_limit = "256"]
 //! Developer-only reproducible tensor comparison; no image preprocessing.
-#[cfg(not(target_os = "macos"))]
 use simd_paddle_ocr_rs::{
     model::Model,
     runtime::{CompileOptions, CpuCompiledModel, CpuSession, ExecutionLimits, gpu::*},
 };
-#[cfg(not(target_os = "macos"))]
 use std::{error::Error, path::PathBuf, sync::Arc};
 
-#[cfg(not(target_os = "macos"))]
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let measure = args.iter().any(|s| s == "measure");
+    let measure_wall = args.iter().any(|s| s == "measure-wall");
+    if measure && measure_wall {
+        return Err("choose either profiled or unprofiled measurement".into());
+    }
     if measure && !cfg!(feature = "profiling") {
         return Err("measure requires the profiling Cargo feature".into());
     }
     if args.len() < 5 {
-        return Err("usage: gpu_compare MODEL N C H W [mixed] [measure]".into());
+        return Err(
+            "usage: gpu_compare MODEL N C H W [mixed] [matrix-f16] [measure|measure-wall]".into(),
+        );
     }
-    if args[5..]
-        .iter()
-        .any(|arg| !matches!(arg.as_str(), "mixed" | "measure"))
-    {
+    if args[5..].iter().any(|arg| {
+        !matches!(
+            arg.as_str(),
+            "mixed" | "matrix-f16" | "measure" | "measure-wall"
+        )
+    }) {
         return Err("unsupported comparison option".into());
     }
     let path = PathBuf::from(&args[0]);
@@ -35,6 +40,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         GpuPrecision::F32
     };
     let context = GpuContext::new()?;
+    let matrix_precision = if args.iter().any(|s| s == "matrix-f16") {
+        GpuMatrixPrecision::F16
+    } else {
+        GpuMatrixPrecision::F32
+    };
     let model = Arc::new(Model::load_path(&path)?);
     let input: Vec<f32> = if let Ok(path) = std::env::var("SIMD_OCR_INPUT") {
         let data = std::fs::read(path)?;
@@ -57,6 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         CompileOptions {
             gpu: GpuCompileOptions {
                 precision,
+                matrix_precision,
                 ..Default::default()
             },
             ..Default::default()
@@ -155,19 +166,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             measurements.push(serde_json::json!({"wall_ms":start.elapsed().as_secs_f64()*1000.,"compute_ns":gpu.last_gpu_profile().and_then(|p|p.compute_ns())}));
         }
     }
+    if measure_wall && failures == 0 {
+        for _ in 0..3 {
+            let start = std::time::Instant::now();
+            gpu.run(&input)?;
+            measurements.push(serde_json::json!({"wall_ms":start.elapsed().as_secs_f64()*1000.,"compute_ns":null}));
+        }
+    }
     println!(
         "{}",
         serde_json::to_string(
-            &serde_json::json!({"model":path,"shape":shape,"output_shape":output_shape,"adapter":context.adapter_info().name,"backend":format!("{:?}",context.adapter_info().backend),"precision":precision,"seed":1,"absolute_tolerance":absolute_tolerance,"relative_tolerance":relative_tolerance,"max_abs":max_abs,"failures":failures,"operators":inventory,"statistics":gpu.statistics(),"measurements":measurements})
+            &serde_json::json!({"model":path,"shape":shape,"output_shape":output_shape,"adapter":context.adapter_info().name,"backend":format!("{:?}",context.adapter_info().backend),"precision":precision,"matrix_precision":matrix_precision,"profiled":measure,"seed":1,"absolute_tolerance":absolute_tolerance,"relative_tolerance":relative_tolerance,"max_abs":max_abs,"failures":failures,"operators":inventory,"statistics":gpu.statistics(),"measurements":measurements})
         )?
     );
     if failures > 0 {
         return Err(format!("{failures} elements outside {precision:?} numerical gate").into());
     }
     Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    Err("GPU execution is not supported on macOS".into())
 }

@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-EXECUTOR = "Vulkan"
+EXECUTOR = "Metal" if sys.platform == "darwin" else "Vulkan"
 MODELS = ("cls", "det", "small_det", "medium_det", "rec", "small_rec", "medium_rec")
 
 
@@ -196,8 +196,6 @@ def main():
     parser.add_argument("--boundary", help="original ONNX output tensor name, never a node index")
     parser.add_argument("--shape", nargs=4, type=int)
     args = parser.parse_args()
-    if args.mode == "compare" and sys.platform == "darwin":
-        parser.error("GPU execution is not supported on macOS")
     args.report.mkdir(parents=True, exist_ok=True)
     all_results = []
     for name in [args.model] if args.model else MODELS:

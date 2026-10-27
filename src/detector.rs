@@ -145,9 +145,9 @@ impl DetectorPlan {
     }
 }
 pub struct Detector {
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     gpu: Option<crate::runtime::gpu::vision::Detector>,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     gpu_statistics: crate::runtime::gpu::GpuPipelineStatistics,
     plan: std::sync::Arc<DetectorPlan>,
     session: Session,
@@ -156,11 +156,11 @@ pub struct Detector {
     padded: Vec<u8>,
 }
 impl Detector {
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn is_full_gpu(&self) -> bool {
         self.session.is_gpu()
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn detect_resident(
         &mut self,
         image: ImageView<'_>,
@@ -180,11 +180,11 @@ impl Detector {
         self.gpu_statistics = result.statistics.clone();
         Ok(result)
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn reset_run_statistics(&mut self) {
         self.gpu_statistics = Default::default();
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu.as_ref().map(|_| &self.gpu_statistics)
     }
@@ -256,9 +256,9 @@ impl Detector {
             Session::deferred(plan.compiled.clone(), &[1, 3, 32, 32], plan.limits, None)?;
         session.set_execution_context(plan.execution.cpu.clone(), plan.execution.threads)?;
         Ok(Self {
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu: None,
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu_statistics: Default::default(),
             plan,
             session,
@@ -288,7 +288,7 @@ impl Detector {
     /// Statistics for the last bound production inference session.
     pub(crate) fn counter_snapshot(&self) -> crate::runtime::StatisticsCounters {
         let primary = self.session.counter_snapshot();
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
             let mut counters = gpu.session.counter_snapshot();
             counters.add_diagnostics(primary);
@@ -297,7 +297,7 @@ impl Detector {
         primary
     }
     pub fn execution_statistics(&self) -> crate::runtime::ExecutionStatistics {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if let Some(gpu) = &self.gpu {
             return gpu
                 .session
@@ -313,32 +313,32 @@ impl Detector {
         self.session.execution_limits()
     }
     pub fn activation_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.activation_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.activation_bytes()
     }
     pub fn retained_activation_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_activation_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.retained_activation_bytes()
     }
     pub fn retained_workspace_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_planning_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident
             + self.resize.retained_bytes()
@@ -348,12 +348,12 @@ impl Detector {
     }
     /// Retained kernel buffers, already included in retained workspace bytes.
     pub(crate) fn retained_device_bytes(&self) -> usize {
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         let resident = self
             .gpu
             .as_ref()
             .map_or(0, |g| g.session.retained_device_bytes());
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let resident = 0;
         resident + self.session.retained_device_bytes()
     }
@@ -382,7 +382,7 @@ impl Detector {
                 "invalid postprocess image or resize ratios",
             ));
         }
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if self.session.is_gpu() {
             use crate::runtime::gpu::{
                 GpuPrecision,
@@ -447,7 +447,7 @@ impl Detector {
         profile: &mut StageProfile,
     ) -> ImageResult<DetectionView<'_>> {
         let cpu = self.session.cpu_context().clone();
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if self.session.is_gpu() {
             let result = (|| -> crate::runtime::RuntimeResult<_> {
                 if self.gpu.is_none() {

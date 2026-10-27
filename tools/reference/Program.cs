@@ -4,8 +4,11 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Sdcb.SimdPaddleOCR.OnnxSharp;
 using Sdcb.SimdPaddleOCR.Backends.Vulkan;
+using Sdcb.SimdPaddleOCR.Backends.Metal;
 
+if (args.Length > 0 && args[0] == "--metal-bench") { MetalBench.Run(args); return; }
 if (args.Length > 0 && args[0] == "--ocr-bench") { OcrBench.Run(args); return; }
+if (args.Length > 0 && args[0] == "--metal-tensor-bench") { MetalTensorBench.Run(args[1..]); return; }
 if (args.Length != 8) throw new ArgumentException("MODEL INPUT.f32 OUTPUT_PREFIX N C H W cpu|gpu");
 byte[] source=File.ReadAllBytes(args[0]);
 using var model=Model.Load(source);
@@ -20,11 +23,17 @@ using var cpu=new InferenceSession(compiled);
 cpu.Reshape(shape);
 outputShape=cpu.OutputShape.Dimensions;
 if(args[7]=="gpu") {
-    if (OperatingSystem.IsMacOS()) throw new NotSupportedException("GPU comparison is not supported on macOS");
+    if (OperatingSystem.IsMacOS()) {
+        var metal=MetalBackend.TryGetDevice() ?? throw new NotSupportedException("physical Metal device required");
+        using var gpu=new MetalDetGraph(metal,compiled);
+        output=gpu.Run(shape,input).ToArray();
+        adapter=metal.Name;
+    } else {
     var device=GpuBackend.TryGetDevice() ?? throw new NotSupportedException("physical Vulkan device required");
     using var gpu=new GpuDetGraph(device,compiled);
     output=gpu.Run(shape,input).ToArray();
     adapter=device.DeviceName;
+    }
 } else if(args[7]=="cpu") {output=cpu.Run(input);adapter=System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString();}
 else throw new ArgumentException("backend must be cpu or gpu");
 File.WriteAllBytes(args[2]+".f32",MemoryMarshal.AsBytes(output.AsSpan()).ToArray());

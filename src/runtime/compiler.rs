@@ -4,7 +4,7 @@ use super::{
     packing::WeightCache,
 };
 use crate::model::Model;
-#[cfg(all(feature = "gpu", not(target_os = "macos")))]
+#[cfg(feature = "gpu")]
 use std::sync::OnceLock;
 use std::{
     collections::HashMap,
@@ -13,9 +13,9 @@ use std::{
 
 #[derive(Clone, Default)]
 pub struct CompilerOptions {
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub gpu: Option<Arc<super::gpu::GpuContext>>,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub gpu_options: super::gpu::GpuContextOptions,
 }
 
@@ -23,7 +23,7 @@ pub(crate) struct ModelResources {
     pub graph: Arc<LogicalGraph>,
     pub packed: Arc<WeightCache>,
     cpu: Mutex<Vec<(super::CpuCompileOptions, bool, Arc<super::CpuCompiledModel>)>>,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     gpu: Mutex<
         Vec<(
             super::gpu::GpuCompileOptions,
@@ -56,7 +56,7 @@ impl ModelResources {
         cache.push((options.cpu, options.fusion, compiled.clone()));
         Ok(compiled)
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(super) fn gpu(
         &self,
         context: Arc<super::gpu::GpuContext>,
@@ -87,13 +87,13 @@ impl ModelResources {
 /// their resources independently. GPU initialization is lazy and attempted once.
 pub struct Compiler {
     models: Mutex<HashMap<usize, Arc<ModelResources>>>,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     options: CompilerOptions,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     gpu: OnceLock<RuntimeResult<Arc<super::gpu::GpuContext>>>,
-    #[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+    #[cfg(all(test, feature = "gpu"))]
     gpu_initializations: std::sync::atomic::AtomicUsize,
-    #[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+    #[cfg(all(test, feature = "gpu"))]
     gpu_initializer:
         fn(super::gpu::GpuContextOptions) -> RuntimeResult<Arc<super::gpu::GpuContext>>,
 }
@@ -104,17 +104,17 @@ impl Default for Compiler {
 }
 impl Compiler {
     pub fn new(options: CompilerOptions) -> Self {
-        #[cfg(not(all(feature = "gpu", not(target_os = "macos"))))]
+        #[cfg(not(feature = "gpu"))]
         let _ = options;
         Self {
             models: Mutex::new(HashMap::new()),
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             options,
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu: OnceLock::new(),
-            #[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+            #[cfg(all(test, feature = "gpu"))]
             gpu_initializations: Default::default(),
-            #[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+            #[cfg(all(test, feature = "gpu"))]
             gpu_initializer: super::gpu::GpuContext::new_with_options,
         }
     }
@@ -131,14 +131,14 @@ impl Compiler {
             graph: Arc::new(LogicalGraph::compile(model)?),
             packed: Arc::default(),
             cpu: Mutex::new(Vec::new()),
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu: Mutex::new(Vec::new()),
         });
         // The graph retains the model, so its identity cannot be recycled while cached.
         models.insert(key, resources.clone());
         Ok(resources)
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn gpu(&self) -> RuntimeResult<Arc<super::gpu::GpuContext>> {
         self.gpu
             .get_or_init(|| {
@@ -214,7 +214,7 @@ mod tests {
         assert!(first.activation_bytes() > 0);
         assert_eq!(second.activation_bytes(), 0);
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     #[test]
     fn compiler_resolves_gpu_once_and_preserves_strict_auto_sources() {
         use crate::error::{ErrorKind, RuntimeError};
@@ -266,7 +266,7 @@ mod tests {
         assert!(error.to_string().contains("original adapter error"));
         assert_eq!(compiler.gpu_initializations.load(Ordering::Relaxed), 1);
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     #[test]
     fn compiler_does_not_fallback_on_invalid_gpu_configuration() {
         use crate::runtime::gpu::GpuContextOptions;

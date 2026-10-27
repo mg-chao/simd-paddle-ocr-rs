@@ -351,7 +351,7 @@ fn resize<const DET: bool>(
     )
 }
 
-#[cfg(all(test, feature = "gpu", not(target_os = "macos")))]
+#[cfg(all(test, feature = "gpu"))]
 pub(crate) fn resize_for_gpu_test(
     image: ImageView<'_>,
     width: usize,

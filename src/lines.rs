@@ -259,7 +259,7 @@ pub struct OrientedLinePlan {
     options: LineOptions,
 }
 impl OrientedLinePlan {
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn validate_contexts(&self) -> ImageResult<()> {
         if let (Some(det), Some(cls)) = (
             self.detector.compiled().as_gpu(),
@@ -325,7 +325,7 @@ impl OrientedLinePlan {
 }
 pub struct OrientedLineExtractor {
     plan: std::sync::Arc<OrientedLinePlan>,
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     gpu_statistics: Option<crate::runtime::gpu::GpuPipelineStatistics>,
     detector: Detector,
     classifier: Option<Classifier>,
@@ -351,11 +351,11 @@ impl OrientedLineExtractor {
         Ok(())
     }
 
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub fn gpu_pipeline_statistics(&self) -> Option<&crate::runtime::gpu::GpuPipelineStatistics> {
         self.gpu_statistics.as_ref()
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     fn extract_resident<const PROFILE: bool>(
         &mut self,
         image: ImageView<'_>,
@@ -450,7 +450,7 @@ impl OrientedLineExtractor {
         }
         Ok(detection.size)
     }
-    #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+    #[cfg(feature = "gpu")]
     pub(crate) fn reset_run_statistics(&mut self) {
         self.gpu_statistics = None;
         self.detector.reset_run_statistics();
@@ -495,7 +495,7 @@ impl OrientedLineExtractor {
     fn from_plan(plan: std::sync::Arc<OrientedLinePlan>) -> ImageResult<Self> {
         let mut detector = plan.detector.request()?;
         let mut classifier = plan.classifier.as_ref().map(|c| c.request()).transpose()?;
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         plan.validate_contexts()?;
         let budgets = plan.cpu_options.resolve(
             plan.cpu.capacity(),
@@ -510,7 +510,7 @@ impl OrientedLineExtractor {
         }
         Ok(Self {
             detector,
-            #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+            #[cfg(feature = "gpu")]
             gpu_statistics: None,
             classifier,
             transforms: Vec::new(),
@@ -621,7 +621,7 @@ impl OrientedLineExtractor {
         if !TRACE && !self.uses_gpu() {
             self.cpu.assert_production_thread("crop extraction");
         }
-        #[cfg(all(feature = "gpu", not(target_os = "macos")))]
+        #[cfg(feature = "gpu")]
         if !TRACE
             && self.detector.is_full_gpu()
             && self.classifier.as_ref().is_none_or(Classifier::is_full_gpu)

@@ -6,7 +6,7 @@ fn main() {
         hash::{Hash, Hasher},
         path::PathBuf,
     };
-    // Build scripts run on the host; macOS targets have no GPU backend.
+    // Metal shader compilation requires the native macOS build path below.
     if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         return;
     }
@@ -277,5 +277,14 @@ fn main() {
     fs::write(out.join("vulkan_shaders.rs"), generated).unwrap();
 }
 
-#[cfg(any(not(feature = "gpu"), target_os = "macos"))]
+#[cfg(all(feature = "gpu", target_os = "macos"))]
+#[path = "src/runtime/gpu/metal/build.rs"]
+mod metal_build;
+
+#[cfg(all(feature = "gpu", target_os = "macos"))]
+fn main() {
+    metal_build::build();
+}
+
+#[cfg(not(feature = "gpu"))]
 fn main() {}

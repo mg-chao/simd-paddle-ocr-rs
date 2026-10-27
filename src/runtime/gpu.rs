@@ -25,7 +25,11 @@ use api::BufferUsage;
 pub use api::{GpuAdapterInfo, GpuApi, GpuDeviceType, GpuLimits};
 mod kernel;
 use kernel::{KernelId, KernelKey};
+#[cfg(not(target_os = "macos"))]
 #[path = "gpu/vulkan.rs"]
+mod backend;
+#[cfg(target_os = "macos")]
+#[path = "gpu/metal/mod.rs"]
 mod backend;
 use backend as executor;
 mod fused_activation;
@@ -89,6 +93,12 @@ pub struct GpuContextOptions {
     pub recognition_wave_size: usize,
     /// Maximum orientation-classifier rows prepared together (1..=16).
     pub classification_batch_size: usize,
+    /// Metal resident detector storage ceiling. F32 preserves threshold and
+    /// crop geometry by default. MixedF16 permits the compiled storage policy
+    /// only with explicit F16 matrix arithmetic; qualify each model's OCR
+    /// accuracy before opting in. This does not change tensor-session storage.
+    #[cfg(target_os = "macos")]
+    pub metal_detector_precision: GpuPrecision,
     pub max_device_bytes: Option<usize>,
 }
 impl Default for GpuContextOptions {
@@ -97,6 +107,8 @@ impl Default for GpuContextOptions {
             max_in_flight: 1,
             recognition_wave_size: 1,
             classification_batch_size: 4,
+            #[cfg(target_os = "macos")]
+            metal_detector_precision: GpuPrecision::F32,
             max_device_bytes: None,
         }
     }
@@ -410,6 +422,16 @@ pub struct GpuCompiledModel {
     pipelines: Arc<pipelines::Pipelines>,
 }
 impl GpuCompiledModel {
+    /// Preserve DB threshold decisions and thin-text crop geometry on Metal
+    /// unless the caller explicitly opts into qualified mixed detector storage.
+    pub(crate) fn for_resident_detector(self: &Arc<Self>) -> RuntimeResult<Arc<Self>> {
+        #[cfg(target_os = "macos")]
+        if self.context.options.metal_detector_precision == GpuPrecision::F32 {
+            return self.with_full_precision();
+        }
+        self.for_resident_ocr()
+    }
+
     /// Strict OCR preserves geometry, classifier confidence, and CTC spans.
     /// Half weights or activations can move each of those decision boundaries;
     /// only the explicit F16 matrix policy admits reduced-precision OCR stages.
@@ -1176,8 +1198,44 @@ impl GpuSession {
                     }
                 };
                 let offset = recipe_index * stride;
-                parameter_data[offset..offset + 512]
-                    .copy_from_slice(bytemuck::cast_slice(&recipe.words));
+                #[allow(unused_mut)]
+                let mut words = recipe.words;
+                #[cfg(target_os = "macos")]
+                if matches!(
+                    shader,
+                    operators::ShaderKind::Conv16
+                        | operators::ShaderKind::Conv32
+                        | operators::ShaderKind::Conv64
+                        | operators::ShaderKind::MatMul16
+                        | operators::ShaderKind::MatMul32
+                        | operators::ShaderKind::MatMul64
+                ) {
+                    let convolution = matches!(
+                        shader,
+                        operators::ShaderKind::Conv16
+                            | operators::ShaderKind::Conv32
+                            | operators::ShaderKind::Conv64
+                    );
+                    let id = recipe.inputs[usize::from(!convolution)];
+                    let owner = compiled
+                        .weights
+                        .constants
+                        .get(id.0)
+                        .and_then(Option::as_ref)
+                        .unwrap_or_else(|| &buffers[bound.plan.slots[id.0]]);
+                    let descriptor = &bound.descriptors[id.0];
+                    // A partial right-hand matrix tile may read at most 63
+                    // unused scalar values past its final row. Admit it only
+                    // inside an existing, initialized allocation. No padding
+                    // assumption or out-of-buffer access is permitted.
+                    words[61] = u32::from(
+                        descriptor
+                            .required_bytes()?
+                            .checked_add(descriptor.precision.bytes(63) as u64)
+                            .is_some_and(|end| end <= owner.size()),
+                    );
+                }
+                parameter_data[offset..offset + 512].copy_from_slice(bytemuck::cast_slice(&words));
                 let native = if let Some((_, cached)) = cached_bindings {
                     let Command::Compute { native, .. } = &cached[recipe_index].command else {
                         unreachable!("cached native recipe kind changed")
