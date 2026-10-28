@@ -2,7 +2,7 @@
 use super::GpuPrecision;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum KernelId {
-    #[cfg(test)]
+    #[cfg(all(test, not(target_os = "macos")))]
     BindingProbe,
     #[cfg(test)]
     CounterProbe,
@@ -51,6 +51,7 @@ pub(super) enum KernelId {
     DbGeometry,
     Heads,
     Heads4,
+    #[cfg(not(target_os = "macos"))]
     Heads4Subgroup,
     DbGeometryFast,
     HeadsFeaturesF32,
@@ -61,7 +62,7 @@ impl KernelId {
         match self {
             #[cfg(test)]
             Self::CounterProbe | Self::RoundHalfProbe => 0,
-            #[cfg(test)]
+            #[cfg(all(test, not(target_os = "macos")))]
             Self::BindingProbe => 0,
             #[cfg(test)]
             Self::HalfStoreProbe => 32,
@@ -103,6 +104,7 @@ impl KernelId {
             Self::DbGeometry => 1,
             Self::Heads => 1,
             Self::Heads4 => 1,
+            #[cfg(not(target_os = "macos"))]
             Self::Heads4Subgroup => 1,
             Self::DbGeometryFast => 1,
             Self::HeadsFeaturesF32 => 1,

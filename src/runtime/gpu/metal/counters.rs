@@ -160,7 +160,7 @@ impl Counters {
         }
         self.indices
             .iter()
-            .zip(bytes.chunks_exact(16))
+            .zip(bytes.as_chunks::<16>().0)
             .map(|(&index, pair)| {
                 let begin = u64::from_ne_bytes(pair[..8].try_into().unwrap());
                 let finish = u64::from_ne_bytes(pair[8..].try_into().unwrap());

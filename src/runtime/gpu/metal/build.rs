@@ -119,7 +119,7 @@ pub fn build() {
             if entry.neural { 512 } else { 1024 }
         ));
     }
-    generated.push_str("#[cfg(test)] KernelId::BindingProbe => return Err(unsupported(\"Vulkan binding probe is unavailable on Metal\")),\n};\nif key.precision & !key.id.precision_mask() != 0 { return Err(resource(\"invalid Metal precision signature\")); }\nOk(Shader { name: format!(\"ocr_{}_{}\", name, key.precision), threads, reads, packet })\n}\n");
+    generated.push_str("};\nif key.precision & !key.id.precision_mask() != 0 { return Err(resource(\"invalid Metal precision signature\")); }\nOk(Shader { name: format!(\"ocr_{}_{}\", name, key.precision), threads, reads, packet })\n}\n");
     fs::write(out.join("metal_catalog.rs"), generated).unwrap();
     if changed {
         run(tool("metallib")

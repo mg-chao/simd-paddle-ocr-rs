@@ -237,14 +237,6 @@ pub const ENTRIES: &[Entry] = &[
         &[true, true, true, false]
     ),
     resident!(
-        Heads4Subgroup,
-        "shaders/heads4.metal",
-        "heads4",
-        1,
-        64,
-        &[true, true, true, false]
-    ),
-    resident!(
         HeadsFeaturesF32,
         "shaders/heads_features_f32.metal",
         "heads_features_f32",
