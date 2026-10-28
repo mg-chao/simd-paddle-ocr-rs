@@ -13,11 +13,32 @@ struct ShaderBinding {
 }
 struct ShaderBinary {
     bytes: &'static [u8],
+    decoded_length: usize,
     workgroup: [u32; 3],
     bindings: &'static [ShaderBinding],
     specialization: &'static [(u32, u32)],
 }
 include!(concat!(env!("OUT_DIR"), "/vulkan_shaders.rs"));
+
+impl ShaderBinary {
+    fn decode(&self) -> RuntimeResult<Vec<u8>> {
+        let bytes =
+            miniz_oxide::inflate::decompress_to_vec_with_limit(self.bytes, self.decoded_length)
+                .map_err(|error| {
+                    RuntimeError::with_kind(
+                        ErrorKind::GpuValidation,
+                        format!("invalid embedded SPIR-V: {error:?}"),
+                    )
+                })?;
+        if bytes.len() != self.decoded_length {
+            return Err(RuntimeError::with_kind(
+                ErrorKind::GpuValidation,
+                "truncated embedded SPIR-V",
+            ));
+        }
+        Ok(bytes)
+    }
+}
 
 pub(in crate::runtime::gpu) struct NativePipeline {
     raw: vk::Pipeline,
@@ -120,7 +141,10 @@ pub(in crate::runtime::gpu) fn compile(
                 .stage_flags(vk::ShaderStageFlags::COMPUTE)
         })
         .collect::<Vec<_>>();
-    let code = ash::util::read_spv(&mut std::io::Cursor::new(shader.bytes))
+    // CPU startup never touches or inflates the catalog. The driver-owned
+    // pipeline outlives this temporary decompression buffer.
+    let decoded = shader.decode()?;
+    let code = ash::util::read_spv(&mut std::io::Cursor::new(decoded))
         .map_err(|e| RuntimeError::caused_by(ErrorKind::GpuValidation, "embedded SPIR-V", e))?;
     let mut cache = owner
         .pipeline_cache
@@ -220,6 +244,40 @@ pub(in crate::runtime::gpu) fn compile(
             bindings: shader.bindings,
             workgroup_size: shader.workgroup,
         }))
+    }
+}
+
+#[cfg(test)]
+mod embedded_shader_tests {
+    use super::*;
+
+    #[test]
+    fn compressed_shader_catalog_preserves_every_spirv_byte() {
+        for (shader, original) in shader_fixtures() {
+            assert_eq!(shader.decode().unwrap(), original);
+        }
+    }
+
+    #[test]
+    fn compressed_shader_rejects_truncation_and_excess_output() {
+        let (shader, _) = shader_fixtures()[0];
+        for (bytes, decoded_length) in [
+            (
+                &shader.bytes[..shader.bytes.len() / 2],
+                shader.decoded_length,
+            ),
+            (shader.bytes, 1),
+            (shader.bytes, shader.decoded_length + 1),
+        ] {
+            let invalid = ShaderBinary {
+                bytes,
+                decoded_length,
+                workgroup: shader.workgroup,
+                bindings: shader.bindings,
+                specialization: shader.specialization,
+            };
+            assert!(invalid.decode().is_err());
+        }
     }
 }
 

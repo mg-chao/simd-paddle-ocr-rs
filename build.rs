@@ -43,6 +43,9 @@ fn main() {
     let mut generated = String::from(
         "// Compiled native Vulkan shader catalog.\nfn binary(key: KernelKey) -> &'static ShaderBinary {\n match (key.id, key.precision) {\n",
     );
+    let mut fixtures = String::from(
+        "#[cfg(test)] fn shader_fixtures() -> Vec<(&'static ShaderBinary, &'static [u8])> { vec![\n",
+    );
     for entry in &catalog {
         let name = entry["name"].as_str().unwrap();
         let id = name
@@ -86,6 +89,17 @@ fn main() {
                 fs::write(stamp, &fingerprint).unwrap();
             }
             let bytes = fs::read(&file).unwrap();
+            let compressed = file.with_extension("deflate");
+            if !compressed.exists()
+                || fs::metadata(&file).unwrap().modified().unwrap()
+                    > fs::metadata(&compressed).unwrap().modified().unwrap()
+            {
+                fs::write(
+                    &compressed,
+                    miniz_oxide::deflate::compress_to_vec(&bytes, 6),
+                )
+                .unwrap();
+            }
             let words: Vec<u32> = bytes
                 .as_chunks::<4>()
                 .0
@@ -263,17 +277,23 @@ fn main() {
                 generated += "#[cfg(test)]\n";
             }
             generated += &format!(
-                "(KernelId::{id},{precision}) => &ShaderBinary{{bytes:include_bytes!({:?}),workgroup:[{},{},{}],bindings:&[{}],specialization:&[{specialization}]}},\n",
-                file.display().to_string(),
+                "(KernelId::{id},{precision}) => &ShaderBinary{{bytes:include_bytes!({:?}),decoded_length:{},workgroup:[{},{},{}],bindings:&[{}],specialization:&[{specialization}]}},\n",
+                compressed.display().to_string(),
+                bytes.len(),
                 wg[0],
                 wg[1],
                 wg[2],
                 bindings.join(",")
             );
+            fixtures += &format!(
+                "(binary(KernelKey{{id:KernelId::{id},precision:{precision}}}),include_bytes!({:?})),\n",
+                file.display().to_string()
+            );
         }
     }
     generated +=
         "_ => unreachable!(\"kernel precision was validated before catalog lookup\"),\n }\n}\n";
+    generated += &(fixtures + "] }\n");
     fs::write(out.join("vulkan_shaders.rs"), generated).unwrap();
 }
 

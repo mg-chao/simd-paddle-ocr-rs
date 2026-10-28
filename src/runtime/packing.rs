@@ -25,6 +25,7 @@ pub(crate) struct WeightCache {
     matrices: Mutex<HashMap<(TensorId, MatrixPacking), Arc<PackedMatrix>>>,
     transposes: Mutex<HashMap<TensorId, Arc<[PackedMatrix; 4]>>>,
 }
+
 impl WeightCache {
     pub(crate) fn matrix<E>(
         &self,
@@ -110,15 +111,94 @@ pub(crate) struct PackedMatrix {
 impl PackedMatrix {
     /// Pack row-major `[inner][columns]` as `[column_block][inner][16]`.
     pub(crate) fn new(weights: &[f32], inner: usize, columns: usize) -> Result<Self, &'static str> {
+        if inner.checked_mul(columns) != Some(weights.len()) {
+            return Err("packed matrix coefficient length differs from dimensions");
+        }
+        let mut packed = Self::allocate(inner, columns)?;
+        for (block, panel) in packed
+            .values
+            .chunks_exact_mut(inner * MATRIX_BLOCK_COLUMNS)
+            .enumerate()
+        {
+            let first = block * MATRIX_BLOCK_COLUMNS;
+            let count = (columns - first).min(MATRIX_BLOCK_COLUMNS);
+            for (k, row) in panel
+                .as_chunks_mut::<MATRIX_BLOCK_COLUMNS>()
+                .0
+                .iter_mut()
+                .enumerate()
+            {
+                row[..count]
+                    .copy_from_slice(&weights[k * columns + first..k * columns + first + count]);
+            }
+        }
+        Ok(packed)
+    }
+
+    /// Pack convolution `[output][inner]` directly, without a transposed matrix.
+    pub(crate) fn from_columns(
+        weights: &[f32],
+        inner: usize,
+        columns: usize,
+    ) -> Result<Self, &'static str> {
+        if inner.checked_mul(columns) != Some(weights.len()) {
+            return Err("packed matrix coefficient length differs from dimensions");
+        }
+        Self::from_fn(inner, columns, |k, column| weights[column * inner + k])
+    }
+
+    /// Pack one tap from `[inner][output][tap]` without extracting a temporary matrix.
+    pub(crate) fn from_tap(
+        weights: &[f32],
+        inner: usize,
+        columns: usize,
+        taps: usize,
+        tap: usize,
+    ) -> Result<Self, &'static str> {
+        if tap >= taps
+            || inner.checked_mul(columns).and_then(|n| n.checked_mul(taps)) != Some(weights.len())
+        {
+            return Err("packed tap coefficient length differs from dimensions");
+        }
+        Self::from_fn(inner, columns, |k, column| {
+            weights[(k * columns + column) * taps + tap]
+        })
+    }
+
+    fn from_fn(
+        inner: usize,
+        columns: usize,
+        value: impl Fn(usize, usize) -> f32,
+    ) -> Result<Self, &'static str> {
+        let mut packed = Self::allocate(inner, columns)?;
+        for (block, panel) in packed
+            .values
+            .chunks_exact_mut(inner * MATRIX_BLOCK_COLUMNS)
+            .enumerate()
+        {
+            let first = block * MATRIX_BLOCK_COLUMNS;
+            let count = (columns - first).min(MATRIX_BLOCK_COLUMNS);
+            for (k, row) in panel
+                .as_chunks_mut::<MATRIX_BLOCK_COLUMNS>()
+                .0
+                .iter_mut()
+                .enumerate()
+            {
+                for (lane, destination) in row[..count].iter_mut().enumerate() {
+                    *destination = value(k, first + lane);
+                }
+            }
+        }
+        Ok(packed)
+    }
+
+    fn allocate(inner: usize, columns: usize) -> Result<Self, &'static str> {
         if inner == 0 || columns == 0 {
             return Err("packed matrix dimensions must be positive");
         }
-        let original = inner
+        inner
             .checked_mul(columns)
             .ok_or("packed matrix size overflow")?;
-        if weights.len() != original {
-            return Err("packed matrix coefficient length differs from dimensions");
-        }
         let blocks = columns.div_ceil(MATRIX_BLOCK_COLUMNS);
         let padded_columns = blocks
             .checked_mul(MATRIX_BLOCK_COLUMNS)
@@ -135,15 +215,6 @@ impl PackedMatrix {
             .try_reserve_exact(length)
             .map_err(|_| "packed matrix allocation failed")?;
         values.resize(length, 0.0);
-        for block in 0..blocks {
-            let first = block * MATRIX_BLOCK_COLUMNS;
-            let count = (columns - first).min(MATRIX_BLOCK_COLUMNS);
-            for k in 0..inner {
-                let destination = (block * inner + k) * MATRIX_BLOCK_COLUMNS;
-                values[destination..destination + count]
-                    .copy_from_slice(&weights[k * columns + first..k * columns + first + count]);
-            }
-        }
         Ok(Self {
             info: PackedMatrixInfo {
                 version: PACKED_MATRIX_VERSION,
@@ -178,6 +249,55 @@ impl PackedMatrix {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn direct_packs_match_reference_bits_including_padding() {
+        for inner in [1, 3, 17, 65] {
+            for columns in [1, 7, 16, 19, 33] {
+                let weights: Vec<_> = (0..inner * columns)
+                    .map(|i| f32::from_bits((i as u32).wrapping_mul(0x9e3779b9)))
+                    .collect();
+                let transposed: Vec<_> = (0..inner)
+                    .flat_map(|k| {
+                        (0..columns).map({
+                            let weights = &weights;
+                            move |c| weights[c * inner + k]
+                        })
+                    })
+                    .collect();
+                let expected = PackedMatrix::new(&transposed, inner, columns).unwrap();
+                let actual = PackedMatrix::from_columns(&weights, inner, columns).unwrap();
+                assert_eq!(
+                    actual
+                        .data()
+                        .iter()
+                        .map(|v| v.to_bits())
+                        .collect::<Vec<_>>(),
+                    expected
+                        .data()
+                        .iter()
+                        .map(|v| v.to_bits())
+                        .collect::<Vec<_>>()
+                );
+                let taps: Vec<_> = (0..inner * columns * 4).map(|i| i as f32 - 31.).collect();
+                for tap in 0..4 {
+                    let extracted: Vec<_> = taps.iter().skip(tap).step_by(4).copied().collect();
+                    assert_eq!(
+                        PackedMatrix::from_tap(&taps, inner, columns, 4, tap)
+                            .unwrap()
+                            .data(),
+                        PackedMatrix::new(&extracted, inner, columns)
+                            .unwrap()
+                            .data()
+                    );
+                }
+            }
+        }
+        assert!(PackedMatrix::from_columns(&[], 0, 2).is_err());
+        assert!(PackedMatrix::from_columns(&[1.], usize::MAX, 2).is_err());
+        assert!(PackedMatrix::from_tap(&[1.; 4], 1, 1, 4, 4).is_err());
+        assert!(PackedMatrix::from_tap(&[1.; 3], 1, 1, 4, 0).is_err());
+    }
 
     #[test]
     fn cache_failures_are_not_published_and_formats_are_distinct() {

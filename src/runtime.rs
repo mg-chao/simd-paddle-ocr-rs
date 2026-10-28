@@ -484,14 +484,7 @@ impl CpuCompiledModel {
                         || {
                             let columns = dims[0];
                             let inner = weight.data().len() / columns;
-                            let mut transposed = allocate_buffer(weight.data().len())?;
-                            for k in 0..inner {
-                                for column in 0..columns {
-                                    transposed[k * columns + column] =
-                                        weight.data()[column * inner + k];
-                                }
-                            }
-                            PackedMatrix::new(&transposed, inner, columns)
+                            PackedMatrix::from_columns(weight.data(), inner, columns)
                                 .map_err(RuntimeError::new)
                         },
                     )?;
@@ -505,11 +498,8 @@ impl CpuCompiledModel {
                 {
                     let (inner, columns) = (dims[0], dims[1]);
                     let pack_tap = |tap: usize| -> RuntimeResult<PackedMatrix> {
-                        let mut matrix = allocate_buffer(weight.data().len() / 4)?;
-                        for (i, value) in matrix.iter_mut().enumerate() {
-                            *value = weight.data()[i * 4 + tap];
-                        }
-                        PackedMatrix::new(&matrix, inner, columns).map_err(RuntimeError::new)
+                        PackedMatrix::from_tap(weight.data(), inner, columns, 4, tap)
+                            .map_err(RuntimeError::new)
                     };
                     let pack = self.packed_cache.transpose::<RuntimeError>(id, || {
                         Ok([pack_tap(0)?, pack_tap(1)?, pack_tap(2)?, pack_tap(3)?])

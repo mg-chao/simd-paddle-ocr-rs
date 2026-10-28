@@ -107,6 +107,55 @@ struct WireReader<R> {
     ends: Vec<u64>,
     limits: LoadLimits,
 }
+
+// Decode the usual type-before-payload order directly into its final allocation.
+// Keep the byte fallback for legal protobuf field reordering and repeated types.
+enum TensorPayload {
+    Bytes(Vec<u8>),
+    F32(Vec<f32>),
+    I32(Vec<i32>),
+    I64(Vec<i64>),
+}
+impl TensorPayload {
+    fn into_tensor(self, dtype: DType, shape: Shape) -> Result<TensorData> {
+        match (dtype, self) {
+            (DType::F32, Self::F32(v)) => Ok(TensorData::F32(Tensor::from_vec(shape, v)?)),
+            (DType::I32, Self::I32(v)) => Ok(TensorData::I32(Tensor::from_vec(shape, v)?)),
+            (DType::I64, Self::I64(v)) => Ok(TensorData::I64(Tensor::from_vec(shape, v)?)),
+            (_, Self::Bytes(v)) => Ok(TensorData::from_raw(dtype, shape, v)?),
+            (_, values) => {
+                fn encode<T, const N: usize>(
+                    values: Vec<T>,
+                    bytes: impl Fn(T) -> [u8; N],
+                ) -> Result<Vec<u8>> {
+                    let mut result = Vec::new();
+                    let length = values
+                        .len()
+                        .checked_mul(N)
+                        .ok_or_else(|| ImportError::new("tensor payload overflow"))?;
+                    result.try_reserve_exact(length).map_err(|e| {
+                        ImportError::caused_by(
+                            crate::error::ErrorKind::Allocation,
+                            "tensor payload",
+                            e,
+                        )
+                    })?;
+                    for value in values {
+                        result.extend_from_slice(&bytes(value));
+                    }
+                    Ok(result)
+                }
+                let bytes = match values {
+                    Self::F32(v) => encode(v, f32::to_le_bytes)?,
+                    Self::I32(v) => encode(v, i32::to_le_bytes)?,
+                    Self::I64(v) => encode(v, i64::to_le_bytes)?,
+                    Self::Bytes(_) => unreachable!(),
+                };
+                Ok(TensorData::from_raw(dtype, shape, bytes)?)
+            }
+        }
+    }
+}
 impl<R: BufRead> WireReader<R> {
     fn new(input: R, limits: LoadLimits) -> Result<Self> {
         if limits.max_input_bytes == 0
@@ -241,6 +290,9 @@ impl<R: BufRead> WireReader<R> {
         let length = self.varint()?;
         self.check_count(length)?;
         let length = usize::try_from(length).map_err(|_| self.error("length exceeds usize"))?;
+        self.bytes_count(length)
+    }
+    fn bytes_count(&mut self, length: usize) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
         // Allocate only for bytes actually available from the reader. A forged
         // long length on a truncated stream must not trigger a large allocation.
@@ -265,6 +317,56 @@ impl<R: BufRead> WireReader<R> {
             self.position += count as u64;
         }
         Ok(bytes)
+    }
+    fn tensor_payload(&mut self, dtype: i64) -> Result<TensorPayload> {
+        let length = self.varint()?;
+        self.check_count(length)?;
+        let length = usize::try_from(length).map_err(|_| self.error("length exceeds usize"))?;
+        Ok(match dtype {
+            1 if length.is_multiple_of(4) => {
+                TensorPayload::F32(self.numeric_payload(length, f32::from_le_bytes)?)
+            }
+            6 if length.is_multiple_of(4) => {
+                TensorPayload::I32(self.numeric_payload(length, i32::from_le_bytes)?)
+            }
+            7 if length.is_multiple_of(8) => {
+                TensorPayload::I64(self.numeric_payload(length, i64::from_le_bytes)?)
+            }
+            _ => TensorPayload::Bytes(self.bytes_count(length)?),
+        })
+    }
+    fn numeric_payload<T, const N: usize>(
+        &mut self,
+        mut remaining: usize,
+        convert: impl Fn([u8; N]) -> T,
+    ) -> Result<Vec<T>> {
+        let mut values = Vec::new();
+        while remaining != 0 {
+            let input = self.input.fill_buf()?;
+            let count = (input.len().min(remaining) / N) * N;
+            // Reserve only for bytes actually available, never a declared length.
+            if count != 0 {
+                values.try_reserve(count / N).map_err(|e| {
+                    ImportError::caused_by(crate::error::ErrorKind::Allocation, "tensor payload", e)
+                })?;
+                values.extend(
+                    input[..count]
+                        .as_chunks::<N>()
+                        .0
+                        .iter()
+                        .map(|bytes| convert(*bytes)),
+                );
+                self.input.consume(count);
+                self.position += count as u64;
+                remaining -= count;
+            } else {
+                let mut bytes = [0; N];
+                self.read_into(&mut bytes)?;
+                push(&mut values, convert(bytes))?;
+                remaining -= N;
+            }
+        }
+        Ok(values)
     }
     fn string(&mut self) -> Result<String> {
         String::from_utf8(self.bytes()?).map_err(|error| {
@@ -584,7 +686,7 @@ fn parse_tensor<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawTensor> {
             (8, 2) => name = reader.string()?,
             (9, 2) => {
                 payload_families |= 8;
-                raw = Some(reader.bytes()?);
+                raw = Some(reader.tensor_payload(data_type)?);
             }
             (13, _) => return Err(reader.error("external tensor data is unsupported")),
             (14, 0) => {
@@ -623,7 +725,7 @@ fn parse_tensor<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawTensor> {
         return Err(reader.error(format!("tensor {name} payload family does not match dtype")));
     }
     let data = if let Some(bytes) = raw {
-        TensorData::from_raw(dtype, shape, bytes)?
+        bytes.into_tensor(dtype, shape)?
     } else {
         match dtype {
             DType::F32 if integers32.is_empty() && integers64.is_empty() => {
@@ -809,6 +911,49 @@ mod tests {
         }
         let parsed = read(&model(bytes(5, &tensor(1, &[0], vec![])))).unwrap();
         assert!(parsed.graph.initializers[0].data.is_empty());
+    }
+
+    #[test]
+    fn direct_tensor_payload_preserves_bits_and_stream_boundaries() {
+        let bits = [
+            0x80000000u32,
+            0x7fc01234,
+            0x7f800000,
+            0x00000001,
+            0x3f800000,
+        ];
+        let payload: Vec<_> = bits.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let wire = model(bytes(
+            5,
+            &tensor(1, &[bits.len() as i64], bytes(9, &payload)),
+        ));
+        for capacity in [1, 3, 4, 7, 8, 19, 65536] {
+            let parsed = parse(
+                BufReader::with_capacity(capacity, Cursor::new(&wire)),
+                &LoadLimits::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                parsed.graph.initializers[0]
+                    .data
+                    .as_f32()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.to_bits())
+                    .collect::<Vec<_>>(),
+                bits
+            );
+        }
+        for end in 0..wire.len() {
+            assert!(read(&wire[..end]).is_err());
+        }
+        // Protobuf permits a later type field to replace the earlier value.
+        let repeated = [tensor(7, &[2], bytes(9, &payload[..8])), int(2, 1)].concat();
+        let parsed = read(&model(bytes(5, &repeated))).unwrap();
+        assert_eq!(
+            parsed.graph.initializers[0].data.as_f32().unwrap()[0].to_bits(),
+            bits[0]
+        );
     }
     #[test]
     fn packed_unpacked_signed_and_range() {
