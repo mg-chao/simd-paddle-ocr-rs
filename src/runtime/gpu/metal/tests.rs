@@ -2,6 +2,76 @@ use super::super::resident::Batch;
 use super::*;
 
 #[test]
+#[ignore = "requires physical Apple Silicon; production shader resource inventory"]
+fn gpu_metal_production_library_excludes_test_kernels() {
+    let context = GpuContext::new().unwrap();
+    let owner = &context.backend.owner;
+    for (library, test) in [
+        (owner.library().unwrap(), false),
+        (owner.test_library().unwrap(), true),
+    ] {
+        let mut names = library
+            .functionNames()
+            .iter()
+            .map(|name| name.to_string())
+            .collect::<Vec<_>>();
+        names.sort();
+        let mut expected = SHADER_LIBRARY_INVENTORY
+            .iter()
+            .filter(|(_, probe, _)| *probe == test)
+            .map(|(name, _, _)| *name)
+            .collect::<Vec<_>>();
+        expected.sort();
+        assert_eq!(names, expected);
+    }
+    let script: serde_json::Value =
+        serde_json::from_str(include_str!(concat!(env!("OUT_DIR"), "/ocr.mtlp-json"))).unwrap();
+    let mut native = script["pipelines"]["compute_pipelines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|pipeline| {
+            pipeline["compute_function"]
+                .as_str()
+                .unwrap()
+                .strip_prefix("alias:OCR#")
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    native.sort();
+    let mut expected = SHADER_LIBRARY_INVENTORY
+        .iter()
+        .filter(|(_, _, native)| *native)
+        .map(|(name, _, _)| *name)
+        .collect::<Vec<_>>();
+    expected.sort();
+    assert_eq!(native, expected);
+    assert_eq!(
+        SHADER_LIBRARY_INVENTORY
+            .iter()
+            .filter(|(_, test, _)| *test)
+            .map(|(name, _, _)| *name)
+            .collect::<Vec<_>>(),
+        [
+            "ocr_CounterProbe_0",
+            "ocr_RoundHalfProbe_0",
+            "ocr_HalfStoreProbe_0",
+            "ocr_HalfStoreProbe_32",
+        ]
+    );
+    for (id, precision) in [
+        (KernelId::CounterProbe, 0),
+        (KernelId::RoundHalfProbe, 0),
+        (KernelId::HalfStoreProbe, 0),
+        (KernelId::HalfStoreProbe, 32),
+    ] {
+        compile(&context, KernelKey { id, precision }).unwrap();
+    }
+    assert_eq!(owner.archive_hits.load(Ordering::Relaxed), 0);
+    assert_eq!(owner.archive_misses.load(Ordering::Relaxed), 4);
+}
+
+#[test]
 #[ignore = "requires physical Apple9 GPU; bundled pipeline archive coverage"]
 fn gpu_metal_native_archive_hit() {
     let context = GpuContext::new().unwrap();
@@ -12,12 +82,12 @@ fn gpu_metal_native_archive_hit() {
             .raw
             .supportsFamily(MTLGPUFamily::Apple9)
     );
-    for id in [KernelId::General, KernelId::Conv16, KernelId::CounterProbe] {
+    for id in [KernelId::General, KernelId::Conv16] {
         compile(&context, KernelKey::new(id)).unwrap();
     }
     assert_eq!(
         context.backend.owner.archive_hits.load(Ordering::Relaxed),
-        3
+        2
     );
     assert_eq!(
         context.backend.owner.archive_misses.load(Ordering::Relaxed),

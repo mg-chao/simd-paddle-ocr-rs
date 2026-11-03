@@ -25,6 +25,8 @@ struct Shader {
     threads: u32,
     reads: &'static [bool],
     packet: usize,
+    #[cfg(test)]
+    test: bool,
 }
 include!(concat!(env!("OUT_DIR"), "/metal_catalog.rs"));
 
@@ -32,6 +34,8 @@ pub(super) struct Device {
     raw: Retained<ProtocolObject<dyn MTLDevice>>,
     queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     library: OnceLock<RuntimeResult<Retained<ProtocolObject<dyn MTLLibrary>>>>,
+    #[cfg(test)]
+    test_library: OnceLock<RuntimeResult<Retained<ProtocolObject<dyn MTLLibrary>>>>,
     archive: OnceLock<Option<Archive>>,
     archive_hits: AtomicUsize,
     archive_misses: AtomicUsize,
@@ -60,21 +64,51 @@ impl Device {
     fn library(&self) -> RuntimeResult<&ProtocolObject<dyn MTLLibrary>> {
         self.library
             .get_or_init(|| {
-                let bytes = embedded_resource(
+                self.load_library(
                     include_bytes!(concat!(env!("OUT_DIR"), "/ocr.metallib.deflate")),
                     env!("SIMD_OCR_METAL_IR_BYTES"),
-                )?;
-                let data = DispatchData::from_bytes(&bytes);
-                self.raw.newLibraryWithData_error(&data).map_err(|e| {
-                    RuntimeError::with_kind(
-                        ErrorKind::GpuValidation,
-                        format!("load embedded Metal library: {e}"),
-                    )
-                })
+                )
             })
             .as_ref()
             .map(|x| &**x)
             .map_err(Clone::clone)
+    }
+
+    #[cfg(test)]
+    fn test_library(&self) -> RuntimeResult<&ProtocolObject<dyn MTLLibrary>> {
+        self.test_library
+            .get_or_init(|| {
+                self.load_library(
+                    include_bytes!(concat!(env!("OUT_DIR"), "/ocr.tests.metallib.deflate")),
+                    env!("SIMD_OCR_METAL_TEST_IR_BYTES"),
+                )
+            })
+            .as_ref()
+            .map(|x| &**x)
+            .map_err(Clone::clone)
+    }
+
+    fn shader_library(&self, _spec: &Shader) -> RuntimeResult<&ProtocolObject<dyn MTLLibrary>> {
+        #[cfg(test)]
+        if _spec.test {
+            return self.test_library();
+        }
+        self.library()
+    }
+
+    fn load_library(
+        &self,
+        bytes: &[u8],
+        expected: &str,
+    ) -> RuntimeResult<Retained<ProtocolObject<dyn MTLLibrary>>> {
+        let bytes = embedded_resource(bytes, expected)?;
+        let data = DispatchData::from_bytes(&bytes);
+        self.raw.newLibraryWithData_error(&data).map_err(|e| {
+            RuntimeError::with_kind(
+                ErrorKind::GpuValidation,
+                format!("load embedded Metal library: {e}"),
+            )
+        })
     }
 }
 
@@ -188,6 +222,8 @@ impl Context {
                 failure,
                 available,
                 library: OnceLock::new(),
+                #[cfg(test)]
+                test_library: OnceLock::new(),
                 archive: OnceLock::new(),
                 archive_hits: AtomicUsize::new(0),
                 archive_misses: AtomicUsize::new(0),
@@ -424,7 +460,7 @@ pub(super) fn compile(context: &GpuContext, key: KernelKey) -> RuntimeResult<Arc
         let spec = shader(key)?;
         let device = &context.backend.owner;
         let function = device
-            .library()?
+            .shader_library(&spec)?
             .newFunctionWithName(&NSString::from_str(&spec.name))
             .ok_or_else(|| {
                 RuntimeError::with_kind(

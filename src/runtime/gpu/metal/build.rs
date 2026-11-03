@@ -43,24 +43,39 @@ pub fn build() {
         .ok()
         .as_deref()
         != Some(fingerprint.as_str());
-    let mut objects = Vec::new();
-    let mut changed = compiler_changed;
+    // Cargo shares build-script outputs between ordinary builds and unit tests.
+    // Keep probes in a separate IR library that only cfg(test) code embeds.
+    let libraries = [out.join("ocr.metallib"), out.join("ocr.tests.metallib")];
+    let inventory_paths = [
+        out.join("metal-objects.txt"),
+        out.join("metal-test-objects.txt"),
+    ];
+    let mut objects = [Vec::new(), Vec::new()];
+    let mut changed = [compiler_changed; 2];
     // Relinking also depends on the ordered set of objects. Removing a catalog
     // entry can leave every surviving shader unchanged; the old library must
     // not retain that removed entry (or its embedded resource footprint).
-    let inventory = catalog::ENTRIES
-        .iter()
-        .map(|entry| entry.id)
-        .collect::<Vec<_>>()
-        .join("\n");
-    let inventory_path = out.join("metal-objects.txt");
-    changed |= fs::read_to_string(&inventory_path).ok().as_deref() != Some(inventory.as_str())
-        || !out.join("ocr.metallib").exists();
+    let inventories = [false, true].map(|test| {
+        catalog::ENTRIES
+            .iter()
+            .filter(|entry| entry.test == test)
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    for index in 0..libraries.len() {
+        changed[index] |= fs::read_to_string(&inventory_paths[index]).ok().as_deref()
+            != Some(inventories[index].as_str())
+            || !libraries[index].exists();
+    }
     let mut native_pipelines = Vec::new();
     let mut generated = String::from(
-        "// Generated from the native Metal catalog.\nfn shader(key: KernelKey) -> RuntimeResult<Shader> {\nlet (name, threads, reads, packet) = match key.id {\n",
+        "// Generated from the native Metal catalog.\nfn shader(key: KernelKey) -> RuntimeResult<Shader> {\nlet (name, threads, reads, packet, _test) = match key.id {\n",
     );
+    let mut fixtures =
+        String::from("#[cfg(test)] const SHADER_LIBRARY_INVENTORY: &[(&str, bool, bool)] = &[\n");
     for entry in catalog::ENTRIES {
+        let index = usize::from(entry.test);
         let source = catalog::source(entry);
         let math_mode = if entry.neural {
             "-fmetal-math-mode=relaxed"
@@ -73,7 +88,7 @@ pub fn build() {
             || fs::read_to_string(&input).ok().as_deref() != Some(source.as_str())
             || !object.exists()
         {
-            changed = true;
+            changed[index] = true;
             fs::write(&input, source).unwrap();
             run(tool("metal")
                 .args([
@@ -86,12 +101,19 @@ pub fn build() {
                 .arg("-o")
                 .arg(&object));
         }
-        objects.push(object);
+        objects[index].push(object);
         for precision in 0..64u8 {
+            let native = !entry.test && (precision == 0 || precision == entry.mask);
+            if precision & !entry.mask == 0 {
+                fixtures.push_str(&format!(
+                    "(\"ocr_{}_{}\", {}, {}),\n",
+                    entry.id, precision, entry.test, native
+                ));
+            }
             // Ship native binaries for the two homogeneous storage families.
             // All mixed binding signatures remain in portable IR and compile
             // on demand. This keeps the common startup archive compact.
-            if precision == 0 || precision == entry.mask {
+            if native {
                 // Match the runtime MTLComputePipelineDescriptor defaults
                 // explicitly; translator defaults can differ across SDKs.
                 native_pipelines.push(serde_json::json!({
@@ -111,22 +133,26 @@ pub fn build() {
             generated.push_str("#[cfg(test)]\n");
         }
         generated.push_str(&format!(
-            "KernelId::{} => (\"{}\", {}, &{:?}[..], {}),\n",
+            "KernelId::{} => (\"{}\", {}, &{:?}[..], {}, {}),\n",
             entry.id,
             entry.id,
             entry.threads,
             entry.reads,
-            if entry.neural { 512 } else { 1024 }
+            if entry.neural { 512 } else { 1024 },
+            entry.test
         ));
     }
-    generated.push_str("};\nif key.precision & !key.id.precision_mask() != 0 { return Err(resource(\"invalid Metal precision signature\")); }\nOk(Shader { name: format!(\"ocr_{}_{}\", name, key.precision), threads, reads, packet })\n}\n");
+    generated.push_str("};\nif key.precision & !key.id.precision_mask() != 0 { return Err(resource(\"invalid Metal precision signature\")); }\nOk(Shader { name: format!(\"ocr_{}_{}\", name, key.precision), threads, reads, packet, #[cfg(test)] test: _test })\n}\n");
+    generated.push_str(&(fixtures + "];\n"));
     fs::write(out.join("metal_catalog.rs"), generated).unwrap();
-    if changed {
-        run(tool("metallib")
-            .args(&objects)
-            .arg("-o")
-            .arg(out.join("ocr.metallib")));
-        fs::write(inventory_path, inventory).unwrap();
+    for index in 0..libraries.len() {
+        if changed[index] {
+            run(tool("metallib")
+                .args(&objects[index])
+                .arg("-o")
+                .arg(&libraries[index]));
+            fs::write(&inventory_paths[index], &inventories[index]).unwrap();
+        }
     }
     let script = serde_json::to_string(&serde_json::json!({
         "libraries":{"paths":[{"label":"OCR", "path":out.join("ocr.metallib")}]},
@@ -151,7 +177,7 @@ pub fn build() {
     let native_target = format!("air64-apple-macos{sdk_major}.0");
     let native_fingerprint = format!("{native_target};applegpu_g16g;reflection-v1");
     println!("cargo:rustc-env=SIMD_OCR_METAL_ARCHIVE_OS={sdk_major}");
-    if changed
+    if changed[0]
         || fs::read_to_string(out.join("native-target.txt"))
             .ok()
             .as_deref()
@@ -181,6 +207,7 @@ pub fn build() {
     // This reduces executable IO and first-launch code-signature validation.
     for (name, variable) in [
         ("ocr.metallib", "SIMD_OCR_METAL_IR_BYTES"),
+        ("ocr.tests.metallib", "SIMD_OCR_METAL_TEST_IR_BYTES"),
         ("ocr.binary.metallib", "SIMD_OCR_METAL_BINARY_BYTES"),
     ] {
         let input = out.join(name);
