@@ -38,7 +38,7 @@ impl Default for DetectorOptions {
             use_dilation: false,
             bitmap_threshold: 0.2,
             box_threshold: None,
-            unclip_ratio: 1.4,
+            unclip_ratio: 1.6,
             max_image_pixels: 40_000_000,
         }
     }

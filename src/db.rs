@@ -962,6 +962,44 @@ fn down_heap<T: Copy, F: Fn(&T, &T) -> Ordering>(a: &mut [T], mut i: usize, n: u
 mod tests {
     use super::*;
     #[test]
+    fn default_unclip_preserves_recognition_mask_and_expands_text_coverage() {
+        let (width, height) = (160, 64);
+        let mut prediction = vec![0.; width * height];
+        for y in 26..37 {
+            prediction[y * width + 20..y * width + 141].fill(0.9);
+        }
+        let source = DetSourceGeometry::new(width, height).unwrap();
+        let options = DetectorOptions {
+            box_threshold: Some(0.45),
+            ..Default::default()
+        };
+        let mut actual = Workspace::default();
+        run(&prediction, width, height, &options, source, &mut actual).unwrap();
+        let mut previous = Workspace::default();
+        run(
+            &prediction,
+            width,
+            height,
+            &DetectorOptions {
+                unclip_ratio: 1.4,
+                ..options
+            },
+            source,
+            &mut previous,
+        )
+        .unwrap();
+        assert_eq!(options.unclip_ratio, 1.6);
+        assert_eq!(actual.boxes.len(), 1);
+        assert_eq!(previous.boxes.len(), 1);
+        assert_eq!(actual.bitmap, previous.bitmap);
+        let a = actual.boxes[0];
+        let b = previous.boxes[0];
+        assert_eq!(a.score, b.score);
+        assert!(a.points[0][1] < b.points[0][1]);
+        assert!(a.points[3][1] > b.points[3][1]);
+    }
+
+    #[test]
     fn bad_maps_are_errors_and_reused_workspace_can_recover() {
         let mut s = Workspace::default();
         let o = DetectorOptions {
