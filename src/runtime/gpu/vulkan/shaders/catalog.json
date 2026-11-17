@@ -1,5 +1,18 @@
 [
   {
+    "name": "paragraph_graph",
+    "precision_mask": 0,
+    "bindings": [
+      { "slot": 0, "uniform": false, "read": true, "minimum": 4 },
+      { "slot": 1, "uniform": false, "read": true, "minimum": 4 },
+      { "slot": 2, "uniform": false, "read": true, "minimum": 4 },
+      { "slot": 3, "uniform": false, "read": true, "minimum": 4 },
+      { "slot": 4, "uniform": false, "read": false, "minimum": 4 },
+      { "slot": 5, "uniform": true, "read": false, "minimum": 1024 }
+    ],
+    "workgroup": [64, 1, 1]
+  },
+  {
     "name": "attention",
     "neural": true,
     "precision_mask": 47,

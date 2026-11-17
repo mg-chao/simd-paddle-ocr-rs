@@ -20,6 +20,8 @@ pub mod model;
 pub mod ocr;
 pub mod onnx;
 pub mod orientation;
+#[cfg(feature = "paragraph")]
+pub mod paragraph;
 mod pixel_kernels;
 pub mod preprocess;
 mod profile;
@@ -40,6 +42,8 @@ pub use runtime::{CompiledModel, ExecutionBackend, ExecutionConfig, ExecutionTar
 
 pub use error::OcrStage;
 pub use ocr::{OcrExecution, OcrPlan, OcrRequest, RunOptions, RunStatistics};
+#[cfg(feature = "paragraph")]
+pub use paragraph::{ParagraphPlan, ParagraphProfile, ParagraphRequest};
 pub use runtime::{
     CompileOptions, Compiler, CompilerOptions, CpuCompileOptions, ExecutionCounters, MemorySnapshot,
 };

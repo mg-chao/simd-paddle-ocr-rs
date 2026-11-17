@@ -370,6 +370,8 @@ mod tests {
             detector_resized_height: 64,
             width_ratio: 1.0,
             height_ratio: 1.0,
+            #[cfg(feature = "paragraph")]
+            paragraphs: None,
             lines: vec![OwnedOcrLine {
                 detection: DetectionBox {
                     points: [[0., 0.], [32., 0.], [32., 16.], [0., 16.]],

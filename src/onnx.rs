@@ -505,6 +505,196 @@ pub fn parse<R: BufRead>(input: R, limits: &LoadLimits) -> Result<RawModel> {
         source_bytes: reader.position,
     })
 }
+
+/// Read the weights branch from the exact B-Scale export. The regular importer
+/// still rejects graphs embedded in attributes.
+#[cfg(feature = "paragraph")]
+pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<RawGraph> {
+    let mut reader = WireReader::new(
+        input,
+        LoadLimits {
+            max_input_bytes: 8 << 20,
+            max_graph_nodes: 512,
+            ..LoadLimits::default()
+        },
+    )?;
+    let mut model_graph = None;
+    let mut metadata = BTreeMap::new();
+    let mut opset = None;
+    while let Some((field, wire)) = reader.tag()? {
+        match (field, wire) {
+            (7, 2) => {
+                if model_graph.is_some() {
+                    return Err(reader.error("multiple ModelProto graphs"));
+                }
+                let end = reader.enter()?;
+                model_graph = Some(parse_b_scale_graph(&mut reader)?);
+                reader.leave(end)?;
+            }
+            (8, 2) => {
+                let end = reader.enter()?;
+                let mut domain = String::new();
+                let mut version = None;
+                while let Some((field, wire)) = reader.tag()? {
+                    match (field, wire) {
+                        (1, 2) => domain = reader.string()?,
+                        (2, 0) => version = Some(reader.varint()?),
+                        _ => reader.skip(wire)?,
+                    }
+                }
+                reader.leave(end)?;
+                if !matches!(domain.as_str(), "" | "ai.onnx")
+                    || opset.is_some()
+                    || version != Some(17)
+                {
+                    return Err(reader.error("B-Scale requires ONNX opset 17"));
+                }
+                opset = version;
+            }
+            (14, 2) => {
+                let end = reader.enter()?;
+                let (mut key, mut value) = (String::new(), String::new());
+                while let Some((field, wire)) = reader.tag()? {
+                    match (field, wire) {
+                        (1, 2) => key = reader.string()?,
+                        (2, 2) => value = reader.string()?,
+                        _ => reader.skip(wire)?,
+                    }
+                }
+                reader.leave(end)?;
+                if metadata.insert(key, value).is_some() {
+                    return Err(reader.error("duplicate B-Scale metadata key"));
+                }
+            }
+            _ => reader.skip(wire)?,
+        }
+    }
+    for (key, expected) in [
+        ("checkpoint_epoch", "15"),
+        ("checkpoint_seed", "2026"),
+        ("checkpoint_estimator", "ema"),
+        (
+            "checkpoint_sha256",
+            "be0e5ee02b0943936d3606d7a5a728b131e9952f68d3eb7578ab809172e80d69",
+        ),
+        ("feature_version", "evidence-v1"),
+        ("candidate_graph", "legacy-v1"),
+        ("neighborhood_version", "b-neighborhood-v1"),
+        ("layout_version", "layout-neighborhood-v1"),
+        ("page_scale_version", "branch-median-short-side-v1"),
+        ("style_version", "style-fast-colors-stroke-v2"),
+        (
+            "partition_policy",
+            r#"{"decoder": "evidence", "threshold": -1.0, "veto": -3.0, "support": -0.65}"#,
+        ),
+    ] {
+        if metadata.get(key).map(String::as_str) != Some(expected) {
+            return Err(reader.error(format!("unsupported B-Scale metadata: {key}")));
+        }
+    }
+    if opset.is_none() {
+        return Err(reader.error("B-Scale model has no opset"));
+    }
+    model_graph.ok_or_else(|| reader.error("B-Scale model has no graph"))
+}
+
+#[cfg(feature = "paragraph")]
+fn parse_b_scale_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGraph> {
+    let (mut inputs, mut outputs) = (Vec::new(), Vec::new());
+    let mut branch = None;
+    let mut guard = Vec::new();
+    while let Some((field, wire)) = reader.tag()? {
+        match (field, wire) {
+            (1, 2) => {
+                let end = reader.enter()?;
+                let (mut op, mut domain) = (String::new(), String::new());
+                while let Some((field, wire)) = reader.tag()? {
+                    match (field, wire) {
+                        (4, 2) => op = reader.string()?,
+                        (7, 2) => domain = reader.string()?,
+                        (5, 2) => {
+                            let attribute = reader.enter()?;
+                            let mut name = String::new();
+                            let mut graph = None;
+                            while let Some((field, wire)) = reader.tag()? {
+                                match (field, wire) {
+                                    (1, 2) => name = reader.string()?,
+                                    (6, 2) => {
+                                        if graph.is_some() {
+                                            return Err(
+                                                reader.error("duplicate B-Scale graph attribute")
+                                            );
+                                        }
+                                        let end = reader.enter()?;
+                                        graph = Some(parse_graph(reader)?);
+                                        reader.leave(end)?;
+                                    }
+                                    _ => reader.skip(wire)?,
+                                }
+                            }
+                            reader.leave(attribute)?;
+                            if name == "then_branch" {
+                                let graph = graph.ok_or_else(|| {
+                                    reader.error("missing B-Scale then_branch graph")
+                                })?;
+                                if branch.replace(graph).is_some() {
+                                    return Err(reader.error("duplicate B-Scale then_branch"));
+                                }
+                            }
+                        }
+                        _ => reader.skip(wire)?,
+                    }
+                }
+                reader.leave(end)?;
+                if !domain.is_empty() || guard.len() == 4 || branch.is_some() != (op == "If") {
+                    return Err(reader.error("unexpected B-Scale guard graph"));
+                }
+                push(&mut guard, op)?;
+            }
+            (11 | 12, 2) => {
+                let end = reader.enter()?;
+                let info = parse_value_info(reader)?;
+                reader.leave(end)?;
+                push(
+                    if field == 11 {
+                        &mut inputs
+                    } else {
+                        &mut outputs
+                    },
+                    info,
+                )?;
+            }
+            _ => reader.skip(wire)?,
+        }
+    }
+    use Dim::{Known, Symbol};
+    let (n, e) = (Symbol("N".to_owned()), Symbol("E".to_owned()));
+    let signature = [
+        ("nodes", DType::F32, vec![n.clone(), Known(14)]),
+        ("pair_index", DType::I64, vec![Known(2), e.clone()]),
+        ("geometry", DType::F32, vec![e.clone(), Known(2), Known(12)]),
+        ("style", DType::F32, vec![e.clone(), Known(6)]),
+        ("layout", DType::F32, vec![e.clone(), Known(8)]),
+        ("appearance", DType::F32, vec![n.clone(), Known(10)]),
+        ("page_shape", DType::F32, vec![n, Known(2)]),
+    ];
+    if guard != ["Shape", "Gather", "Greater", "If"]
+        || inputs.len() != signature.len()
+        || inputs
+            .iter()
+            .zip(signature)
+            .any(|(i, (name, dtype, dims))| {
+                i.name != name || i.dtype != dtype || i.shape != ShapeSpec::Ranked(dims)
+            })
+        || outputs.len() != 1
+        || outputs[0].name != "logits"
+        || outputs[0].dtype != DType::F32
+        || outputs[0].shape != ShapeSpec::Ranked(vec![e])
+    {
+        return Err(reader.error("unexpected B-Scale ONNX interface"));
+    }
+    branch.ok_or_else(|| reader.error("B-Scale then_branch missing"))
+}
 fn parse_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGraph> {
     let mut graph = RawGraph::default();
     while let Some((field, wire)) = reader.tag()? {

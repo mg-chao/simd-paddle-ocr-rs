@@ -1,0 +1,59 @@
+#version 450 core
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(std430, set = 0, binding = 0) readonly buffer OperandA { float a[]; };
+layout(std430, set = 0, binding = 1) readonly buffer OperandB { float b[]; };
+layout(std430, set = 0, binding = 2) readonly buffer OperandC { float c[]; };
+layout(std430, set = 0, binding = 3) readonly buffer Indices { uint indices[]; };
+layout(std430, set = 0, binding = 4) buffer Output { float output_data[]; };
+layout(std140, set = 0, binding = 5) uniform Params { uvec4 words[64]; };
+
+shared float mass;
+
+void main() {
+    uint mode = words[0].x;
+    uint count = words[0].y;
+    uint stride = words[0].z;
+    if (mode == 1u) {
+        uint row = gl_WorkGroupID.x + gl_WorkGroupID.y * stride;
+        if (row >= count) return;
+        uint lane = gl_LocalInvocationIndex;
+        uint first = indices[words[0].w + row];
+        uint last = indices[words[0].w + row + 1u];
+        uint segment = words[1].x;
+        if (lane == 0u) {
+            float sum = 0.0;
+            for (uint i = first; i < last; ++i) sum += b[indices[segment + i]];
+            mass = max(sum, 1e-12);
+        }
+        barrier();
+        for (uint col = lane; col < 96u; col += 64u) {
+            float value = 0.0;
+            for (uint i = first; i < last; ++i) {
+                uint edge = indices[segment + i];
+                value += a[edge * 96u + col] * (b[edge] / mass);
+            }
+            output_data[row * 192u + col] = c[row * 96u + col];
+            output_data[row * 192u + col + 96u] = value;
+        }
+        return;
+    }
+    uint id = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * stride;
+    if (id >= count) return;
+    if (mode == 0u) {
+        uint row = id / 336u;
+        uint col = id % 336u;
+        if (col < 192u) {
+            uint endpoint = indices[2u * row + col / 96u];
+            output_data[id] = a[endpoint * 96u + col % 96u];
+        } else {
+            output_data[id] = b[row * 144u + col - 192u];
+        }
+    } else if (mode == 2u) {
+        float x = a[id];
+        output_data[id] = x >= 0.0 ? x : x * 0.2;
+    } else if (mode == 3u) {
+        output_data[id] = exp(clamp(a[id], -10.0, 10.0));
+    } else {
+        output_data[id] = (a[id] + a[id + count]) * 0.5;
+    }
+}

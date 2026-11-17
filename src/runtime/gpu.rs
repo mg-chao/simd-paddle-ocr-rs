@@ -37,6 +37,8 @@ mod fusions;
 pub(crate) mod heads;
 mod max_pool;
 mod operators;
+#[cfg(feature = "paragraph")]
+pub(crate) mod paragraph;
 mod physical;
 mod pipelines;
 mod profile;

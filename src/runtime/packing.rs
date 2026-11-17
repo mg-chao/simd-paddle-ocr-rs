@@ -165,7 +165,7 @@ impl PackedMatrix {
         })
     }
 
-    fn from_fn(
+    pub(crate) fn from_fn(
         inner: usize,
         columns: usize,
         value: impl Fn(usize, usize) -> f32,

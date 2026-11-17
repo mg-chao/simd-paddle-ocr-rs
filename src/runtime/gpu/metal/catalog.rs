@@ -148,6 +148,15 @@ pub const ENTRIES: &[Entry] = &[
         64,
         &[true, true, false]
     ),
+    #[cfg(feature = "paragraph")]
+    resident!(
+        ParagraphGraph,
+        "shaders/paragraph_graph.metal",
+        "paragraph_graph",
+        0,
+        64,
+        &[true, true, true, true, false]
+    ),
     resident!(
         Crop,
         "shaders/crop.metal",

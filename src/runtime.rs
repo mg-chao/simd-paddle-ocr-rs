@@ -228,7 +228,7 @@ impl ExecutionStatistics {
                 .sum::<usize>()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "paragraph"))]
     pub(crate) fn counter_snapshot(&self) -> StatisticsCounters {
         StatisticsCounters {
             production_submissions: self.production_submissions,

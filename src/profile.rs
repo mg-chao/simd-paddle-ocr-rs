@@ -79,6 +79,12 @@ pub struct StageProfile {
     pub projection_ns: u64,
     pub ctc_ns: u64,
     pub result_storage_ns: u64,
+    #[cfg(feature = "paragraph")]
+    pub paragraph_preprocess_ns: u64,
+    #[cfg(feature = "paragraph")]
+    pub paragraph_inference_ns: u64,
+    #[cfg(feature = "paragraph")]
+    pub paragraph_decode_ns: u64,
     pub recognized_lines: usize,
     /// Valid entries in recognition_owners. Inline serial recognition has no
     /// dispatched owners. These records are a snapshot, not summed stage work.
@@ -136,6 +142,12 @@ impl StageProfile {
             ctc_ns,
             result_storage_ns,
             recognized_lines
+        );
+        #[cfg(feature = "paragraph")]
+        add!(
+            paragraph_preprocess_ns,
+            paragraph_inference_ns,
+            paragraph_decode_ns
         );
         if let Some(ns) = other.gpu_compute_ns {
             self.gpu_compute_ns = Some(self.gpu_compute_ns.unwrap_or(0).saturating_add(ns));

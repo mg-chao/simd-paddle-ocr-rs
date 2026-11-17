@@ -56,6 +56,8 @@ pub(super) enum KernelId {
     DbGeometryFast,
     HeadsFeaturesF32,
     Image,
+    #[cfg(feature = "paragraph")]
+    ParagraphGraph,
 }
 impl KernelId {
     pub fn precision_mask(self) -> u8 {
@@ -109,6 +111,8 @@ impl KernelId {
             Self::DbGeometryFast => 1,
             Self::HeadsFeaturesF32 => 1,
             Self::Image => 4,
+            #[cfg(feature = "paragraph")]
+            Self::ParagraphGraph => 0,
         }
     }
 }

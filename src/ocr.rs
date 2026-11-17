@@ -131,6 +131,8 @@ pub struct OcrView<'a> {
     pub width_ratio: f32,
     pub height_ratio: f32,
     source: LineSource<'a>,
+    #[cfg(feature = "paragraph")]
+    paragraphs: Option<&'a [Vec<usize>]>,
 }
 impl<'a> OcrView<'a> {
     pub fn text(self) -> &'a str {
@@ -178,6 +180,12 @@ impl<'a> OcrView<'a> {
     pub fn iter(self) -> impl ExactSizeIterator<Item = OcrLineView<'a>> {
         (0..self.len()).map(move |i| self.get(i).expect("validated line index"))
     }
+    /// Paragraphs and their members in reading order. Each member is the
+    /// zero-based index of a line in this view.
+    #[cfg(feature = "paragraph")]
+    pub fn paragraphs(self) -> Option<&'a [Vec<usize>]> {
+        self.paragraphs
+    }
     pub fn try_to_owned(self) -> ImageResult<OwnedOcr> {
         let mut lines = Vec::new();
         lines.try_reserve_exact(self.len()).map_err(allocation)?;
@@ -192,6 +200,21 @@ impl<'a> OcrView<'a> {
             detector_resized_height: self.detector_resized_height,
             width_ratio: self.width_ratio,
             height_ratio: self.height_ratio,
+            #[cfg(feature = "paragraph")]
+            paragraphs: self
+                .paragraphs
+                .map(|groups| {
+                    let mut copy = Vec::new();
+                    copy.try_reserve_exact(groups.len()).map_err(allocation)?;
+                    for group in groups {
+                        let mut indices = Vec::new();
+                        indices.try_reserve_exact(group.len()).map_err(allocation)?;
+                        indices.extend_from_slice(group);
+                        copy.push(indices);
+                    }
+                    Ok::<_, ImageError>(copy)
+                })
+                .transpose()?,
         })
     }
 }
@@ -204,7 +227,10 @@ impl Serialize for OcrView<'_> {
                 s.collect_seq(self.0.iter())
             }
         }
-        let mut result = serializer.serialize_struct("OcrView", 7)?;
+        let fields = 7;
+        #[cfg(feature = "paragraph")]
+        let fields = fields + usize::from(self.paragraphs.is_some());
+        let mut result = serializer.serialize_struct("OcrView", fields)?;
         result.serialize_field("text", self.text)?;
         result.serialize_field("detected_count", &self.detected_count)?;
         result.serialize_field("detector_resized_width", &self.detector_resized_width)?;
@@ -212,6 +238,10 @@ impl Serialize for OcrView<'_> {
         result.serialize_field("width_ratio", &self.width_ratio)?;
         result.serialize_field("height_ratio", &self.height_ratio)?;
         result.serialize_field("lines", &Lines(*self))?;
+        #[cfg(feature = "paragraph")]
+        if let Some(groups) = self.paragraphs {
+            result.serialize_field("paragraphs", groups)?;
+        }
         result.end()
     }
 }
@@ -224,6 +254,10 @@ pub struct OwnedOcr {
     pub detector_resized_height: usize,
     pub width_ratio: f32,
     pub height_ratio: f32,
+    /// Zero-based indices into `lines`, in paragraph and line reading order.
+    #[cfg(feature = "paragraph")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paragraphs: Option<Vec<Vec<usize>>>,
 }
 impl OwnedOcr {
     pub fn as_view(&self) -> OcrView<'_> {
@@ -235,6 +269,8 @@ impl OwnedOcr {
             width_ratio: self.width_ratio,
             height_ratio: self.height_ratio,
             source: LineSource::Owned(&self.lines),
+            #[cfg(feature = "paragraph")]
+            paragraphs: self.paragraphs.as_deref(),
         }
     }
 }
@@ -284,6 +320,8 @@ pub struct OcrPlan {
     cpu: Arc<CpuContext>,
     cpu_options: CpuOptions,
     recognition_batch_size: usize,
+    #[cfg(feature = "paragraph")]
+    paragraph: Option<crate::paragraph::ParagraphPlan>,
 }
 impl OcrPlan {
     pub fn new(
@@ -313,6 +351,8 @@ impl OcrPlan {
             cpu,
             cpu_options,
             recognition_batch_size,
+            #[cfg(feature = "paragraph")]
+            paragraph: None,
         };
         #[cfg(feature = "gpu")]
         plan.validate_contexts()?;
@@ -341,6 +381,12 @@ impl OcrPlan {
         self.validate_contexts()?;
         OcrRequest::from_plan(self.clone())
     }
+    /// Attach a shared paragraph model to a low-level OCR plan.
+    #[cfg(feature = "paragraph")]
+    pub fn with_paragraph(mut self, paragraph: crate::paragraph::ParagraphPlan) -> Self {
+        self.paragraph = Some(paragraph);
+        self
+    }
     /// Shared coefficient and packing storage. Excluded from request eviction totals.
     pub fn shared_weights(&self) -> crate::runtime::MemorySnapshot {
         let mut memory = crate::runtime::MemorySnapshot::default();
@@ -366,6 +412,12 @@ impl OcrPlan {
             if let Some(gpu) = compiled.as_gpu() {
                 memory.device_bytes += gpu.unique_weight_bytes(&mut device_resources);
             }
+        }
+        #[cfg(feature = "paragraph")]
+        if let Some(paragraph) = &self.paragraph {
+            let weights = paragraph.shared_weights();
+            memory.host_bytes += weights.host_bytes;
+            memory.device_bytes += weights.device_bytes;
         }
         memory
     }
@@ -519,6 +571,8 @@ pub struct OcrRequest {
     extractor: OrientedLineExtractor,
     recognizer: Recognizer,
     result: ResultWorkspace,
+    #[cfg(feature = "paragraph")]
+    paragraph: Option<crate::paragraph::ParagraphRequest>,
     pinned_cpu: Option<Arc<CpuContext>>,
     budgets: CpuBudgets,
     workers: Vec<RecognitionWorker>,
@@ -581,6 +635,12 @@ impl OcrRequest {
         )?;
         extractor.set_execution_context(cpu.clone(), cpu_options)?;
         recognizer.set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
+        #[cfg(feature = "paragraph")]
+        let paragraph = plan
+            .paragraph
+            .as_ref()
+            .map(|p| p.request_in(cpu.clone(), budgets.recognizer_base_threads()))
+            .transpose()?;
         Ok(Self {
             plan,
             execution: ActiveExecution::staged(extractor.uses_gpu() || recognizer.uses_gpu()),
@@ -589,6 +649,8 @@ impl OcrRequest {
             extractor,
             recognizer,
             result: ResultWorkspace::default(),
+            #[cfg(feature = "paragraph")]
+            paragraph,
             pinned_cpu: None,
             budgets,
             workers: Vec::new(),
@@ -631,6 +693,17 @@ impl OcrRequest {
     }
     /// Whether any neural stage uses the GPU. Host image work still uses the CPU context.
     pub fn uses_gpu(&self) -> bool {
+        #[cfg(feature = "paragraph")]
+        if self
+            .paragraph
+            .as_ref()
+            .is_some_and(crate::paragraph::ParagraphRequest::uses_gpu)
+        {
+            return true;
+        }
+        self.ocr_stages_use_gpu()
+    }
+    fn ocr_stages_use_gpu(&self) -> bool {
         self.extractor.uses_gpu() || self.recognizer.uses_gpu()
     }
     #[cfg(feature = "gpu")]
@@ -650,6 +723,15 @@ impl OcrRequest {
                 .flatten()
                 .map(|s| s.diagnostic_readback_bytes)
                 .sum();
+            #[cfg(feature = "paragraph")]
+            if let Some(paragraph) = stages
+                .get(&crate::OcrStage::Paragraph)
+                .and_then(|s| s.first())
+            {
+                stats.submissions += paragraph.production_submissions;
+                stats.uploaded_bytes += paragraph.uploaded_bytes;
+                stats.output_readback_bytes += paragraph.output_readback_bytes;
+            }
             return Some(stats);
         }
         if !self.uses_gpu() {
@@ -760,11 +842,20 @@ impl OcrRequest {
         &self,
     ) -> std::collections::BTreeMap<crate::error::OcrStage, Vec<crate::runtime::ExecutionStatistics>>
     {
-        self.stage_statistics(
+        let result = self.stage_statistics(
             self.latest_run
                 .as_ref()
                 .is_none_or(|run| run.execution == OcrExecution::Resident),
-        )
+        );
+        #[cfg(feature = "paragraph")]
+        let result = {
+            let mut result = result;
+            if let Some(paragraph) = &self.paragraph {
+                result.insert(crate::OcrStage::Paragraph, vec![paragraph.statistics()]);
+            }
+            result
+        };
+        result
     }
     fn stage_counter_snapshots(
         &self,
@@ -906,6 +997,10 @@ impl OcrRequest {
                 .recognizer
                 .set_execution_context(cpu.clone(), budgets.recognizer_base_threads())?;
         }
+        #[cfg(feature = "paragraph")]
+        if let Some(paragraph) = &mut self.paragraph {
+            paragraph.use_context(cpu.clone(), budgets.recognizer_base_threads());
+        }
         self.plan.cpu = cpu;
         self.plan.cpu_options = options;
         self.budgets = budgets;
@@ -969,6 +1064,12 @@ impl OcrRequest {
             .map_or(0, |g| g.activation_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
+        #[cfg(feature = "paragraph")]
+        let resident = resident
+            + self
+                .paragraph
+                .as_ref()
+                .map_or(0, |p| p.retained_activation_bytes());
         resident
             + self.extractor.detector().activation_bytes()
             + self.extractor.classifier_activation_bytes()
@@ -987,6 +1088,12 @@ impl OcrRequest {
             .map_or(0, |g| g.activation_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
+        #[cfg(feature = "paragraph")]
+        let resident = resident
+            + self
+                .paragraph
+                .as_ref()
+                .map_or(0, |p| p.retained_activation_bytes());
         resident
             + self.extractor.detector().retained_activation_bytes()
             + self.extractor.classifier_retained_activation_bytes()
@@ -1011,6 +1118,12 @@ impl OcrRequest {
         let resident = self.execution.resident().map_or(0, |g| g.retained_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
+        #[cfg(feature = "paragraph")]
+        let resident = resident
+            + self
+                .paragraph
+                .as_ref()
+                .map_or(0, |p| p.retained_device_bytes());
         resident
             + self.extractor.retained_device_bytes()
             + self.recognizer.retained_device_bytes()
@@ -1025,6 +1138,12 @@ impl OcrRequest {
         let resident = self.execution.resident().map_or(0, |g| g.workspace_bytes());
         #[cfg(not(feature = "gpu"))]
         let resident = 0;
+        #[cfg(feature = "paragraph")]
+        let resident = resident
+            + self
+                .paragraph
+                .as_ref()
+                .map_or(0, |p| p.retained_workspace_bytes());
         let buffers = self
             .latest_run
             .as_ref()
@@ -1077,7 +1196,7 @@ impl OcrRequest {
         let capture = options.capture_spans;
         let cpu = self.plan.cpu.clone();
         let _demand = cpu.register_request();
-        if self.uses_gpu() {
+        if self.ocr_stages_use_gpu() {
             return self.run_impl::<false, false, _>(
                 image,
                 capture,
@@ -1105,7 +1224,7 @@ impl OcrRequest {
         let mut profile = StageProfile::default();
         let cpu = self.plan.cpu.clone();
         let _demand = cpu.register_request();
-        let result = if self.uses_gpu() {
+        let result = if self.ocr_stages_use_gpu() {
             self.run_impl::<false, true, _>(image, capture, |_| Ok(()), &mut profile)
         } else {
             cpu.install(|| {
@@ -1163,6 +1282,12 @@ impl OcrRequest {
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
         let before = self.stage_counter_snapshots(!TRACE);
+        #[cfg(feature = "paragraph")]
+        let paragraph_before = self.paragraph.as_mut().map(|paragraph| {
+            let before = paragraph.statistics().counter_snapshot();
+            paragraph.reset();
+            before
+        });
         #[cfg(feature = "gpu")]
         {
             self.extractor.reset_run_statistics();
@@ -1179,6 +1304,14 @@ impl OcrRequest {
             profile,
         );
         let mut stages = self.stage_statistics(!TRACE);
+        #[cfg(feature = "paragraph")]
+        if let Some(paragraph) = &self.paragraph {
+            let mut stats = paragraph.statistics();
+            stats.since(&paragraph_before.unwrap_or_default());
+            // Paragraph counters have their own snapshot because the resident
+            // OCR pipeline can be replaced while the paragraph request survives.
+            stages.insert(crate::OcrStage::Paragraph, vec![stats]);
+        }
         for (stage, sessions) in &mut stages {
             for (i, session) in sessions.iter_mut().enumerate() {
                 if let Some(previous) = before.get(stage).and_then(|s| s.get(i)) {
@@ -1245,10 +1378,10 @@ impl OcrRequest {
         F: for<'a> FnMut(OcrTrace<'a>) -> ImageResult<()>,
     {
         let inline_cpu = self.plan.cpu.clone();
-        let _inline = (!self.uses_gpu()).then(|| inline_cpu.enter_inline());
+        let _inline = (!self.ocr_stages_use_gpu()).then(|| inline_cpu.enter_inline());
         let _active_request = inline_cpu.enter_request();
         #[cfg(test)]
-        if !TRACE && !self.uses_gpu() {
+        if !TRACE && !self.ocr_stages_use_gpu() {
             self.plan.cpu.assert_production_thread("OCR");
         }
         if self.unwound() {
@@ -1326,6 +1459,11 @@ impl OcrRequest {
                     .request()?;
                     replacement.pinned_cpu = self.pinned_cpu.clone();
                     replacement.result = std::mem::take(&mut self.result);
+                    #[cfg(feature = "paragraph")]
+                    {
+                        replacement.plan.paragraph = self.plan.paragraph.clone();
+                        replacement.paragraph = self.paragraph.take();
+                    }
                     replacement.counters = self.counters;
                     *self = replacement;
                     let cpu = self.plan.cpu.clone();
@@ -1341,6 +1479,8 @@ impl OcrRequest {
                 profile.record_gpu(&pipeline.statistics);
                 profile.projection_ns += pipeline.statistics.projection_encoding_ns;
             }
+            #[cfg(feature = "paragraph")]
+            self.group_paragraphs::<PROFILE>(image, profile)?;
             return Ok(());
         }
         self.budgets = self.plan.cpu_options.resolve(
@@ -1546,10 +1686,47 @@ impl OcrRequest {
         self.result.detector_resized_height = oriented.resized_height();
         self.result.width_ratio = oriented.width_ratio();
         self.result.height_ratio = oriented.height_ratio();
+        #[cfg(feature = "paragraph")]
+        self.group_paragraphs::<PROFILE>(image, profile)?;
         let output = self.view();
         if TRACE {
             observer.borrow_mut()(OcrTrace::Result(output))?;
         }
+        Ok(())
+    }
+    #[cfg(feature = "paragraph")]
+    fn group_paragraphs<const PROFILE: bool>(
+        &mut self,
+        image: ImageView<'_>,
+        profile: &mut StageProfile,
+    ) -> ImageResult<()> {
+        let Some(paragraph) = &mut self.paragraph else {
+            return Ok(());
+        };
+        let mut quads = Vec::new();
+        quads
+            .try_reserve_exact(self.result.lines.len())
+            .map_err(|error| allocation(error).at_stage(crate::OcrStage::Paragraph))?;
+        quads.extend(self.result.lines.iter().map(|line| line.detection.points));
+        let elapsed = paragraph.run::<PROFILE>(image, &quads)?;
+        let bytes = self
+            .result
+            .lines
+            .len()
+            .saturating_mul(size_of::<LineRecord>())
+            .saturating_add(self.result.text.len())
+            .saturating_add(self.result.runs.len().saturating_mul(size_of::<CtcRun>()))
+            .saturating_add(paragraph.group_bytes());
+        if bytes > self.plan.options.max_total_result_bytes {
+            return Err(ImageError::with_kind(
+                crate::error::ErrorKind::ResourceLimit,
+                "OCR with paragraphs exceeds max_total_result_bytes",
+            )
+            .at_stage(crate::OcrStage::Paragraph));
+        }
+        profile.paragraph_preprocess_ns = elapsed.preprocess_ns;
+        profile.paragraph_inference_ns = elapsed.inference_ns;
+        profile.paragraph_decode_ns = elapsed.decode_ns;
         Ok(())
     }
     fn view(&self) -> OcrView<'_> {
@@ -1561,6 +1738,11 @@ impl OcrRequest {
             width_ratio: self.result.width_ratio,
             height_ratio: self.result.height_ratio,
             source: LineSource::Slab(&self.result.lines, &self.result.text, &self.result.runs),
+            #[cfg(feature = "paragraph")]
+            paragraphs: self
+                .paragraph
+                .as_ref()
+                .map(crate::paragraph::ParagraphRequest::groups),
         }
     }
 }

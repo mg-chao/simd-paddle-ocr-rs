@@ -150,6 +150,10 @@ pub struct OcrBuilder {
     recognizer_limits: ExecutionLimits,
     classification: bool,
     batch_size: usize,
+    #[cfg(feature = "paragraph")]
+    paragraph_model: Option<std::path::PathBuf>,
+    #[cfg(feature = "paragraph")]
+    paragraph_target: Option<ExecutionTarget>,
 }
 impl OcrBuilder {
     pub fn new(models: OcrModelSet) -> Self {
@@ -173,6 +177,10 @@ impl OcrBuilder {
             recognizer_limits: ExecutionLimits::default(),
             classification: true,
             batch_size: 1,
+            #[cfg(feature = "paragraph")]
+            paragraph_model: None,
+            #[cfg(feature = "paragraph")]
+            paragraph_target: None,
         }
     }
     pub fn compiler(mut self, compiler: Arc<crate::runtime::Compiler>) -> Self {
@@ -199,6 +207,18 @@ impl OcrBuilder {
     }
     pub fn classifier_target(mut self, target: ExecutionTarget) -> Self {
         self.stage_targets[2] = Some(target);
+        self
+    }
+    /// Run the epoch 15 B-Scale model after OCR using the original image and boxes.
+    #[cfg(feature = "paragraph")]
+    pub fn paragraph_model(mut self, path: impl AsRef<Path>) -> Self {
+        self.paragraph_model = Some(path.as_ref().to_owned());
+        self
+    }
+    /// Override execution placement for the optional paragraph scorer.
+    #[cfg(feature = "paragraph")]
+    pub fn paragraph_target(mut self, target: ExecutionTarget) -> Self {
+        self.paragraph_target = Some(target);
         self
     }
     #[cfg(feature = "gpu")]
@@ -309,6 +329,18 @@ impl OcrBuilder {
             self.cpu_options,
             self.batch_size,
         )?;
+        #[cfg(feature = "paragraph")]
+        let plan = if let Some(path) = self.paragraph_model {
+            plan.with_paragraph(crate::paragraph::ParagraphPlan::load(
+                &path,
+                &compiler,
+                self.paragraph_target.unwrap_or(self.target),
+                self.compile.cpu.kernels,
+                ExecutionLimits::default(),
+            )?)
+        } else {
+            plan
+        };
         Ok(plan)
     }
     pub fn build_engine(self, limits: EngineLimits) -> ImageResult<OcrEngine> {

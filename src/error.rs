@@ -22,6 +22,8 @@ pub enum OcrStage {
     Detector,
     Classifier,
     Recognizer,
+    #[cfg(feature = "paragraph")]
+    Paragraph,
     Shared,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]

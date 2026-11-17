@@ -48,6 +48,9 @@ fn main() {
     );
     for entry in &catalog {
         let name = entry["name"].as_str().unwrap();
+        if name == "paragraph_graph" && !cfg!(feature = "paragraph") {
+            continue;
+        }
         let id = name
             .split('_')
             .map(|s| {
