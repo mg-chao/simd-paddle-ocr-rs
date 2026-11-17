@@ -617,7 +617,8 @@ mod tests {
         assert!(page.edge_inputs[1] > 0.0);
         assert_eq!(&page.node_inputs[3..6], &[0.0; 3]);
         assert_eq!(
-            super::super::decode::decode(&page, &[0.0]).unwrap(),
+            super::super::decode::decode(&page, &[0.0], crate::onnx::BScalePartition::Evidence)
+                .unwrap(),
             [vec![1], vec![2, 0]]
         );
     }

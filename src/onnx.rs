@@ -506,10 +506,17 @@ pub fn parse<R: BufRead>(input: R, limits: &LoadLimits) -> Result<RawModel> {
     })
 }
 
-/// Read the weights branch from the exact B-Scale export. The regular importer
+#[cfg(feature = "paragraph")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BScalePartition {
+    Evidence,
+    Connected,
+}
+
+/// Read the weights branch from a supported B-Scale export. The regular importer
 /// still rejects graphs embedded in attributes.
 #[cfg(feature = "paragraph")]
-pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<RawGraph> {
+pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<(RawGraph, BScalePartition)> {
     let mut reader = WireReader::new(
         input,
         LoadLimits {
@@ -570,23 +577,12 @@ pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<RawGraph> {
         }
     }
     for (key, expected) in [
-        ("checkpoint_epoch", "15"),
-        ("checkpoint_seed", "2026"),
-        ("checkpoint_estimator", "ema"),
-        (
-            "checkpoint_sha256",
-            "be0e5ee02b0943936d3606d7a5a728b131e9952f68d3eb7578ab809172e80d69",
-        ),
         ("feature_version", "evidence-v1"),
         ("candidate_graph", "legacy-v1"),
         ("neighborhood_version", "b-neighborhood-v1"),
         ("layout_version", "layout-neighborhood-v1"),
         ("page_scale_version", "branch-median-short-side-v1"),
         ("style_version", "style-fast-colors-stroke-v2"),
-        (
-            "partition_policy",
-            r#"{"decoder": "evidence", "threshold": -1.0, "veto": -3.0, "support": -0.65}"#,
-        ),
     ] {
         if metadata.get(key).map(String::as_str) != Some(expected) {
             return Err(reader.error(format!("unsupported B-Scale metadata: {key}")));
@@ -595,7 +591,78 @@ pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<RawGraph> {
     if opset.is_none() {
         return Err(reader.error("B-Scale model has no opset"));
     }
-    model_graph.ok_or_else(|| reader.error("B-Scale model has no graph"))
+    let partition = b_scale_partition(&metadata)?;
+    model_graph
+        .map(|graph| (graph, partition))
+        .ok_or_else(|| reader.error("B-Scale model has no graph"))
+}
+
+#[cfg(feature = "paragraph")]
+fn b_scale_partition(metadata: &BTreeMap<String, String>) -> Result<BScalePartition> {
+    let value = |key| metadata.get(key).map(String::as_str);
+    match (value("checkpoint_sha256"), value("partition_policy")) {
+        (
+            Some("be0e5ee02b0943936d3606d7a5a728b131e9952f68d3eb7578ab809172e80d69"),
+            Some(r#"{"decoder": "evidence", "threshold": -1.0, "veto": -3.0, "support": -0.65}"#),
+        ) if value("checkpoint_epoch") == Some("15")
+            && value("checkpoint_seed") == Some("2026")
+            && value("checkpoint_estimator") == Some("ema") =>
+        {
+            Ok(BScalePartition::Evidence)
+        }
+        (
+            Some("3180f1a51d4d947e6b6db915710598331b8599ca1c1c64f83d99cf0e166d9f38"),
+            Some(r#"{"decoder": "connected", "threshold": 0.0, "veto": -3.0, "support": -0.65}"#),
+        ) => Ok(BScalePartition::Connected),
+        _ => Err(ImportError::new(
+            "unsupported B-Scale checkpoint or partition policy",
+        )),
+    }
+}
+
+#[cfg(all(test, feature = "paragraph"))]
+mod paragraph_metadata_tests {
+    use super::*;
+
+    #[test]
+    fn checkpoint_and_partition_must_agree() {
+        let mut metadata = BTreeMap::from([
+            (
+                "checkpoint_sha256".into(),
+                "3180f1a51d4d947e6b6db915710598331b8599ca1c1c64f83d99cf0e166d9f38".into(),
+            ),
+            (
+                "partition_policy".into(),
+                r#"{"decoder": "connected", "threshold": 0.0, "veto": -3.0, "support": -0.65}"#
+                    .into(),
+            ),
+        ]);
+        assert_eq!(
+            b_scale_partition(&metadata).unwrap(),
+            BScalePartition::Connected
+        );
+        metadata.insert(
+            "partition_policy".into(),
+            r#"{"decoder": "evidence", "threshold": -1.0, "veto": -3.0, "support": -0.65}"#.into(),
+        );
+        assert!(b_scale_partition(&metadata).is_err());
+        metadata.insert(
+            "checkpoint_sha256".into(),
+            "be0e5ee02b0943936d3606d7a5a728b131e9952f68d3eb7578ab809172e80d69".into(),
+        );
+        assert!(b_scale_partition(&metadata).is_err());
+        for (key, value) in [
+            ("checkpoint_epoch", "15"),
+            ("checkpoint_seed", "2026"),
+            ("checkpoint_estimator", "ema"),
+        ] {
+            metadata.insert(key.into(), value.into());
+        }
+        assert_eq!(
+            b_scale_partition(&metadata).unwrap(),
+            BScalePartition::Evidence
+        );
+    }
 }
 
 #[cfg(feature = "paragraph")]

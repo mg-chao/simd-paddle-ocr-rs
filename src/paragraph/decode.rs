@@ -2,6 +2,7 @@
 
 use super::features::{PreparedPage, Quad};
 use crate::image::{ImageError, ImageResult};
+use crate::onnx::BScalePartition;
 use std::{cmp::Ordering, collections::HashSet};
 
 const THRESHOLD: f32 = -1.0;
@@ -9,13 +10,20 @@ const SUPPORT: f64 = -0.65;
 const VETO: f32 = -3.0;
 const TOLERANCE: f64 = 1e-6;
 
-pub(super) fn decode(page: &PreparedPage, logits: &[f32]) -> ImageResult<Vec<Vec<usize>>> {
+pub(super) fn decode(
+    page: &PreparedPage,
+    logits: &[f32],
+    partition: BScalePartition,
+) -> ImageResult<Vec<Vec<usize>>> {
     if logits.len() != page.pairs.len() || logits.iter().any(|x| !x.is_finite()) {
         return Err(ImageError::new(
             "expected one finite paragraph logit per candidate",
         ));
     }
-    let groups = cluster(page.quads.len(), &page.pairs, logits);
+    let groups = match partition {
+        BScalePartition::Evidence => cluster(page.quads.len(), &page.pairs, logits),
+        BScalePartition::Connected => connected(page.quads.len(), &page.pairs, logits),
+    };
     let mut result = Vec::with_capacity(groups.len());
     for vertical in [false, true] {
         let mut ordered: Vec<_> = groups
@@ -27,6 +35,33 @@ pub(super) fn decode(page: &PreparedPage, logits: &[f32]) -> ImageResult<Vec<Vec
         result.extend(ordered.into_iter().map(|(_, _, group)| group));
     }
     Ok(result)
+}
+
+fn connected(n: usize, pairs: &[[usize; 2]], logits: &[f32]) -> Vec<Vec<usize>> {
+    let mut parent: Vec<_> = (0..n).collect();
+    fn root(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+    for (&[a, b], &score) in pairs.iter().zip(logits) {
+        if score >= 0.0 {
+            let a = root(&mut parent, a);
+            let b = root(&mut parent, b);
+            parent[a] = b;
+        }
+    }
+    let mut members = vec![Vec::new(); n];
+    for i in 0..n {
+        let component = root(&mut parent, i);
+        members[component].push(i);
+    }
+    members
+        .into_iter()
+        .filter(|group| !group.is_empty())
+        .collect()
 }
 
 fn cluster(n: usize, pairs: &[[usize; 2]], logits: &[f32]) -> Vec<Vec<usize>> {
@@ -265,10 +300,18 @@ mod tests {
             edge_inputs: Vec::new(),
         };
         assert_eq!(
-            decode(&page, &[2., 1., -4.]).unwrap(),
+            decode(&page, &[2., 1., -4.], BScalePartition::Evidence).unwrap(),
             vec![vec![1, 2], vec![0]]
         );
-        assert!(decode(&page, &[f32::NAN, 1., 2.]).is_err());
+        assert!(decode(&page, &[f32::NAN, 1., 2.], BScalePartition::Evidence).is_err());
+        assert_eq!(
+            decode(&page, &[2., 1., -4.], BScalePartition::Connected).unwrap(),
+            vec![vec![1, 2, 0]],
+        );
+        assert_eq!(
+            connected(4, &[[0, 1], [1, 2]], &[0., -0.1]),
+            vec![vec![0, 1], vec![2], vec![3]]
+        );
     }
 
     #[test]
@@ -286,6 +329,9 @@ mod tests {
         };
         // The reference orders paragraph centers, then orders the members in
         // their own rotated frame.
-        assert_eq!(decode(&page, &[2.]).unwrap(), vec![vec![2, 1], vec![0]]);
+        assert_eq!(
+            decode(&page, &[2.], BScalePartition::Evidence).unwrap(),
+            vec![vec![2, 1], vec![0]]
+        );
     }
 }

@@ -21,7 +21,7 @@ use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 #[cfg(feature = "gpu")]
 use crate::runtime::gpu::paragraph::{ParagraphGpuPlan, ParagraphGpuRequest};
 
-/// Shared weights for the epoch 15 B-Scale EMA export.
+/// Shared weights and partition policy for a supported B-Scale export.
 #[derive(Clone)]
 pub struct ParagraphPlan {
     cpu: Option<Arc<CpuWeights>>,
@@ -32,6 +32,7 @@ pub struct ParagraphPlan {
     auto: bool,
     fallback: Option<FailureProvenance>,
     limits: ExecutionLimits,
+    partition: crate::onnx::BScalePartition,
 }
 
 impl ParagraphPlan {
@@ -68,9 +69,9 @@ impl ParagraphPlan {
             )
             .at_stage(OcrStage::Paragraph)
         })?;
-        let weights = crate::onnx::parse_b_scale(BufReader::new(file))
-            .and_then(Weights::load)
-            .map_err(import_error)?;
+        let (graph, partition) =
+            crate::onnx::parse_b_scale(BufReader::new(file)).map_err(import_error)?;
+        let weights = Weights::load(graph).map_err(import_error)?;
         #[cfg(not(feature = "gpu"))]
         let _ = compiler;
         let mut fallback = None;
@@ -121,6 +122,7 @@ impl ParagraphPlan {
             auto: target == ExecutionTarget::Auto,
             fallback,
             limits,
+            partition,
         })
     }
 
@@ -390,7 +392,8 @@ impl ParagraphRequest {
             .map_err(stage_error)?;
         let inference_ns = timer.elapsed();
         let timer = Timer::<PROFILE>::start();
-        self.groups = decode::decode(&page, &self.logits).map_err(stage_error)?;
+        self.groups =
+            decode::decode(&page, &self.logits, self.plan.partition).map_err(stage_error)?;
         let profile = ParagraphProfile {
             preprocess_ns,
             inference_ns,
@@ -452,7 +455,7 @@ fn stage_error(error: ImageError) -> ImageError {
 fn import_error(error: ImportError) -> ImageError {
     stage_error(ImageError::caused_by(
         error.kind(),
-        "load epoch 15 B-Scale model",
+        "load B-Scale paragraph model",
         error,
     ))
 }
@@ -489,6 +492,7 @@ mod tests {
             auto: false,
             fallback: None,
             limits: ExecutionLimits::default(),
+            partition: crate::onnx::BScalePartition::Evidence,
         }
     }
 
