@@ -1,4 +1,4 @@
-//! Input features for the epoch 15 B-Scale graph.
+//! Input features shared by the supported B-Scale exports.
 
 mod appearance;
 mod layout;
@@ -43,6 +43,7 @@ pub(super) fn prepare(
     image: ImageView<'_>,
     quads: &[Quad],
     limits: ExecutionLimits,
+    compact: bool,
 ) -> ImageResult<PreparedPage> {
     const NODE_BYTES: usize = size_of::<Quad>() + size_of::<bool>() + 3 * size_of::<f32>();
     const PAIR_BYTES: usize = size_of::<[usize; 2]>() + 2 * 26 * size_of::<f32>();
@@ -102,10 +103,16 @@ pub(super) fn prepare(
     let layouts = layout::pair_features(&page.quads, &page.vertical, &page.pairs);
     let edges = page.pairs.len();
     resize_vec(&mut page.edge_inputs, edges * 2 * 26)?;
-    for (index, &[a, b]) in page.pairs.iter().enumerate() {
+    for (index, (&[a, b], layout)) in page.pairs.iter().zip(&layouts).enumerate() {
         if !info[a].valid || !info[b].valid {
             return Err(ImageError::new(
                 "paragraph candidate contains a degenerate quad",
+            ));
+        }
+        // The compact graph restores the eighth layout column as a constant one.
+        if compact && layout[7] != 1.0 {
+            return Err(ImageError::new(
+                "paragraph candidate has invalid compact layout",
             ));
         }
         let style = appearance::pair(&appearance[a], &appearance[b]);
@@ -113,7 +120,7 @@ pub(super) fn prepare(
             let out = &mut page.edge_inputs[row * 26..][..26];
             out[..12].copy_from_slice(&info[left].geometry(&info[right]));
             out[12..18].copy_from_slice(&style);
-            out[18..].copy_from_slice(&layouts[index]);
+            out[18..].copy_from_slice(layout);
         }
     }
     if page
@@ -609,12 +616,15 @@ mod tests {
             image,
             &[quad(20.0), degenerate, quad(3.0)],
             ExecutionLimits::default(),
+            true,
         )
         .unwrap();
         assert_eq!(page.pairs, [[2, 0]]);
         assert_eq!(page.edge_inputs.len(), 2 * 26);
         assert_eq!(page.edge_inputs[1], -page.edge_inputs[26 + 1]);
         assert!(page.edge_inputs[1] > 0.0);
+        assert_eq!(page.edge_inputs[25], 1.0);
+        assert_eq!(page.edge_inputs[51], 1.0);
         assert_eq!(&page.node_inputs[3..6], &[0.0; 3]);
         assert_eq!(
             super::super::decode::decode(&page, &[0.0], crate::onnx::BScalePartition::Evidence)
@@ -626,17 +636,26 @@ mod tests {
     #[test]
     fn no_candidates_skip_visual_features_and_bad_coordinates_fail() {
         let image = ImageView::new(&[0; 3], 1, 1, 0, PixelFormat::Bgr24).unwrap();
-        let single = prepare(image, &[quad(50.0)], ExecutionLimits::default()).unwrap();
+        let single = prepare(image, &[quad(50.0)], ExecutionLimits::default(), true).unwrap();
         assert!(single.pairs.is_empty());
         assert!(single.edge_inputs.is_empty());
-        assert!(prepare(image, &[[[f32::NAN; 2]; 4]], ExecutionLimits::default()).is_err());
+        assert!(
+            prepare(
+                image,
+                &[[[f32::NAN; 2]; 4]],
+                ExecutionLimits::default(),
+                true
+            )
+            .is_err()
+        );
         assert!(
             prepare(
                 image,
                 &[quad(50.0)],
                 ExecutionLimits {
                     max_activation_bytes: 1
-                }
+                },
+                true,
             )
             .is_err()
         );

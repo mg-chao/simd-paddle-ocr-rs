@@ -511,6 +511,14 @@ pub fn parse<R: BufRead>(input: R, limits: &LoadLimits) -> Result<RawModel> {
 pub(crate) enum BScalePartition {
     Evidence,
     Connected,
+    Signed,
+}
+
+#[cfg(feature = "paragraph")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BScaleInput {
+    Legacy,
+    Compact,
 }
 
 /// Read the weights branch from a supported B-Scale export. The regular importer
@@ -579,7 +587,6 @@ pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<(RawGraph, BScalePar
     for (key, expected) in [
         ("feature_version", "evidence-v1"),
         ("candidate_graph", "legacy-v1"),
-        ("neighborhood_version", "b-neighborhood-v1"),
         ("layout_version", "layout-neighborhood-v1"),
         ("page_scale_version", "branch-median-short-side-v1"),
         ("style_version", "style-fast-colors-stroke-v2"),
@@ -591,17 +598,26 @@ pub(crate) fn parse_b_scale<R: BufRead>(input: R) -> Result<(RawGraph, BScalePar
     if opset.is_none() {
         return Err(reader.error("B-Scale model has no opset"));
     }
-    let partition = b_scale_partition(&metadata)?;
-    model_graph
-        .map(|graph| (graph, partition))
-        .ok_or_else(|| reader.error("B-Scale model has no graph"))
+    let (graph, input) = model_graph.ok_or_else(|| reader.error("B-Scale model has no graph"))?;
+    let partition = b_scale_partition(&metadata, input)?;
+    Ok((graph, partition))
 }
 
 #[cfg(feature = "paragraph")]
-fn b_scale_partition(metadata: &BTreeMap<String, String>) -> Result<BScalePartition> {
+fn b_scale_partition(
+    metadata: &BTreeMap<String, String>,
+    input: BScaleInput,
+) -> Result<BScalePartition> {
     let value = |key| metadata.get(key).map(String::as_str);
-    match (value("checkpoint_sha256"), value("partition_policy")) {
+    if match input {
+        BScaleInput::Legacy => value("neighborhood_version") != Some("b-neighborhood-v1"),
+        BScaleInput::Compact => value("input_contract") != Some("line2para_1-compact-v1"),
+    } {
+        return Err(ImportError::new("unsupported B-Scale input contract"));
+    }
+    match (input, value("checkpoint_sha256"), value("partition_policy")) {
         (
+            BScaleInput::Legacy,
             Some("be0e5ee02b0943936d3606d7a5a728b131e9952f68d3eb7578ab809172e80d69"),
             Some(r#"{"decoder": "evidence", "threshold": -1.0, "veto": -3.0, "support": -0.65}"#),
         ) if value("checkpoint_epoch") == Some("15")
@@ -611,9 +627,15 @@ fn b_scale_partition(metadata: &BTreeMap<String, String>) -> Result<BScalePartit
             Ok(BScalePartition::Evidence)
         }
         (
+            BScaleInput::Legacy,
             Some("3180f1a51d4d947e6b6db915710598331b8599ca1c1c64f83d99cf0e166d9f38"),
             Some(r#"{"decoder": "connected", "threshold": 0.0, "veto": -3.0, "support": -0.65}"#),
         ) => Ok(BScalePartition::Connected),
+        (
+            BScaleInput::Compact,
+            Some("5e5f3cda7f09822397f5ee5a95bf277c16fc94a55ced752b5dcb12ae3b31d818"),
+            Some(r#"{"decoder": "signed", "threshold": 1.625, "veto": -0.5, "support": -0.65}"#),
+        ) if value("selected_epoch") == Some("12") => Ok(BScalePartition::Signed),
         _ => Err(ImportError::new(
             "unsupported B-Scale checkpoint or partition policy",
         )),
@@ -627,6 +649,7 @@ mod paragraph_metadata_tests {
     #[test]
     fn checkpoint_and_partition_must_agree() {
         let mut metadata = BTreeMap::from([
+            ("neighborhood_version".into(), "b-neighborhood-v1".into()),
             (
                 "checkpoint_sha256".into(),
                 "3180f1a51d4d947e6b6db915710598331b8599ca1c1c64f83d99cf0e166d9f38".into(),
@@ -638,19 +661,19 @@ mod paragraph_metadata_tests {
             ),
         ]);
         assert_eq!(
-            b_scale_partition(&metadata).unwrap(),
+            b_scale_partition(&metadata, BScaleInput::Legacy).unwrap(),
             BScalePartition::Connected
         );
         metadata.insert(
             "partition_policy".into(),
             r#"{"decoder": "evidence", "threshold": -1.0, "veto": -3.0, "support": -0.65}"#.into(),
         );
-        assert!(b_scale_partition(&metadata).is_err());
+        assert!(b_scale_partition(&metadata, BScaleInput::Legacy).is_err());
         metadata.insert(
             "checkpoint_sha256".into(),
             "be0e5ee02b0943936d3606d7a5a728b131e9952f68d3eb7578ab809172e80d69".into(),
         );
-        assert!(b_scale_partition(&metadata).is_err());
+        assert!(b_scale_partition(&metadata, BScaleInput::Legacy).is_err());
         for (key, value) in [
             ("checkpoint_epoch", "15"),
             ("checkpoint_seed", "2026"),
@@ -659,14 +682,42 @@ mod paragraph_metadata_tests {
             metadata.insert(key.into(), value.into());
         }
         assert_eq!(
-            b_scale_partition(&metadata).unwrap(),
+            b_scale_partition(&metadata, BScaleInput::Legacy).unwrap(),
             BScalePartition::Evidence
         );
+    }
+
+    #[test]
+    fn signed_checkpoint_requires_its_compact_contract_and_policy() {
+        let mut metadata = BTreeMap::from([
+            ("input_contract".into(), "line2para_1-compact-v1".into()),
+            (
+                "checkpoint_sha256".into(),
+                "5e5f3cda7f09822397f5ee5a95bf277c16fc94a55ced752b5dcb12ae3b31d818".into(),
+            ),
+            ("selected_epoch".into(), "12".into()),
+            (
+                "partition_policy".into(),
+                r#"{"decoder": "signed", "threshold": 1.625, "veto": -0.5, "support": -0.65}"#
+                    .into(),
+            ),
+        ]);
+        assert_eq!(
+            b_scale_partition(&metadata, BScaleInput::Compact).unwrap(),
+            BScalePartition::Signed
+        );
+        metadata.insert("neighborhood_version".into(), "b-neighborhood-v1".into());
+        assert!(b_scale_partition(&metadata, BScaleInput::Legacy).is_err());
+        metadata.insert(
+            "partition_policy".into(),
+            r#"{"decoder": "signed", "threshold": 0.0, "veto": -0.5, "support": -0.65}"#.into(),
+        );
+        assert!(b_scale_partition(&metadata, BScaleInput::Compact).is_err());
     }
 }
 
 #[cfg(feature = "paragraph")]
-fn parse_b_scale_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGraph> {
+fn parse_b_scale_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<(RawGraph, BScaleInput)> {
     let (mut inputs, mut outputs) = (Vec::new(), Vec::new());
     let mut branch = None;
     let mut guard = Vec::new();
@@ -736,23 +787,32 @@ fn parse_b_scale_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGrap
     }
     use Dim::{Known, Symbol};
     let (n, e) = (Symbol("N".to_owned()), Symbol("E".to_owned()));
-    let signature = [
+    let legacy = [
         ("nodes", DType::F32, vec![n.clone(), Known(14)]),
         ("pair_index", DType::I64, vec![Known(2), e.clone()]),
         ("geometry", DType::F32, vec![e.clone(), Known(2), Known(12)]),
         ("style", DType::F32, vec![e.clone(), Known(6)]),
         ("layout", DType::F32, vec![e.clone(), Known(8)]),
         ("appearance", DType::F32, vec![n.clone(), Known(10)]),
-        ("page_shape", DType::F32, vec![n, Known(2)]),
+        ("page_shape", DType::F32, vec![n.clone(), Known(2)]),
     ];
+    let compact = [
+        ("node_features", DType::F32, vec![n, Known(3)]),
+        legacy[1].clone(),
+        legacy[2].clone(),
+        legacy[3].clone(),
+        ("layout", DType::F32, vec![e.clone(), Known(7)]),
+    ];
+    let matches_signature = |signature: &[(&str, DType, Vec<Dim>)]| {
+        inputs.len() == signature.len()
+            && inputs
+                .iter()
+                .zip(signature.iter().cloned())
+                .all(|(i, (name, dtype, dims))| {
+                    i.name == name && i.dtype == dtype && i.shape == ShapeSpec::Ranked(dims)
+                })
+    };
     if guard != ["Shape", "Gather", "Greater", "If"]
-        || inputs.len() != signature.len()
-        || inputs
-            .iter()
-            .zip(signature)
-            .any(|(i, (name, dtype, dims))| {
-                i.name != name || i.dtype != dtype || i.shape != ShapeSpec::Ranked(dims)
-            })
         || outputs.len() != 1
         || outputs[0].name != "logits"
         || outputs[0].dtype != DType::F32
@@ -760,7 +820,22 @@ fn parse_b_scale_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGrap
     {
         return Err(reader.error("unexpected B-Scale ONNX interface"));
     }
-    branch.ok_or_else(|| reader.error("B-Scale then_branch missing"))
+    let input = if matches_signature(&legacy) {
+        BScaleInput::Legacy
+    } else if matches_signature(&compact) {
+        BScaleInput::Compact
+    } else {
+        return Err(reader.error("unexpected B-Scale ONNX input signature"));
+    };
+    let graph = branch.ok_or_else(|| reader.error("B-Scale then_branch missing"))?;
+    let expected_nodes = match input {
+        BScaleInput::Legacy => 306,
+        BScaleInput::Compact => 302,
+    };
+    if graph.nodes.len() != expected_nodes {
+        return Err(reader.error("unexpected B-Scale scorer graph"));
+    }
+    Ok((graph, input))
 }
 fn parse_graph<R: BufRead>(reader: &mut WireReader<R>) -> Result<RawGraph> {
     let mut graph = RawGraph::default();

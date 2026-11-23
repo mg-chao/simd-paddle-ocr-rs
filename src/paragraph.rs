@@ -366,7 +366,13 @@ impl ParagraphRequest {
     ) -> ImageResult<ParagraphProfile> {
         self.reset();
         let timer = Timer::<PROFILE>::start();
-        let page = features::prepare(image, quads, self.plan.limits).map_err(stage_error)?;
+        let page = features::prepare(
+            image,
+            quads,
+            self.plan.limits,
+            self.plan.partition == crate::onnx::BScalePartition::Signed,
+        )
+        .map_err(stage_error)?;
         let preprocess_ns = timer.elapsed();
         let input = Input {
             nodes: &page.node_inputs,

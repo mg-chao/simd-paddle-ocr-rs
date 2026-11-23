@@ -1,4 +1,4 @@
-//! The FP32 schedule for the epoch 15 B-Scale checkpoint.
+//! The FP32 schedule shared by the supported B-Scale exports.
 use crate::{
     error::{ErrorKind, ImportError, RuntimeError},
     onnx::{AttributeValue, RawGraph},
@@ -76,7 +76,7 @@ pub(crate) struct Weights {
 
 impl Weights {
     pub(super) fn load(graph: RawGraph) -> Result<Self, ImportError> {
-        if graph.nodes.len() != 306 || graph.initializers.len() != 88 {
+        if graph.initializers.len() != 88 {
             return Err(ImportError::new("unexpected B-Scale scorer graph"));
         }
         let mut tensors = HashMap::with_capacity(graph.initializers.len());

@@ -10,6 +10,10 @@ const SUPPORT: f64 = -0.65;
 const VETO: f32 = -3.0;
 const TOLERANCE: f64 = 1e-6;
 
+const SIGNED_THRESHOLD: f32 = 1.625;
+const SIGNED_VETO: f32 = -0.5;
+const SIGNED_SUPPORT: f32 = -0.65;
+
 pub(super) fn decode(
     page: &PreparedPage,
     logits: &[f32],
@@ -23,6 +27,7 @@ pub(super) fn decode(
     let groups = match partition {
         BScalePartition::Evidence => cluster(page.quads.len(), &page.pairs, logits),
         BScalePartition::Connected => connected(page.quads.len(), &page.pairs, logits),
+        BScalePartition::Signed => signed(page.quads.len(), &page.pairs, logits),
     };
     let mut result = Vec::with_capacity(groups.len());
     for vertical in [false, true] {
@@ -57,6 +62,53 @@ fn connected(n: usize, pairs: &[[usize; 2]], logits: &[f32]) -> Vec<Vec<usize>> 
     for i in 0..n {
         let component = root(&mut parent, i);
         members[component].push(i);
+    }
+    members
+        .into_iter()
+        .filter(|group| !group.is_empty())
+        .collect()
+}
+
+fn signed(n: usize, pairs: &[[usize; 2]], logits: &[f32]) -> Vec<Vec<usize>> {
+    // Process both links and exclusions by strength. Keep candidate order for ties.
+    let mut proposals = Vec::new();
+    for (&pair, &score) in pairs.iter().zip(logits) {
+        if score >= SIGNED_THRESHOLD {
+            proposals.push((pair, score - SIGNED_THRESHOLD, false));
+        } else if score <= SIGNED_VETO {
+            proposals.push((pair, SIGNED_VETO - score + SIGNED_SUPPORT, true));
+        }
+    }
+    proposals.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    let mut component: Vec<_> = (0..n).collect();
+    let mut members: Vec<_> = (0..n).map(|i| vec![i]).collect();
+    let mut exclusions = vec![HashSet::new(); n];
+    for ([first, second], _, exclude) in proposals {
+        let (mut a, mut b) = (component[first], component[second]);
+        if a == b {
+            continue;
+        }
+        if exclude {
+            exclusions[a].insert(b);
+            exclusions[b].insert(a);
+            continue;
+        }
+        if exclusions[a].contains(&b) {
+            continue;
+        }
+        if members[a].len() > members[b].len() {
+            std::mem::swap(&mut a, &mut b);
+        }
+        let mut absorbed = std::mem::take(&mut members[a]);
+        for &node in &absorbed {
+            component[node] = b;
+        }
+        members[b].append(&mut absorbed);
+        for neighbor in std::mem::take(&mut exclusions[a]) {
+            exclusions[neighbor].remove(&a);
+            exclusions[neighbor].insert(b);
+            exclusions[b].insert(neighbor);
+        }
     }
     members
         .into_iter()
@@ -311,6 +363,27 @@ mod tests {
         assert_eq!(
             connected(4, &[[0, 1], [1, 2]], &[0., -0.1]),
             vec![vec![0, 1], vec![2], vec![3]]
+        );
+    }
+
+    #[test]
+    fn signed_exclusions_follow_merges_in_strength_order() {
+        let pairs = [[0, 2], [0, 1], [1, 2], [2, 3], [3, 4]];
+        // A strong exclusion (0,2) is transferred to the component containing (0,1).
+        // The edge (2,3) is exactly at the join threshold and (3,4) is below it.
+        let logits = [-4.0, 3.0, 2.0, 1.625, 1.624];
+        assert_eq!(
+            signed(5, &pairs, &logits),
+            [vec![1, 0], vec![3, 2], vec![4]]
+        );
+        // The support offset delays a weaker exclusion until after the chain has formed.
+        assert_eq!(
+            signed(5, &pairs, &[-1.25, 3.0, 2.0, 1.625, 1.624]),
+            [vec![1, 0, 2, 3], vec![4]]
+        );
+        assert_eq!(
+            signed(3, &[[0, 1], [1, 2], [0, 2]], &[2.0, 2.0, -4.0]),
+            [vec![1, 0], vec![2]]
         );
     }
 
