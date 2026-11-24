@@ -531,6 +531,23 @@ impl Plan {
             } else {
                 Layout::Canonical
             };
+            #[cfg(target_arch = "aarch64")]
+            if input_layout == Layout::Nhwc
+                && let Some(slot) = compiled.nhwc_spatial_packed.get(&base)
+                && slot.get().is_none()
+            {
+                let id = instruction.inputs[1];
+                let dims = logical.shapes[id.0].dimensions();
+                let panel = compiled.packed_cache.matrix(
+                    id,
+                    packing::MatrixPacking::ConvTapMajor,
+                    || {
+                        PackedMatrix::from_spatial_3x3(constant(compiled, id), dims[1], dims[0])
+                            .map_err(RuntimeError::new)
+                    },
+                )?;
+                slot.get_or_init(|| panel);
+            }
             let mut inputs = Vec::with_capacity(ids.len());
             for id in ids {
                 let value =

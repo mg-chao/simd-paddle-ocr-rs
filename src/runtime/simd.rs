@@ -3961,10 +3961,13 @@ mod tests {
                         }
                         i += stride;
                     }
-                    let mut sum = 0.;
-                    for lane in 0..lanes {
-                        sum += if pairs { a[lane] + b[lane] } else { a[lane] };
-                    }
+                    let mut sum = if cfg!(target_arch = "aarch64") && lanes == 4 {
+                        (a[0] + a[1]) + (a[2] + a[3])
+                    } else {
+                        (0..lanes)
+                            .map(|lane| if pairs { a[lane] + b[lane] } else { a[lane] })
+                            .sum()
+                    };
                     for &value in &source[i..] {
                         sum += value;
                     }

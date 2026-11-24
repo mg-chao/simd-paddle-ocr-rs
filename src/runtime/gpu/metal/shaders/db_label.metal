@@ -50,7 +50,7 @@ struct Resident {
       return 0u;
     }
     auto count = atomic_load_explicit(&counts[i], memory_order_relaxed);
-    if (count < 3u || (count & 0x80000000u) != 0u) {
+    if (count == 0u || (count & 0x80000000u) != 0u) {
       return 0u;
     }
     return select(2u, 1u, mask[i] != 0u);
@@ -154,7 +154,7 @@ struct Resident {
         threadgroup_barrier(mem_flags::mem_threadgroup);
       }
       if (i < n) {
-        ranks[i] = select(scan_bg[lane], scan_fg[lane], kind == 1u);
+        ranks[i] = scan_bg[lane] + scan_fg[lane];
       }
       if (lane == 63u) {
         blocks[block * 4u] = scan_fg[63];
@@ -214,7 +214,7 @@ struct Resident {
         fg += blocks[base];
         bg += blocks[base + 1u];
       }
-      atomic_store_explicit(&metadata[0], min(fg, p(3u)), memory_order_relaxed);
+      atomic_store_explicit(&metadata[0], fg + bg, memory_order_relaxed);
       atomic_store_explicit(&metadata[1], min(fg + bg, p(3u)),
                             memory_order_relaxed);
       for (auto c = 0u; c < min(fg + bg, p(3u)); c++) {
@@ -330,11 +330,12 @@ struct Resident {
         return;
       }
       auto upper = ((n + 63u) / 64u + block / 64u) * 4u;
-      auto offset =
-          select(blocks[block * 4u + 3u] + blocks[upper + 3u] +
-                     atomic_load_explicit(&metadata[0], memory_order_relaxed),
-                 blocks[block * 4u + 2u] + blocks[upper + 2u], kind == 1u);
-      auto rank = ranks[i] + offset - 1u;
+      // RETR_LIST returns foreground and hole contours together in reverse
+      // raster order. Apply max_candidates to that combined sequence.
+      auto offset = blocks[block * 4u + 2u] + blocks[block * 4u + 3u] +
+                    blocks[upper + 2u] + blocks[upper + 3u];
+      auto rank = atomic_load_explicit(&metadata[0], memory_order_relaxed) -
+                  (offset + ranks[i]);
       ranks[i] = select(0xffffffffu, rank, rank < p(3u));
       if (rank < p(3u)) {
         auto base = 16u + rank * 8u;

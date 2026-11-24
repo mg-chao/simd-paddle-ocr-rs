@@ -1,6 +1,7 @@
 //! Minimum-area rectangle with OpenCV 4.12 rotated-rectangle rounding.
 //! Adapted from modules/imgproc/src/rotcalipers.cpp. See licenses/opencv-calipers.txt.
 use super::{Point, order_clockwise};
+use crate::math::opencv_mul_add_f32 as madd;
 
 fn rotate(p: Point, side: usize) -> Point {
     match side {
@@ -47,30 +48,39 @@ pub(super) fn bounding_box(hull: &[Point]) -> (f32, [Point; 4]) {
         let (a, b) = (v.x * inv, v.y * inv);
         support[side] = (support[side] + 1) % hull.len();
         let [bottom, right, top, left] = support.map(|i| hull[i]);
-        let w = (right.x - left.x) * a + (right.y - left.y) * b;
-        let h = -(top.x - bottom.x) * b + (top.y - bottom.y) * a;
+        let w = madd(right.x - left.x, a, (right.y - left.y) * b);
+        let h = madd(bottom.x - top.x, b, (top.y - bottom.y) * a);
         if w * h <= best {
             best = w * h;
-            let u = a * left.x + b * left.y;
-            let v = -b * bottom.x + a * bottom.y;
-            let inv_det = 1. / (a * a + b * b);
+            let u = madd(a, left.x, b * left.y);
+            let v = madd(-b, bottom.x, a * bottom.y);
+            let inv_det = 1. / madd(a, a, b * b);
             result = (
-                Point::new((u * a - v * b) * inv_det, (a * v + b * u) * inv_det),
+                Point::new(madd(u, a, -v * b) * inv_det, madd(a, v, b * u) * inv_det),
                 Point::new(a * w, b * w),
                 Point::new(-b * h, a * h),
             );
         }
     }
     let (origin, u, v) = result;
-    let center = Point::new(origin.x + (u.x + v.x) * 0.5, origin.y + (u.y + v.y) * 0.5);
+    let center = Point::new(
+        madd(u.x + v.x, 0.5, origin.x),
+        madd(u.y + v.y, 0.5, origin.y),
+    );
     let w = f64::from(u.x).hypot(f64::from(u.y)) as f32;
     let h = f64::from(v.x).hypot(f64::from(v.y)) as f32;
     let angle = f64::from(u.y).atan2(f64::from(u.x)) as f32;
     let degrees = (f64::from(angle * 180.) / std::f64::consts::PI) as f32;
     let (sin, cos) = f64::from(degrees).to_radians().sin_cos();
     let (a, b) = (sin as f32 * 0.5, cos as f32 * 0.5);
-    let p = Point::new(center.x - a * h - b * w, center.y + b * h - a * w);
-    let q = Point::new(center.x + a * h - b * w, center.y - b * h - a * w);
+    let p = Point::new(
+        madd(-b, w, madd(-a, h, center.x)),
+        madd(-a, w, madd(b, h, center.y)),
+    );
+    let q = Point::new(
+        madd(-b, w, madd(a, h, center.x)),
+        madd(-a, w, madd(-b, h, center.y)),
+    );
     let opposite = |p: Point| Point::new(2. * center.x - p.x, 2. * center.y - p.y);
     let mut points = [p, q, opposite(p), opposite(q)];
     order_clockwise(&mut points);

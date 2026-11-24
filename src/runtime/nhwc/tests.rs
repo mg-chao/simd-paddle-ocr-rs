@@ -710,6 +710,11 @@ fn channel_pool_and_mean_vectors_match_logical_nchw_oracles() {
                 );
             }
             for backend in backends() {
+                #[cfg(target_arch = "aarch64")]
+                if matches!(&kind, BoundKind::Reduce(p) if p.global_pool) {
+                    // Compare each ARM policy against its canonical NCHW kernel.
+                    simd::spatial_mean(backend, &input, &mut expected, 60);
+                }
                 let mut actual = vec![f32::NAN; expected.len()];
                 misc::execute(backend, &kind, &packed, shape, &mut actual);
                 assert!(

@@ -61,6 +61,8 @@ impl Pipelines {
             #[cfg(target_os = "macos")]
             ShaderKind::Depthwise7 => KernelId::Depthwise7,
             ShaderKind::Reduce => KernelId::Reduce,
+            #[cfg(target_os = "macos")]
+            ShaderKind::SpatialMean => KernelId::SpatialMean,
             ShaderKind::Softmax => KernelId::Softmax,
             ShaderKind::LayerNorm => KernelId::LayerNorm,
             ShaderKind::ReducePartial => KernelId::ReducePartial,

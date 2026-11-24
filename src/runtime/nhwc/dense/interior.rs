@@ -346,6 +346,7 @@ pub(super) unsafe fn accumulate_neon<const LANES: usize, const VECTORS: usize>(
     inputs: Option<&TileInputs<'_>>,
     panel: &[f32],
     k0: usize,
+    tap_major: bool,
     seeds: [[Simd<f32, LANES>; VECTORS]; ROWS],
 ) -> [[Simd<f32, LANES>; VECTORS]; ROWS] {
     use super::super::pointwise::neon::dense_tile;
@@ -367,6 +368,7 @@ pub(super) unsafe fn accumulate_neon<const LANES: usize, const VECTORS: usize>(
                 taps.channels,
                 panel,
                 k0,
+                tap_major,
                 seeds,
             ),
             (Some(taps), Some(TileInputs::Border(inputs))) => dense_tile(
@@ -375,6 +377,7 @@ pub(super) unsafe fn accumulate_neon<const LANES: usize, const VECTORS: usize>(
                 taps.channels,
                 panel,
                 k0,
+                tap_major,
                 seeds,
             ),
             _ => dense_tile(
@@ -383,6 +386,7 @@ pub(super) unsafe fn accumulate_neon<const LANES: usize, const VECTORS: usize>(
                 p.cin,
                 panel,
                 k0,
+                tap_major,
                 seeds,
             ),
         }

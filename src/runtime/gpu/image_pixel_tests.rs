@@ -13,7 +13,7 @@ struct Case {
     detector: bool,
 }
 
-const CASES: [Case; 8] = [
+const CASES: [Case; 9] = [
     Case {
         name: "bgr_down_odd_stride_padding",
         format: PixelFormat::Bgr24,
@@ -62,6 +62,16 @@ const CASES: [Case; 8] = [
         source: [7, 5],
         content_width: 7,
         output: [11, 5],
+        detector: true,
+    },
+    Case {
+        name: "detector_axis_tables_with_padding",
+        format: PixelFormat::Rgb24,
+        image: [53, 71],
+        stride_extra: 3,
+        source: [57, 73],
+        content_width: 129,
+        output: [135, 96],
         detector: true,
     },
     Case {
@@ -276,9 +286,15 @@ fn hardware() {
                     case.name, actual[index], expected[index]
                 );
             }
-            assert_eq!(statistics.dispatches, 1, "{case:?}");
+            let dispatches =
+                if cfg!(target_os = "macos") && case.name == "detector_axis_tables_with_padding" {
+                    2
+                } else {
+                    1
+                };
+            assert_eq!(statistics.dispatches, dispatches, "{case:?}");
             assert_eq!(statistics.submissions, 1, "{case:?}");
-            assert_eq!(statistics.native_resident_dispatches, 1);
+            assert_eq!(statistics.native_resident_dispatches, dispatches);
             assert_eq!(statistics.diagnostic_readback_bytes, 0);
             assert!(statistics.cpu_compute_stages.is_empty());
         }
@@ -289,4 +305,43 @@ fn hardware() {
 #[ignore = "requires a physical GPU with F16"]
 fn gpu_resident_image_pixel_reuse_matches_cpu_and_batch_offset() {
     hardware();
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+#[ignore = "requires a physical Apple GPU"]
+fn gpu_resize_axes_round_large_source_coordinates() {
+    let context = GpuContext::new().unwrap();
+    let width = 960;
+    let source = 33_554_433;
+    let mut batch = Batch::new(context.clone()).unwrap();
+    let bytes = (width + 1) * 8;
+    let axes = batch.storage("resize axes", bytes).unwrap();
+    let (gx, gy) = dispatch_grid(width + 1, &context.limits).unwrap();
+    batch
+        .dispatch(
+            "image_resize_axes",
+            KernelKey::new(KernelId::ResizeAxes),
+            &[(&axes, false)],
+            &[source, 1, width as u32, 1],
+            [gx, gy, 1],
+        )
+        .unwrap();
+    let (data, _) = batch.read(&axes, bytes, false).unwrap();
+    let scale = f64::from(source) / width as f64;
+    for (x, entry) in data.chunks_exact(8).take(width).enumerate() {
+        let coordinate = ((x as f64 + 0.5) * scale - 0.5) as f32;
+        let base = coordinate.floor();
+        let weight = ((coordinate - base) * 2048.).round_ties_even();
+        assert_eq!(
+            i32::from_le_bytes(entry[..4].try_into().unwrap()),
+            base as i32,
+            "x={x}"
+        );
+        assert_eq!(
+            i32::from_le_bytes(entry[4..].try_into().unwrap()),
+            weight as i32,
+            "x={x}"
+        );
+    }
 }

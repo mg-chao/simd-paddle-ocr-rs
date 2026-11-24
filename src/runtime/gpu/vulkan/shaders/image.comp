@@ -128,6 +128,13 @@ ivec2 coefficient(uint position, uint source, uint destination) {
     uvec2 q=multiply_divide(2u*position+1u,source,den);
     // OpenCV narrows the complete source coordinate to f32 before computing
     // the 11-bit interpolation coefficient, including its integer part.
+    if (q.x >= (1u << 24u)) {
+        // FP32 midpoints here are integers. Keep the fractional direction
+        // until the FP32 cast, as in the Metal resize kernel.
+        uint twice = 2u * q.x + uint(q.y > destination) - uint(q.y < destination);
+        uint rounded = uint(float(twice) * 0.5);
+        return ivec2(int(min(rounded, source - 1u)), 0);
+    }
     float whole = float(q.x), divisor = float(den);
     float numerator = float(int(q.y) - int(destination));
     precise float coordinate = whole + numerator / divisor;

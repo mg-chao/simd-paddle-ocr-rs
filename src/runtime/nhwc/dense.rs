@@ -228,6 +228,7 @@ fn kernel<const LANES: usize, const VECTORS: usize, const FUSED: bool>(
                                 fields[tile / ROWS].as_ref(),
                                 panel,
                                 k0,
+                                packed.tap_major,
                                 sums,
                             )
                         };

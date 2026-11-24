@@ -359,7 +359,10 @@ fn map_scalar(
         let tile = (1024 / height.min(16)).min(width) as f64;
         let base = (x[lane] / tile).floor() * tile;
         let local = x[lane] - base;
-        let affine = |k: usize| (c[k] * base + c[k + 1] * y[lane] + c[k + 2]) + c[k] * local;
+        let affine = |k: usize| {
+            let origin = crate::math::opencv_mul_add_f64(c[k], base, c[k + 1] * y[lane]) + c[k + 2];
+            crate::math::opencv_mul_add_f64(c[k], local, origin)
+        };
         let den = affine(6);
         let scale = 1. / den;
         let (sx, sy) = (affine(0) * scale, affine(3) * scale);
@@ -399,8 +402,14 @@ fn map_vector<const N: usize>(
     let base = (x / tile).floor() * tile;
     let local = x - base;
     let affine = |k: usize| {
-        (Simd::splat(c[k]) * base + Simd::splat(c[k + 1]) * y + Simd::splat(c[k + 2]))
-            + Simd::splat(c[k]) * local
+        let a = Simd::splat(c[k]);
+        let by = Simd::splat(c[k + 1]) * y;
+        let offset = Simd::splat(c[k + 2]);
+        if cfg!(target_arch = "aarch64") {
+            a.mul_add(local, a.mul_add(base, by) + offset)
+        } else {
+            (a * base + by + offset) + a * local
+        }
     };
     let den = affine(6);
     let scale = Simd::splat(1.) / den;

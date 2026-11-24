@@ -1,13 +1,92 @@
-//! Pack only sixty-four receptive fields, in the existing IC/KY/KX order.
+//! Pack sixty-four receptive fields in the reduction order of the weight panel.
 //! Each field is consumed by the same SME tiles and fused stores as pointwise.
 use super::*;
 use crate::runtime::nhwc::pointwise::sme::{GROUP, packed_group};
 use std::arch::aarch64::{
-    vcombine_f32, vdupq_n_f32, vget_high_f32, vget_low_f32, vld1q_f32, vst1q_f32, vtrn1q_f32,
-    vtrn2q_f32,
+    float32x4_t, vcombine_f32, vdupq_n_f32, vget_high_f32, vget_low_f32, vld1q_f32, vst1q_f32,
+    vtrn1q_f32, vtrn2q_f32,
 };
 
-fn pack_fields(p: &Conv, input: &[f32], first: usize, count: usize, scratch: &mut [f32]) {
+// A complete horizontal panel reads sixteen fields at a constant stride.
+fn interior_panel<'a>(p: &Conv, input: &'a [f32], first: usize) -> Option<&'a [f32]> {
+    let x = first % p.ow;
+    if p.ow - x < 16 {
+        return None;
+    }
+    let y = first / p.ow % p.oh;
+    let sx = x.checked_mul(p.sw)?.checked_sub(p.pl)?;
+    let sy = y.checked_mul(p.sh)?.checked_sub(p.pt)?;
+    let dx = 15usize
+        .checked_mul(p.sw)?
+        .checked_add((p.kw - 1).checked_mul(p.dw)?)?;
+    let dy = (p.kh - 1).checked_mul(p.dh)?;
+    if dx >= p.width.checked_sub(sx)? || dy >= p.height.checked_sub(sy)? {
+        return None;
+    }
+    let image = input
+        .chunks_exact(p.height.checked_mul(p.width)?.checked_mul(p.cin)?)
+        .nth(first / p.ow / p.oh)?;
+    let start = (sy * p.width + sx) * p.cin;
+    let end = ((sy + dy) * p.width + sx + dx + 1) * p.cin;
+    Some(&image[start..end])
+}
+
+#[inline]
+fn pack_channel_vectors(
+    panel: &mut [f32],
+    channels: usize,
+    channel_stride: usize,
+    load: impl Fn(usize, usize) -> float32x4_t,
+) {
+    let vector_end = channels / 4 * 4;
+    if vector_end == 0 {
+        return;
+    }
+    assert!((vector_end - 1).saturating_mul(channel_stride) < panel.len() / 16);
+    for row in (0..16).step_by(4) {
+        for ci in (0..vector_end).step_by(4) {
+            // SAFETY: the last vector ends in row 15 of the final checked channel.
+            // NEON is baseline on AArch64.
+            unsafe {
+                let (a, b, c, d) = (
+                    load(row, ci),
+                    load(row + 1, ci),
+                    load(row + 2, ci),
+                    load(row + 3, ci),
+                );
+                let ab0 = vtrn1q_f32(a, b);
+                let ab1 = vtrn2q_f32(a, b);
+                let cd0 = vtrn1q_f32(c, d);
+                let cd1 = vtrn2q_f32(c, d);
+                let destination = panel.as_mut_ptr().add((ci * channel_stride) * 16 + row);
+                vst1q_f32(
+                    destination,
+                    vcombine_f32(vget_low_f32(ab0), vget_low_f32(cd0)),
+                );
+                vst1q_f32(
+                    destination.add(channel_stride * 16),
+                    vcombine_f32(vget_low_f32(ab1), vget_low_f32(cd1)),
+                );
+                vst1q_f32(
+                    destination.add(channel_stride * 32),
+                    vcombine_f32(vget_high_f32(ab0), vget_high_f32(cd0)),
+                );
+                vst1q_f32(
+                    destination.add(channel_stride * 48),
+                    vcombine_f32(vget_high_f32(ab1), vget_high_f32(cd1)),
+                );
+            }
+        }
+    }
+}
+
+fn pack_fields<const TAP_MAJOR: bool>(
+    p: &Conv,
+    input: &[f32],
+    first: usize,
+    count: usize,
+    scratch: &mut [f32],
+) {
     let taps = p.kh * p.kw;
     let inner = p.cin * taps;
     assert!((1..=GROUP).contains(&count));
@@ -15,7 +94,24 @@ fn pack_fields(p: &Conv, input: &[f32], first: usize, count: usize, scratch: &mu
     assert!(first + count <= p.batch * p.oh * p.ow);
     for panel_first in (0..count).step_by(16) {
         let panel = &mut scratch[panel_first * inner..(panel_first + 16) * inner];
+        let interior = if TAP_MAJOR && count - panel_first >= 16 && p.cin.is_multiple_of(4) {
+            interior_panel(p, input, first + panel_first)
+        } else {
+            None
+        };
         for tap in 0..taps {
+            let channel_stride = if TAP_MAJOR { 1 } else { taps };
+            let tap_offset = if TAP_MAJOR { tap * p.cin } else { tap };
+            if let Some(interior) = interior {
+                let offset = ((tap / p.kw) * p.dh * p.width + (tap % p.kw) * p.dw) * p.cin;
+                let field = &interior[offset..];
+                pack_channel_vectors(&mut panel[tap_offset * 16..], p.cin, 1, |r, ci| {
+                    // SAFETY: interior_panel bounded the last tap, rightmost field
+                    // and every input channel. Only complete vectors reach this path.
+                    unsafe { vld1q_f32(field.as_ptr().add(r * p.sw * p.cin + ci)) }
+                });
+                continue;
+            }
             // Bind complete channel spans once per tap. Padding supplies
             // positive zero, including FMA with zero-valued kernel taps.
             let fields: [Option<&[f32]>; 16] = std::array::from_fn(|r| {
@@ -32,44 +128,22 @@ fn pack_fields(p: &Conv, input: &[f32], first: usize, count: usize, scratch: &mu
                     Some(&input[base..base + p.cin])
                 }
             });
-            for row in (0..16).step_by(4) {
-                for ci in (0..p.cin / 4 * 4).step_by(4) {
-                    // SAFETY: NEON is baseline on this target. Bound fields
-                    // contain cin floats and ci+4 <= cin. The final store is
-                    // within the checked sixteen-row, inner-column panel.
-                    unsafe {
-                        let load = |r: usize| {
-                            fields[r]
-                                .map_or_else(|| vdupq_n_f32(0.), |s| vld1q_f32(s.as_ptr().add(ci)))
-                        };
-                        let (a, b, c, d) = (load(row), load(row + 1), load(row + 2), load(row + 3));
-                        let ab0 = vtrn1q_f32(a, b);
-                        let ab1 = vtrn2q_f32(a, b);
-                        let cd0 = vtrn1q_f32(c, d);
-                        let cd1 = vtrn2q_f32(c, d);
-                        let destination = panel.as_mut_ptr().add((ci * taps + tap) * 16 + row);
-                        vst1q_f32(
-                            destination,
-                            vcombine_f32(vget_low_f32(ab0), vget_low_f32(cd0)),
-                        );
-                        vst1q_f32(
-                            destination.add(taps * 16),
-                            vcombine_f32(vget_low_f32(ab1), vget_low_f32(cd1)),
-                        );
-                        vst1q_f32(
-                            destination.add(taps * 32),
-                            vcombine_f32(vget_high_f32(ab0), vget_high_f32(cd0)),
-                        );
-                        vst1q_f32(
-                            destination.add(taps * 48),
-                            vcombine_f32(vget_high_f32(ab1), vget_high_f32(cd1)),
-                        );
-                    }
-                }
-            }
+            pack_channel_vectors(
+                &mut panel[tap_offset * 16..],
+                p.cin,
+                channel_stride,
+                |r, ci| {
+                    fields[r].map_or_else(
+                        || unsafe { vdupq_n_f32(0.) },
+                        // SAFETY: each bound field contains cin floats and ci+4 <= cin.
+                        |field| unsafe { vld1q_f32(field.as_ptr().add(ci)) },
+                    )
+                },
+            );
             for ci in p.cin / 4 * 4..p.cin {
                 for (row, field) in fields.iter().enumerate() {
-                    panel[(ci * taps + tap) * 16 + row] = field.map_or(0., |s| s[ci]);
+                    panel[(tap_offset + ci * channel_stride) * 16 + row] =
+                        field.map_or(0., |s| s[ci]);
                 }
             }
         }
@@ -92,7 +166,11 @@ fn execute_band(
         let rows = output.len() / p.cout;
         for group in (0..rows).step_by(GROUP) {
             let count = (rows - group).min(GROUP);
-            pack_fields(p, input, first + group, count, scratch);
+            if packed.tap_major {
+                pack_fields::<true>(p, input, first + group, count, scratch);
+            } else {
+                pack_fields::<false>(p, input, first + group, count, scratch);
+            }
             if !packed_group(
                 scratch,
                 bias,

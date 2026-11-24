@@ -24,6 +24,8 @@ pub(super) enum KernelId {
     #[cfg(target_os = "macos")]
     Depthwise7,
     Reduce,
+    #[cfg(target_os = "macos")]
+    SpatialMean,
     Softmax,
     LayerNorm,
     ReducePartial,
@@ -56,6 +58,10 @@ pub(super) enum KernelId {
     DbGeometryFast,
     HeadsFeaturesF32,
     Image,
+    #[cfg(target_os = "macos")]
+    ImageFromTable,
+    #[cfg(target_os = "macos")]
+    ResizeAxes,
     #[cfg(feature = "paragraph")]
     ParagraphGraph,
 }
@@ -81,6 +87,8 @@ impl KernelId {
             #[cfg(target_os = "macos")]
             Self::Depthwise7 => 63,
             Self::Reduce => 39,
+            #[cfg(target_os = "macos")]
+            Self::SpatialMean => 33,
             Self::Softmax => 39,
             Self::LayerNorm => 39,
             Self::ReducePartial => 35,
@@ -111,6 +119,10 @@ impl KernelId {
             Self::DbGeometryFast => 1,
             Self::HeadsFeaturesF32 => 1,
             Self::Image => 4,
+            #[cfg(target_os = "macos")]
+            Self::ImageFromTable => 4,
+            #[cfg(target_os = "macos")]
+            Self::ResizeAxes => 0,
             #[cfg(feature = "paragraph")]
             Self::ParagraphGraph => 0,
         }

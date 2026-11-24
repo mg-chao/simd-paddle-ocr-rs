@@ -33,6 +33,8 @@ pub use crate::cpu::CpuContext;
 use packing::PackedMatrix;
 pub use simd::{Backend, KernelPolicy};
 use std::collections::{HashMap, VecDeque};
+#[cfg(target_arch = "aarch64")]
+use std::sync::OnceLock;
 
 #[derive(Clone, Copy, Debug, serde::Serialize, PartialEq, Eq)]
 pub enum LayoutPolicy {
@@ -373,6 +375,8 @@ pub struct CpuCompiledModel {
     backend: Backend,
     packed: HashMap<TensorId, Arc<PackedMatrix>>,
     conv_packed: HashMap<usize, Arc<PackedMatrix>>,
+    #[cfg(target_arch = "aarch64")]
+    nhwc_spatial_packed: HashMap<usize, OnceLock<Arc<PackedMatrix>>>,
     transpose_packed: HashMap<usize, Arc<[PackedMatrix; 4]>>,
 }
 impl CpuCompiledModel {
@@ -398,6 +402,8 @@ impl CpuCompiledModel {
             backend,
             packed: HashMap::new(),
             conv_packed: HashMap::new(),
+            #[cfg(target_arch = "aarch64")]
+            nhwc_spatial_packed: HashMap::new(),
             transpose_packed: HashMap::new(),
         };
         compiled.prepare_packs()?;
@@ -411,10 +417,10 @@ impl CpuCompiledModel {
     }
     pub fn packed_weight_bytes(&self) -> usize {
         let mut seen = std::collections::HashSet::new();
-        let matrices: usize = self
-            .packed
-            .values()
-            .chain(self.conv_packed.values())
+        let panels = self.packed.values().chain(self.conv_packed.values());
+        #[cfg(target_arch = "aarch64")]
+        let panels = panels.chain(self.nhwc_spatial_packed.values().filter_map(OnceLock::get));
+        let matrices: usize = panels
             .filter(|p| seen.insert(Arc::as_ptr(p)))
             .map(|p| p.bytes())
             .sum();
@@ -490,6 +496,16 @@ impl CpuCompiledModel {
                         },
                     )?;
                     self.conv_packed.insert(index, pack);
+                    #[cfg(target_arch = "aarch64")]
+                    if self.backend == Backend::NeonFma
+                        && self.options.cpu.layout == LayoutPolicy::Auto
+                        && attr.group == 1
+                        && dims[1] > 1
+                        && dims[2..] == [3, 3]
+                    {
+                        // Only a bound NHWC plan needs the second weight order.
+                        self.nhwc_spatial_packed.insert(index, OnceLock::new());
+                    }
                 }
                 Op::ConvTranspose
                     if dims.len() == 4

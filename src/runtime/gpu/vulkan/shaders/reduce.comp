@@ -11,6 +11,8 @@ shared float tile[1024];
 float spatial_average(float sum, uint plane) {
     float divisor = float(plane);
     float q = uintBitsToFloat(floatBitsToUint(sum / divisor) & p(7u));
+    if (isinf(q) || isnan(q))
+        return q;
     precise float residual = fma(-q, divisor, sum);
     return fma(residual, 1. / divisor, q);
 }
@@ -21,11 +23,11 @@ void spatial_mean(uint row, uint lane, uint plane, bool global_pool) {
     uint base = row * plane;
     uint prefix = global_pool ? 0u : (0u - base) % 4u;
     uint packets = (plane - prefix) / 4u;
-    uint length = global_pool ? plane : (packets / 2u) * 8u;
+    bool arm_order = p(5u) != 0u;
     precise float sum = 0.;
-    if (global_pool) {
-        for (uint start = 0u; start < length; start += 1024u) {
-            uint count = min(1024u, length - start);
+    if (global_pool && !arm_order) {
+        for (uint start = 0u; start < plane; start += 1024u) {
+            uint count = min(1024u, plane - start);
             for (uint j = lane; j < count; j += 64u)
                 tile[j] = load_a(base + start + j);
             barrier();
@@ -38,18 +40,21 @@ void spatial_mean(uint row, uint lane, uint plane, bool global_pool) {
             store_output(row, spatial_average(sum, plane));
         return;
     }
-    if (lane < 8u) {
+    // ARM GlobalAveragePool uses one four-lane packet, ReduceMean uses two.
+    uint stride = global_pool ? 4u : 8u;
+    uint length = (plane - prefix) / stride * stride;
+    if (lane < stride) {
         uint j = lane;
-        for (; j + 120u < length; j += 128u) {
+        for (; j + 15u * stride < length; j += 16u * stride) {
             [[unroll]] for (uint k = 0u; k < 16u; ++k)
-                sum += load_a(base + prefix + j + 8u * k);
+                sum += load_a(base + prefix + j + stride * k);
         }
-        for (; j < length; j += 8u)
+        for (; j < length; j += stride)
             sum += load_a(base + prefix + j);
     }
     partial[lane] = sum;
     barrier();
-    if (lane < 4u) {
+    if (lane < 4u && !global_pool) {
         precise float merged = partial[lane] + partial[lane + 4u];
         if ((packets & 1u) != 0u)
             merged += load_a(base + prefix + length + lane);
@@ -57,7 +62,8 @@ void spatial_mean(uint row, uint lane, uint plane, bool global_pool) {
     }
     barrier();
     if (lane == 0u) {
-        precise float total = (partial[0] + partial[2]) + (partial[1] + partial[3]);
+        precise float total = arm_order ? (partial[0] + partial[1]) + (partial[2] + partial[3])
+                                        : (partial[0] + partial[2]) + (partial[1] + partial[3]);
         for (uint j = 0u; j < prefix; ++j)
             total += load_a(base + j);
         for (uint j = prefix + 4u * packets; j < plane; ++j)

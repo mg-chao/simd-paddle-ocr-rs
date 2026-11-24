@@ -383,6 +383,13 @@ pub(super) fn execute<'a>(
                 &[]
             };
             let packed = compiled.conv_packed.get(&index).map(Arc::as_ref);
+            #[cfg(target_arch = "aarch64")]
+            let packed = compiled
+                .nhwc_spatial_packed
+                .get(&index)
+                .and_then(OnceLock::get)
+                .map(Arc::as_ref)
+                .or(packed);
             if workspaces.is_empty() {
                 return Err(RuntimeError::new(
                     "NHWC convolution requires a reserved worker workspace",

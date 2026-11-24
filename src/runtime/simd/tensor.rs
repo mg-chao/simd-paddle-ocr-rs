@@ -201,10 +201,12 @@ fn kernel<const LANES: usize, const PAIRS: bool>(task: Task, input: &[f32], outp
                     }
                     i += stride;
                 }
-                let mut sum = if PAIRS { a + b } else { a }
-                    .to_array()
-                    .into_iter()
-                    .fold(0., |a, b| a + b);
+                let lanes = (if PAIRS { a + b } else { a }).to_array();
+                let mut sum = if cfg!(target_arch = "aarch64") && LANES == 4 {
+                    (lanes[0] + lanes[1]) + (lanes[2] + lanes[3])
+                } else {
+                    lanes.into_iter().fold(0., |sum, lane| sum + lane)
+                };
                 // The reference's AVX-512 remainder loads one additional
                 // vector but folds its lanes sequentially into the scalar.
                 if PAIRS && LANES == 16 && i + LANES <= spatial {

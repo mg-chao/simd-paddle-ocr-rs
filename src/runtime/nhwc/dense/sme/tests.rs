@@ -1,5 +1,7 @@
 use super::*;
-use crate::runtime::nhwc::dense::neon_tests::{assert_bits, oracle, pack, plan, values};
+use crate::runtime::nhwc::dense::neon_tests::{
+    assert_bits, oracle, ordered_oracle, pack, plan, values,
+};
 
 #[test]
 fn spatial_sme_pack_preserves_taps_padding_batches_and_channel_tails() {
@@ -25,7 +27,7 @@ fn spatial_sme_pack_preserves_taps_padding_batches_and_channel_tails() {
                 let size = count.div_ceil(16) * 16 * inner;
                 let sentinel = f32::from_bits(0x7fc0_5678);
                 let mut scratch = vec![sentinel; size + 2];
-                pack_fields(&p, &input, first, count, &mut scratch[1..=size]);
+                pack_fields::<false>(&p, &input, first, count, &mut scratch[1..=size]);
                 for panel in (0..count).step_by(16) {
                     for k in 0..inner {
                         for row in 0..16 {
@@ -56,6 +58,40 @@ fn spatial_sme_pack_preserves_taps_padding_batches_and_channel_tails() {
                 }
                 assert_eq!(scratch[0].to_bits(), sentinel.to_bits());
                 assert_eq!(scratch[size + 1].to_bits(), sentinel.to_bits());
+            }
+        }
+    }
+}
+
+#[test]
+fn tap_major_interior_panels_match_reordered_fields_across_row_boundaries() {
+    let mut p = plan(32, 16, 3, 2);
+    p.width = 79;
+    p.sh = 2;
+    p.sw = 2;
+    p.oh = p.height.div_ceil(p.sh);
+    p.ow = p.width.div_ceil(p.sw);
+    let input: Vec<_> = (0..p.batch * p.height * p.width * p.cin)
+        .map(|i| f32::from_bits(0x8000_0000 | i as u32))
+        .collect();
+    // Start in the second image. The third panel crosses a row boundary
+    // and the final partial panel repeats its last output position.
+    let first = p.oh * p.ow + p.ow + 1;
+    let count = 57;
+    let taps = p.kh * p.kw;
+    let inner = taps * p.cin;
+    let mut reference = vec![0.; GROUP * inner];
+    let mut actual = vec![0.; reference.len()];
+    pack_fields::<false>(&p, &input, first, count, &mut reference);
+    pack_fields::<true>(&p, &input, first, count, &mut actual);
+    for panel in (0..count).step_by(16) {
+        for tap in 0..taps {
+            for ci in 0..p.cin {
+                let src = panel * inner + (ci * taps + tap) * 16;
+                let dst = panel * inner + (tap * p.cin + ci) * 16;
+                for row in 0..16 {
+                    assert_eq!(actual[dst + row].to_bits(), reference[src + row].to_bits());
+                }
             }
         }
     }
@@ -92,9 +128,14 @@ fn spatial_sme_matches_ordered_oracle_with_borders_offsets_and_fused_stores() {
         let input = values(p.batch * p.height * p.width * cin, 3);
         let weights = values(cin * cout * kernel * kernel, 5);
         let bias = values(cout, 7);
-        let packed = pack(&p, &weights);
+        let tap_major = kernel == 3;
+        let packed = if tap_major {
+            PackedMatrix::from_spatial_3x3(&weights, p.cin, p.cout).unwrap()
+        } else {
+            pack(&p, &weights)
+        };
         for bias in [bias.as_slice(), &[]] {
-            let mut expected = oracle(&p, &input, &weights, bias);
+            let mut expected = ordered_oracle(&p, &input, &weights, bias, tap_major);
             for (index, v) in expected.iter_mut().enumerate() {
                 *v = IndexStore.scalar(*v, index);
             }

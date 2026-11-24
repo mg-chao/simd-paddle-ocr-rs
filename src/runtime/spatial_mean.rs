@@ -1,7 +1,18 @@
 //! Spatial ReduceMean. Two four-element packets are accumulated independently.
 //! The channel alignment is that of the logical contiguous NCHW plane, including
 //! when the executor keeps the activation in channels-last storage.
+use std::ops::Add;
 use std::simd::Simd;
+
+// Eigen uses adjacent pairwise adds on NEON and high/low halves on x86.
+#[inline(always)]
+fn horizontal_sum<T: Add<Output = T> + Copy>([a, b, c, d]: [T; 4]) -> T {
+    if cfg!(target_arch = "aarch64") {
+        (a + b) + (c + d)
+    } else {
+        (a + c) + (b + d)
+    }
+}
 
 #[inline(always)]
 fn channel<const L: usize>(
@@ -35,7 +46,7 @@ fn channel<const L: usize>(
             }
         }
     }
-    let mut sum = (a[0] + a[2]) + (a[1] + a[3]);
+    let mut sum = horizontal_sum(a);
     for i in 0..prefix {
         sum += sample(i);
     }
@@ -87,7 +98,7 @@ fn unaligned_channels<const L: usize>(
                 *sum += at(paired_end + j);
             }
         }
-        let mut total = (packet[0] + packet[2]) + (packet[1] + packet[3]);
+        let mut total = horizontal_sum(packet);
         for pixel in 0..prefix {
             total += at(pixel);
         }
@@ -139,7 +150,7 @@ fn aligned_tiles<const L: usize>(
                     *value += Simd::from_slice(&values[(paired_end + j) * channels + c..]);
                 }
             }
-            let total = (merged[0] + merged[2]) + (merged[1] + merged[3]);
+            let total = horizontal_sum(merged);
             (total / Simd::splat(plane as f32)).copy_to_slice(&mut dst[c..c + L]);
         }
     }
@@ -196,6 +207,49 @@ pub(super) fn channels_last<const L: usize>(
     }
 }
 
+// MLAS global pooling on ARM uses one four-lane accumulator and consumes
+// the tail after the horizontal reduction. Vectorize across channels while
+// retaining the same four spatial sums per channel in NHWC storage.
+#[cfg(target_arch = "aarch64")]
+pub(super) fn global_pool_nhwc<const L: usize>(
+    input: &[f32],
+    output: &mut [f32],
+    channels: usize,
+    plane: usize,
+) {
+    fn pool<const N: usize>(plane: usize, at: impl Fn(usize) -> Simd<f32, N>) -> Simd<f32, N> {
+        let mut packets = [Simd::splat(0.); 4];
+        let end = plane / 4 * 4;
+        for first in (0..end).step_by(4) {
+            for (lane, sum) in packets.iter_mut().enumerate() {
+                *sum += at(first + lane);
+            }
+        }
+        let mut sum = horizontal_sum(packets);
+        for pixel in end..plane {
+            sum += at(pixel);
+        }
+        sum / Simd::splat(plane as f32)
+    }
+    for (values, dst) in input
+        .chunks_exact(channels * plane)
+        .zip(output.chunks_exact_mut(channels))
+    {
+        let (groups, tail) = dst.as_chunks_mut::<L>();
+        for (group, dst) in groups.iter_mut().enumerate() {
+            *dst = pool(plane, |i| {
+                Simd::from_slice(&values[i * channels + group * L..])
+            })
+            .to_array();
+        }
+        for (c, dst) in tail.iter_mut().enumerate() {
+            *dst = pool(plane, |i| {
+                Simd::<_, 1>::splat(values[i * channels + groups.len() * L + c])
+            })[0];
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,15 +260,28 @@ mod tests {
             16777216., 1., -16777216., 1., -1., 2., -1., -4., 5., 7., -5., 3., 1., 2., 4., -3.,
         ];
         // ORT CPU ReduceMean over axes [2,3] on [2,3,1,plane].
-        for (plane, expected) in [
-            (
-                13,
-                [
-                    1062772106, 1065998494, 1047285445, 1065353216, 1235061215, 3382544850,
-                ],
-            ),
-            (16, [1062207488; 6]),
-        ] {
+        let reference = if cfg!(target_arch = "aarch64") {
+            [
+                (
+                    13,
+                    [
+                        1062772106, 1065353216, 1050511833, 1065353216, 1235061215, 3382544850,
+                    ],
+                ),
+                (16, [1061158912; 6]),
+            ]
+        } else {
+            [
+                (
+                    13,
+                    [
+                        1062772106, 1065998494, 1047285445, 1065353216, 1235061215, 3382544850,
+                    ],
+                ),
+                (16, [1062207488; 6]),
+            ]
+        };
+        for (plane, expected) in reference {
             let input: Vec<_> = pattern.iter().copied().cycle().take(6 * plane).collect();
             let mut result = [0.; 6];
             channels_first(&input, &mut result, plane);
@@ -229,6 +296,17 @@ mod tests {
             }
             channels_last::<2>(&packed, &mut result, 3, plane);
             assert_eq!(result.map(f32::to_bits), expected);
+            #[cfg(target_arch = "aarch64")]
+            if plane == 13 {
+                // ORT GlobalAveragePool on the same input uses a separate tail.
+                global_pool_nhwc::<2>(&packed, &mut result, 3, plane);
+                assert_eq!(
+                    result.map(f32::to_bits),
+                    [
+                        1062772106, 1065353216, 1050511833, 1065353216, 1235061215, 3382544849
+                    ]
+                );
+            }
         }
     }
     #[test]

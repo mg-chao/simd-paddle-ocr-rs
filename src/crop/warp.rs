@@ -1,6 +1,8 @@
 //! Invert the forward perspective transform using the same operation order as
 //! getPerspectiveTransform/warpPerspective. Round-off matters at half phases.
 //! See licenses/opencv-calipers.txt for the OpenCV attribution.
+use crate::math::opencv_mul_add_f64 as madd;
+
 pub(super) fn inverse(points: [[f32; 2]; 4], w: usize, h: usize) -> Option<[f64; 9]> {
     let dst = [
         [0., 0.],
@@ -29,7 +31,7 @@ pub(super) fn inverse(points: [[f32; 2]; 4], w: usize, h: usize) -> Option<[f64;
         for target in &mut rows[i + 1..] {
             let factor = target[i] * scale;
             for k in i + 1..9 {
-                target[k] += factor * row[k];
+                target[k] = madd(factor, row[k], target[k]);
             }
         }
     }
@@ -37,28 +39,27 @@ pub(super) fn inverse(points: [[f32; 2]; 4], w: usize, h: usize) -> Option<[f64;
     for i in (0..8).rev() {
         let mut value = rows[i][8];
         for k in i + 1..8 {
-            value -= rows[i][k] * forward[k];
+            value = madd(-rows[i][k], forward[k], value);
         }
         forward[i] = value / rows[i][i];
     }
     let [a, b, c, d, e, f, g, h] = forward;
-    let det = a * (e - f * h) - b * (d - f * g) + c * (d * h - e * g);
+    // Evaluate the 3x3 adjugate in the same term order as cv::invert.
+    let adj = [
+        e - f * h,
+        madd(c, h, -b),
+        madd(b, f, -c * e),
+        madd(f, g, -d),
+        a - c * g,
+        madd(c, d, -a * f),
+        madd(d, h, -e * g),
+        madd(b, g, -a * h),
+        madd(a, e, -b * d),
+    ];
+    let det = madd(c, adj[6], madd(a, adj[0], -b * (d - f * g)));
     if !det.is_finite() || det == 0. {
         return None;
     }
     let inv = 1. / det;
-    Some(
-        [
-            e - f * h,
-            c * h - b,
-            b * f - c * e,
-            f * g - d,
-            a - c * g,
-            c * d - a * f,
-            d * h - e * g,
-            b * g - a * h,
-            a * e - b * d,
-        ]
-        .map(|k| k * inv),
-    )
+    Some(adj.map(|value| value * inv))
 }

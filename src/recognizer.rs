@@ -1877,6 +1877,7 @@ impl Recognizer {
     }
 }
 
+#[cfg_attr(target_arch = "aarch64", path = "recognizer/aspect_order_arm.rs")]
 mod aspect_order;
 
 fn decode_probability_rows(

@@ -72,6 +72,10 @@ pub const ENTRIES: &[Entry] = &[
     neural!(Depthwise5, "shaders/depthwise.metal", 63, "#define KH 5\n"),
     neural!(Depthwise7, "shaders/depthwise.metal", 63, "#define KH 7\n"),
     neural!(Reduce, "shaders/reduce.metal", 39, "#define MODE 0\n"),
+    Entry {
+        threads: 32,
+        ..neural!(SpatialMean, "shaders/reduce.metal", 33, "#define MODE 3\n")
+    },
     neural!(Softmax, "shaders/reduce.metal", 39, "#define MODE 1\n"),
     neural!(LayerNorm, "shaders/reduce.metal", 39, "#define MODE 2\n"),
     neural!(
@@ -148,6 +152,28 @@ pub const ENTRIES: &[Entry] = &[
         64,
         &[true, true, false]
     ),
+    Entry {
+        defines: "#define BUILD_RESIZE_AXES\n",
+        ..resident!(
+            ResizeAxes,
+            "shaders/image.metal",
+            "resize_axes",
+            0,
+            64,
+            &[false]
+        )
+    },
+    Entry {
+        defines: "#define IMAGE_FROM_TABLE\n",
+        ..resident!(
+            ImageFromTable,
+            "shaders/image.metal",
+            "image",
+            4,
+            64,
+            &[true, true, false, true]
+        )
+    },
     #[cfg(feature = "paragraph")]
     resident!(
         ParagraphGraph,
@@ -420,6 +446,8 @@ pub fn source(entry: &Entry) -> String {
             "TILE",
             "IS_CONV",
             "SMALL_PROJECTION",
+            "BUILD_RESIZE_AXES",
+            "IMAGE_FROM_TABLE",
         ] {
             result.push_str(&format!("#undef {variable}\n"));
         }

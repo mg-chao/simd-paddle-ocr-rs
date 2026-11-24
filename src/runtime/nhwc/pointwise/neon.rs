@@ -324,8 +324,29 @@ unsafe fn pointwise_tile(
 /// SAFETY: the reader must bind six rows across tap_count * channels; the
 /// caller entered NEON and seeds preserve the preceding ascending K chain.
 #[target_feature(enable = "neon")]
-#[inline(never)]
 pub(in super::super) unsafe fn dense_tile(
+    reader: &impl PortableReader,
+    tap_count: usize,
+    channels: usize,
+    panel: &[f32],
+    k0: usize,
+    tap_major: bool,
+    seeds: [[Simd<f32, 4>; 4]; ROWS],
+) -> [[Simd<f32, 4>; 4]; ROWS] {
+    // Select the traversal before entering the FMA loop. Both orders use the
+    // same bounded descriptors and packed sixteen-channel weight vectors.
+    unsafe {
+        if tap_major {
+            dense_tile_ordered::<true>(reader, tap_count, channels, panel, k0, seeds)
+        } else {
+            dense_tile_ordered::<false>(reader, tap_count, channels, panel, k0, seeds)
+        }
+    }
+}
+
+#[target_feature(enable = "neon")]
+#[inline(never)]
+unsafe fn dense_tile_ordered<const TAP_MAJOR: bool>(
     reader: &impl PortableReader,
     tap_count: usize,
     channels: usize,
@@ -376,8 +397,14 @@ pub(in super::super) unsafe fn dense_tile(
         native(seeds[5][2]),
         native(seeds[5][3]),
     );
-    let (mut channel, mut tap) = (k0 / tap_count, k0 % tap_count);
+    let inner_run = if TAP_MAJOR { channels } else { tap_count };
+    let (mut outer, mut inner) = (k0 / inner_run, k0 % inner_run);
     for weights in panel.as_chunks::<16>().0 {
+        let (tap, channel) = if TAP_MAJOR {
+            (outer, inner)
+        } else {
+            (inner, outer)
+        };
         // SAFETY: each complete panel row contains all sixteen weights.
         let w0 = unsafe { vld1q_f32(weights.as_ptr().add(0)) };
         let w1 = unsafe { vld1q_f32(weights.as_ptr().add(4)) };
@@ -437,10 +464,10 @@ pub(in super::super) unsafe fn dense_tile(
             a52 = vfmaq_n_f32(a52, w2, value);
             a53 = vfmaq_n_f32(a53, w3, value);
         }
-        tap += 1;
-        if tap == tap_count {
-            tap = 0;
-            channel += 1;
+        inner += 1;
+        if inner == inner_run {
+            inner = 0;
+            outer += 1;
         }
     }
     [

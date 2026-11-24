@@ -1,4 +1,4 @@
-//! Portable scalar exponential matching the native Windows F32 primitive.
+//! Scalar arithmetic for compatible exponential, caliper and perspective results.
 //!
 //! Adapted from AMD win-libm expf.asm (MIT, copyright 2002–2019 AMD).
 //! <https://github.com/amd/win-libm/blob/master/expf.asm>
@@ -95,6 +95,26 @@ pub(crate) fn exp_f32(value: f32) -> f32 {
     let y = table.mul_add(p, table);
     let scale = f64::from_bits(((m + 1023) as u64) << 52);
     (y * scale) as f32
+}
+
+// OpenCV's AArch64 kernels contract multiply-adds in the caliper and
+// perspective calculations. One ulp can move a corner or interpolation phase.
+#[inline]
+pub(crate) fn opencv_mul_add_f32(a: f32, b: f32, c: f32) -> f32 {
+    if cfg!(target_arch = "aarch64") {
+        a.mul_add(b, c)
+    } else {
+        a * b + c
+    }
+}
+
+#[inline]
+pub(crate) fn opencv_mul_add_f64(a: f64, b: f64, c: f64) -> f64 {
+    if cfg!(target_arch = "aarch64") {
+        a.mul_add(b, c)
+    } else {
+        a * b + c
+    }
 }
 
 #[cfg(test)]

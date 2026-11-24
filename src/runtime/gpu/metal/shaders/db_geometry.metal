@@ -9,461 +9,400 @@ struct Resident {
   GEOMETRY_MATH
 
   uint p(uint i) { return params.words[i / 4u][i % 4u]; }
-  float cross(float2 o, float2 a, float2 b) {
-    auto u = a - o;
-    auto v = b - o;
-    return sf(mf(u.x, v.y), mf(u.y, v.x));
-  }
-  float flength(float2 d) {
-    return dvalue(dq(ds(af(mf(d.x, d.x), mf(d.y, d.y)))));
-  }
-  float divide(float a, float b) { return dvalue(dd(ds(a), ds(b))); }
-  float project(float2 a, float2 b) { return af(mf(a.x, b.x), mf(a.y, b.y)); }
-  float2 from_axes(float2 u, float2 v, float a, float b) {
-    return float2(af(mf(u.x, a), mf(v.x, b)), af(mf(u.y, a), mf(v.y, b)));
-  }
-
-  float2 direction(float2 delta) {
-    if (delta.x == 0.0) {
-      return float2(0.0, sign(delta.y));
-    }
-    if (delta.y == 0.0) {
-      return float2(sign(delta.x), 0.0);
-    }
-    auto len = flength(delta);
-    return float2(divide(delta.x, len), divide(delta.y, len));
-  }
-  array<float2, 4> ordered(array<float2, 4> input) {
-    auto lo = 0u;
-    auto hi = 0u;
-    for (auto i = 1u; i < 4u; i++) {
-      if (input[i].x + input[i].y < input[lo].x + input[lo].y) {
-        lo = i;
-      }
-      if (input[i].x + input[i].y > input[hi].x + input[hi].y) {
-        hi = i;
-      }
-    }
-    array<uint, 2> remain{};
-    auto n = 0u;
-    for (auto i = 0u; i < 4u; i++) {
-      if (i != lo && i != hi && n < 2u) {
-        remain[n] = i;
-        n++;
-      }
-    }
-    auto result = input;
-    if (n == 2u && lo != hi) {
-      auto a = input[remain[0]];
-      auto b = input[remain[1]];
-      result = array<float2, 4>{input[lo], select(b, a, a.y - a.x < b.y - b.x),
-                                input[hi], select(a, b, a.y - a.x < b.y - b.x)};
-      auto good = true;
-      for (auto i = 0u; i < 4u; i++) {
-        good = good && cross(result[i], result[(i + 1u) % 4u],
-                             result[(i + 2u) % 4u]) > 0.0;
-      }
-      if (good) {
-        return result;
-      }
-    }
-    auto center = (input[0] + input[1] + input[2] + input[3]) * 0.25;
-    array<float, 4> angles{};
-    auto order = array<uint, 4>{0u, 1u, 2u, 3u};
-    for (auto i = 0u; i < 4u; i++) {
-      angles[i] = atan2(input[i].y - center.y, input[i].x - center.x);
-    }
-    for (auto i = 1u; i < 4u; i++) {
-      auto k = order[i];
-      auto j = i;
-      while (j > 0u && angles[order[j - 1u]] > angles[k]) {
-        order[j] = order[j - 1u];
-        j--;
-      }
-      order[j] = k;
-    }
-    auto first = 0u;
-    for (auto i = 1u; i < 4u; i++) {
-      auto a = input[order[i]];
-      auto b = input[order[first]];
-      if (a.x + a.y < b.x + b.y || (a.x + a.y == b.x + b.y &&
-                                    (a.y < b.y || (a.y == b.y && a.x < b.x)))) {
-        first = i;
-      }
-    }
-    for (auto i = 0u; i < 4u; i++) {
-      result[i] = input[order[(first + i) % 4u]];
-    }
-    return result;
-  }
   struct Rect {
     array<float2, 4> points;
     float2 side;
     uint valid;
   };
-  Rect rectangle(uint base, uint count) {
-    Rect result{};
-    result.valid = 0u;
-    if (count < 3u) {
-      return result;
+
+  float cross_(float2 o, float2 a, float2 b) {
+    float2 u = a - o, v = b - o;
+    float d = u.x * v.y - u.y * v.x;
+    return d;
+  }
+  // Pick the nearest f32 quotient using the exact product residual. Merely
+  // adding a rounded correction double-rounds 1 / (1 - 2^-24) down to one.
+  float divide(float a, float b) {
+    if (a == 0.)
+      return a;
+    float magnitude = abs(a), q = rf(magnitude / b);
+    float residual = rf(fma(-q, b, magnitude));
+    if (residual != 0.) {
+      uint bits = as_type<uint>(q);
+      float neighbor = as_type<float>(residual > 0. ? bits + 1u : bits - 1u);
+      float other = abs(rf(fma(-neighbor, b, magnitude)));
+      if (other < abs(residual) ||
+          (other == abs(residual) && (bits & 1u) != 0u))
+        q = neighbor;
     }
-    auto first = 0u;
-    for (auto i = 1u; i < count; i++) {
-      auto a = scratch[base + i];
-      auto b = scratch[base + first];
-      if (a.x < b.x || (a.x == b.x && a.y < b.y)) {
-        first = i;
+    return a < 0. ? -q : q;
+  }
+
+  array<float2, 4> ordered(array<float2, 4> points) {
+    for (int i = 1; i < 4; ++i) {
+      float2 v = points[i];
+      int j = i;
+      while (j > 0 && points[j - 1].x > v.x) {
+        points[j] = points[j - 1];
+        --j;
       }
+      points[j] = v;
     }
-    auto best = 3.402823e38;
-    for (auto e = 0u; e < count; e++) {
-      auto edge = (first + e) % count;
-      auto delta = scratch[base + (edge + 1u) % count] - scratch[base + edge];
-      auto len = flength(delta);
-      if (len <= 0.0) {
-        continue;
+    float2 a = points[0], b = points[1], c = points[2], d = points[3];
+    return array<float2, 4>{a.y <= b.y ? a : b, c.y <= d.y ? c : d,
+                            c.y <= d.y ? d : c, a.y <= b.y ? b : a};
+  }
+
+  // Same rotating calipers and RotatedRect rounding as src/db/calipers.rs.
+  // The first edge participates in the last-wins tie break for equal areas.
+  Rect rectangle(uint base, uint count, uint kind) {
+    Rect r;
+    r.valid = 0u;
+    if (count < 3u)
+      return r;
+    uint top = 0u;
+    for (uint i = 1u; i < count; ++i) {
+      float2 a = scratch[base + i], b = scratch[base + top];
+      if (a.y < b.y || (a.y == b.y && (kind == 3u ? a.x > b.x : a.x < b.x)))
+        top = i;
+    }
+    uint start = (top + (kind == 2u ? count - 1u : 1u)) % count;
+    uint4 support = uint4(start);
+    for (uint k = 1u; k < count; ++k) {
+      uint i = (start + k) % count;
+      float2 v = scratch[base + i];
+      if (v.y < scratch[base + support.x].y)
+        support.x = i;
+      if (v.x > scratch[base + support.y].x)
+        support.y = i;
+      if (v.y > scratch[base + support.z].y)
+        support.z = i;
+      if (v.x < scratch[base + support.w].x)
+        support.w = i;
+    }
+    float best = 3.402823e38;
+    float2 origin = float2(0), u = float2(0), v = float2(0);
+    for (uint i = 0u; i < count; ++i) {
+      float2 dirs[4];
+      for (int k = 0; k < 4; ++k) {
+        float2 d = scratch[base + (support[k] + 1u) % count] -
+                   scratch[base + support[k]];
+        dirs[k] = k == 0   ? d
+                  : k == 1 ? float2(d.y, -d.x)
+                  : k == 2 ? -d
+                           : float2(-d.y, d.x);
       }
-      auto u = direction(delta);
-      auto v = float2(-u.y, u.x);
-      auto low = float2(3.402823e38);
-      auto high = float2(-3.402823e38);
-      for (auto i = 0u; i < count; i++) {
-        auto q = scratch[base + i];
-        auto projected = float2(project(q, u), project(q, v));
-        low = min(low, projected);
-        high = max(high, projected);
-      }
-      auto side = high - low;
-      auto area = mf(side.x, side.y);
-      if (area < best) {
+      int side = 0;
+      for (int k = 1; k < 4; ++k)
+        if (dirs[k].y * dirs[side].x < dirs[k].x * dirs[side].y)
+          side = k;
+      float2 d = dirs[side];
+      float inv = dvalue(dd(ds(1.), dlength(d, float2(0))));
+      float a = d.x * inv, b = d.y * inv;
+      support[side] = (support[side] + 1u) % count;
+      float2 left = scratch[base + support.w],
+             bottom = scratch[base + support.x];
+      float2 dx = scratch[base + support.y] - left,
+             dy = scratch[base + support.z] - bottom;
+      float w = fma(dx.x, a, dx.y * b), h = fma(-dy.x, b, dy.y * a);
+      float area = w * h;
+      if (area <= best) {
         best = area;
-        result.side = side;
-        result.points = array<float2, 4>{
-            from_axes(u, v, low.x, low.y), from_axes(u, v, high.x, low.y),
-            from_axes(u, v, high.x, high.y), from_axes(u, v, low.x, high.y)};
-        result.valid = uint(area > 0.0);
+        float l = fma(a, left.x, b * left.y),
+              t = fma(-b, bottom.x, a * bottom.y);
+        float inv_det = divide(1., fma(a, a, b * b));
+        origin = float2(fma(l, a, -t * b), fma(a, t, b * l)) * inv_det;
+        u = float2(a, b) * w;
+        v = float2(-b, a) * h;
       }
     }
-    result.points = ordered(result.points);
-    return result;
+    float2 center =
+        float2(fma(u.x + v.x, 0.5f, origin.x), fma(u.y + v.y, 0.5f, origin.y));
+    float w = dvalue(dlength(u, float2(0))), h = dvalue(dlength(v, float2(0)));
+    float radians = dvalue(datan2(ds(u.y), ds(u.x)));
+    float degrees = dvalue(dd(ds(radians * 180.), dpi()));
+    float4 sc = dsincos(dm(ds(degrees), dd(dpi(), ds(180.))));
+    // Exact OpenCV binary64 sin/cos rounded to f32 at quadrant boundaries.
+    float a = dvalue(sc.xy) * 0.5, b = dvalue(sc.zw) * 0.5;
+    if (degrees == 90. || degrees == -90.) {
+      a = sign(degrees) * 0.5;
+      b = 3.061617e-17;
+    }
+    if (abs(degrees) == 180.) {
+      a = sign(degrees) * 6.123234e-17;
+      b = -0.5;
+    }
+    float2 first = float2(fma(-b, w, fma(-a, h, center.x)),
+                          fma(-a, w, fma(b, h, center.y)));
+    float2 second = float2(fma(-b, w, fma(a, h, center.x)),
+                           fma(-a, w, fma(-b, h, center.y)));
+    r.points = ordered(array<float2, 4>{first, second, 2. * center - first,
+                                        2. * center - second});
+    r.side = float2(w, h);
+    r.valid = 1u;
+    return r;
   }
+
   uint push_hull(uint base, uint count, uint lower, float2 point) {
-    auto n = count;
-    while (n >= lower + 2u && cross(scratch[base + n - 2u],
-                                    scratch[base + n - 1u], point) <= 0.0) {
-      n--;
-    }
-    scratch[base + n] = point;
-    return n + 1u;
+    while (count >= lower + 2u &&
+           cross_(scratch[base + count - 2u], scratch[base + count - 1u],
+                  point) <= 0.)
+      --count;
+    scratch[base + count] = point;
+    return count + 1u;
   }
-  uint hull_rows(uint base, uint rowbase, uint ybase, uint height) {
-    auto count = 0u;
-    for (auto y = 0u; y < height; y++) {
-      auto lo = rows[(rowbase + y) * 2u];
-      auto hi = rows[(rowbase + y) * 2u + 1u];
-      if (lo > hi) {
-        continue;
-      }
-      count = push_hull(base, count, 0u, float2(float(lo), float(ybase + y)));
-      if (hi != lo) {
-        count = push_hull(base, count, 0u, float2(float(hi), float(ybase + y)));
-      }
-    }
-    if (count < 2u) {
-      return 0u;
-    }
-    auto lower = count - 1u;
-    auto skipped = false;
-    for (auto yy = height; yy > 0u; yy--) {
-      auto y = yy - 1u;
-      auto lo = rows[(rowbase + y) * 2u];
-      auto hi = rows[(rowbase + y) * 2u + 1u];
-      if (lo > hi) {
-        continue;
-      }
-      if (skipped) {
-        count =
-            push_hull(base, count, lower, float2(float(hi), float(ybase + y)));
-      } else {
-        skipped = true;
-      }
-      if (hi != lo) {
-        count =
-            push_hull(base, count, lower, float2(float(lo), float(ybase + y)));
-      }
-    }
-    return count - 1u;
+
+  // A hole's contour follows the four adjacent foreground pixels. Its convex
+  // hull is therefore the hull of its row extrema expanded by one cardinal
+  // step.
+  uint2 row_span(uint rowbase, int y) {
+    return uint2(rows[(rowbase + uint(y)) * 2u],
+                 rows[(rowbase + uint(y)) * 2u + 1u]);
   }
-  uint hull_points(uint base, uint n) {
-    for (auto i = 1u; i < n; i++) {
-      auto q = scratch[base + i];
-      auto j = i;
+  uint2 contour_span(uint rowbase, int y, int height, bool hole) {
+    uint2 span = uint2(0xffffffffu, 0u);
+    if (y >= 0 && y < height) {
+      span = row_span(rowbase, y);
+      if (hole) {
+        --span.x;
+        ++span.y;
+      }
+    }
+    if (hole) {
+      for (int k = -1; k <= 1; k += 2) {
+        if (y + k < 0 || y + k >= height)
+          continue;
+        uint2 adjacent = row_span(rowbase, y + k);
+        span = uint2(min(span.x, adjacent.x), max(span.y, adjacent.y));
+      }
+    }
+    return span;
+  }
+  uint hull_rows(uint base, uint rowbase, uint ybase, uint height, bool hole) {
+    uint n = 0u, lower = 0u;
+    int first = hole ? -1 : 0, last = int(height) - 1 - first;
+    for (int pass = 0; pass < 2; ++pass) {
+      for (int k = first; k <= last; ++k) {
+        int y = pass == 0 ? k : last - (k - first);
+        uint2 span = contour_span(rowbase, y, int(height), hole);
+        float yy = float(int(ybase) + y);
+        if (pass == 0 || k != first)
+          n = push_hull(base, n, lower,
+                        float2(pass == 0 ? span.x : span.y, yy));
+        if (span.y != span.x)
+          n = push_hull(base, n, lower,
+                        float2(pass == 0 ? span.y : span.x, yy));
+      }
+      if (n < 2u)
+        return 0u;
+      lower = n - 1u;
+    }
+    return n - 1u;
+  }
+
+  uint hull_points(uint base, uint count) {
+    for (uint i = 1u; i < count; ++i) {
+      float2 q = scratch[base + i];
+      uint j = i;
       while (j > 0u) {
-        auto prev = scratch[base + j - 1u];
-        if (prev.x < q.x || (prev.x == q.x && prev.y <= q.y)) {
+        float2 prev = scratch[base + j - 1u];
+        if (prev.x < q.x || (prev.x == q.x && prev.y <= q.y))
           break;
-        }
         scratch[base + j] = prev;
-        j--;
+        --j;
       }
       scratch[base + j] = q;
     }
-    auto unique = 0u;
-    for (auto i = 0u; i < n; i++) {
-      auto q = scratch[base + i];
-      if (unique == 0u || any(q != scratch[base + unique - 1u])) {
-        scratch[base + unique] = q;
-        unique++;
-      }
+    uint unique = 0u;
+    for (uint i = 0u; i < count; ++i) {
+      float2 q = scratch[base + i];
+      if (unique == 0u || any(q != scratch[base + unique - 1u]))
+        scratch[base + unique++] = q;
     }
-    if (unique < 3u) {
+    if (unique < 3u)
       return 0u;
-    }
-    auto count = 0u;
-    auto out = base + 512u;
-    for (auto i = 0u; i < unique; i++) {
-      count = push_hull(out, count, 0u, scratch[base + i]);
-    }
-    auto lower = count - 1u;
-    for (auto j = unique - 1u; j > 0u; j--) {
-      count = push_hull(out, count, lower, scratch[base + j - 1u]);
-    }
-    return count - 1u;
+    uint n = 0u, dest = base + 512u;
+    for (uint i = 0u; i < unique; ++i)
+      n = push_hull(dest, n, 0u, scratch[base + i]);
+    uint lower = n - 1u;
+    for (uint i = unique - 1u; i > 0u; --i)
+      n = push_hull(dest, n, lower, scratch[base + i - 1u]);
+    return n - 1u;
   }
-  float score(array<float2, 4> points) {
-    auto low = points[0];
-    auto high = low;
-    for (auto i = 1u; i < 4u; i++) {
-      low = min(low, points[i]);
-      high = max(high, points[i]);
-    }
-    auto left = max(int(floor(low.x)), 0);
-    auto right = min(int(ceil(high.x)), int(p(0u)) - 1);
-    auto top = max(int(floor(low.y)), 0);
-    auto bottom = min(int(ceil(high.y)), int(p(1u)) - 1);
-    array<int2, 4> q{};
-    for (auto i = 0u; i < 4u; i++) {
-      q[i] = int2(points[i]) - int2(left, top);
-    }
-    auto sum = 0.0;
-    auto correction = 0.0;
-    auto count = 0u;
-    for (auto y = top; y <= bottom; y++) {
-      auto cy = y - top;
-      array<float, 4> thresholds{};
-      array<int, 4> lows{};
-      array<int, 4> highs{};
-      auto nt = 0u;
-      auto nh = 0u;
-      for (auto i = 0u; i < 4u; i++) {
-        auto a = q[i];
-        auto b = q[(i + 3u) % 4u];
-        auto d = b - a;
-        if ((a.y > cy) != (b.y > cy)) {
-          thresholds[nt] = af(
-              divide(mf(float(d.x), float(cy - a.y)), float(d.y)), float(a.x));
-          nt++;
-        }
-        if (cy < min(a.y, b.y) || cy > max(a.y, b.y)) {
-          continue;
-        }
-        if (d.y == 0) {
-          lows[nh] = min(a.x, b.x);
-          highs[nh] = max(a.x, b.x);
-          nh++;
-        } else {
-          auto num = (cy - a.y) * d.x;
-          if (num % d.y == 0) {
-            auto x = a.x + num / d.y;
-            if (x >= min(a.x, b.x) && x <= max(a.x, b.x)) {
-              lows[nh] = x;
-              highs[nh] = x;
-              nh++;
-            }
-          }
-        }
-      }
-      for (auto i = 1u; i < nt; i++) {
-        auto v = thresholds[i];
-        auto j = i;
-        while (j > 0u && thresholds[j - 1u] > v) {
-          thresholds[j] = thresholds[j - 1u];
-          j--;
-        }
-        thresholds[j] = v;
-      }
-      auto t = 0u;
-      for (auto x = left; x <= right; x++) {
-        auto cx = x - left;
-        while (t < nt && thresholds[t] <= float(cx)) {
-          t++;
-        }
-        auto inside = ((nt - t) & 1u) != 0u;
-        for (auto k = 0u; k < nh; k++) {
-          inside = inside || (cx >= lows[k] && cx <= highs[k]);
-        }
 
-        if (inside) {
-          auto value =
-              sf(float(prediction[uint(y) * p(0u) + uint(x)]), correction);
-          auto next = af(sum, value);
-          correction = sf(sf(next, sum), value);
-          sum = next;
-          count++;
+  // Integer LINE_8 mask, including both Bresenham edge pixels on shallow
+  // sides. For each row invert the edge's integer error recurrence.
+  float score(array<float2, 4> points) {
+    int2 extent = int2(p(0u), p(1u));
+    float2 lo = min(min(points[0], points[1]), min(points[2], points[3]));
+    float2 hi = max(max(points[0], points[1]), max(points[2], points[3]));
+    int2 origin = clamp(int2(floor(lo)), int2(0), extent - 1);
+    int bottom = clamp(int(ceil(hi.y)), 0, extent.y - 1);
+    int2 pts[4];
+    for (int i = 0; i < 4; ++i)
+      pts[i] = int2(points[i] - float2(origin)) + origin;
+    float2 sum = ds(0.);
+    int count = 0;
+    for (int y = origin.y; y <= bottom; ++y) {
+      int left = extent.x, right = -1;
+      for (int i = 0; i < 4; ++i) {
+        int2 a = pts[i], b = pts[(i + 1) % 4];
+        if (a.x > b.x) {
+          int2 tmp = a;
+          a = b;
+          b = tmp;
         }
+        if (y < min(a.y, b.y) || y > max(a.y, b.y))
+          continue;
+        int k = abs(y - a.y), dx = b.x - a.x, dy = abs(b.y - a.y);
+        int l = 0, r = dx;
+        if (dy > dx) {
+          l = (2 * k * dx + dy - 1) / (2 * dy);
+          r = l;
+        } else if (dy > 0) {
+          l = max(0, (2 * k * dx - dx + 1 + 2 * dy - 1) / (2 * dy));
+          r = min(dx, (2 * (k + 1) * dx - dx) / (2 * dy));
+        }
+        left = min(left, a.x + l);
+        right = max(right, a.x + r);
       }
+      left = max(left, 0);
+      right = min(right, extent.x - 1);
+      for (int x = left; x <= right; ++x)
+        sum = da(sum, ds(float(prediction[y * extent.x + x])));
+      count += max(0, right - left + 1);
     }
-    return select(0.0, sum / float(max(count, 1u)), count > 0u);
+    return count == 0 ? 0. : dvalue(dd(sum, ds(float(count))));
   }
+
   float2 offset_point(float2 q, float4 normal, float2 radius) {
     return float2(daway(da(ds(q.x), dm(normal.xy, radius))),
                   daway(da(ds(q.y), dm(normal.zw, radius))));
   }
+
   uint unclip(uint base, array<float2, 4> points) {
-    auto area = ds(0.0);
-    auto perimeter = ds(0.0);
-    for (auto i = 0u; i < 4u; i++) {
-      auto a = points[i];
-      auto b = points[(i + 1u) % 4u];
+    float2 area = ds(0.), perimeter = ds(0.);
+    float2 q[4];
+    int n = 0;
+    for (int i = 0; i < 4; ++i) {
+      float2 a = points[i], b = points[(i + 1) % 4];
       area = da(area, da(dm(ds(a.x), ds(b.y)), -dm(ds(b.x), ds(a.y))));
-      auto d = b - a;
-      perimeter = da(perimeter, ds(flength(d)));
+      perimeter = da(perimeter, dlength(a, b));
+      if (n == 0 || any(trunc(a) != q[n - 1]))
+        q[n++] = trunc(a);
     }
-    if (dvalue(area) < 0.0) {
-      area = -area;
-    }
-    auto delta =
-        dd(dm(dm(area, ds(0.5)), ds(as_type<float>(p(3u)))), perimeter);
-    if (!(dvalue(delta) > 0.0 && dvalue(delta) < 3.402823e38)) {
+    if (n > 1 && all(q[n - 1] == q[0]))
+      --n;
+    if (n < 3)
       return 0u;
-    }
-    array<float2, 4> pts{};
-    auto n = 0u;
-    for (auto i = 0u; i < 4u; i++) {
-      // Integer polygon vertices follow the CPU's ties-to-even contract.
-      auto q = rint(points[i]);
-      if (n > 0u && all(pts[n - 1u] == q)) {
-        continue;
-      }
-      pts[n] = q;
-      n++;
-    }
-    if (n >= 2u && all(pts[0] == pts[n - 1u])) {
-      n--;
-    }
-    if (n < 3u) {
+    float configured = as_type<float>(p(3u));
+    // Keep the default rational factor intact until the division. Computing
+    // 8/5 first can push an exact 4.5-pixel offset across Clipper's tie.
+    float2 delta = configured == 1.6
+                       ? dd(dm(area, ds(4.)), dm(perimeter, ds(5.)))
+                       : dd(dm(dm(area, ds(0.5)), ds(configured)), perimeter);
+    if (dvalue(delta) < 0.)
+      delta = -delta;
+    if (!(dvalue(delta) > 0.))
       return 0u;
+    float winding = 0.;
+    for (int i = 0; i < n; ++i) {
+      float2 a = q[i], b = q[(i + 1) % n];
+      winding += a.x * b.y - b.x * a.y;
     }
-    auto winding = ds(0.0);
-    for (auto i = 0u; i < n; i++) {
-      auto a = pts[i];
-      auto b = pts[(i + 1u) % n];
-      winding = da(winding, da(dm(ds(a.x), ds(b.y)), -dm(ds(b.x), ds(a.y))));
-    }
-    if (dvalue(winding) < 0.0) {
-      for (auto i = 0u; i < n / 2u; i++) {
-        auto q = pts[i];
-        pts[i] = pts[n - 1u - i];
-        pts[n - 1u - i] = q;
+    if (winding < 0.) {
+      for (int i = 0; i < n / 2; ++i) {
+        float2 t = q[i];
+        q[i] = q[n - 1 - i];
+        q[n - 1 - i] = t;
       }
     }
-    array<float4, 4> normals{};
-    for (auto i = 0u; i < n; i++) {
-      auto d = pts[(i + 1u) % n] - pts[i];
-      auto len = dq(da(dm(ds(d.x), ds(d.x)), dm(ds(d.y), ds(d.y))));
+    float4 normals[4];
+    for (int i = 0; i < n; ++i) {
+      float2 d = q[(i + 1) % n] - q[i], len = dlength(d, float2(0));
       normals[i] = float4(dd(ds(d.y), len), dd(ds(-d.x), len));
     }
-    auto count = 0u;
-    auto previous = n - 1u;
-    for (auto i = 0u; i < n; i++) {
-      auto q = pts[i];
-      auto incoming = normals[previous];
-      auto outgoing = normals[i];
-      scratch[base + count] = offset_point(q, incoming, delta);
-      count++;
-      auto turn =
-          da(dm(incoming.xy, outgoing.zw), -dm(incoming.zw, outgoing.xy));
-      if (dvalue(turn) >= 0.0) {
-        if (dvalue(da(dm(incoming.xy, outgoing.xy),
-                      dm(incoming.zw, outgoing.zw))) < 0.985) {
-          auto start = datan2(incoming.zw, incoming.xy);
-          auto end = datan2(outgoing.zw, outgoing.xy);
-          if (dvalue(end) < dvalue(start)) {
-            end = da(end, dm(dpi(), ds(2.0)));
-          }
-          auto angle = da(end, -start);
-          auto fraction = dd(angle, dm(dpi(), ds(2.0)));
-          auto chord = ds(min(0.25, dvalue(delta)));
-          auto steps =
-              max(2u, uint(dvalue(dd(dm(fraction, dpi()),
-                                     dacos(da(ds(1.0), -dd(chord, delta)))))));
-          steps = min(steps, max(2u, uint(dvalue(dm(ds(222.0), fraction)))));
-          auto step = dd(angle, ds(float(steps)));
-          auto sc = dsincos(step);
-          auto initial = dsincos(start);
-          auto vx = initial.zw;
-          auto vy = initial.xy;
-          for (auto j = 0u; j <= steps; j++) {
-            scratch[base + count] = offset_point(q, float4(vx, vy), delta);
-            count++;
-            auto next = da(dm(vx, sc.zw), -dm(vy, sc.xy));
-            vy = da(dm(vy, sc.zw), dm(vx, sc.xy));
-            vx = next;
-          }
-        }
-      } else {
-        scratch[base + count] = q;
-        count++;
+    float2 tolerance = dvalue(delta) < 1. ? dm(delta, ds(0.25)) : ds(0.25);
+    float2 steps = dd(dpi(), dacos(da(ds(1.), -dd(tolerance, delta))));
+    float2 limit = dm(delta, dpi());
+    if (dvalue(steps) > dvalue(limit))
+      steps = limit;
+    float2 angle = dd(dm(ds(2.), dpi()), steps);
+    float4 sc = dsincos(angle);
+    uint written = 0u;
+    int prev = n - 1;
+    for (int i = 0; i < n; ++i) {
+      float4 normal = normals[prev], end = normals[i];
+      float2 cross_val = da(dm(normal.xy, end.zw), -dm(normal.zw, end.xy));
+      float2 dot_val = da(dm(normal.xy, end.xy), dm(normal.zw, end.zw));
+      if (abs(dvalue(dm(cross_val, delta))) < 1. && dvalue(dot_val) > 0.) {
+        scratch[base + written++] = offset_point(q[i], normal, delta);
+        continue;
       }
-      scratch[base + count] = offset_point(q, outgoing, delta);
-      count++;
-      previous = i;
+      if (dvalue(cross_val) < 0.) {
+        scratch[base + written++] = offset_point(q[i], normal, delta);
+        scratch[base + written++] = q[i];
+      } else {
+        float2 arc = datan2(cross_val, dot_val);
+        uint count = max(1u, uint(floor(abs(dvalue(dd(arc, angle))) + 0.5)));
+        // The temporary offset hull occupies the first 512 slots.
+        uint stride = max(1u, (count + 119u) / 120u);
+        if (stride > 1u)
+          sc = dsincos(dm(angle, ds(float(stride))));
+        for (uint j = 0u; j < count; j += stride) {
+          scratch[base + written++] = offset_point(q[i], normal, delta);
+          normal = float4(da(dm(normal.xy, sc.zw), -dm(normal.zw, sc.xy)),
+                          da(dm(normal.xy, sc.xy), dm(normal.zw, sc.zw)));
+        }
+        if (stride > 1u)
+          sc = dsincos(angle);
+      }
+      scratch[base + written++] = offset_point(q[i], end, delta);
+      prev = i;
     }
-    return count;
+    return written;
   }
+
   void run(uint3 id) {
-    auto index = id.x;
-    if (index >= metadata[1]) {
+    uint index = id.x;
+    if (index >= metadata[1])
       return;
-    }
-    auto m = 16u + index * 8u;
-    auto height = metadata[m + 4u] - metadata[m + 2u] + 1u;
-    auto base = metadata[m + 5u] * 4u + index * 1024u;
-    auto out = index * 16u;
-    boxes[out + 9u] = 0u;
-    auto n = hull_rows(base, metadata[m + 5u], metadata[m + 2u], height);
-    auto r = rectangle(base, n);
-    if (r.valid == 0u || min(r.side.x, r.side.y) < 3.0) {
+    uint m = 16u + index * 8u, outbox = index * 16u;
+    uint y = metadata[m + 2u], height = metadata[m + 4u] - y + 1u;
+    uint rowbase = metadata[m + 5u], kind = metadata[m + 6u];
+    uint base = rowbase * 4u + index * 1024u;
+    boxes[outbox + 9u] = 0u;
+    uint n = hull_rows(base, rowbase, y, height, kind == 2u);
+    Rect r = rectangle(base, n, kind);
+    if (r.valid == 0u || min(r.side.x, r.side.y) < 3.)
       return;
-    }
-    auto confidence = score(r.points);
-    if (!(confidence >= as_type<float>(p(2u)))) {
+    float confidence = score(r.points);
+    if (!(confidence >= as_type<float>(p(2u))))
       return;
-    }
-    auto expanded = unclip(base, r.points);
-    auto hull = hull_points(base, expanded);
-    r = rectangle(base + 512u, hull);
-    if (r.valid == 0u || min(r.side.x, r.side.y) < 5.0) {
+    n = unclip(base, r.points);
+    if (n < 3u)
       return;
-    }
-    for (auto i = 0u; i < 4u; i++) {
-      scratch[base + i] = clamp(
-          rint(float2(mf(divide(r.points[i].x, float(p(0u))), float(p(6u))),
-                       mf(divide(r.points[i].y, float(p(1u))), float(p(7u))))),
-          float2(0.0), float2(float(p(4u)), float(p(5u))));
-    }
-    auto mapped = hull_points(base, 4u);
-    r = rectangle(base + 512u, mapped);
-    if (r.valid == 0u || distance(r.points[0], r.points[1]) <= 4.0 ||
-        distance(r.points[0], r.points[3]) <= 4.0) {
+    n = hull_points(base, n);
+    r = rectangle(base + 512u, n, 3u);
+    if (r.valid == 0u || min(r.side.x, r.side.y) < 5.)
       return;
+    for (int i = 0; i < 4; ++i) {
+      float2 mapped = float2(divide(r.points[i].x, float(p(0u))),
+                             divide(r.points[i].y, float(p(1u)))) *
+                      float2(p(6u), p(7u));
+      r.points[i] =
+          clamp(rint(mapped), float2(0), float2(p(4u) - 1u, p(5u) - 1u));
     }
-    for (auto i = 0u; i < 4u; i++) {
-      boxes[out + i * 2u] = as_type<uint>(r.points[i].x);
-      boxes[out + i * 2u + 1u] = as_type<uint>(r.points[i].y);
+    r.points = ordered(r.points);
+    if (distance(r.points[0], r.points[1]) < 4. ||
+        distance(r.points[0], r.points[3]) < 4.)
+      return;
+    for (uint i = 0u; i < 4u; ++i) {
+      boxes[outbox + i * 2u] = as_type<uint>(r.points[i].x);
+      boxes[outbox + i * 2u + 1u] = as_type<uint>(r.points[i].y);
     }
-    boxes[out + 8u] = as_type<uint>(confidence);
-    boxes[out + 9u] = 1u;
+    boxes[outbox + 8u] = as_type<uint>(confidence);
+    boxes[outbox + 9u] = 1u;
   }
 };
 kernel void db_geometry(device const INPUT *prediction [[buffer(0)]],

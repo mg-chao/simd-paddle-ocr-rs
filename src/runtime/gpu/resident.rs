@@ -946,6 +946,37 @@ pub(crate) fn preprocess_at(
         (sample * 3 * shape[2] * shape[3]) as u32,
     ];
     let (x, y) = dispatch_grid(shape[2] * shape[3], &batch.context.limits)?;
+    // Reuse each axis entry across at least a workgroup of detector pixels.
+    // Keep the single-pass path for crops, small maps and capped GPU memory.
+    #[cfg(target_os = "macos")]
+    if detector
+        && content_width >= WORKGROUP_SIZE
+        && shape[2] >= WORKGROUP_SIZE
+        && batch.context.options.max_device_bytes.is_none()
+    {
+        let entries = content_width + shape[2];
+        let axes = batch.storage("detector resize coefficients", entries * 8)?;
+        let (ax, ay) = dispatch_grid(entries, &batch.context.limits)?;
+        batch.dispatch(
+            "image_resize_axes",
+            KernelKey::new(KernelId::ResizeAxes),
+            &[(&axes, false)],
+            &[words[5], words[6], words[7], words[8]],
+            [ax, ay, 1],
+        )?;
+        return batch.dispatch(
+            &format!("image_normalize_{precision:?}"),
+            KernelKey::storage(KernelId::ImageFromTable, precision),
+            &[
+                (&image.buffer, true),
+                (lut, true),
+                (&output.buffer, false),
+                (&axes, true),
+            ],
+            &words,
+            [x, y, 1],
+        );
+    }
     batch.dispatch(
         &format!("image_normalize_{precision:?}"),
         KernelKey::storage(KernelId::Image, precision),

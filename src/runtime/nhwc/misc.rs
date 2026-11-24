@@ -253,6 +253,13 @@ fn kernel<const LANES: usize>(
                 );
                 return;
             }
+            #[cfg(target_arch = "aarch64")]
+            if LANES > 1 {
+                crate::runtime::spatial_mean::global_pool_nhwc::<LANES>(
+                    input, output, channels, plane,
+                );
+                return;
+            }
             for n in 0..dims[0] {
                 for c in (0..vector_end).step_by(LANES) {
                     let mut sum = Simd::<f32, LANES>::splat(0.);

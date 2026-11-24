@@ -488,20 +488,24 @@ fn gpu_hardware_dense_two_by_two_padding_and_tails() {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(any(not(target_os = "macos"), target_arch = "aarch64"))]
 #[test]
-#[ignore = "requires a physical Vulkan GPU"]
+#[ignore = "requires a physical GPU"]
 fn gpu_spatial_mean_keeps_packet_alignment_and_pool_order() {
     let context = hardware();
     let shape = [1, 4, 17, 65];
     let plane = shape[2] * shape[3];
-    let input: Vec<f32> = (0..shape.iter().product())
+    let mut input: Vec<f32> = (0..shape.iter().product())
         .map(|i| match i % 13 {
             1 => 16_777_216.,
             5 => -16_777_216.,
             n => (n as f32 - 3.) * 0.25,
         })
         .collect();
+    // Adjacent pairs sum to zero on ARM. Reassociating into a scalar fold
+    // produces one before division. Other planes exercise alignment and tails.
+    input[..plane].fill(0.);
+    input[..4].copy_from_slice(&[33_554_432., 0., -33_554_432., 1.]);
     for global in [false, true] {
         let op = if global {
             node("GlobalAveragePool", &["x"], "y", &[])
@@ -513,6 +517,14 @@ fn gpu_spatial_mean_keeps_packet_alignment_and_pool_order() {
         let mut session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
         let mut expected = [0.; 4];
         if global {
+            #[cfg(target_arch = "aarch64")]
+            crate::runtime::simd::spatial_mean(
+                crate::runtime::Backend::NeonFma,
+                &input,
+                &mut expected,
+                plane,
+            );
+            #[cfg(not(target_arch = "aarch64"))]
             for (out, values) in expected.iter_mut().zip(input.chunks_exact(plane)) {
                 *out = values.iter().copied().sum::<f32>() / plane as f32;
             }
@@ -521,6 +533,42 @@ fn gpu_spatial_mean_keeps_packet_alignment_and_pool_order() {
         }
         assert_eq!(session.run(&input).unwrap().data(), expected);
     }
+}
+
+#[test]
+#[ignore = "requires a physical GPU"]
+fn gpu_spatial_mean_preserves_overflow_before_sigmoid() {
+    let shape = [1, 2, 8, 8];
+    let graph = model(
+        vec![
+            node("ReduceMean", &["x"], "mean", &[integers("axes", &[2, 3])]),
+            node("Sigmoid", &["mean"], "y", &[]),
+        ],
+        &shape,
+        &[1, 2, 1, 1],
+    );
+    let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+    let mut session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+    let mut input = [f32::MAX; 128];
+    input[64..].fill(-f32::MAX);
+    assert_eq!(session.run(&input).unwrap().data(), &[1., 0.]);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+#[ignore = "requires physical Apple GPU"]
+fn gpu_spatial_mean_keeps_short_recognition_plane_order() {
+    let shape = [1, 1, 16, 64];
+    let op = node("ReduceMean", &["x"], "y", &[integers("axes", &[2, 3])]);
+    let graph = model(vec![op], &shape, &[1, 1, 1, 1]);
+    let compiled = Arc::new(GpuCompiledModel::compile(graph, hardware()).unwrap());
+    let mut session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+
+    // At the last size that fits one staged tile, the original horizontal
+    // fold retains the final one. Pairwise addition would round it away.
+    let mut input = vec![0.; 1024];
+    input[..4].copy_from_slice(&[33_554_432., 0., -33_554_432., 1.]);
+    assert_eq!(session.run(&input).unwrap().data(), &[1. / 1024.]);
 }
 
 fn compare_paths(model: Arc<Model>, shape: &[usize], label: &str) {

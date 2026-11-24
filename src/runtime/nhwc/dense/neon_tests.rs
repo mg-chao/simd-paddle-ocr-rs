@@ -41,32 +41,48 @@ pub(super) fn pack(p: &Conv, weights: &[f32]) -> PackedMatrix {
 // Independent logical convolution, with bias first and an ascending
 // IC/KY/KX FMA chain. Production readers and packed panels are not involved.
 pub(super) fn oracle(p: &Conv, input: &[f32], weights: &[f32], bias: &[f32]) -> Vec<f32> {
+    ordered_oracle(p, input, weights, bias, false)
+}
+
+pub(super) fn ordered_oracle(
+    p: &Conv,
+    input: &[f32],
+    weights: &[f32],
+    bias: &[f32],
+    tap_major: bool,
+) -> Vec<f32> {
+    let mut terms = Vec::new();
+    for ci in 0..p.cin {
+        for ky in 0..p.kh {
+            for kx in 0..p.kw {
+                terms.push((ci, ky, kx));
+            }
+        }
+    }
+    if tap_major {
+        terms.sort_unstable_by_key(|&(ci, ky, kx)| (ky, kx, ci));
+    }
     let mut result = vec![0.; p.batch * p.oh * p.ow * p.cout];
     for n in 0..p.batch {
         for y in 0..p.oh {
             for x in 0..p.ow {
                 for co in 0..p.cout {
                     let mut sum = bias.get(co).copied().unwrap_or(0.);
-                    for ci in 0..p.cin {
-                        for ky in 0..p.kh {
-                            for kx in 0..p.kw {
-                                let sy = (y * p.sh + ky * p.dh) as isize - p.pt as isize;
-                                let sx = (x * p.sw + kx * p.dw) as isize - p.pl as isize;
-                                let value = if sy < 0
-                                    || sy >= p.height as isize
-                                    || sx < 0
-                                    || sx >= p.width as isize
-                                {
-                                    0.
-                                } else {
-                                    input[((n * p.height + sy as usize) * p.width + sx as usize)
-                                        * p.cin
-                                        + ci]
-                                };
-                                let weight = weights[((co * p.cin + ci) * p.kh + ky) * p.kw + kx];
-                                sum = value.mul_add(weight, sum);
-                            }
-                        }
+                    for &(ci, ky, kx) in &terms {
+                        let sy = (y * p.sh + ky * p.dh) as isize - p.pt as isize;
+                        let sx = (x * p.sw + kx * p.dw) as isize - p.pl as isize;
+                        let value = if sy < 0
+                            || sy >= p.height as isize
+                            || sx < 0
+                            || sx >= p.width as isize
+                        {
+                            0.
+                        } else {
+                            input[((n * p.height + sy as usize) * p.width + sx as usize) * p.cin
+                                + ci]
+                        };
+                        let weight = weights[((co * p.cin + ci) * p.kh + ky) * p.kw + kx];
+                        sum = value.mul_add(weight, sum);
                     }
                     result[((n * p.oh + y) * p.ow + x) * p.cout + co] = sum;
                 }

@@ -29,6 +29,8 @@ pub(super) enum ShaderKind {
     #[cfg(target_os = "macos")]
     Depthwise7,
     Reduce,
+    #[cfg(target_os = "macos")]
+    SpatialMean,
     Softmax,
     LayerNorm,
     ReducePartial,
@@ -59,6 +61,8 @@ impl ShaderKind {
             #[cfg(target_os = "macos")]
             Self::Depthwise7 => "depthwise7",
             Self::Reduce => "reduce_contiguous",
+            #[cfg(target_os = "macos")]
+            Self::SpatialMean => "spatial_mean",
             Self::Softmax => "softmax_rows",
             Self::LayerNorm => "layer_norm",
             Self::ReducePartial => "reduce_partial",
@@ -736,16 +740,23 @@ pub(super) fn specialize(
                 r.kind = RecipeKind::Compute(ShaderKind::Reduce);
                 r.words[3] = m.reduction as u32;
                 let dims = m.input.dimensions();
-                if cfg!(not(target_os = "macos"))
+                if cfg!(any(not(target_os = "macos"), target_arch = "aarch64"))
                     && full_precision
                     && dims.len() == 4
                     && m.output_strides[2..4] == [0, 0]
                     && dims[2] * dims[3] == m.reduction
                 {
                     // Ordinary F32 spatial means use the ORT packet order;
-                    // GlobalAveragePool has a separate sequential contract.
+                    // GlobalAveragePool has its own architecture-specific order.
+                    r.words[5] = u32::from(cfg!(target_arch = "aarch64"));
                     r.words[6] = if m.global_pool { 2 } else { 1 };
                     r.words[7] = u32::MAX;
+                    #[cfg(target_os = "macos")]
+                    // A single staged tile covers short recognition planes. Keep their
+                    // established reduction and use register shuffles for longer planes.
+                    if !m.global_pool && m.reduction > 1024 {
+                        r.kind = RecipeKind::Compute(ShaderKind::SpatialMean);
+                    }
                 }
                 (r.x, r.y) = dispatch_grid(r.words[0] as usize * 64, limits)?;
                 r.words[1] = r.x;

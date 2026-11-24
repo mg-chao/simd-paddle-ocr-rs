@@ -16,6 +16,8 @@ use std::{
 pub(crate) enum MatrixPacking {
     RowMajor,
     ConvOutputMajor,
+    #[cfg(target_arch = "aarch64")]
+    ConvTapMajor,
 }
 
 /// Owned by an explicit compiler, shared across compilation policies.
@@ -106,6 +108,8 @@ pub(crate) struct PackedMatrixInfo {
 pub(crate) struct PackedMatrix {
     info: PackedMatrixInfo,
     values: Box<[f32]>,
+    #[cfg(target_arch = "aarch64")]
+    pub(super) tap_major: bool,
 }
 
 impl PackedMatrix {
@@ -145,6 +149,24 @@ impl PackedMatrix {
             return Err("packed matrix coefficient length differs from dimensions");
         }
         Self::from_fn(inner, columns, |k, column| weights[column * inner + k])
+    }
+
+    /// The ARM direct spatial convolution reduces tap, then input channel.
+    #[cfg(target_arch = "aarch64")]
+    pub(super) fn from_spatial_3x3(
+        weights: &[f32],
+        channels: usize,
+        columns: usize,
+    ) -> Result<Self, &'static str> {
+        let inner = channels.checked_mul(9).ok_or("3x3 panel size overflow")?;
+        if inner.checked_mul(columns) != Some(weights.len()) {
+            return Err("3x3 panel coefficient length differs from dimensions");
+        }
+        let mut panel = Self::from_fn(inner, columns, |k, column| {
+            weights[column * inner + (k % channels) * 9 + k / channels]
+        })?;
+        panel.tap_major = true;
+        Ok(panel)
     }
 
     /// Pack one tap from `[inner][output][tap]` without extracting a temporary matrix.
@@ -224,6 +246,8 @@ impl PackedMatrix {
                 bytes,
             },
             values: values.into_boxed_slice(),
+            #[cfg(target_arch = "aarch64")]
+            tap_major: false,
         })
     }
 

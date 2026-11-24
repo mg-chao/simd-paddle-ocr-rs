@@ -37,10 +37,26 @@ void run(uint3, uint3 group, uint lane, threadgroup float *scratch) const {
   uint sm = ((lane / 32) % (TILE / SG_ROWS)) * SG_ROWS;
   uint sn = ((lane / 32) / (TILE / SG_ROWS)) * SG_COLS;
   simdgroup_float8x8 sums[SG_ROWS / 8][SG_COLS / 8];
+  bool spatial3 = IS_CONV && sizeof(MATRIX) == 4 && sizeof(STORAGE_A) == 4 &&
+                  p(11) == 3u && p(12) == 3u;
+  bool seed_bias = spatial3 && p(19);
+  if (seed_bias) {
+    for (uint i = lane; i < TILE * TILE; i += TILE_THREADS) {
+      uint row = mr + i / TILE;
+      result[i] = row < rows ? load_c(row) : 0.f;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+  }
 #pragma unroll
   for (uint r = 0; r < SG_ROWS / 8; ++r)
 #pragma unroll
-    for (uint c = 0; c < SG_COLS / 8; ++c) sums[r][c] = simdgroup_float8x8(0.0f);
+    for (uint c = 0; c < SG_COLS / 8; ++c) {
+      if (seed_bias)
+        simdgroup_load(sums[r][c], result + (sm + r * 8) * TILE + sn + c * 8, TILE);
+      else
+        sums[r][c] = simdgroup_float8x8(0.0f);
+    }
+  if (seed_bias) threadgroup_barrier(mem_flags::mem_threadgroup);
 #if DIRECT_MATRIX
   // Full left-hand rows can load device fragments directly. A right-hand
   // column tail is allowed only when binding-time range checks prove that
@@ -79,8 +95,11 @@ void run(uint3, uint3 group, uint lane, threadgroup float *scratch) const {
     for (uint t = lane; t < TILE * INNER_TILE; t += TILE_THREADS) {
       uint row = mr + t / INNER_TILE, k = base + t % INNER_TILE;
       float value = 0.0f;
-      if (row < rows && k < inner)
-        value = IS_CONV ? load_b(row * inner + k) : load_a(ai + row * inner + k);
+      if (row < rows && k < inner) {
+        // ORT ARM's direct 3x3 convolution visits input channels within each tap.
+        uint weight_k = spatial3 ? (k % p(9)) * 9u + k / p(9) : k;
+        value = IS_CONV ? load_b(row * inner + weight_k) : load_a(ai + row * inner + k);
+      }
       left[(t / INNER_TILE) * (INNER_TILE + 1) + t % INNER_TILE] = MATRIX(value);
     }
     // Share tap/spatial indexing across four adjacent matrix columns. OCR
@@ -96,7 +115,9 @@ void run(uint3, uint3 group, uint lane, threadgroup float *scratch) const {
           for (uint j = 0; j < 4; ++j)
             if (col + j < columns) values[j] = load_a((batch * p(3) + rk) * columns + col + j);
         } else if (IS_CONV) {
-          uint taps = p(11) * p(12), ci = rk / taps, ky = (rk % taps) / p(12), kx = rk % p(12);
+          uint taps = p(11) * p(12), ci = spatial3 ? rk % p(9) : rk / taps;
+          uint tap = spatial3 ? rk / p(9) : rk % taps;
+          uint ky = tap / p(12), kx = tap % p(12);
           uint row = col / p(8), ox = col % p(8);
           bool same_row = ox + 3 < p(8);
           int y0 = int(row * p(13) + ky) - int(p(17));
@@ -143,7 +164,7 @@ void run(uint3, uint3 group, uint lane, threadgroup float *scratch) const {
     uint row = mr + i / TILE, col = nc + i % TILE;
     if (row < rows && col < columns) {
       uint index = (batch * rows + row) * columns + col;
-      float value = result[i] + ((IS_CONV && p(19)) ? load_c(row) : 0.0f);
+      float value = result[i] + ((IS_CONV && p(19) && !seed_bias) ? load_c(row) : 0.0f);
       store_output(index, epilogue<IS_CONV, !IS_CONV>(value, index, row));
     }
   }

@@ -396,6 +396,50 @@ fn neon_narrow_three_eligibility_keeps_other_policies_and_geometry() {
     }
 }
 
+#[cfg(target_arch = "aarch64")]
+#[test]
+fn neon_spatial_weights_follow_the_bound_convolution_layout() {
+    let channels = 16;
+    let weights = vec![0.125; channels * channels * 9];
+    let panel_bytes = std::mem::size_of_val(weights.as_slice());
+    for (dilation, layout) in [(1, Layout::Nhwc), (2, Layout::Canonical)] {
+        let side = 7 - 2 * dilation;
+        let parsed = model(
+            vec![
+                tensor("w", &[channels, channels, 3, 3], &weights),
+                node(
+                    "Conv",
+                    &["x", "w"],
+                    "y",
+                    [
+                        attr("kernel_shape", &[3, 3]),
+                        attr("dilations", &[dilation; 2]),
+                    ]
+                    .concat(),
+                ),
+            ],
+            &[1, channels as i64, 7, 7],
+            &[1, channels as i64, side, side],
+        );
+        let compiled = Arc::new(CpuCompiledModel::new(parsed).unwrap());
+        assert_eq!(compiled.packed_weight_bytes(), panel_bytes);
+        let request = CpuSession::new_serial(
+            compiled.clone(),
+            &[1, channels, 7, 7],
+            ExecutionLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(input_layout_at(&request, 0), layout);
+        let expected = if layout == Layout::Nhwc {
+            2 * panel_bytes
+        } else {
+            panel_bytes
+        };
+        assert_eq!(compiled.packed_weight_bytes(), expected);
+        assert_eq!(compiled.packed_cache.bytes(), expected);
+    }
+}
+
 #[test]
 fn neon_narrow_three_session_keeps_fused_results_for_both_strides() {
     for stride in [1, 2] {

@@ -1,6 +1,6 @@
 # RapidOCR parity
 
-[Resident Vulkan GPU results and reproduction](GPU_RESULTS.md) · [CPU operator-level results and release timings](OPERATOR_RESULTS.md) · [First-pass results and residual cases](RESULTS.md)
+[Apple M4 CPU and Metal results](MACOS_RESULTS.md) · [Resident Vulkan GPU results and reproduction](GPU_RESULTS.md) · [CPU operator-level results and release timings](OPERATOR_RESULTS.md) · [First-pass results and residual cases](RESULTS.md)
 
 Run the commands from the repository root in PowerShell. The capture uses the default native CPU kernels and the public Rust builder through the `ocr` example. Python imports the checkout at `E:\RapidOCR\python`. Both read weights from `..\SimdPaddleOCR\models`. The Python environment used here contains Python 3.12.10, ONNX Runtime 1.24.4, OpenCV 4.12.0, NumPy 2.2.6, Shapely 2.1.2 and Pillow 12.3.0.
 
