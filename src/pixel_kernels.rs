@@ -139,7 +139,7 @@ pub(crate) fn horizontal(
             return;
         }
     }
-    if kernel == PixelKernel::Scalar {
+    if kernel == PixelKernel::Scalar || cfg!(target_arch = "aarch64") {
         horizontal_scalar(
             image,
             source_width,

@@ -913,6 +913,26 @@ impl State {
         // These buffers are request-local and survive reshape and warm runs.
         let mut tile_elements = 0usize;
         for step in &self.plan.steps {
+            if let Operation::Native {
+                index,
+                kind:
+                    BoundKind::MatMul {
+                        rows,
+                        inner,
+                        columns,
+                    },
+                ..
+            } = &step.op
+                && compiled.options.cpu.layout == LayoutPolicy::Auto
+                && compiled.instruction_packed(*index).is_some()
+            {
+                tile_elements = tile_elements.max(matrix_sme_scratch(
+                    compiled.backend,
+                    *rows,
+                    *inner,
+                    *columns,
+                ));
+            }
             if step
                 .inputs
                 .first()
@@ -1217,6 +1237,7 @@ impl State {
                             out,
                             cpu,
                             threads,
+                            &mut self.workspaces,
                         );
                     }
                     for epilogue in if store_fused { &[][..] } else { epilogues } {
@@ -1508,6 +1529,13 @@ fn native_store_eligible(kind: &BoundKind, backend: Backend, packed: bool, threa
     }
 }
 
+fn matrix_sme_scratch(backend: Backend, rows: usize, inner: usize, columns: usize) -> usize {
+    if columns < 1024 {
+        return 0;
+    }
+    nhwc::pointwise::sme_scratch_elements(backend, rows, inner, columns)
+}
+
 pub(super) fn native_selection(
     kind: &BoundKind,
     backend: Backend,
@@ -1524,6 +1552,12 @@ pub(super) fn native_selection(
             inner,
             columns,
         } => {
+            if allow_pointwise_matrix
+                && packed
+                && matrix_sme_scratch(backend, *rows, *inner, *columns) > 0
+            {
+                return ("constant_matmul_sme_or_neon", format!("{backend:?}"));
+            }
             if allow_pointwise_matrix
                 && super::nhwc::pointwise_matrix_eligible(backend, packed, *rows, *inner, *columns)
             {
@@ -1705,6 +1739,7 @@ fn execute_native<'a>(
     out: &mut [f32],
     cpu: &CpuContext,
     threads: usize,
+    workspaces: &mut [Vec<f32>],
 ) {
     if compiled.options.cpu.layout == LayoutPolicy::Auto
         && let BoundKind::MatMul {
@@ -1713,7 +1748,25 @@ fn execute_native<'a>(
             columns,
         } = kind
         && let Some(packed) = compiled.instruction_packed(index)
-        && super::nhwc::try_pointwise_matrix(
+    {
+        if matrix_sme_scratch(compiled.backend, *rows, *inner, *columns) > 0
+            && nhwc::pointwise::try_sme(
+                compiled.backend,
+                data(inputs[0]),
+                &[],
+                packed,
+                out,
+                *inner,
+                *columns,
+                cpu,
+                threads,
+                workspaces,
+                &simd::IdentityStore,
+            )
+        {
+            return;
+        }
+        if nhwc::try_pointwise_matrix(
             compiled.backend,
             data(inputs[0]),
             packed,
@@ -1723,9 +1776,9 @@ fn execute_native<'a>(
             *columns,
             cpu,
             threads,
-        )
-    {
-        return;
+        ) {
+            return;
+        }
     }
     let logical = &compiled.program.instructions[index].inputs;
     kernels::execute_optimized(

@@ -1896,11 +1896,10 @@ fn decode_probability_rows(
         let blank = row[0];
         let (chunks, tail) = row.as_chunks::<8>();
         use std::simd::{Simd, cmp::SimdPartialOrd};
-        let mut below_blank = std::simd::Mask::<i32, 8>::splat(true);
-        for chunk in chunks {
-            below_blank &= Simd::from_array(*chunk).simd_le(Simd::splat(blank));
-        }
-        if blank.is_finite() && below_blank.all() && tail.iter().all(|&v| v <= blank) {
+        let below_blank = chunks
+            .iter()
+            .all(|chunk| Simd::from_array(*chunk).simd_le(Simd::splat(blank)).all());
+        if blank.is_finite() && below_blank && tail.iter().all(|&v| v <= blank) {
             *index = 0;
             *score = 0.;
         } else {

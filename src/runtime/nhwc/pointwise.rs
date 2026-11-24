@@ -582,8 +582,8 @@ pub(in crate::runtime) fn sme_scratch_elements(
     #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
     if backend == Backend::NeonFma
         && rows >= 32
-        && inner.min(columns) >= 96
-        && inner.max(columns) >= 192
+        && ((inner.min(columns) >= 96 && inner.max(columns) >= 192)
+            || (rows >= 256 && inner.min(columns) >= 64 && inner.max(columns) >= 128))
         && sme::available()
     {
         return inner.checked_mul(sme::GROUP).unwrap_or(0);
@@ -623,7 +623,7 @@ pub(super) fn execute_with_scratch(
 /// Isolate SME workspace dispatch so every unaffected kernel retains its
 /// original row-band closure and call path.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn try_sme(
+pub(in crate::runtime) fn try_sme(
     backend: Backend,
     input: &[f32],
     bias: &[f32],

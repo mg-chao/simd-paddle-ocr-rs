@@ -32,8 +32,8 @@ fn pack_rows(input: &[f32], inner: usize, count: usize, scratch: &mut [f32]) {
             &input[start..start + inner]
         });
         let panel = &mut scratch[first * inner..(first + 16) * inner];
-        for row in (0..16).step_by(4) {
-            for k in (0..inner / 4 * 4).step_by(4) {
+        for k in (0..inner / 4 * 4).step_by(4) {
+            for row in (0..16).step_by(4) {
                 // SAFETY: this module is macOS ARM64 (NEON is baseline).
                 // Each checked row contains k..k+4, and each store writes
                 // four row lanes of one of the four in-bounds K columns.
