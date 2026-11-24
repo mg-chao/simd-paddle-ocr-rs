@@ -1,5 +1,4 @@
-//! Channel-vector pooling and spatial means. Reductions keep the original
-//! per-channel pixel order; changing vector width never reassociates sums.
+//! Channel-vector pooling and spatial means. Each operator keeps its own reduction order.
 use super::*;
 use std::simd::num::SimdFloat;
 
@@ -248,6 +247,12 @@ fn kernel<const LANES: usize>(
         }
         BoundKind::Reduce(p) => {
             let plane = dims[2] * dims[3];
+            if !p.global_pool {
+                crate::runtime::spatial_mean::channels_last::<LANES>(
+                    input, output, channels, plane,
+                );
+                return;
+            }
             for n in 0..dims[0] {
                 for c in (0..vector_end).step_by(LANES) {
                     let mut sum = Simd::<f32, LANES>::splat(0.);

@@ -695,7 +695,7 @@ fn channel_pool_and_mean_vectors_match_logical_nchw_oracles() {
         for (output_shape, kind) in [
             bound::bind_max_pool(shape).unwrap(),
             bound::bind_average_pool(shape).unwrap(),
-            bound::bind_reduce(shape, &[2, 3], true, false).unwrap(),
+            bound::bind_reduce(shape, &[2, 3], true, false, true).unwrap(),
         ] {
             let mut canonical = vec![0.; output_shape.element_count()];
             kernels::execute(&kind, &[TensorId(0)], |_| input.as_slice(), &mut canonical);

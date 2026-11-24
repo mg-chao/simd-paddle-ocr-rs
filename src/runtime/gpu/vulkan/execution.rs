@@ -114,7 +114,7 @@ pub(in crate::runtime::gpu) fn compile(
             "subgroup projection is unavailable on this device",
         ));
     }
-    let shader = binary(key);
+    let shader = binary(key, owner.float64);
     let [x, y, z] = shader.workgroup;
     let limits = &owner.limits;
     if x > limits.max_compute_workgroup_size_x

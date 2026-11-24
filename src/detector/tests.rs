@@ -22,8 +22,10 @@ fn minimum_side_scaling_keeps_narrow_images_runnable() {
             .unwrap();
         assert_eq!(result.detected_count, 1);
         assert!(!result.get(0).unwrap().text.is_empty());
-        assert!(result.detector_resized_width <= 4096);
-        assert!(result.detector_resized_height <= 4096);
+        assert!(preprocess::valid_map_size(
+            result.detector_resized_width,
+            result.detector_resized_height
+        ));
     }
 }
 
@@ -51,8 +53,8 @@ fn implicit_padding_preserves_boxes_crops_trace_and_replay() {
         let mut expected = detector.detect(control).unwrap().try_to_owned().unwrap();
         assert_eq!(expected.boxes.len(), 1);
         for point in &mut expected.boxes[0].points {
-            point[0] = point[0].clamp(0., width as f32);
-            point[1] = point[1].clamp(0., height as f32);
+            point[0] = point[0].clamp(0., (width - 1) as f32);
+            point[1] = point[1].clamp(0., (height - 1) as f32);
         }
         let actual = detector.detect(image).unwrap().try_to_owned().unwrap();
         assert_eq!(actual.boxes, expected.boxes, "{width}x{height}");

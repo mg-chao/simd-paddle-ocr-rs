@@ -1,7 +1,9 @@
 //! Format-aware pixel and DB kernels. Every load stays inside a checked slice.
 use crate::image::{ImageError, ImageResult, ImageView};
+#[cfg(target_arch = "aarch64")]
+use std::simd::Select;
 use std::simd::{
-    Select, Simd,
+    Simd, StdFloat,
     cmp::{SimdPartialEq, SimdPartialOrd},
     num::SimdFloat,
 };
@@ -305,7 +307,7 @@ unsafe fn horizontal_avx512(
 
 pub(crate) fn map_coordinates(
     kernel: PixelKernel,
-    coefficients: [f64; 8],
+    coefficients: [f64; 9],
     mut x: [f64; 8],
     mut y: [f64; 8],
     width: usize,
@@ -345,7 +347,7 @@ pub(crate) fn map_coordinates(
 }
 
 fn map_scalar(
-    c: [f64; 8],
+    c: [f64; 9],
     x: [f64; 8],
     y: [f64; 8],
     width: usize,
@@ -354,11 +356,13 @@ fn map_scalar(
     out: &mut [[f64; 8]; 2],
 ) -> ImageResult<()> {
     for lane in 0..count {
-        let u = x[lane] / width as f64;
-        let v = y[lane] / height as f64;
-        let den = c[6] * u + c[7] * v + 1.;
-        let sx = (c[0] * u + c[1] * v + c[2]) / den;
-        let sy = (c[3] * u + c[4] * v + c[5]) / den;
+        let tile = (1024 / height.min(16)).min(width) as f64;
+        let base = (x[lane] / tile).floor() * tile;
+        let local = x[lane] - base;
+        let affine = |k: usize| (c[k] * base + c[k + 1] * y[lane] + c[k + 2]) + c[k] * local;
+        let den = affine(6);
+        let scale = 1. / den;
+        let (sx, sy) = (affine(0) * scale, affine(3) * scale);
         validate_coordinate(den, sx, sy)?;
         out[0][lane] = sx;
         out[1][lane] = sy;
@@ -382,18 +386,25 @@ fn validate_coordinate(den: f64, x: f64, y: f64) -> ImageResult<()> {
 }
 #[inline(always)]
 fn map_vector<const N: usize>(
-    c: [f64; 8],
+    c: [f64; 9],
     x: [f64; 8],
     y: [f64; 8],
     width: usize,
     height: usize,
     out: &mut [[f64; 8]; 2],
 ) -> ImageResult<()> {
-    let u = Simd::<f64, N>::from_slice(&x[..N]) / Simd::splat(width as f64);
-    let v = Simd::<f64, N>::from_slice(&y[..N]) / Simd::splat(height as f64);
-    let den = Simd::splat(c[6]) * u + Simd::splat(c[7]) * v + Simd::splat(1.);
-    let sx = (Simd::splat(c[0]) * u + Simd::splat(c[1]) * v + Simd::splat(c[2])) / den;
-    let sy = (Simd::splat(c[3]) * u + Simd::splat(c[4]) * v + Simd::splat(c[5])) / den;
+    let tile = Simd::splat((1024 / height.min(16)).min(width) as f64);
+    let x = Simd::<f64, N>::from_slice(&x[..N]);
+    let y = Simd::<f64, N>::from_slice(&y[..N]);
+    let base = (x / tile).floor() * tile;
+    let local = x - base;
+    let affine = |k: usize| {
+        (Simd::splat(c[k]) * base + Simd::splat(c[k + 1]) * y + Simd::splat(c[k + 2]))
+            + Simd::splat(c[k]) * local
+    };
+    let den = affine(6);
+    let scale = Simd::splat(1.) / den;
+    let (sx, sy) = (affine(0) * scale, affine(3) * scale);
     let (den, sx, sy) = (den.to_array(), sx.to_array(), sy.to_array());
     for lane in 0..N {
         validate_coordinate(den[lane], sx[lane], sy[lane])?;
@@ -405,7 +416,7 @@ fn map_vector<const N: usize>(
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx")]
 unsafe fn map_avx(
-    c: [f64; 8],
+    c: [f64; 9],
     x: [f64; 8],
     y: [f64; 8],
     width: usize,
@@ -417,7 +428,7 @@ unsafe fn map_avx(
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f")]
 unsafe fn map_avx512(
-    c: [f64; 8],
+    c: [f64; 9],
     x: [f64; 8],
     y: [f64; 8],
     width: usize,
@@ -425,92 +436,6 @@ unsafe fn map_avx512(
     out: &mut [[f64; 8]; 2],
 ) -> ImageResult<()> {
     map_vector::<8>(c, x, y, width, height, out)
-}
-
-pub(crate) fn sample_interior(
-    kernel: PixelKernel,
-    image: ImageView<'_>,
-    x: f64,
-    y: f64,
-) -> Option<[u8; 3]> {
-    kernel.require();
-    let xb = x.floor() as i64;
-    let yb = y.floor() as i64;
-    if kernel == PixelKernel::Scalar
-        || xb < 1
-        || xb >= image.width() as i64 - 3
-        || yb < 1
-        || yb >= image.height() as i64 - 2
-    {
-        return None;
-    }
-    #[cfg(target_arch = "x86_64")]
-    // SAFETY: dispatcher has checked the required ISA and all 4x4 pixels are in bounds.
-    unsafe {
-        if kernel == PixelKernel::Avx512 {
-            return Some(sample_avx512(image, x, y, xb, yb));
-        }
-        if matches!(kernel, PixelKernel::Avx | PixelKernel::Avx2) {
-            return Some(sample_avx(image, x, y, xb, yb));
-        }
-    }
-    Some(sample_vector::<4>(image, x, y, xb, yb))
-}
-#[inline(always)]
-fn cubic_vector<const N: usize>(value: Simd<f64, N>) -> Simd<f64, N> {
-    let t = value.abs();
-    let inner = Simd::splat(1.25) * t * t * t - Simd::splat(2.25) * t * t + Simd::splat(1.);
-    let outer = Simd::splat(-0.75) * t * t * t - Simd::splat(-3.75) * t * t + Simd::splat(-6.) * t
-        - Simd::splat(-3.);
-    t.simd_le(Simd::splat(1.)).select(
-        inner,
-        t.simd_lt(Simd::splat(2.)).select(outer, Simd::splat(0.)),
-    )
-}
-#[inline(always)]
-fn sample_vector<const N: usize>(
-    image: ImageView<'_>,
-    x: f64,
-    y: f64,
-    xb: i64,
-    yb: i64,
-) -> [u8; 3] {
-    let base =
-        Simd::<f64, N>::from_array(std::array::from_fn(|lane| (xb + lane as i64 - 1) as f64));
-    let wx = cubic_vector(Simd::splat(x) - base).to_array();
-    let base =
-        Simd::<f64, N>::from_array(std::array::from_fn(|lane| (yb + lane as i64 - 1) as f64));
-    let wy = cubic_vector(Simd::splat(y) - base).to_array();
-    let mut acc = Simd::<f64, N>::splat(0.);
-    for (ky, &wy) in wy[..4].iter().enumerate() {
-        for (kx, &wx) in wx[..4].iter().enumerate() {
-            let pixel = image.bgr((xb + kx as i64 - 1) as usize, (yb + ky as i64 - 1) as usize);
-            let pixel = Simd::<f64, N>::from_array(std::array::from_fn(|lane| {
-                pixel.get(lane).map_or(0., |&v| f64::from(v))
-            }));
-            acc += pixel * Simd::splat(wx) * Simd::splat(wy);
-        }
-    }
-    std::array::from_fn(|channel| clamp_byte(acc[channel]))
-}
-pub(crate) fn clamp_byte(value: f64) -> u8 {
-    if value <= 0. {
-        0
-    } else if value >= 255. {
-        255
-    } else {
-        (value + 0.5).floor() as u8
-    }
-}
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx")]
-unsafe fn sample_avx(image: ImageView<'_>, x: f64, y: f64, xb: i64, yb: i64) -> [u8; 3] {
-    sample_vector::<4>(image, x, y, xb, yb)
-}
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx512f")]
-unsafe fn sample_avx512(image: ImageView<'_>, x: f64, y: f64, xb: i64, yb: i64) -> [u8; 3] {
-    sample_vector::<8>(image, x, y, xb, yb)
 }
 
 pub(crate) fn binarize(
@@ -902,19 +827,19 @@ mod tests {
 
     #[test]
     fn mapping_preserves_separate_f64_operations_and_rejects_poles() {
-        let c = [7.25, -0.125, 1.75, 0.25, 11.5, -2.125, 0.0625, -0.03125];
+        let c = [7.25, -0.125, 1.75, 0.25, 11.5, -2.125, 0.0625, -0.03125, 1.];
         let xs = [0., 1., 2., 3., 4., 5., 6., 7.];
         let ys = [9., 8., 7., 6., 5., 4., 3., 2.];
         for kernel in PixelKernel::test_kernels() {
             for count in 1..=kernel.map_lanes() {
                 let actual = map_coordinates(kernel, c, xs, ys, 11, 13, count).unwrap();
                 for lane in 0..count {
-                    let u = xs[lane] / 11.;
-                    let v = ys[lane] / 13.;
-                    let denominator = c[6] * u + c[7] * v + 1.;
+                    let u = xs[lane];
+                    let v = ys[lane];
+                    let denominator = (c[7] * v + 1.) + c[6] * u;
                     let expected = [
-                        (c[0] * u + c[1] * v + c[2]) / denominator,
-                        (c[3] * u + c[4] * v + c[5]) / denominator,
+                        ((c[1] * v + c[2]) + c[0] * u) * (1. / denominator),
+                        ((c[4] * v + c[5]) + c[3] * u) * (1. / denominator),
                     ];
                     assert_eq!(
                         actual[0][lane].to_bits(),
@@ -928,67 +853,11 @@ mod tests {
                     );
                 }
             }
-            let pole = [1., 0., 0., 0., 1., 0., -1., 0.];
+            let pole = [1., 0., 0., 0., 1., 0., -1., 0., 1.];
             assert!(map_coordinates(kernel, pole, [1.; 8], [0.; 8], 1, 1, 1).is_err());
-            let identity = [8., 0., 0.25, 0., 8., 0.5, 0., 0.];
+            let identity = [1., 0., 0.25, 0., 1., 0.5, 0., 0., 1.];
             let output = map_coordinates(kernel, identity, xs, ys, 8, 8, 1).unwrap();
             assert_eq!([output[0][0], output[1][0]], [0.25, 9.5]);
-        }
-    }
-
-    #[test]
-    fn interior_cubic_matches_independent_ordered_scalar_samples() {
-        let cubic = |value: f64| {
-            let t = value.abs();
-            let a = -0.75;
-            if t <= 1. {
-                (a + 2.) * t * t * t - (a + 3.) * t * t + 1.
-            } else if t < 2. {
-                a * t * t * t - 5. * a * t * t + 8. * a * t - 4. * a
-            } else {
-                0.
-            }
-        };
-        for format in [
-            PixelFormat::Bgr24,
-            PixelFormat::Rgb24,
-            PixelFormat::Bgra32,
-            PixelFormat::Rgba32,
-        ] {
-            let (pixels, stride) = image_bytes(format, 17, 13);
-            let image = ImageView::new(&pixels, 17, 13, stride, format).unwrap();
-            for kernel in
-                PixelKernel::test_kernels().filter(|&kernel| kernel != PixelKernel::Scalar)
-            {
-                for i in 0..97 {
-                    let x = 1. + (i * 37 % 1199) as f64 / 100.;
-                    let y = 1. + (i * 17 % 899) as f64 / 100.;
-                    let xb = x.floor() as i64;
-                    let yb = y.floor() as i64;
-                    let mut expected = [0.; 3];
-                    for ky in 0..4 {
-                        for kx in 0..4 {
-                            let px = (xb + kx - 1) as usize;
-                            let py = (yb + ky - 1) as usize;
-                            let wx = cubic(x - (xb + kx - 1) as f64);
-                            let wy = cubic(y - (yb + ky - 1) as f64);
-                            let pixel = image.bgr(px, py);
-                            for channel in 0..3 {
-                                expected[channel] += f64::from(pixel[channel]) * wx * wy;
-                            }
-                        }
-                    }
-                    let expected =
-                        expected.map(|value| (value + 0.5).floor().clamp(0., 255.) as u8);
-                    assert_eq!(
-                        sample_interior(kernel, image, x, y),
-                        Some(expected),
-                        "{kernel:?}/{format:?}/{x}/{y}"
-                    );
-                }
-                assert!(sample_interior(kernel, image, 0.9, 2.).is_none());
-                assert!(sample_interior(kernel, image, 14., 2.).is_none());
-            }
         }
     }
 
@@ -1120,7 +989,7 @@ mod tests {
             );
             assert!(
                 std::panic::catch_unwind(|| {
-                    let _ = map_coordinates(kernel, [0.; 8], [0.; 8], [0.; 8], 1, 1, 1);
+                    let _ = map_coordinates(kernel, [0.; 9], [0.; 8], [0.; 8], 1, 1, 1);
                 })
                 .is_err()
             );

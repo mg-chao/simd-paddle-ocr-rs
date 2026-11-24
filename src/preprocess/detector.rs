@@ -3,8 +3,14 @@ use super::{DetResizePolicy, DetSize};
 use crate::image::{ImageError, ImageResult};
 
 const ALIGNMENT: usize = 32;
-/// Maximum tensor/probability-map side supported by detector postprocessing.
+/// Maximum configurable resize limit.
 pub const DET_MAX_SIDE: usize = 4096;
+const MAX_LONG_SIDE: usize = 8192;
+const MAX_MAP_PIXELS: usize = DET_MAX_SIDE * DET_MAX_SIDE;
+
+pub(crate) fn valid_map_size(w: usize, h: usize) -> bool {
+    w.max(h) <= MAX_LONG_SIDE && w.checked_mul(h).is_some_and(|n| n <= MAX_MAP_PIXELS)
+}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct DetSourceGeometry {
@@ -53,13 +59,23 @@ impl DetSourceGeometry {
         };
         // The shared map limit takes precedence over enlarging the short side.
         // Bound the common scale before alignment, allocation and inference.
-        let ratio = requested_ratio.min(DET_MAX_SIDE as f64 / width.max(height) as f64);
+        let ratio = requested_ratio
+            .min(MAX_LONG_SIDE as f64 / width.max(height) as f64)
+            .min((MAX_MAP_PIXELS as f64 / (width as f64 * height as f64)).sqrt());
         let align = |side: usize| {
             let scaled = (side as f64 * ratio) as usize;
-            (((scaled as f64 / ALIGNMENT as f64 + 0.5).floor() as usize) * ALIGNMENT).max(ALIGNMENT)
+            (((scaled as f64 / ALIGNMENT as f64).round_ties_even() as usize) * ALIGNMENT)
+                .max(ALIGNMENT)
         };
-        let resized_width = align(width);
-        let resized_height = align(height);
+        let (mut resized_width, mut resized_height) = (align(width), align(height));
+        if !valid_map_size(resized_width, resized_height) {
+            let (long, short) = if width >= height {
+                (&mut resized_width, resized_height)
+            } else {
+                (&mut resized_height, resized_width)
+            };
+            *long = MAX_MAP_PIXELS / short / ALIGNMENT * ALIGNMENT;
+        }
         Ok(DetSize {
             width: resized_width,
             height: resized_height,
@@ -74,10 +90,10 @@ impl DetSourceGeometry {
         [
             (point[0] / map_width as f32 * self.padded_width as f32)
                 .round_ties_even()
-                .clamp(0., self.original_width as f32),
+                .clamp(0., (self.original_width - 1) as f32),
             (point[1] / map_height as f32 * self.padded_height as f32)
                 .round_ties_even()
-                .clamp(0., self.original_height as f32),
+                .clamp(0., (self.original_height - 1) as f32),
         ]
     }
 }

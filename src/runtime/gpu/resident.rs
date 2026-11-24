@@ -579,7 +579,8 @@ impl Batch {
             || name.starts_with("perspective_")
             || name == "classifier_rotation"
         {
-            self.statistics.image_processing = GpuPlacement::Gpu;
+            self.statistics.image_processing =
+                self.statistics.image_processing.merge(GpuPlacement::Gpu);
         }
         if name.starts_with("db_") {
             self.statistics.geometry = GpuPlacement::Gpu;
@@ -872,15 +873,8 @@ impl Normalization {
         }
         let make = |detector: bool| {
             let mut values = Vec::with_capacity(768);
-            for c in 0..3 {
-                for x in 0..256 {
-                    values.push(if detector {
-                        ((x as f64 / 255. - [0.485, 0.456, 0.406][c])
-                            * (1. / [0.229, 0.224, 0.225][c])) as f32
-                    } else {
-                        x as f32 * (2.0f32 / 255.0f32) - 1.
-                    });
-                }
+            for _ in 0..3 {
+                values.extend((0..256).map(|x| crate::preprocess::normalized_byte(x, detector)));
             }
             context.checked("normalization constants", || {
                 context.create_buffer_init(
@@ -948,11 +942,7 @@ pub(crate) fn preprocess_at(
         shape[2] as u32,
         shape[3] as u32,
         u32::from(detector),
-        if !detector && shape[2] == 80 {
-            (-1f32).to_bits()
-        } else {
-            0
-        },
+        0, // right padding is normalized zero
         (sample * 3 * shape[2] * shape[3]) as u32,
     ];
     let (x, y) = dispatch_grid(shape[2] * shape[3], &batch.context.limits)?;
@@ -1231,7 +1221,7 @@ mod tests {
                 let (data, stats) = batch.read(&tensor.buffer, tensor.bytes(), false).unwrap();
                 let mut actual = vec![0.; 3 * dh * dw];
                 decode_f32(&data, &mut actual).unwrap();
-                let mut expected = vec![if dh == 80 { -1. } else { 0. }; actual.len()];
+                let mut expected = vec![0.; actual.len()];
                 let mut scratch = crate::preprocess::ResizeWorkspace::default();
                 if det {
                     crate::preprocess::det(image, dw, dh, &mut expected, &mut scratch).unwrap();

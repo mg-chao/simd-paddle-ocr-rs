@@ -28,6 +28,7 @@ pub(crate) mod packing;
 pub(crate) mod parallel;
 mod shapes;
 pub(crate) mod simd;
+mod spatial_mean;
 pub use crate::cpu::CpuContext;
 use packing::PackedMatrix;
 pub use simd::{Backend, KernelPolicy};

@@ -266,12 +266,12 @@ fn unprofiled_det_single_rec_and_batch_leave_counters_unchanged() {
         assert_eq!(detection.boxes.len(), 2);
         let recognizer = pipeline.recognizer_mut();
         let single = recognizer
-            .recognize_impl::<false>(image, true, &mut profile)
+            .recognize_impl::<false>(image, None, true, &mut profile)
             .unwrap()
             .try_to_owned()
             .unwrap();
         let batch = recognizer
-            .recognize_batch_impl::<false, _>(2, |_| Ok(image), true, &mut profile)
+            .recognize_batch_impl::<false, _>(2, |_| Ok(image), None, true, &mut profile)
             .unwrap()
             .try_to_owned()
             .unwrap();
@@ -409,7 +409,7 @@ fn profiled_ocr_and_batch_preserve_results_and_publish_separate_fields() {
     let mut profile = StageProfile::default();
     cpu.install(|| {
         let actual = recognizer
-            .recognize_batch_impl::<true, _>(2, |_| Ok(image), true, &mut profile)
+            .recognize_batch_impl::<true, _>(2, |_| Ok(image), None, true, &mut profile)
             .unwrap()
             .try_to_owned()
             .unwrap();

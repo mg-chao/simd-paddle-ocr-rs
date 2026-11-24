@@ -385,7 +385,7 @@ impl OrientedLineExtractor {
         for (index, &[width, height]) in crops.sizes.iter().enumerate() {
             let mut batch = Batch::new(detection.image.context.clone())?;
             batch.profiling = PROFILE;
-            let crop = crops.record(&mut batch, &detection.image, index)?;
+            let crop = crops.record(&mut batch, &detection, index)?;
             let mut class = None;
             let oriented = if let Some(classifier) = &mut self.classifier {
                 *failed_stage = Stage::Classifier;

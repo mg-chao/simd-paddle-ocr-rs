@@ -18,3 +18,10 @@ This component is licensed under the MIT license; see licenses/amd-win-libm-MIT.
 
 Embedded Vulkan and Metal resources use miniz_oxide
 (MIT OR Zlib OR Apache-2.0) for compression and decompression.
+
+The CPU rectangle and perspective crop calculations adapt OpenCV 4.12 rotatingCalipers,
+getPerspectiveTransform, LUImpl and warpPerspective.
+See licenses/opencv-calipers.txt for its copyright and redistribution terms.
+
+Recognition aspect-ratio ordering is adapted from Intel x86-simd-sort.
+See licenses/x86-simd-sort.txt for its BSD 3-Clause license.

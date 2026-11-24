@@ -8,8 +8,8 @@ use crate::{
     image::{ImageError, ImageResult, ImageView},
     lines::{LineTrace, OrientedLineExtractor, OrientedLines},
     recognizer::{
-        CtcRun, CtcSpans, OwnedCtcSpan, RecognitionTrace, RecognitionView, Recognizer, copy_spans,
-        copy_text,
+        CtcRun, CtcSpans, OwnedCtcSpan, RecognitionSize, RecognitionTrace, RecognitionView,
+        Recognizer, copy_spans, copy_text,
     },
 };
 use serde::Serialize;
@@ -44,15 +44,12 @@ struct LineRecord {
     classification_score: f32,
     classification_label: u32,
     applied_rotation_degrees: u16,
+    vertical_rotation: bool,
     emitted_count: usize,
     recognition_content_width: usize,
     recognition_tensor_width: usize,
     recognition_time_steps: usize,
     spans: Option<(usize, usize)>,
-}
-#[cfg(feature = "gpu")]
-pub(crate) fn line_record_bytes() -> usize {
-    size_of::<LineRecord>()
 }
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct OcrLineView<'a> {
@@ -62,6 +59,9 @@ pub struct OcrLineView<'a> {
     pub classification_score: f32,
     pub classification_label: u32,
     pub applied_rotation_degrees: u16,
+    /// Whether the working crop was rotated 90 degrees counterclockwise.
+    #[serde(skip)]
+    pub vertical_rotation: bool,
     pub emitted_count: usize,
     pub recognition_content_width: usize,
     pub recognition_tensor_width: usize,
@@ -77,6 +77,7 @@ impl OcrLineView<'_> {
             classification_score: self.classification_score,
             classification_label: self.classification_label,
             applied_rotation_degrees: self.applied_rotation_degrees,
+            vertical_rotation: self.vertical_rotation,
             emitted_count: self.emitted_count,
             recognition_content_width: self.recognition_content_width,
             recognition_tensor_width: self.recognition_tensor_width,
@@ -93,6 +94,9 @@ pub struct OwnedOcrLine {
     pub classification_score: f32,
     pub classification_label: u32,
     pub applied_rotation_degrees: u16,
+    /// Whether the working crop was rotated 90 degrees counterclockwise.
+    #[serde(skip)]
+    pub vertical_rotation: bool,
     pub emitted_count: usize,
     pub recognition_content_width: usize,
     pub recognition_tensor_width: usize,
@@ -108,6 +112,7 @@ impl OwnedOcrLine {
             classification_score: self.classification_score,
             classification_label: self.classification_label,
             applied_rotation_degrees: self.applied_rotation_degrees,
+            vertical_rotation: self.vertical_rotation,
             emitted_count: self.emitted_count,
             recognition_content_width: self.recognition_content_width,
             recognition_tensor_width: self.recognition_tensor_width,
@@ -123,7 +128,7 @@ enum LineSource<'a> {
 }
 #[derive(Clone, Copy, Debug)]
 pub struct OcrView<'a> {
-    /// Every detected line joined by LF, including empty recognition results.
+    /// Retained recognition results joined by LF.
     pub text: &'a str,
     pub detected_count: usize,
     pub detector_resized_width: usize,
@@ -168,6 +173,7 @@ impl<'a> OcrView<'a> {
                     classification_score: l.classification_score,
                     classification_label: l.classification_label,
                     applied_rotation_degrees: l.applied_rotation_degrees,
+                    vertical_rotation: l.vertical_rotation,
                     emitted_count: l.emitted_count,
                     recognition_content_width: l.recognition_content_width,
                     recognition_tensor_width: l.recognition_tensor_width,
@@ -302,8 +308,25 @@ struct ResultWorkspace {
     width_ratio: f32,
     height_ratio: f32,
 }
-#[cfg(feature = "gpu")]
 impl ResultWorkspace {
+    fn restore_coordinates(
+        &mut self,
+        page: &crate::preprocess::page::Page,
+        original: ImageView<'_>,
+    ) {
+        if !page.transformed() {
+            return;
+        }
+        for line in &mut self.lines {
+            for p in &mut line.detection.points {
+                *p = page.restore(*p, original);
+            }
+        }
+        self.width_ratio *= page.width as f32 / original.width() as f32;
+        self.height_ratio *= page.height as f32 / original.height() as f32;
+    }
+
+    #[cfg(feature = "gpu")]
     fn clear(&mut self) {
         self.lines.clear();
         self.text.clear();
@@ -1391,6 +1414,15 @@ impl OcrRequest {
         }
         self.unwind_state.store(true, Ordering::Relaxed);
         let _unwind = RequestUnwindGuard(self.unwind_state.clone());
+        let original = image;
+        let page = crate::preprocess::page::Page::prepare(
+            original,
+            self.extractor
+                .detector()
+                .resolved_options()
+                .max_image_pixels,
+        )?;
+        let image = page.view(original)?;
         #[cfg(feature = "gpu")]
         if !TRACE
             && self.extractor.detector().uses_gpu()
@@ -1442,12 +1474,13 @@ impl OcrRequest {
                         self.plan.extractor.options(),
                     )?;
                     let rec = &self.plan.recognizer;
-                    let recognizer = crate::recognizer::RecognizerPlan::new(
+                    let mut recognizer = crate::recognizer::RecognizerPlan::new(
                         fallback(rec.compiled(), Stage::Recognizer)?,
                         rec.dictionary().clone(),
                         rec.options(),
                         rec.execution_limits(),
                     )?;
+                    Arc::make_mut(&mut recognizer).grouped_width = rec.grouped_width;
                     let mut replacement = OcrPlan::new(
                         extractor,
                         recognizer,
@@ -1469,7 +1502,7 @@ impl OcrRequest {
                     let cpu = self.plan.cpu.clone();
                     let ignore: for<'a> fn(OcrTrace<'a>) -> ImageResult<()> = |_| Ok(());
                     return cpu.install(|| {
-                        self.execute_inner::<false, PROFILE, _>(image, capture, ignore, profile)
+                        self.execute_inner::<false, PROFILE, _>(original, capture, ignore, profile)
                     });
                 }
             };
@@ -1479,8 +1512,9 @@ impl OcrRequest {
                 profile.record_gpu(&pipeline.statistics);
                 profile.projection_ns += pipeline.statistics.projection_encoding_ns;
             }
+            self.result.restore_coordinates(&page, original);
             #[cfg(feature = "paragraph")]
-            self.group_paragraphs::<PROFILE>(image, profile)?;
+            self.group_paragraphs::<PROFILE>(original, profile)?;
             return Ok(());
         }
         self.budgets = self.plan.cpu_options.resolve(
@@ -1510,18 +1544,13 @@ impl OcrRequest {
         };
         let storage_timer = Timer::<PROFILE>::start();
         let count = oriented.len();
-        let metadata_bytes = count
-            .checked_mul(size_of::<LineRecord>())
-            .filter(|&n| n <= self.plan.options.max_total_result_bytes)
-            .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?;
         // All crop recognition shapes are checked before the first REC call.
         for line in oriented.iter() {
             if line.image.pixel_count()? > self.recognizer.resolved_options().max_image_pixels {
                 return Err(ImageError::new("crop exceeds recognizer max_image_pixels"));
             }
-            self.recognizer
-                .select_width(line.image.width(), line.image.height())?;
         }
+        let sizes = line_sizes(&self.recognizer, oriented.metadata())?;
         self.result.lines.clear();
         self.result.text.clear();
         self.result.runs.clear();
@@ -1538,13 +1567,7 @@ impl OcrRequest {
         let scheduled = !TRACE
             && count > 1
             && (self.plan.cpu.capacity() > 1 || self.plan.recognition_batch_size > 1);
-        let result_budget = self
-            .plan
-            .options
-            .max_total_result_bytes
-            .checked_sub(metadata_bytes)
-            .and_then(|bytes| bytes.checked_sub(count.saturating_sub(1)))
-            .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?;
+        let result_budget = self.plan.options.max_total_result_bytes;
         if scheduled && self.recognizer.uses_gpu() {
             recognize_gpu::<PROFILE>(
                 &mut self.recognizer,
@@ -1552,6 +1575,7 @@ impl OcrRequest {
                 &mut self.recognition_order,
                 self.plan.recognition_batch_size,
                 &oriented,
+                &sizes,
                 capture,
                 result_budget,
                 profile,
@@ -1567,6 +1591,7 @@ impl OcrRequest {
                 &mut self.recognition_order,
                 self.plan.recognition_batch_size,
                 &oriented,
+                &sizes,
                 capture,
                 result_budget,
                 profile,
@@ -1579,6 +1604,7 @@ impl OcrRequest {
                     .recognizer_threads_for_capacity(count, self.plan.cpu.request_capacity()),
             )?;
         }
+        let mut used = 0;
         for (index, line) in oriented.iter().enumerate() {
             let cached = if scheduled {
                 Some(
@@ -1592,25 +1618,43 @@ impl OcrRequest {
             let recognition = if let Some(result) = &cached {
                 result.as_view()
             } else if TRACE {
-                self.recognizer
-                    .recognize_with_trace(line.image, capture, |event| {
-                        observer.borrow_mut()(OcrTrace::Recognition { index, event })
-                    })?
+                self.recognizer.recognize_traced_at_width(
+                    line.image,
+                    Some(sizes[index].tensor_width),
+                    capture,
+                    |event| observer.borrow_mut()(OcrTrace::Recognition { index, event }),
+                )?
             } else if self.recognizer.uses_gpu() {
-                self.recognizer
-                    .recognize_impl::<PROFILE>(line.image, capture, profile)?
+                self.recognizer.recognize_impl::<PROFILE>(
+                    line.image,
+                    Some(sizes[index].tensor_width),
+                    capture,
+                    profile,
+                )?
             } else {
                 inline_cpu.install(|| {
-                    self.recognizer
-                        .recognize_impl::<PROFILE>(line.image, capture, profile)
+                    self.recognizer.recognize_impl::<PROFILE>(
+                        line.image,
+                        Some(sizes[index].tensor_width),
+                        capture,
+                        profile,
+                    )
                 })?
             };
+            if !keep_line(
+                recognition.score,
+                self.plan.recognizer.options().score_mode,
+                || !recognition.text.trim().is_empty(),
+            ) {
+                continue;
+            }
+            let separator = !self.result.lines.is_empty();
             let storage_timer = Timer::<PROFILE>::start();
             let text_length = self
                 .result
                 .text
                 .len()
-                .checked_add(usize::from(index != 0))
+                .checked_add(usize::from(separator))
                 .and_then(|n| n.checked_add(recognition.text.len()))
                 .ok_or_else(|| ImageError::new("OCR text size overflow"))?;
             let span_count = self
@@ -1619,15 +1663,11 @@ impl OcrRequest {
                 .len()
                 .checked_add(recognition.ctc_spans.map_or(0, CtcSpans::len))
                 .ok_or_else(|| ImageError::new("OCR alignment count overflow"))?;
-            let required = span_count
+            used = (span_count - self.result.runs.len())
                 .checked_mul(size_of::<CtcRun>())
-                .and_then(|n| n.checked_add(text_length))
-                .and_then(|n| n.checked_add(metadata_bytes))
-                .filter(|&n| {
-                    n <= self.plan.options.max_total_result_bytes && n <= isize::MAX as usize
-                })
+                .and_then(|n| n.checked_add(recognition.text.len()))
+                .and_then(|n| charge_result_line(used, n, result_budget))
                 .ok_or_else(|| ImageError::new("OCR exceeds max_total_result_bytes"))?;
-            let _ = required;
             self.result
                 .text
                 .try_reserve_exact(text_length - self.result.text.len())
@@ -1636,7 +1676,7 @@ impl OcrRequest {
                 .runs
                 .try_reserve_exact(span_count - self.result.runs.len())
                 .map_err(allocation)?;
-            if index != 0 {
+            if separator {
                 self.result.text.push('\n');
             }
             let text_start = self.result.text.len();
@@ -1664,6 +1704,7 @@ impl OcrRequest {
                 classification_score: line.metadata.classification.map_or(0., |c| c.score),
                 classification_label: line.metadata.classification.map_or(0, |c| c.label),
                 applied_rotation_degrees: line.metadata.applied_rotation_degrees,
+                vertical_rotation: line.metadata.vertical_rotation,
                 emitted_count: recognition.emitted_count,
                 recognition_content_width: recognition.resized_width,
                 recognition_tensor_width: recognition.tensor_width,
@@ -1686,8 +1727,9 @@ impl OcrRequest {
         self.result.detector_resized_height = oriented.resized_height();
         self.result.width_ratio = oriented.width_ratio();
         self.result.height_ratio = oriented.height_ratio();
+        self.result.restore_coordinates(&page, original);
         #[cfg(feature = "paragraph")]
-        self.group_paragraphs::<PROFILE>(image, profile)?;
+        self.group_paragraphs::<PROFILE>(original, profile)?;
         let output = self.view();
         if TRACE {
             observer.borrow_mut()(OcrTrace::Result(output))?;
@@ -1747,8 +1789,22 @@ impl OcrRequest {
     }
 }
 
-/// One GPU owner executes width-homogeneous batches on the calling thread.
-/// Results are copied into the existing slots to restore detector reading order.
+fn keep_line(
+    score: f32,
+    mode: crate::recognizer::RecognitionScoreMode,
+    has_text: impl FnOnce() -> bool,
+) -> bool {
+    mode == crate::recognizer::RecognitionScoreMode::Logit || (score >= 0.5 && has_text())
+}
+
+fn charge_result_line(used: usize, payload: usize, limit: usize) -> Option<usize> {
+    used.checked_add(size_of::<LineRecord>())?
+        .checked_add(usize::from(used != 0))?
+        .checked_add(payload)
+        .filter(|&bytes| bytes <= limit && bytes <= isize::MAX as usize)
+}
+
+/// One GPU owner executes width-homogeneous batches and restores detector reading order.
 #[allow(clippy::too_many_arguments)]
 fn recognize_gpu<const PROFILE: bool>(
     recognizer: &mut Recognizer,
@@ -1756,6 +1812,7 @@ fn recognize_gpu<const PROFILE: bool>(
     order: &mut Vec<usize>,
     batch_size: usize,
     lines: &OrientedLines<'_>,
+    sizes: &[RecognitionSize],
     capture: bool,
     result_budget: usize,
     profile: &mut StageProfile,
@@ -1770,12 +1827,13 @@ fn recognize_gpu<const PROFILE: bool>(
     results.resize_with(count.max(results.len()), || {
         Mutex::new(RecognitionSlot::new())
     });
-    sort_recognition_order(order, recognizer, lines.metadata());
+    sort_recognition_order(order, sizes);
+    let mode = recognizer.resolved_options().score_mode;
     let result_bytes = AtomicUsize::new(0);
     let exceeded = AtomicBool::new(false);
     let mut start = 0;
     while start < count {
-        let end = recognition_unit_end(order, start, batch_size, recognizer, lines.metadata());
+        let end = recognition_unit_end(order, start, batch_size, sizes);
         if end - start > 1 {
             let batch = recognizer.recognize_batch_impl::<PROFILE, _>(
                 end - start,
@@ -1785,6 +1843,7 @@ fn recognize_gpu<const PROFILE: bool>(
                         .map(|line| line.image)
                         .ok_or_else(|| ImageError::new("invalid oriented line metadata"))
                 },
+                Some(sizes[order[start]].tensor_width),
                 capture,
                 profile,
             )?;
@@ -1792,6 +1851,7 @@ fn recognize_gpu<const PROFILE: bool>(
                 store_recognition::<PROFILE>(
                     order[start + offset],
                     recognition,
+                    mode,
                     results,
                     &result_bytes,
                     &exceeded,
@@ -1803,10 +1863,16 @@ fn recognize_gpu<const PROFILE: bool>(
             let line = lines
                 .get(order[start])
                 .ok_or_else(|| ImageError::new("invalid oriented line metadata"))?;
-            let recognition = recognizer.recognize_impl::<PROFILE>(line.image, capture, profile)?;
+            let recognition = recognizer.recognize_impl::<PROFILE>(
+                line.image,
+                Some(sizes[order[start]].tensor_width),
+                capture,
+                profile,
+            )?;
             store_recognition::<PROFILE>(
                 order[start],
                 recognition,
+                mode,
                 results,
                 &result_bytes,
                 &exceeded,
@@ -1833,6 +1899,7 @@ fn recognize_parallel<const PROFILE: bool>(
     order: &mut Vec<usize>,
     batch_size: usize,
     lines: &OrientedLines<'_>,
+    sizes: &[RecognitionSize],
     capture: bool,
     result_budget: usize,
     profile: &mut StageProfile,
@@ -1847,11 +1914,11 @@ fn recognize_parallel<const PROFILE: bool>(
     if results.len() < count {
         results.resize_with(count, || Mutex::new(RecognitionSlot::new()));
     }
-    sort_recognition_order(order, template, lines.metadata());
+    sort_recognition_order(order, sizes);
     let mut units = 0;
     let mut position = 0;
     while position < count {
-        position = recognition_unit_end(order, position, batch_size, template, lines.metadata());
+        position = recognition_unit_end(order, position, batch_size, sizes);
         units += 1;
     }
     let backend = template
@@ -1875,13 +1942,7 @@ fn recognize_parallel<const PROFILE: bool>(
             owner_profile: crate::profile::RecognitionOwnerProfile::default(),
         });
     }
-    assign_recognition_jobs(
-        &mut workers[..active],
-        order,
-        batch_size,
-        template,
-        lines.metadata(),
-    )?;
+    assign_recognition_jobs(&mut workers[..active], order, batch_size, sizes)?;
     let request_capacity = cpu.request_capacity();
     let threads = budgets.recognizer_threads_for_capacity(units, request_capacity);
     let borrowing_owner = recognition_borrowing_owner(
@@ -1934,13 +1995,7 @@ fn recognize_parallel<const PROFILE: bool>(
                 maximum_tensor_width: worker
                     .jobs
                     .iter()
-                    .map(|job| {
-                        let line = &lines.metadata()[order[job.start]];
-                        template
-                            .select_width(line.width, line.height)
-                            .expect("recognition width was preflighted")
-                            .tensor_width
-                    })
+                    .map(|job| sizes[order[job.start]].tensor_width)
                     .max()
                     .unwrap_or(0),
                 kernel_threads: worker.owner_profile.kernel_threads,
@@ -1948,6 +2003,7 @@ fn recognize_parallel<const PROFILE: bool>(
             };
         }
     }
+    let mode = template.resolved_options().score_mode;
     let result_bytes = AtomicUsize::new(0);
     let budget_exceeded = AtomicBool::new(false);
     #[cfg(feature = "profiling")]
@@ -1977,6 +2033,7 @@ fn recognize_parallel<const PROFILE: bool>(
                                 .map(|line| line.image)
                                 .ok_or_else(|| ImageError::new("invalid oriented line metadata"))
                         },
+                        Some(sizes[index].tensor_width),
                         capture,
                         &mut worker.profile,
                     )?;
@@ -1984,6 +2041,7 @@ fn recognize_parallel<const PROFILE: bool>(
                         store_recognition::<PROFILE>(
                             order[position + offset],
                             recognition,
+                            mode,
                             results,
                             &result_bytes,
                             &budget_exceeded,
@@ -1998,12 +2056,14 @@ fn recognize_parallel<const PROFILE: bool>(
                     .ok_or_else(|| ImageError::new("invalid oriented line metadata"))?;
                 let recognition = worker.recognizer.recognize_impl::<PROFILE>(
                     line.image,
+                    Some(sizes[index].tensor_width),
                     capture,
                     &mut worker.profile,
                 )?;
                 store_recognition::<PROFILE>(
                     index,
                     recognition,
+                    mode,
                     results,
                     &result_bytes,
                     &budget_exceeded,
@@ -2102,8 +2162,7 @@ fn assign_recognition_jobs(
     workers: &mut [RecognitionWorker],
     order: &[usize],
     batch_size: usize,
-    recognizer: &Recognizer,
-    lines: &[crate::lines::LineMetadata],
+    sizes: &[RecognitionSize],
 ) -> ImageResult<()> {
     for worker in workers.iter_mut() {
         worker.jobs.clear();
@@ -2111,11 +2170,8 @@ fn assign_recognition_jobs(
     }
     let mut start = 0;
     while start < order.len() {
-        let end = recognition_unit_end(order, start, batch_size, recognizer, lines);
-        let line = &lines[order[start]];
-        let width = recognizer
-            .select_width(line.width, line.height)?
-            .tensor_width;
+        let end = recognition_unit_end(order, start, batch_size, sizes);
+        let width = sizes[order[start]].tensor_width;
         // Keep immutable ownership of width-sorted units for this page. A work
         // stealing cursor lets identical pages grow different worker-private
         // arenas, shape caches and resize buffers after warming has completed.
@@ -2135,15 +2191,27 @@ fn assign_recognition_jobs(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn store_recognition<const PROFILE: bool>(
     index: usize,
     recognition: RecognitionView<'_>,
+    mode: crate::recognizer::RecognitionScoreMode,
     results: &[Mutex<RecognitionSlot>],
     result_bytes: &AtomicUsize,
     budget_exceeded: &AtomicBool,
     result_budget: usize,
     profile: &mut StageProfile,
 ) -> ImageResult<()> {
+    if !keep_line(recognition.score, mode, || {
+        !recognition.text.trim().is_empty()
+    }) {
+        let mut slot = results[index]
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        slot.text.clear();
+        slot.runs.clear();
+        return Ok(());
+    }
     let bytes = recognition
         .ctc_spans
         .map_or(0, CtcSpans::len)
@@ -2152,9 +2220,7 @@ fn store_recognition<const PROFILE: bool>(
     if bytes.is_none_or(|bytes| {
         result_bytes
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-                current
-                    .checked_add(bytes)
-                    .filter(|&total| total <= result_budget)
+                charge_result_line(current, bytes, result_budget)
             })
             .is_err()
     }) {
@@ -2176,16 +2242,9 @@ fn recognition_unit_end(
     order: &[usize],
     start: usize,
     batch_size: usize,
-    recognizer: &Recognizer,
-    lines: &[crate::lines::LineMetadata],
+    sizes: &[RecognitionSize],
 ) -> usize {
-    let width = |position: usize| {
-        let line = &lines[order[position]];
-        recognizer
-            .select_width(line.width, line.height)
-            .expect("recognition width was preflighted")
-            .tensor_width
-    };
+    let width = |position: usize| sizes[order[position]].tensor_width;
     let target = width(start);
     let limit = start.saturating_add(batch_size).min(order.len());
     let mut end = start + 1;
@@ -2195,21 +2254,20 @@ fn recognition_unit_end(
     end
 }
 
-fn sort_recognition_order(
-    order: &mut [usize],
+fn line_sizes(
     recognizer: &Recognizer,
     lines: &[crate::lines::LineMetadata],
-) {
-    order.sort_unstable_by(|&a, &b| {
-        // run_impl validates every crop's selected width before workers start.
-        let width = |index: usize| {
-            recognizer
-                .select_width(lines[index].width, lines[index].height)
-                .expect("recognition width was preflighted")
-                .tensor_width
-        };
-        width(b).cmp(&width(a)).then_with(|| a.cmp(&b))
-    });
+) -> ImageResult<Vec<RecognitionSize>> {
+    recognizer.plan().page_sizes(
+        &lines
+            .iter()
+            .map(|l| [l.width, l.height])
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn sort_recognition_order(order: &mut [usize], sizes: &[RecognitionSize]) {
+    order.sort_unstable_by_key(|&i| (std::cmp::Reverse(sizes[i].tensor_width), i));
 }
 
 struct RecognitionSlot {
@@ -2530,6 +2588,8 @@ pub(crate) mod tests {
             load(&detector),
             DetectorOptions {
                 limit_side_length: 96,
+                // Leave ink visible to the test recognizer's unweighted column mean.
+                unclip_ratio: 1.,
                 ..Default::default()
             },
             ExecutionLimits::default(),
@@ -2552,6 +2612,56 @@ pub(crate) mod tests {
         )
         .unwrap()
     }
+    #[test]
+    fn rejected_recognition_reuses_slots_without_charging_the_ocr_budget() {
+        use crate::recognizer::RecognitionScoreMode::Probability;
+        let results = [
+            Mutex::new(RecognitionSlot::new()),
+            Mutex::new(RecognitionSlot::new()),
+        ];
+        let total = AtomicUsize::new(0);
+        let exceeded = AtomicBool::new(false);
+        let limit = size_of::<LineRecord>() + 1;
+        let retained = RecognitionView {
+            text: "A",
+            score: 0.8,
+            emitted_count: 1,
+            resized_width: 3,
+            tensor_width: 32,
+            time_steps: 4,
+            ctc_spans: None,
+        };
+        let store = |index, value| {
+            store_recognition::<false>(
+                index,
+                value,
+                Probability,
+                &results,
+                &total,
+                &exceeded,
+                limit,
+                &mut StageProfile::default(),
+            )
+            .unwrap();
+        };
+        store(0, retained);
+        assert_eq!(total.load(Ordering::Relaxed), limit);
+        total.store(0, Ordering::Relaxed);
+        store(
+            0,
+            RecognitionView {
+                text: "discard this",
+                score: 0.4,
+                ..retained
+            },
+        );
+        store(1, retained);
+        assert_eq!(total.load(Ordering::Relaxed), limit);
+        assert!(!exceeded.load(Ordering::Relaxed));
+        assert!(results[0].lock().unwrap().as_view().text.is_empty());
+        assert_eq!(results[1].lock().unwrap().as_view().text, "A");
+    }
+
     pub(crate) fn two_lines() -> Vec<u8> {
         let mut pixels = vec![0; 96 * 96 * 3];
         for (left, right, top, bottom) in [(12, 52, 10, 23), (10, 84, 58, 72)] {
@@ -3001,12 +3111,13 @@ pub(crate) mod tests {
             applied_rotation_degrees: 0,
         });
         let mut order = [5, 4, 3, 2, 1, 0];
-        sort_recognition_order(&mut order, &ocr.recognizer, &lines);
+        let sizes = line_sizes(&ocr.recognizer, &lines).unwrap();
+        sort_recognition_order(&mut order, &sizes);
         assert_eq!(order, [0, 1, 3, 5, 2, 4]);
         let mut units = Vec::new();
         let mut start = 0;
         while start < order.len() {
-            let end = recognition_unit_end(&order, start, 2, &ocr.recognizer, &lines);
+            let end = recognition_unit_end(&order, start, 2, &sizes);
             units.push(order[start..end].to_vec());
             start = end;
         }
@@ -3022,7 +3133,7 @@ pub(crate) mod tests {
                 owner_profile: crate::profile::RecognitionOwnerProfile::default(),
             })
             .collect();
-        assign_recognition_jobs(&mut workers, &order, 2, &ocr.recognizer, &lines).unwrap();
+        assign_recognition_jobs(&mut workers, &order, 2, &sizes).unwrap();
         assert_eq!(workers[0].jobs.len(), 1);
         assert_eq!(workers[0].jobs.first(), Some(&(0..2)));
         assert_eq!(workers[1].jobs.len(), 1);
@@ -3036,7 +3147,7 @@ pub(crate) mod tests {
             .iter()
             .map(|w| (w.jobs.as_ptr(), w.jobs.capacity()))
             .collect();
-        assign_recognition_jobs(&mut workers, &order, 2, &ocr.recognizer, &lines).unwrap();
+        assign_recognition_jobs(&mut workers, &order, 2, &sizes).unwrap();
         assert_eq!(
             workers
                 .iter()
@@ -3044,7 +3155,7 @@ pub(crate) mod tests {
                 .collect::<Vec<_>>(),
             storage
         );
-        assign_recognition_jobs(&mut workers[..2], &order, 1, &ocr.recognizer, &lines).unwrap();
+        assign_recognition_jobs(&mut workers[..2], &order, 1, &sizes).unwrap();
         assert_eq!(workers[0].jobs, [0..1, 2..3, 4..5]);
         assert_eq!(workers[1].jobs, [1..2, 3..4, 5..6]);
         assert_eq!(workers[0].scheduled_cost, 256);
@@ -3366,6 +3477,7 @@ pub(crate) mod tests {
                 &mut request.recognition_order,
                 batch,
                 &lines.as_view(),
+                &line_sizes(&request.recognizer, lines.as_view().metadata()).unwrap(),
                 true,
                 usize::MAX,
                 &mut profile,
@@ -4212,6 +4324,7 @@ pub(crate) mod tests {
             &mut parallel.recognition_order,
             parallel.plan.recognition_batch_size,
             &oriented.as_view(),
+            &line_sizes(&parallel.recognizer, oriented.as_view().metadata()).unwrap(),
             true,
             original_budget,
             &mut StageProfile::default(),

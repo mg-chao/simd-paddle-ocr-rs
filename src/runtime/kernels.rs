@@ -329,12 +329,11 @@ pub(super) fn execute_optimized<'a>(
                 && p.contiguous == Some(p.input.dimensions()[2] * p.input.dimensions()[3])
                 && out.len() == p.input.dimensions()[0] * p.input.dimensions()[1] =>
         {
-            simd::spatial_mean(
-                backend,
-                a,
-                out,
-                p.input.dimensions()[2] * p.input.dimensions()[3],
-            );
+            if p.global_pool {
+                simd::spatial_mean(backend, a, out, p.reduction);
+            } else {
+                super::spatial_mean::channels_first(a, out, p.reduction);
+            }
         }
         BoundKind::Relu => {
             simd::parallel::unary(backend, simd::UnaryOp::Relu, a, out, cpu, threads)
@@ -1110,7 +1109,8 @@ mod scalar_refinement_tests {
             let input_shape = Shape::new(&dimensions).unwrap();
             let values = distribution(input_shape.element_count());
             for keep in [false, true] {
-                let (output_shape, kind) = bind_reduce(input_shape, &[-1], keep, false).unwrap();
+                let (output_shape, kind) =
+                    bind_reduce(input_shape, &[-1], keep, false, false).unwrap();
                 let BoundKind::Reduce(mut plan) = kind else {
                     panic!("expected reduction");
                 };

@@ -143,7 +143,7 @@ pub struct OcrBuilder {
     cpu: Option<Arc<CpuContext>>,
     cpu_options: CpuOptions,
     detector: DetectorOptions,
-    recognizer: RecognizerOptions,
+    recognizer: Option<RecognizerOptions>,
     lines: LineOptions,
     ocr: OcrOptions,
     detector_limits: ExecutionLimits,
@@ -169,9 +169,19 @@ impl OcrBuilder {
             gpu_options: Default::default(),
             cpu: None,
             cpu_options: CpuOptions::default(),
-            detector: DetectorOptions::default(),
-            recognizer: RecognizerOptions::default(),
-            lines: LineOptions::default(),
+            detector: DetectorOptions {
+                limit_side_length: 736,
+                resize_policy: crate::detector::DetResizePolicy::Min,
+                box_threshold: Some(0.5),
+                max_candidates: 1000,
+                use_dilation: true,
+                ..DetectorOptions::default()
+            },
+            recognizer: None,
+            lines: LineOptions {
+                classifier_threshold: 0.9,
+                ..LineOptions::default()
+            },
             ocr: OcrOptions::default(),
             detector_limits: ExecutionLimits::default(),
             recognizer_limits: ExecutionLimits::default(),
@@ -244,7 +254,7 @@ impl OcrBuilder {
         self
     }
     pub fn recognizer_options(mut self, options: RecognizerOptions) -> Self {
-        self.recognizer = options;
+        self.recognizer = Some(options);
         self
     }
     pub fn line_options(mut self, options: LineOptions) -> Self {
@@ -315,12 +325,17 @@ impl OcrBuilder {
         };
         let detector = DetectorPlan::new(detection, self.detector, self.detector_limits)?;
         let extractor = OrientedLinePlan::new(detector, classification, self.lines)?;
-        let recognizer = RecognizerPlan::new(
+        let mut recognizer = RecognizerPlan::new(
             recognition,
             self.models.dictionary,
-            self.recognizer,
+            self.recognizer.unwrap_or_else(|| RecognizerOptions {
+                min_width: 320,
+                score_mode: crate::recognizer::RecognitionScoreMode::Probability,
+                ..RecognizerOptions::default()
+            }),
             self.recognizer_limits,
         )?;
+        Arc::make_mut(&mut recognizer).grouped_width = self.recognizer.is_none();
         let plan = OcrPlan::new(
             extractor,
             recognizer,
@@ -382,8 +397,10 @@ mod tests {
             .cpu_context(cpu.clone())
             .detector_options(DetectorOptions {
                 limit_side_length: 96,
+                unclip_ratio: 1.,
                 ..Default::default()
             })
+            .recognizer_options(RecognizerOptions::default())
             .recognition_batch_size(2)
             .build()
             .unwrap()

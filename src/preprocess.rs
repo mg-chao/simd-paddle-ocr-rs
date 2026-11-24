@@ -3,8 +3,9 @@ use crate::image::{ImageError, ImageResult, ImageView, resize_vec};
 use std::sync::OnceLock;
 
 mod detector;
+pub(crate) mod page;
 pub use detector::DET_MAX_SIDE;
-pub(crate) use detector::DetSourceGeometry;
+pub(crate) use detector::{DetSourceGeometry, valid_map_size};
 
 #[derive(Default, Debug)]
 pub struct ResizeWorkspace {
@@ -30,9 +31,10 @@ impl ResizeWorkspace {
         resize_vec(&mut self.row1, destination)?;
         if self.key != Some((source, destination)) {
             for x in 0..destination {
-                let coordinate = (x as f64 + 0.5) * source as f64 / destination as f64 - 0.5;
+                let coordinate =
+                    ((x as f64 + 0.5) * (source as f64 / destination as f64) - 0.5) as f32;
                 let mut sx = coordinate.floor() as i64;
-                let mut fraction = coordinate - sx as f64;
+                let mut fraction = coordinate - sx as f32;
                 if sx < 0 {
                     sx = 0;
                     fraction = 0.;
@@ -64,7 +66,7 @@ pub struct DetSize {
 pub enum DetResizePolicy {
     #[default]
     Max,
-    /// Enlarge the short side up to the requested limit, subject to DET_MAX_SIDE.
+    /// Enlarge the short side up to the requested limit, subject to the detector map area budget.
     Min,
 }
 
@@ -80,29 +82,22 @@ pub fn compute_det_size_with_policy(
 ) -> ImageResult<DetSize> {
     DetSourceGeometry::new(width, height)?.resize(limit, policy)
 }
-fn det_lut() -> &'static [[f32; 256]; 3] {
-    static LUT: OnceLock<[[f32; 256]; 3]> = OnceLock::new();
-    LUT.get_or_init(|| {
-        let mean = [0.485f64, 0.456, 0.406];
-        let inverse = [1. / 0.229f64, 1. / 0.224, 1. / 0.225];
-        let mut lut = [[0.; 256]; 3];
-        for (c, channel) in lut.iter_mut().enumerate() {
-            for (x, value) in channel.iter_mut().enumerate() {
-                *value = ((x as f64 / 255. - mean[c]) * inverse[c]) as f32;
-            }
-        }
-        lut
-    })
+/// Byte lookup used by both CPU and resident GPU preprocessing. NumPy uses
+/// multiplication by a float32 reciprocal in DET and division in CLS/REC.
+pub(crate) fn normalized_byte(x: usize, detector: bool) -> f32 {
+    let scaled = if detector {
+        x as f32 * (1.0 / 255.0)
+    } else {
+        x as f32 / 255.0
+    };
+    (scaled - 0.5) * 2.0
 }
-fn cls_lut() -> &'static [f32; 256] {
-    static LUT: OnceLock<[f32; 256]> = OnceLock::new();
-    LUT.get_or_init(|| {
-        let mut lut = [0.; 256];
-        for (x, v) in lut.iter_mut().enumerate() {
-            *v = x as f32 * (2.0f32 / 255.0f32) - 1.;
-        }
-        lut
-    })
+
+fn normalization_lut(detector: bool) -> &'static [f32; 256] {
+    static DET: OnceLock<[f32; 256]> = OnceLock::new();
+    static LINE: OnceLock<[f32; 256]> = OnceLock::new();
+    (if detector { &DET } else { &LINE })
+        .get_or_init(|| std::array::from_fn(|x| normalized_byte(x, detector)))
 }
 pub fn det(
     image: ImageView<'_>,
@@ -179,9 +174,6 @@ pub(crate) fn det_with_context_layout(
     while workspace.workers.len() < workers {
         workspace.workers.push(ResizeWorkspace::default());
     }
-    for scratch in &mut workspace.workers[..workers] {
-        scratch.prepare(image.width(), width)?;
-    }
     let (a, tail) = output.split_at_mut(if nhwc { output.len() } else { plane });
     let (b, c) = tail.split_at_mut(if nhwc { 0 } else { plane });
     let (mut a, mut b, mut c) = (a, b, c);
@@ -257,22 +249,17 @@ pub(crate) fn cls_with_layout(
     if output.len() != 3 * 80 * 160 {
         return Err(ImageError::new("invalid CLS output size"));
     }
-    let window = if image.width() as u64 > 4 * image.height() as u64 {
-        4 * image.height()
-    } else {
-        image.width()
-    };
-    let actual = (80u64 * window as u64)
+    let width = image.width();
+    let actual = (80u64 * width as u64)
         .div_ceil(image.height() as u64)
         .min(160) as usize;
     if actual < 160 {
-        output.fill(-1.);
+        output.fill(0.);
     }
-    resize_with_layout::<false>(image, window, actual, 80, 160, output, workspace, nhwc)?;
+    resize_with_layout::<false>(image, width, actual, 80, 160, output, workspace, nhwc)?;
     Ok(actual)
 }
-/// Height-48 recognition resize. Right padding is normalized zero, rather
-/// than CLS's normalized black; the complete source width is retained.
+/// Height-48 recognition resize. Right padding is normalized zero; the complete source width is retained.
 pub fn rec(
     image: ImageView<'_>,
     tensor_width: usize,
@@ -292,7 +279,7 @@ pub(crate) fn rec_with_layout(
     if tensor_width == 0 || elements != Some(output.len()) {
         return Err(ImageError::new("invalid REC output size"));
     }
-    let natural = (48u64 * image.width() as u64).div_ceil(image.height() as u64);
+    let natural = (48. * (image.width() as f64 / image.height() as f64)).ceil() as u64;
     let actual = natural.min(tensor_width as u64) as usize;
     if actual < tensor_width {
         output.fill(0.);
@@ -419,18 +406,60 @@ fn resize_planes<const DET: bool>(
     workspace: &mut ResizeWorkspace,
     nhwc: bool,
 ) -> ImageResult<()> {
+    let values = normalization_lut(DET);
+    resized_bytes(
+        image,
+        source_width,
+        width,
+        height,
+        first_row,
+        rows,
+        workspace,
+        |y, x, c, byte| {
+            let value = values[byte as usize];
+            if nhwc {
+                output[0][(y * output_width + x) * 3 + c] = value;
+            } else {
+                output[c][y * output_width + x] = value;
+            }
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resized_bytes(
+    image: ImageView<'_>,
+    source_width: usize,
+    width: usize,
+    height: usize,
+    first_row: usize,
+    rows: usize,
+    workspace: &mut ResizeWorkspace,
+    mut store: impl FnMut(usize, usize, usize, u8),
+) -> ImageResult<()> {
+    if source_width == width && image.height() == height {
+        let bpp = image.format().bytes_per_pixel();
+        let red = if image.format().swap_red_blue() { 0 } else { 2 };
+        for y in 0..rows {
+            let start = (first_row + y) * image.stride();
+            let row = &image.pixels()[start..start + width * bpp];
+            for (x, pixel) in row.chunks_exact(bpp).enumerate() {
+                store(y, x, 0, pixel[2 - red]);
+                store(y, x, 1, pixel[1]);
+                store(y, x, 2, pixel[red]);
+            }
+        }
+        return Ok(());
+    }
     workspace.prepare(source_width, width)?;
-    // Resolve the once-initialized tables once per resize, outside pixel loops.
-    let det_values = if DET { Some(det_lut()) } else { None };
-    let cls_values = if DET { None } else { Some(cls_lut()) };
     // Cached rows are scoped to this call: pixels can change while dimensions remain equal.
     let mut y0 = None;
     let mut y1 = None;
     for local_y in 0..rows {
         let y = first_row + local_y;
-        let coordinate = (y as f64 + 0.5) * image.height() as f64 / height as f64 - 0.5;
+        let coordinate = ((y as f64 + 0.5) * (image.height() as f64 / height as f64) - 0.5) as f32;
         let sy = coordinate.floor() as i64;
-        let fraction = coordinate - sy as f64;
+        let fraction = coordinate - sy as f32;
         let beta0 = ((1. - fraction) * 2048.).round_ties_even() as i32;
         let beta1 = (fraction * 2048.).round_ties_even() as i32;
         let sy0 = sy.clamp(0, image.height() as i64 - 1) as usize;
@@ -469,17 +498,8 @@ fn resize_planes<const DET: bool>(
                 let h0 = workspace.row0[x][c];
                 let h1 = if sy0 == sy1 { h0 } else { workspace.row1[x][c] };
                 let value = (((((h0 >> 4) * beta0) >> 16) + (((h1 >> 4) * beta1) >> 16) + 2) >> 2)
-                    .clamp(0, 255) as usize;
-                let value = if DET {
-                    det_values.unwrap()[c][value]
-                } else {
-                    cls_values.unwrap()[value]
-                };
-                if nhwc {
-                    output[0][(local_y * output_width + x) * 3 + c] = value;
-                } else {
-                    output[c][local_y * output_width + x] = value;
-                }
+                    .clamp(0, 255) as u8;
+                store(local_y, x, c, value);
             }
         }
     }
@@ -505,13 +525,10 @@ mod tests {
                 for policy in [DetResizePolicy::Max, DetResizePolicy::Min] {
                     let size = compute_det_size_with_policy(width, height, limit, policy).unwrap();
                     assert!(
-                        (32..=4096).contains(&size.width),
+                        size.width >= 32 && valid_map_size(size.width, size.height),
                         "{width}x{height}/{policy:?}"
                     );
-                    assert!(
-                        (32..=4096).contains(&size.height),
-                        "{width}x{height}/{policy:?}"
-                    );
+                    assert!(size.height >= 32, "{width}x{height}/{policy:?}");
                     assert_eq!(size.width % 32, 0);
                     assert_eq!(size.height % 32, 0);
                 }
@@ -527,6 +544,8 @@ mod tests {
         );
         let size = compute_det_size_with_policy(640, 320, 736, DetResizePolicy::Min).unwrap();
         assert_eq!((size.width, size.height), (1472, 736));
+        let wide = compute_det_size_with_policy(950, 136, 736, DetResizePolicy::Min).unwrap();
+        assert_eq!((wide.width, wide.height), (5152, 736));
         let size = compute_det_size_with_policy(1920, 1080, 736, DetResizePolicy::Min).unwrap();
         assert_eq!((size.width, size.height), (1920, 1088));
         let size = compute_det_size_with_policy(1920, 1080, 960, DetResizePolicy::Max).unwrap();
@@ -580,6 +599,57 @@ mod tests {
                 [0, 0, 0, 0]
             }
         );
+    }
+    #[test]
+    fn identity_resize_normalizes_each_strided_pixel_in_both_layouts() {
+        let (width, height) = (17, 73);
+        #[cfg(feature = "parallel")]
+        let cpu = CpuContext::new(3).unwrap();
+        #[cfg(not(feature = "parallel"))]
+        let cpu = CpuContext::serial();
+        for format in [
+            PixelFormat::Bgr24,
+            PixelFormat::Rgb24,
+            PixelFormat::Bgra32,
+            PixelFormat::Rgba32,
+        ] {
+            let row = width * format.bytes_per_pixel();
+            let stride = row + 5;
+            let bytes: Vec<_> = (0..(height - 1) * stride + row)
+                .map(|i| (i * 73 + i / 19) as u8)
+                .collect();
+            let image = ImageView::new(&bytes, width, height, stride, format).unwrap();
+            for nhwc in [false, true] {
+                let mut output = vec![f32::NAN; width * height * 3];
+                det_with_context_layout(
+                    image,
+                    width,
+                    height,
+                    &mut output,
+                    &mut ResizeWorkspace::default(),
+                    &cpu,
+                    3,
+                    nhwc,
+                )
+                .unwrap();
+                for y in 0..height {
+                    for x in 0..width {
+                        for (c, byte) in image.bgr(x, y).into_iter().enumerate() {
+                            let pixel = y * width + x;
+                            let index = if nhwc {
+                                pixel * 3 + c
+                            } else {
+                                c * height * width + pixel
+                            };
+                            assert_eq!(
+                                output[index].to_bits(),
+                                normalized_byte(byte as usize, true).to_bits()
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
     #[test]
     fn parallel_det_rows_match_fixedpoint_serial_with_stride_and_alpha() {

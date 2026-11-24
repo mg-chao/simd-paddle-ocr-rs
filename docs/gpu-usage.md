@@ -47,6 +47,12 @@ durations remain separate. `StageProfile::gpu_encoding_ns` measures host
 preparation/encoding, while `gpu_submission_ns` measures queue submission.
 Disabled profiling allocates no timestamp queries.
 
+Metal and Vulkan devices without shader FP64 use host-calculated sampling
+coordinates for perspective crops. The GPU interpolates the source pixels
+using those coordinates. Statistics report this work as hybrid image
+processing and include the coordinate upload in `uploaded_bytes`. Crops
+that only translate by whole pixels use the compact GPU transform.
+
 ## macOS
 
 On Apple Silicon with macOS 14 or newer, `gpu` selects native Metal. The same

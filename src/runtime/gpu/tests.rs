@@ -488,6 +488,41 @@ fn gpu_hardware_dense_two_by_two_padding_and_tails() {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
+#[test]
+#[ignore = "requires a physical Vulkan GPU"]
+fn gpu_spatial_mean_keeps_packet_alignment_and_pool_order() {
+    let context = hardware();
+    let shape = [1, 4, 17, 65];
+    let plane = shape[2] * shape[3];
+    let input: Vec<f32> = (0..shape.iter().product())
+        .map(|i| match i % 13 {
+            1 => 16_777_216.,
+            5 => -16_777_216.,
+            n => (n as f32 - 3.) * 0.25,
+        })
+        .collect();
+    for global in [false, true] {
+        let op = if global {
+            node("GlobalAveragePool", &["x"], "y", &[])
+        } else {
+            node("ReduceMean", &["x"], "y", &[integers("axes", &[2, 3])])
+        };
+        let graph = model(vec![op], &shape, &[1, 4, 1, 1]);
+        let compiled = Arc::new(GpuCompiledModel::compile(graph, context.clone()).unwrap());
+        let mut session = GpuSession::new(compiled, &shape, ExecutionLimits::default()).unwrap();
+        let mut expected = [0.; 4];
+        if global {
+            for (out, values) in expected.iter_mut().zip(input.chunks_exact(plane)) {
+                *out = values.iter().copied().sum::<f32>() / plane as f32;
+            }
+        } else {
+            crate::runtime::spatial_mean::channels_first(&input, &mut expected, plane);
+        }
+        assert_eq!(session.run(&input).unwrap().data(), expected);
+    }
+}
+
 fn compare_paths(model: Arc<Model>, shape: &[usize], label: &str) {
     let input = values(shape.iter().product(), 3);
     let (_, expected) = reference(model.clone(), shape, &input);

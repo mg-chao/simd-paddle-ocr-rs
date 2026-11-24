@@ -65,7 +65,7 @@ const CASES: [Case; 8] = [
         detector: true,
     },
     Case {
-        name: "single_pixel_classifier_negative_padding",
+        name: "single_pixel_classifier_zero_padding",
         format: PixelFormat::Rgba32,
         image: [1, 1],
         stride_extra: 5,
@@ -202,11 +202,7 @@ fn cpu_reference(case: Case, pixels: &[u8]) -> Vec<f32> {
         )
         .unwrap();
     }
-    let padding = if !case.detector && height == 80 {
-        -1.
-    } else {
-        0.
-    };
+    let padding = 0.;
     let mut expected = vec![padding; 3 * height * width];
     for c in 0..3 {
         for y in 0..height {

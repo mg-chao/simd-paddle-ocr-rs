@@ -51,6 +51,26 @@ pub fn estimate<'a>(
     tensor_width: usize,
     applied_rotation_degrees: u16,
 ) -> ImageResult<Vec<CharacterBox<'a>>> {
+    estimate_with_orientation(
+        detection,
+        spans,
+        time_steps,
+        content_width,
+        tensor_width,
+        applied_rotation_degrees,
+        None,
+    )
+}
+
+fn estimate_with_orientation<'a>(
+    detection: &DetectionBox,
+    spans: Option<CtcSpans<'a>>,
+    time_steps: usize,
+    content_width: usize,
+    tensor_width: usize,
+    applied_rotation_degrees: u16,
+    vertical_rotation: Option<bool>,
+) -> ImageResult<Vec<CharacterBox<'a>>> {
     let spans = spans
         .ok_or_else(|| ImageError::new("CTC alignment was not captured; run with capture: true"))?;
     if spans.is_empty() {
@@ -66,6 +86,7 @@ pub fn estimate<'a>(
         ));
     }
     let transform = CropTransform::new(detection)?;
+    let vertical = vertical_rotation.unwrap_or_else(|| transform.vertical_rotation());
     let scale = tensor_width as f64 / content_width as f64 / time_steps as f64;
     let mut result = Vec::new();
     result.try_reserve_exact(spans.len()).map_err(|e| {
@@ -107,7 +128,7 @@ pub fn estimate<'a>(
         result.push(CharacterBox {
             text: span.text,
             score: span.score,
-            points: transform.map_span(left, right)?,
+            points: transform.map_span(left, right, vertical)?,
         });
     }
     Ok(result)
@@ -129,13 +150,14 @@ pub fn estimate_recognition<'a>(
 }
 impl<'a> OcrLineView<'a> {
     pub fn estimate_character_boxes(self) -> ImageResult<Vec<CharacterBox<'a>>> {
-        estimate(
+        estimate_with_orientation(
             &self.detection,
             self.ctc_spans,
             self.recognition_time_steps,
             self.recognition_content_width,
             self.recognition_tensor_width,
             self.applied_rotation_degrees,
+            Some(self.vertical_rotation),
         )
     }
 }
@@ -244,6 +266,50 @@ mod tests {
             [[20., 4.], [40., 8.], [40., 28.], [20., 24.]],
         );
     }
+    #[test]
+    fn restored_ocr_line_preserves_working_crop_orientation() {
+        let original_size = [2005, 605];
+        let pixels = vec![0; original_size[0] * original_size[1] * 3];
+        let original = crate::image::ImageView::new(
+            &pixels,
+            original_size[0],
+            original_size[1],
+            0,
+            crate::image::PixelFormat::Bgr24,
+        )
+        .unwrap();
+        let page = crate::preprocess::page::Page::prepare(original, 4_000_000).unwrap();
+        let working = axis(40., 60.);
+        let restored = DetectionBox {
+            points: working.points.map(|p| page.restore(p, original)),
+            ..working
+        };
+        assert!(CropTransform::new(&working).unwrap().vertical_rotation());
+        assert!(!CropTransform::new(&restored).unwrap().vertical_rotation());
+
+        let line = OwnedOcrLine {
+            detection: restored,
+            ctc_spans: Some(spans(&[(0, 1)])),
+            text: "A".into(),
+            recognition_score: 1.,
+            classification_score: 0.,
+            classification_label: 0,
+            applied_rotation_degrees: 0,
+            vertical_rotation: true,
+            emitted_count: 1,
+            recognition_content_width: 4,
+            recognition_tensor_width: 4,
+            recognition_time_steps: 4,
+        };
+        let boxes = line.estimate_character_boxes().unwrap();
+        check(
+            &boxes[0],
+            [[40., 0.], [40., 15.], [0., 15.], [0., 0.]].map(|p| page.restore(p, original)),
+        );
+        let copy = line.as_view().try_to_owned().unwrap();
+        assert_eq!(copy.estimate_character_boxes().unwrap(), boxes);
+    }
+
     #[test]
     fn vertical_perspective_spans_follow_reading_direction_with_padding_and_classification() {
         let quad = DetectionBox {

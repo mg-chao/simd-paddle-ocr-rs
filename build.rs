@@ -26,7 +26,7 @@ fn main() {
     base.set_optimization_level(shaderc::OptimizationLevel::Performance);
     base.set_warnings_as_errors();
     base.set_include_callback(|name, _, _, _| {
-        if !matches!(name, "neural.glsl" | "storage.glsl") {
+        if !matches!(name, "neural.glsl" | "storage.glsl" | "db_geometry.glsl") {
             return Err(format!("unknown shader include: {name}"));
         }
         Ok(shaderc::ResolvedInclude {
@@ -40,8 +40,9 @@ fn main() {
         fs::read_to_string(root.join("storage.glsl")).unwrap(),
         "shaderc-0.10.1-vulkan1.3-spirv1.6-performance-v1"
     );
+    let geometry = fs::read_to_string(root.join("db_geometry.glsl")).unwrap();
     let mut generated = String::from(
-        "// Compiled native Vulkan shader catalog.\nfn binary(key: KernelKey) -> &'static ShaderBinary {\n match (key.id, key.precision) {\n",
+        "// Compiled native Vulkan shader catalog.\nfn binary(key: KernelKey, float64: bool) -> &'static ShaderBinary {\n match (key.id, key.precision, float64) {\n",
     );
     let mut fixtures = String::from(
         "#[cfg(test)] fn shader_fixtures() -> Vec<(&'static ShaderBinary, &'static [u8])> { vec![\n",
@@ -66,17 +67,24 @@ fn main() {
                 "#version 450 core\n#extension GL_GOOGLE_include_directive : require",
             );
         let wg: Vec<u32> = serde_json::from_value(entry["workgroup"].clone()).unwrap();
-        for precision in 0..64u8 {
-            if precision & !mask != 0 {
-                continue;
-            }
-            let file = out.join(format!("{name}-{precision}.spv"));
+        let has_double_variant = matches!(name, "crop" | "crop_meta");
+        for (precision, float64) in (0..64u8).filter(|p| p & !mask == 0).flat_map(|p| {
+            std::iter::once((p, false)).chain(has_double_variant.then_some((p, true)))
+        }) {
+            let suffix = if float64 { "-fp64" } else { "" };
+            let file = out.join(format!("{name}-{precision}{suffix}.spv"));
             let stamp = file.with_extension("stamp");
             let mut hash = std::collections::hash_map::DefaultHasher::new();
             (&source, &common, precision).hash(&mut hash);
+            if source.contains("#include \"db_geometry.glsl\"") {
+                geometry.hash(&mut hash);
+            }
             let fingerprint = hash.finish().to_string();
             if !file.exists() || fs::read_to_string(&stamp).ok().as_ref() != Some(&fingerprint) {
                 let mut options = base.clone();
+                if float64 {
+                    options.add_macro_definition("NATIVE_FLOAT64", Some("1"));
+                }
                 let value = precision.to_string();
                 options.add_macro_definition("PRECISION_MASK", Some(&value));
                 let compiled = compiler
@@ -279,8 +287,15 @@ fn main() {
             if name.ends_with("_probe") {
                 generated += "#[cfg(test)]\n";
             }
+            let variant = if !has_double_variant {
+                "_"
+            } else if float64 {
+                "true"
+            } else {
+                "false"
+            };
             generated += &format!(
-                "(KernelId::{id},{precision}) => &ShaderBinary{{bytes:include_bytes!({:?}),decoded_length:{},workgroup:[{},{},{}],bindings:&[{}],specialization:&[{specialization}]}},\n",
+                "(KernelId::{id},{precision},{variant}) => &ShaderBinary{{bytes:include_bytes!({:?}),decoded_length:{},workgroup:[{},{},{}],bindings:&[{}],specialization:&[{specialization}]}},\n",
                 compressed.display().to_string(),
                 bytes.len(),
                 wg[0],
@@ -289,7 +304,7 @@ fn main() {
                 bindings.join(",")
             );
             fixtures += &format!(
-                "(binary(KernelKey{{id:KernelId::{id},precision:{precision}}}),include_bytes!({:?})),\n",
+                "(binary(KernelKey{{id:KernelId::{id},precision:{precision}}},{float64}),include_bytes!({:?})),\n",
                 file.display().to_string()
             );
         }

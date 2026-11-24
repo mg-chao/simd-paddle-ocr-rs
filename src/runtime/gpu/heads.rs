@@ -406,7 +406,7 @@ impl Classification {
         let input = self.session.resident_input();
         let mut widths = Vec::with_capacity(images.len());
         for (index, image) in images.iter().enumerate() {
-            let window = image.width.min(image.height.saturating_mul(4));
+            let window = image.width;
             let width = (80u64 * window as u64)
                 .div_ceil(image.height as u64)
                 .min(160) as usize;

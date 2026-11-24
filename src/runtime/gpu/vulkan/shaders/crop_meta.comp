@@ -378,6 +378,56 @@ void store(uint base, uint i_2, vec2 value_1) {
     return;
 }
 
+#ifdef NATIVE_FLOAT64
+// getPerspectiveTransform solves the forward transform, then warpPerspective
+// inverts it. The operation order controls rounding at half of a 1/32 phase.
+void store_inverse(uint base, vec2 q[4], uint w, uint h) {
+    precise double m[8][9];
+    vec2 dst[4]=vec2[4](vec2(0),vec2(w,0),vec2(w,h),vec2(0,h));
+    double inverse[9];
+    if (q[0]==trunc(q[0]) && q[1]-q[0]==dst[1] && q[2]-q[0]==dst[2] && q[3]-q[0]==dst[3]) {
+        inverse=double[9](1,0,q[0].x,0,1,q[0].y,0,0,1);
+    } else {
+        for (int i=0;i<4;++i) {
+            float x=q[i].x,y=q[i].y,u=dst[i].x,v=dst[i].y;
+            m[i]=double[9](x,y,1,0,0,0,-x*u,-y*u,u);
+            m[i+4]=double[9](0,0,0,x,y,1,-x*v,-y*v,v);
+        }
+        for (int i=0;i<8;++i) {
+            int pivot=i;
+            for (int j=i+1;j<8;++j) if (abs(m[j][i])>abs(m[pivot][i])) pivot=j;
+            if (abs(m[pivot][i])<2.220446049250313e-14lf) return;
+            for (int k=i;k<9;++k) {
+                double tmp=m[i][k]; m[i][k]=m[pivot][k]; m[pivot][k]=tmp;
+            }
+            precise double scale=-1.lf/m[i][i];
+            for (int j=i+1;j<8;++j) {
+                precise double factor=m[j][i]*scale;
+                for (int k=i+1;k<9;++k) m[j][k]=m[j][k]+factor*m[i][k];
+            }
+        }
+        precise double z[8];
+        for (int i=7;i>=0;--i) {
+            precise double v=m[i][8];
+            for (int k=i+1;k<8;++k) v=v-m[i][k]*z[k];
+            z[i]=v/m[i][i];
+        }
+        double a=z[0],b=z[1],c=z[2],d=z[3],e=z[4],f=z[5],g=z[6],j=z[7];
+        precise double det=a*(e-f*j)-b*(d-f*g)+c*(d*j-e*g);
+        if (det==0.lf || isnan(det) || isinf(det)) return;
+        precise double inv=1.lf/det;
+        precise double cofactors[9]=double[9](e-f*j,c*j-b,b*f-c*e,f*g-d,a-c*g,c*d-a*f,d*j-e*g,b*g-a*j,a*e-b*d);
+        for (int k=0;k<9;++k) inverse[k]=cofactors[k]*inv;
+    }
+    for (uint k=0u;k<9u;++k) {
+        uvec2 words=unpackDouble2x32(inverse[k]);
+        _group_0_binding_1_cs[base+8u+k*2u]=words.x;
+        _group_0_binding_1_cs[base+9u+k*2u]=words.y;
+    }
+    _group_0_binding_1_cs[base+6u]=1u;
+}
+#endif
+
 void main() {
     uvec3 id = gl_GlobalInvocationID;
     bool local = false;
@@ -406,6 +456,7 @@ void main() {
         return;
     }
     uint base_2 = (index * 32u);
+    _group_0_binding_1_cs[base_2+6u] = 0u;
     uint input_ = ((index + 1u) * 16u);
     bool loop_init_2 = true;
     while(true) {
@@ -627,10 +678,11 @@ void main() {
     }
     bool _e382 = local_4;
     if (_e382) {
-        _group_0_binding_1_cs[(base_2 + 5u)] = 1u;
-        return;
-    } else {
+        _group_0_binding_1_cs[base_2+5u] = 1u;
         return;
     }
+#ifdef NATIVE_FLOAT64
+    store_inverse(base_2,q,width,height);
+#endif
 }
 

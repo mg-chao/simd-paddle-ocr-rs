@@ -4,76 +4,97 @@ struct Resident {
   device const uint *transforms;
   device uint *output;
   constant Params &params;
-  GEOMETRY_MATH
-
   uint p(uint i) { return params.words[i / 4u][i % 4u]; }
   uint t(uint i) { return transforms[p(5u) * 32u + i]; }
-  float2 coefficient(uint i) {
-    return float2(as_type<float>(t(8u + i * 2u)),
-                  as_type<float>(t(9u + i * 2u)));
-  }
-  float pixel(int x, int y, uint c) {
-    auto px = uint(clamp(x, 0, int(p(0u)) - 1));
-    auto py = uint(clamp(y, 0, int(p(1u)) - 1));
-    auto channel = select(c, 2u - c, p(4u) != 0u);
-    auto offset = py * p(2u) + px * p(3u) + channel;
-    return float((pixels[offset / 4u] >> ((offset % 4u) * 8u)) & 255u);
-  }
-  float2 cubic(float2 value) {
-    auto x = value;
-    if (dvalue(x) < 0.0) {
-      x = -x;
+
+  int3 bgr(int2 at) {
+    auto x = uint(clamp(at.x, 0, int(p(0u)) - 1));
+    auto y = uint(clamp(at.y, 0, int(p(1u)) - 1));
+    auto offset = y * p(2u) + x * p(3u);
+    int3 color;
+    for (uint c = 0; c < 3u; ++c) {
+      uint byte = offset + c;
+      color[c] = int((pixels[byte / 4u] >> ((byte % 4u) * 8u)) & 255u);
     }
-    if (dvalue(x) <= 1.0) {
-      return da(dm(da(dm(ds(1.25), x), ds(-2.25)), dm(x, x)), ds(1.0));
-    }
-    if (dvalue(x) < 2.0) {
-      return da(dm(da(dm(da(dm(ds(-0.75), x), ds(3.75)), x), ds(-6.0)), x),
-                ds(3.0));
-    }
-    return ds(0.0);
+    return p(4u) != 0u ? color.zyx : color;
   }
+
+  uint pack_bgr(int3 color) {
+    auto c = uint3(clamp(color, int3(0), int3(255)));
+    return 0xff000000u | c.x | (c.y << 8u) | (c.z << 16u);
+  }
+
+  // Keep the 15-bit coefficient construction and correction in the same
+  // order as the CPU and Vulkan cubic samplers.
+  float4 axis_weights(int phase) {
+    float x = float(phase) / 32.0;
+    float y = 1.0 - x;
+    float a = -0.75;
+    float first = ((a * (x + 1.0) - 5.0 * a) * (x + 1.0) + 8.0 * a) *
+                    (x + 1.0) - 4.0 * a;
+    float second = ((a + 2.0) * x - (a + 3.0)) * x * x + 1.0;
+    float third = ((a + 2.0) * y - (a + 3.0)) * y * y + 1.0;
+    return float4(first, second, third, 1.0 - first - second - third);
+  }
+
   void run(uint3 id, uint3 grid) {
-    auto index = id.x + id.y * grid.x * 64u;
-    auto width = t(0u);
-    auto height = t(1u);
+    uint index = id.x + id.y * grid.x * 64u;
+    bool from_grid = p(6u) != 0u;
+    uint width = from_grid ? p(7u) : t(0u);
+    uint height = from_grid ? p(8u) : t(1u);
     if (index >= width * height) {
       return;
     }
-    auto ox = index % width;
-    auto oy = index / width;
-    auto vertical = t(4u) != 0u;
-    auto x = select(ox, t(2u) - 1u - oy, vertical);
-    auto y = select(oy, ox, vertical);
-    auto u = dd(ds(float(x)), ds(float(t(2u))));
-    auto v = dd(ds(float(y)), ds(float(t(3u))));
-    auto den = da(da(dm(coefficient(6u), u), dm(coefficient(7u), v)), ds(1.0));
-    auto sx = dd(
-        da(da(dm(coefficient(0u), u), dm(coefficient(1u), v)), coefficient(2u)),
-        den);
-    auto sy = dd(
-        da(da(dm(coefficient(3u), u), dm(coefficient(4u), v)), coefficient(5u)),
-        den);
-    auto xb = int(dfloor(sx));
-    auto yb = int(dfloor(sy));
-    auto result = 0xff000000u;
-    array<float2, 4> wx{};
-    array<float2, 4> wy{};
-    for (auto k = 0; k < 4; k++) {
-      wx[k] = cubic(da(sx, ds(-float(xb + k - 1))));
-      wy[k] = cubic(da(sy, ds(-float(yb + k - 1))));
+
+    if (!from_grid) {
+      // The host uses the compact transform for integer translations.
+      uint ox = index % width, oy = index / width;
+      bool vertical = t(4u) != 0u;
+      int x = int(vertical ? t(2u) - 1u - oy : ox);
+      int y = int(vertical ? ox : oy);
+      int2 origin = int2(as_type<float>(t(12u)), as_type<float>(t(18u)));
+      output[index] = pack_bgr(bgr(origin + int2(x, y)));
+      return;
     }
-    for (auto c = 0u; c < 3u; c++) {
-      auto sum = ds(0.0);
-      for (auto ky = 0; ky < 4; ky++) {
-        for (auto kx = 0; kx < 4; kx++) {
-          sum = da(sum, dm(dm(ds(pixel(xb + kx - 1, yb + ky - 1, c)), wx[kx]),
-                           wy[ky]));
+
+    int2 fixed_xy = as_type<int2>(
+        uint2(transforms[index * 2u], transforms[index * 2u + 1u]));
+    int2 base = fixed_xy >> 5;
+    int2 phase = fixed_xy & 31;
+    if (all(phase == int2(0))) {
+      output[index] = pack_bgr(bgr(base));
+      return;
+    }
+
+    float4 wx = axis_weights(phase.x), wy = axis_weights(phase.y);
+    int3 sum = int3(1 << 14);
+    int total = 0, largest = -32769, smallest = 32768;
+    int2 high = int2(0), low = int2(0);
+    for (int ky = 0; ky < 4; ++ky) {
+      int4 weights = clamp(int4(rint(wx * wy[ky] * 32768.0)), int4(-32768),
+                           int4(32767));
+      for (int kx = 0; kx < 4; ++kx) {
+        int2 at = base + int2(kx - 1, ky - 1);
+        int weight = weights[kx];
+        sum += weight * bgr(at);
+        total += weight;
+        if (kx >= 2 && ky >= 2) {
+          if (weight > largest) {
+            largest = weight;
+            high = at;
+          }
+          if (weight < smallest) {
+            smallest = weight;
+            low = at;
+          }
         }
       }
-      result |= uint(clamp(dfloor(da(sum, ds(0.5))), 0.0, 255.0)) << (c * 8u);
     }
-    output[index] = result;
+    int delta = 32768 - total;
+    if (delta != 0) {
+      sum += delta * bgr(delta > 0 ? high : low);
+    }
+    output[index] = pack_bgr(sum >> 15);
   }
 };
 kernel void crop(device const uint *pixels [[buffer(0)]],

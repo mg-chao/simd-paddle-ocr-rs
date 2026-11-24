@@ -124,28 +124,26 @@ uvec2 multiply_divide(uint a, uint b, uint d) {
 }
 
 ivec2 coefficient(uint position, uint source, uint destination) {
-    bool local_1 = false;
-    bool local_2 = false;
-    uint denominator = (2u * destination);
-    uvec2 _e9 = multiply_divide(((2u * position) + 1u), source, denominator);
-    int base = (int(_e9.x) - ((_e9.y >= destination) ? 0 : 1));
-    uint rem_1 = (((_e9.y + denominator) - destination) % denominator);
-    uvec2 _e23 = multiply_divide(rem_1, 2048u, denominator);
-    uint whole = _e23.x;
-    uint rest = _e23.y;
-    if (!(((rest * 2u) > denominator))) {
-        if (((rest * 2u) == denominator)) {
-            local_2 = ((whole & 1u) != 0u);
-        } else {
-            local_2 = false;
-        }
-        bool _e42 = local_2;
-        local_1 = _e42;
-    } else {
-        local_1 = true;
+    uint den=2u*destination;
+    uvec2 q=multiply_divide(2u*position+1u,source,den);
+    // OpenCV narrows the complete source coordinate to f32 before computing
+    // the 11-bit interpolation coefficient, including its integer part.
+    float whole = float(q.x), divisor = float(den);
+    float numerator = float(int(q.y) - int(destination));
+    precise float coordinate = whole + numerator / divisor;
+    // The rounded fraction can land exactly halfway between two full source
+    // coordinates. Compare adjacent f32 candidates against the original ratio.
+    float residual = fma(whole - coordinate, divisor, numerator);
+    if (residual != 0.) {
+        uint bits = floatBitsToUint(coordinate);
+        uint step = (residual > 0.) == (coordinate >= 0.) ? 1u : 0xffffffffu;
+        float neighbor = uintBitsToFloat(bits + step);
+        float other = abs(fma(whole - neighbor, divisor, numerator));
+        if (other < abs(residual) || (other == abs(residual) && (bits & 1u) != 0u))
+            coordinate = neighbor;
     }
-    bool up = local_1;
-    return ivec2(base, int((whole + uint(up))));
+    float base=floor(coordinate);
+    return ivec2(int(base),int(roundEven((coordinate-base)*2048.)));
 }
 
 void main() {

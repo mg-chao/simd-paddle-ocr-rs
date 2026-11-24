@@ -224,7 +224,27 @@ impl Crops {
             statistics,
         })
     }
-    pub fn record(&self, batch: &mut Batch, source: &Image, index: usize) -> RuntimeResult<Image> {
+    pub fn record(
+        &self,
+        batch: &mut Batch,
+        detection: &Detection,
+        index: usize,
+    ) -> RuntimeResult<Image> {
+        #[cfg(target_os = "macos")]
+        let host_coordinates = true;
+        #[cfg(not(target_os = "macos"))]
+        let host_coordinates = !batch.context.backend.owner.float64;
+        self.record_with_coordinates(batch, detection, index, host_coordinates)
+    }
+
+    fn record_with_coordinates(
+        &self,
+        batch: &mut Batch,
+        detection: &Detection,
+        index: usize,
+        host_coordinates: bool,
+    ) -> RuntimeResult<Image> {
+        let source = &detection.image;
         batch.ensure_context(&source.context)?;
         let [width, height] = self.sizes[index];
         let pixels = width * height;
@@ -239,12 +259,58 @@ impl Crops {
             source.format,
             crate::image::PixelFormat::Rgb24 | crate::image::PixelFormat::Rgba32
         );
+        let grid = if host_coordinates {
+            let transform = crate::crop::CropTransform::new(&detection.boxes[index])
+                .map_err(RuntimeError::from)?;
+            if transform.is_integer_translation() {
+                None
+            } else {
+                // The CPU evaluates the same f64 warp as its sampler. A
+                // lower-precision homography cannot reproduce half-phase ties.
+                if [width, height] != [transform.width(), transform.height()] {
+                    return Err(RuntimeError::new(
+                        "GPU crop dimensions differ from CPU geometry",
+                    ));
+                }
+                let bytes = pixels
+                    .checked_mul(std::mem::size_of::<[i32; 2]>())
+                    .filter(|&n| n as u64 <= batch.context.limits.max_storage_buffer_binding_size)
+                    .ok_or_else(|| resource("crop coordinates exceed GPU storage binding limit"))?;
+                let grid = batch.storage("crop coordinates", bytes)?;
+                let mut coordinates = Vec::new();
+                crate::image::resize_vec(&mut coordinates, pixels).map_err(RuntimeError::from)?;
+                let timer = batch.profiling.then(std::time::Instant::now);
+                transform
+                    .fixed_coordinates([source.width, source.height], &mut coordinates)
+                    .map_err(RuntimeError::from)?;
+                batch
+                    .context
+                    .upload(&grid, 0, bytemuck::cast_slice(&coordinates))?;
+                if let Some(timer) = timer {
+                    batch.statistics.encoding_ns += timer.elapsed().as_nanos() as u64;
+                }
+                batch.statistics.uploaded_bytes += bytes as u64;
+                batch.statistics.image_processing = GpuPlacement::Hybrid;
+                let stage = "perspective crop coordinates";
+                if !batch
+                    .statistics
+                    .cpu_compute_stages
+                    .iter()
+                    .any(|name| name == stage)
+                {
+                    batch.statistics.cpu_compute_stages.push(stage.into());
+                }
+                Some(grid)
+            }
+        } else {
+            None
+        };
         batch.dispatch(
             "perspective_bicubic",
             KernelKey::new(KernelId::Crop),
             &[
                 (&source.buffer, true),
-                (&self.transforms, true),
+                (grid.as_ref().unwrap_or(&self.transforms), true),
                 (&output, false),
             ],
             &[
@@ -254,6 +320,9 @@ impl Crops {
                 source.format.bytes_per_pixel() as u32,
                 u32::from(swap),
                 index as u32,
+                u32::from(grid.is_some()),
+                width as u32,
+                height as u32,
             ],
             [x, y, 1],
         )?;
@@ -754,8 +823,8 @@ mod tests {
         (0..w * h)
             .map(|i| {
                 let (x, y) = (i % w, i / w);
-                (y..=(y + 1).min(h - 1))
-                    .any(|yy| (x..=(x + 1).min(w - 1)).any(|xx| original[yy * w + xx]))
+                (y.saturating_sub(1)..=y)
+                    .any(|yy| (x.saturating_sub(1)..=x).any(|xx| original[yy * w + xx]))
             })
             .collect()
     }
@@ -1050,9 +1119,9 @@ mod tests {
     #[ignore = "requires a physical GPU"]
     fn gpu_resident_db_geometry_contract() {
         let context = hardware();
-        let (w, h) = (96, 96);
-        let geometry = DetSourceGeometry::new(w, h).unwrap();
-        for case in 0..9 {
+        for case in 0..11 {
+            let (w, h) = if case == 10 { (592, 336) } else { (96, 96) };
+            let geometry = DetSourceGeometry::new(w, h).unwrap();
             let mut map = vec![0.0f32; w * h];
             for y in 0..h {
                 for x in 0..w {
@@ -1072,7 +1141,20 @@ mod tests {
                         5 => x < 18 && y < 35,
                         6 => x > 8 && x < 80 && y > x / 3 + 8 && y < x / 3 + 23,
                         7 => x > 15 && x < 80 && y > 10 && y < 80 && !(x > 35 && x < 50 && y < 55),
-                        _ => x > 40 && x < 45 && y > 10 && y < 80,
+                        8 => x > 40 && x < 45 && y > 10 && y < 80,
+                        // 15 by 9 geometric extent has an exact 4.5-pixel offset.
+                        9 => (31..=46).contains(&x) && (27..=36).contains(&y),
+                        // This slanted contour has a caliper determinant of 1 - 2^-24.
+                        // Rounding its reciprocal to one moves an expanded corner a pixel.
+                        _ => {
+                            const ROWS: [(usize, usize); 14] = [
+                                (6, 12), (6, 14), (6, 15), (6, 20), (6, 24), (6, 26), (6, 26),
+                                (6, 28), (7, 28), (8, 28), (8, 28), (11, 28), (13, 28), (16, 26),
+                            ];
+                            y.checked_sub(309)
+                                .and_then(|row| ROWS.get(row))
+                                .is_some_and(|&(l, r)| (550 + l..=550 + r).contains(&x))
+                        }
                     };
                     if yes {
                         map[y * w + x] = 0.9;
@@ -1193,53 +1275,88 @@ mod tests {
                 .collect();
             let source = ImageView::new(&pixels, 43, 47, stride, format).unwrap();
             for points in quads {
-                let box_ = DetectionBox { points, score: 1. };
-                let mut batch = Batch::new(context.clone()).unwrap();
-                let image = Image::upload(&mut batch, source).unwrap();
-                let mut words = vec![0u32; 32];
-                words[0] = 1;
-                for (i, &v) in points.iter().flatten().enumerate() {
-                    words[16 + i] = v.to_bits();
-                }
-                let device_boxes = context
-                    .create_buffer_init(
-                        "test boxes",
-                        bytemuck::cast_slice(&words),
-                        BufferUsage::STORAGE,
-                    )
-                    .unwrap();
-                let detection = Detection {
-                    image,
-                    boxes: vec![box_],
-                    device_boxes,
-                    size: DetSourceGeometry::new(43, 47)
-                        .unwrap()
-                        .resize(96, crate::preprocess::DetResizePolicy::Max)
-                        .unwrap(),
-                    statistics: Default::default(),
-                };
-                let crops = Crops::prepare(&detection, Default::default()).unwrap();
-                let image = crops.record(&mut batch, &detection.image, 0).unwrap();
-                let (data, _) = batch
-                    .read(&image.buffer, image.width * image.height * 4, false)
-                    .unwrap();
-                let transform = crate::crop::CropTransform::new(&box_).unwrap();
-                assert_eq!(
-                    [image.width, image.height],
-                    [transform.width(), transform.height()]
-                );
-                let mut expected = vec![0; transform.byte_count().unwrap()];
-                transform.extract_into(source, &mut expected).unwrap();
-                for (i, (actual, reference)) in data
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .zip(expected.as_chunks::<3>().0.iter())
-                    .enumerate()
-                {
-                    assert_eq!(&actual[..3], reference, "{format:?} pixel {i}, {points:?}");
-                }
+                assert_crop_matches_cpu(&context, source, points, false);
             }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a physical GPU"]
+    fn gpu_resident_portable_crop_keeps_cpu_half_phase() {
+        let context = hardware();
+        let (w, h) = (350, 390);
+        let pixels: Vec<u8> = (0..w * h * 3)
+            .map(|i| ((i * 53 + i / 7) % 256) as u8)
+            .collect();
+        let source = ImageView::new(&pixels, w, h, 0, crate::image::PixelFormat::Bgr24).unwrap();
+        let points = [[20., 369.], [340., 370.], [340., 384.], [20., 383.]];
+        assert_crop_matches_cpu(&context, source, points, true);
+    }
+
+    fn assert_crop_matches_cpu(
+        context: &Arc<GpuContext>,
+        source: ImageView<'_>,
+        points: [[f32; 2]; 4],
+        force_coordinates: bool,
+    ) {
+        let box_ = DetectionBox { points, score: 1. };
+        let mut batch = Batch::new(context.clone()).unwrap();
+        let image = Image::upload(&mut batch, source).unwrap();
+        let mut words = vec![0u32; 32];
+        words[0] = 1;
+        for (i, &v) in points.iter().flatten().enumerate() {
+            words[16 + i] = v.to_bits();
+        }
+        let device_boxes = context
+            .create_buffer_init(
+                "test boxes",
+                bytemuck::cast_slice(&words),
+                BufferUsage::STORAGE,
+            )
+            .unwrap();
+        let detection = Detection {
+            image,
+            boxes: vec![box_],
+            device_boxes,
+            size: DetSourceGeometry::new(source.width(), source.height())
+                .unwrap()
+                .resize(96, crate::preprocess::DetResizePolicy::Max)
+                .unwrap(),
+            statistics: Default::default(),
+        };
+        let crops = Crops::prepare(&detection, Default::default()).unwrap();
+        let image = if force_coordinates {
+            crops.record_with_coordinates(&mut batch, &detection, 0, true)
+        } else {
+            crops.record(&mut batch, &detection, 0)
+        }
+        .unwrap();
+        let (data, statistics) = batch
+            .read(&image.buffer, image.width * image.height * 4, false)
+            .unwrap();
+        if force_coordinates {
+            assert_eq!(statistics.image_processing, GpuPlacement::Hybrid);
+            assert_eq!(
+                statistics.cpu_compute_stages,
+                ["perspective crop coordinates"]
+            );
+        }
+        let format = source.format();
+        let transform = crate::crop::CropTransform::new(&box_).unwrap();
+        assert_eq!(
+            [image.width, image.height],
+            [transform.width(), transform.height()]
+        );
+        let mut expected = vec![0; transform.byte_count().unwrap()];
+        transform.extract_into(source, &mut expected).unwrap();
+        for (i, (actual, reference)) in data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(expected.as_chunks::<3>().0.iter())
+            .enumerate()
+        {
+            assert_eq!(&actual[..3], reference, "{format:?} pixel {i}, {points:?}");
         }
     }
 }

@@ -464,6 +464,55 @@ fn gpu_ocr_synthetic_batches_trace_fork_factory_engine_and_concurrency() {
 
 #[test]
 #[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_ocr_filtered_lines_fit_the_result_quota() {
+    let (det, rec) = crate::ocr::tests::synthetic_sources();
+    let models = OcrModelSet::new(
+        Arc::new(Model::load_bytes(&det).unwrap()),
+        Arc::new(Model::load_bytes(&rec).unwrap()),
+        Arc::new(Dictionary::from_utf8("\u{2003}\n".as_bytes()).unwrap()),
+        None,
+    );
+    let pixels = crate::ocr::tests::two_lines();
+    let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
+    for target in [ExecutionTarget::Cpu, ExecutionTarget::Gpu] {
+        let mut request = models
+            .clone()
+            .builder()
+            .execution_target(target)
+            .gpu_context(hardware())
+            .detector_options(DetectorOptions {
+                limit_side_length: 96,
+                unclip_ratio: 1.,
+                ..Default::default()
+            })
+            .recognizer_options(RecognizerOptions {
+                score_mode: RecognitionScoreMode::Probability,
+                ..Default::default()
+            })
+            .ocr_options(crate::ocr::OcrOptions {
+                max_total_result_bytes: 1,
+            })
+            .recognition_batch_size(2)
+            .build()
+            .unwrap()
+            .request()
+            .unwrap();
+        let view = request
+            .run(
+                image,
+                crate::RunOptions {
+                    capture_spans: true,
+                },
+            )
+            .unwrap();
+        assert_eq!(view.detected_count, 2, "{target:?}");
+        assert!(view.is_empty(), "{target:?}");
+        assert!(view.text.is_empty(), "{target:?}");
+    }
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
 fn gpu_resident_requested_crop_pixels_match_cpu() {
     let pixels = crate::ocr::tests::two_lines();
     let image = ImageView::new(&pixels, 96, 96, 0, PixelFormat::Bgr24).unwrap();
@@ -585,6 +634,10 @@ fn gpu_resident_auto_fallback_is_stage_scoped_and_restricted() {
             .builder()
             .execution_target(ExecutionTarget::Auto)
             .gpu_context(context.clone())
+            .recognizer_options(RecognizerOptions {
+                score_mode: RecognitionScoreMode::Logit,
+                ..Default::default()
+            })
             .detector_options(DetectorOptions {
                 limit_side_length: 96,
                 ..Default::default()

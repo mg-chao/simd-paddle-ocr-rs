@@ -208,6 +208,8 @@ pub(super) fn lower(
             recipe.kind,
             RecipeKind::Compute(ShaderKind::Reduce | ShaderKind::Softmax)
         ) && recipe.words[3] > 4096
+            && !(matches!(recipe.kind, RecipeKind::Compute(ShaderKind::Reduce))
+                && recipe.words[6] != 0)
             && precision == GpuPrecision::F32
         {
             let softmax = matches!(recipe.kind, RecipeKind::Compute(ShaderKind::Softmax));
@@ -350,7 +352,7 @@ fn allocate_slots(
     plan.slots.fill(usize::MAX);
     plan.lengths.clear();
     let mut ends = Vec::new();
-    for id in values {
+    for &id in &values {
         let length = plan.shapes[id].element_count();
         let slot = (0..ends.len())
             .filter(|&s| ends[s] < first[id] && plan.lengths[s] >= length)
@@ -369,6 +371,16 @@ fn allocate_slots(
         ends[slot] = last[id];
         plan.slots[id] = slot;
     }
+    // Try placing the largest tensors first. In a feature pyramid several
+    // small, long-lived branches can otherwise occupy buffers that grow to
+    // the full page size at disjoint points in the detector schedule.
+    let (lengths, slots) = pack_by_size(&mut values, &plan.shapes, &first, &last);
+    if lengths.iter().sum::<usize>() < plan.lengths.iter().sum::<usize>() {
+        plan.lengths = lengths;
+        for (id, slot) in values.into_iter().zip(slots) {
+            plan.slots[id] = slot;
+        }
+    }
     for (id, &root) in aliases.iter().enumerate() {
         plan.slots[id] = plan.slots[root];
     }
@@ -378,4 +390,56 @@ fn allocate_slots(
         .try_fold(0usize, |sum, n| sum.checked_add(n * 4))
         .ok_or_else(|| resource("GPU physical arena overflow"))?;
     Ok(())
+}
+
+fn pack_by_size(
+    values: &mut [usize],
+    shapes: &[Shape],
+    first: &[usize],
+    last: &[usize],
+) -> (Vec<usize>, Vec<usize>) {
+    values.sort_by_key(|&id| (std::cmp::Reverse(shapes[id].element_count()), first[id], id));
+    let mut intervals: Vec<Vec<(usize, usize)>> = Vec::new();
+    let mut lengths = Vec::new();
+    let mut slots = Vec::with_capacity(values.len());
+    for &id in values.iter() {
+        let (start, end) = (first[id], last[id]);
+        let free = intervals.iter().enumerate().rev().find_map(|(s, used)| {
+            let i = used.partition_point(|&(_, stop)| stop < start);
+            used.get(i)
+                .is_none_or(|&(begin, _)| end < begin)
+                .then_some((s, i))
+        });
+        let (slot, at) = free.unwrap_or_else(|| {
+            lengths.push(shapes[id].element_count());
+            intervals.push(Vec::new());
+            (intervals.len() - 1, 0)
+        });
+        intervals[slot].insert(at, (start, end));
+        slots.push(slot);
+    }
+    (lengths, slots)
+}
+
+#[cfg(test)]
+mod packing_tests {
+    use super::*;
+
+    #[test]
+    fn disjoint_large_activations_share_a_slot_across_a_long_lived_branch() {
+        let first = [0, 1, 2, 3, 4];
+        let last = [1, 4, 3, 6, 4];
+        let shapes = [8, 1, 4, 8, 4].map(|n| Shape::new(&[n]).unwrap());
+        let mut values = [0, 1, 2, 3, 4];
+        let (lengths, slots) = pack_by_size(&mut values, &shapes, &first, &last);
+        assert_eq!(lengths.iter().sum::<usize>(), 13);
+        for (i, &a) in values.iter().enumerate() {
+            assert!(lengths[slots[i]] >= shapes[a].element_count());
+            for (j, &b) in values.iter().enumerate().take(i) {
+                if slots[i] == slots[j] {
+                    assert!(last[a] < first[b] || last[b] < first[a]);
+                }
+            }
+        }
+    }
 }

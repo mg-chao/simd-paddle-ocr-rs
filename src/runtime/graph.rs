@@ -697,13 +697,13 @@ pub(super) fn bind_into(
                         ));
                     }
                     let axes = (2..a.rank()).map(|axis| axis as i64).collect::<Vec<_>>();
-                    bound::bind_reduce(a, &axes, true, false)
+                    bound::bind_reduce(a, &axes, true, false, true)
                 }
                 Op::ReduceMean {
                     axes,
                     keepdims,
                     noop,
-                } => bound::bind_reduce(a, axes, *keepdims, *noop),
+                } => bound::bind_reduce(a, axes, *keepdims, *noop, false),
                 Op::Reshape { allowzero, target } => {
                     let evaluated;
                     let values = if let Some(values) = target {

@@ -703,6 +703,7 @@ pub(super) fn bind_conv(
 
 #[derive(Clone)]
 pub(super) struct Reduction {
+    pub(super) global_pool: bool,
     pub(super) input: Shape,
     pub(super) reduction: usize,
     pub(super) output_strides: [usize; MAX_RANK],
@@ -714,6 +715,7 @@ pub(super) fn bind_reduce(
     axes: &[i64],
     keep: bool,
     noop: bool,
+    global_pool: bool,
 ) -> RuntimeResult<(Shape, BoundKind)> {
     if axes.is_empty() && noop {
         return Ok((input, BoundKind::Copy));
@@ -767,6 +769,7 @@ pub(super) fn bind_reduce(
     Ok((
         output,
         BoundKind::Reduce(Reduction {
+            global_pool,
             input,
             reduction,
             output_strides,

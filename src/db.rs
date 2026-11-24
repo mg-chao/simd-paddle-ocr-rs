@@ -2,9 +2,8 @@
 use crate::{
     detector::{DetectionBox, DetectorOptions},
     image::{ImageError, ImageResult, push, resize_vec},
-    preprocess::{DET_MAX_SIDE, DetSourceGeometry},
+    preprocess::{DetSourceGeometry, valid_map_size},
 };
-use std::cmp::Ordering;
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
 struct Point {
     x: f32,
@@ -14,17 +13,6 @@ impl Point {
     fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
-}
-#[derive(Clone, Copy, Default)]
-struct Rectangle {
-    ux: f32,
-    uy: f32,
-    vx: f32,
-    vy: f32,
-    min_u: f32,
-    max_u: f32,
-    min_v: f32,
-    max_v: f32,
 }
 #[derive(Clone, Copy)]
 struct Run {
@@ -44,13 +32,15 @@ pub(crate) struct Workspace {
     boundary: Vec<Point>,
     hull: Vec<Point>,
     expanded: Vec<Point>,
+    candidates: std::collections::VecDeque<(usize, Contour)>,
     row_min: Vec<i32>,
     row_max: Vec<i32>,
     pub(crate) boxes: Vec<DetectionBox>,
 }
 impl Workspace {
     pub(crate) fn retained_bytes(&self) -> usize {
-        self.bitmap.capacity()
+        self.candidates.capacity() * size_of::<(usize, Contour)>()
+            + self.bitmap.capacity()
             + self.pending.capacity()
             + self.blocked.capacity()
             + self.dilated.capacity()
@@ -92,12 +82,7 @@ fn run_with_kernel(
     let pixels = width
         .checked_mul(height)
         .ok_or_else(|| ImageError::new("DB map size overflow"))?;
-    if width == 0
-        || height == 0
-        || pixels != prediction.len()
-        || width > DET_MAX_SIDE
-        || height > DET_MAX_SIDE
-    {
+    if width == 0 || height == 0 || pixels != prediction.len() || !valid_map_size(width, height) {
         return Err(ImageError::new("invalid DB probability map size"));
     }
     resize_vec(&mut s.bitmap, pixels)?;
@@ -114,18 +99,15 @@ fn run_with_kernel(
     }
     if options.use_dilation {
         resize_vec(&mut s.dilated, pixels)?;
-        for y in 0..height {
-            for x in 0..width {
-                let i = y * width + x;
-                s.dilated[i] = u8::from(
-                    s.bitmap[i] != 0
-                        || (x + 1 < width && s.bitmap[i + 1] != 0)
-                        || (y + 1 < height && s.bitmap[i + width] != 0)
-                        || (x + 1 < width && y + 1 < height && s.bitmap[i + width + 1] != 0),
-                );
+        for (y, dest) in s.dilated[..pixels].chunks_exact_mut(width).enumerate() {
+            let row = &s.bitmap[y * width..(y + 1) * width];
+            let above = &s.bitmap[y.saturating_sub(1) * width..(y.saturating_sub(1) + 1) * width];
+            dest[0] = row[0] | above[0];
+            for x in 1..width {
+                dest[x] = row[x] | row[x - 1] | above[x] | above[x - 1];
             }
         }
-        s.bitmap[..pixels].copy_from_slice(&s.dilated[..pixels]);
+        std::mem::swap(&mut s.bitmap, &mut s.dilated);
     }
     if kernel != crate::pixel_kernels::PixelKernel::Scalar && width >= 3 && height >= 3 {
         resize_vec(&mut s.interior, pixels)?;
@@ -142,49 +124,60 @@ fn run_with_kernel(
     resize_vec(&mut s.blocked, pixels)?;
     s.pending[..pixels].copy_from_slice(&s.bitmap[..pixels]);
     s.blocked[..pixels].copy_from_slice(&s.bitmap[..pixels]);
-    let mut candidates = 0;
-    let mut start = 0;
-    while start < pixels && candidates < options.max_candidates {
-        start = next(&s.pending, start, pixels, true);
-        if start >= pixels {
-            break;
+    // Exclude exterior background. Each remaining four-connected background
+    // component supplies a hole contour in the same raster scan as the outer
+    // borders of eight-connected foreground components.
+    for x in 0..width {
+        fill_background(x, width, height, pixels, false, s)?;
+        if height > 1 {
+            fill_background((height - 1) * width + x, width, height, pixels, false, s)?;
         }
-        fill_foreground(start, width, height, pixels, s)?;
-        if s.boundary.len() >= 3 {
-            candidates += 1;
-            if let Some(b) = build(prediction, width, height, source, options, s)? {
-                push(&mut s.boxes, b)?;
-            }
-        }
-        start += 1;
     }
-    if candidates < options.max_candidates {
-        for x in 0..width {
-            fill_background(x, width, height, pixels, false, s)?;
-            if height > 1 {
-                fill_background((height - 1) * width + x, width, height, pixels, false, s)?;
-            }
+    for y in 1..height.saturating_sub(1) {
+        fill_background(y * width, width, height, pixels, false, s)?;
+        if width > 1 {
+            fill_background(y * width + width - 1, width, height, pixels, false, s)?;
         }
-        for y in 1..height.saturating_sub(1) {
-            fill_background(y * width, width, height, pixels, false, s)?;
-            if width > 1 {
-                fill_background(y * width + width - 1, width, height, pixels, false, s)?;
-            }
+    }
+    let mut foreground = next(&s.pending, 0, pixels, true);
+    let mut hole = next(&s.blocked, 0, pixels, false);
+    s.candidates.clear();
+    while foreground < pixels || hole < pixels {
+        let candidate = if foreground < hole {
+            let seed = foreground;
+            fill_foreground(seed, width, height, 0, s)?;
+            foreground = next(&s.pending, seed + 1, pixels, true);
+            (seed, Contour::Outer)
+        } else {
+            let seed = hole;
+            fill_background(seed, width, height, pixels, false, s)?;
+            hole = next(&s.blocked, seed + 1, pixels, false);
+            (seed, Contour::Hole)
+        };
+        // RETR_LIST enumerates in reverse discovery order. Keep even the
+        // seeds of contours that may fail size or confidence checks.
+        if s.candidates.len() == options.max_candidates {
+            s.candidates.pop_front();
         }
-        start = 0;
-        while start < pixels && candidates < options.max_candidates {
-            start = next(&s.blocked, start, pixels, false);
-            if start >= pixels {
-                break;
-            }
-            fill_background(start, width, height, pixels, true, s)?;
-            if s.boundary.len() >= 3 {
-                candidates += 1;
-                if let Some(b) = build(prediction, width, height, source, options, s)? {
-                    push(&mut s.boxes, b)?;
-                }
-            }
-            start += 1;
+        s.candidates
+            .try_reserve(1)
+            .map_err(|e| ImageError::new(e.to_string()))?;
+        s.candidates.push_back(candidate);
+    }
+    // Components of the same kind are disjoint. A retained hole cannot
+    // reach exterior background, so only the selected seeds need replay.
+    s.pending[..pixels].copy_from_slice(&s.bitmap[..pixels]);
+    s.blocked[..pixels].copy_from_slice(&s.bitmap[..pixels]);
+    while let Some((seed, kind)) = s.candidates.pop_back() {
+        match kind {
+            Contour::Outer => fill_foreground(seed, width, height, pixels, s)?,
+            Contour::Hole => fill_background(seed, width, height, pixels, true, s)?,
+            Contour::Offset => unreachable!(),
+        }
+        if s.boundary.len() >= 3
+            && let Some(b) = build(prediction, width, height, source, options, kind, s)?
+        {
+            push(&mut s.boxes, b)?;
         }
     }
     sort_reading_order(&mut s.boxes);
@@ -258,13 +251,15 @@ fn fill_foreground(
         let y = run.y as usize;
         let left = run.left as usize;
         let right = run.right as usize;
-        for x in left..=right {
-            if if s.interior_ready {
-                s.interior[y * w + x] == 0
-            } else {
-                is_boundary(&s.bitmap, w, h, x, y)
-            } {
-                boundary(s, x, y, cap)?;
+        if cap != 0 {
+            for x in left..=right {
+                if if s.interior_ready {
+                    s.interior[y * w + x] == 0
+                } else {
+                    is_boundary(&s.bitmap, w, h, x, y)
+                } {
+                    boundary(s, x, y, cap)?;
+                }
             }
         }
         let from = left.saturating_sub(1);
@@ -333,10 +328,10 @@ fn fill_background(
         if collect {
             let row = y * w;
             if left > 0 && s.bitmap[row + left - 1] != 0 {
-                boundary(s, left, y, cap)?;
+                boundary(s, left - 1, y, cap)?;
             }
             if right + 1 < w && s.bitmap[row + right + 1] != 0 {
-                boundary(s, right, y, cap)?;
+                boundary(s, right + 1, y, cap)?;
             }
         }
         for direction in [-1isize, 1] {
@@ -353,8 +348,8 @@ fn fill_background(
                         break;
                     }
                 } else if s.bitmap[row + x] != 0 {
-                    // Emit the background pixel's coordinate, not its foreground neighbour.
-                    boundary(s, x, y, cap)?;
+                    // A hole contour follows the foreground pixels facing the hole.
+                    boundary(s, x, ny as usize, cap)?;
                     x += 1;
                     continue;
                 } else if s.blocked[row + x] != 0 {
@@ -452,141 +447,56 @@ fn hull(points: &mut [Point], scratch: &mut Vec<Point>) -> ImageResult<usize> {
     }
     Ok(count.saturating_sub(1))
 }
+#[derive(Clone, Copy)]
+enum Contour {
+    Outer,
+    Hole,
+    Offset,
+}
+
 fn rectangle(
+    kind: Contour,
     points: &mut [Point],
     scratch: &mut Vec<Point>,
-) -> ImageResult<Option<(Rectangle, [Point; 4])>> {
+) -> ImageResult<Option<(f32, [Point; 4])>> {
     let n = hull(points, scratch)?;
     if n < 3 {
         return Ok(None);
     }
-    let mut best = f32::INFINITY;
-    let mut r = Rectangle::default();
-    for edge in 0..n {
-        let a = scratch[edge];
-        let b = scratch[(edge + 1) % n];
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let length = (dx * dx + dy * dy).sqrt();
-        if length <= 0. {
-            continue;
-        }
-        let ux = dx / length;
-        let uy = dy / length;
-        let vx = -uy;
-        let vy = ux;
-        let (mut min_u, mut max_u, mut min_v, mut max_v) = (
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-        );
-        for p in &scratch[..n] {
-            let u = p.x * ux + p.y * uy;
-            let v = p.x * vx + p.y * vy;
-            min_u = min_u.min(u);
-            max_u = max_u.max(u);
-            min_v = min_v.min(v);
-            max_v = max_v.max(v);
-        }
-        let area = (max_u - min_u) * (max_v - min_v);
-        if area < best {
-            best = area;
-            r = Rectangle {
-                ux,
-                uy,
-                vx,
-                vy,
-                min_u,
-                max_u,
-                min_v,
-                max_v,
-            };
-        }
-    }
-    if !best.is_finite() || best <= 0. {
-        return Ok(None);
-    }
-    let mut p = rectangle_points(r);
-    order_clockwise(&mut p);
-    Ok(Some((r, p)))
+    // OpenCV preserves the cyclic contour order in the hull. At tied areas
+    // the last caliper direction wins, affecting float-to-integer offsets.
+    let hull = &mut scratch[..n];
+    let top = hull
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| {
+            a.y.total_cmp(&b.y).then_with(|| match kind {
+                Contour::Offset => b.x.total_cmp(&a.x),
+                _ => a.x.total_cmp(&b.x),
+            })
+        })
+        .unwrap()
+        .0;
+    let start = match kind {
+        Contour::Outer | Contour::Offset => (top + 1) % n,
+        Contour::Hole => (top + n - 1) % n,
+    };
+    hull.rotate_left(start);
+    Ok(Some(calipers::bounding_box(hull)))
 }
-fn rectangle_points(r: Rectangle) -> [Point; 4] {
-    let from = |u: f32, v: f32| Point::new(u * r.ux + v * r.vx, u * r.uy + v * r.vy);
-    [
-        from(r.min_u, r.min_v),
-        from(r.max_u, r.min_v),
-        from(r.max_u, r.max_v),
-        from(r.min_u, r.max_v),
-    ]
-}
-fn order_clockwise(p: &mut [Point; 4]) {
-    let input = *p;
-    let (mut mini, mut maxi) = (0, 0);
-    let (mut min, mut max) = (input[0].x + input[0].y, input[0].x + input[0].y);
-    for (i, q) in input.iter().enumerate().skip(1) {
-        let sum = q.x + q.y;
-        if sum < min {
-            min = sum;
-            mini = i;
-        }
-        if sum > max {
-            max = sum;
-            maxi = i;
-        }
+
+mod calipers;
+
+fn order_clockwise(points: &mut [Point; 4]) {
+    points.sort_by(|a, b| a.x.total_cmp(&b.x));
+    let [mut tl, mut bl, mut tr, mut br] = *points;
+    if tl.y > bl.y {
+        std::mem::swap(&mut tl, &mut bl);
     }
-    let mut remain = [0; 2];
-    let mut n = 0;
-    for i in 0..4 {
-        if i != mini && i != maxi && n < 2 {
-            remain[n] = i;
-            n += 1;
-        }
+    if tr.y > br.y {
+        std::mem::swap(&mut tr, &mut br);
     }
-    if n == 2 && mini != maxi {
-        let a = input[remain[0]];
-        let b = input[remain[1]];
-        let (tr, bl) = if a.y - a.x < b.y - b.x {
-            (a, b)
-        } else {
-            (b, a)
-        };
-        *p = [input[mini], tr, input[maxi], bl];
-        if (0..4).all(|i| cross(p[i], p[(i + 1) & 3], p[(i + 2) & 3]) > 0.) {
-            return;
-        }
-    }
-    let (mut cx, mut cy) = (0., 0.);
-    for q in input {
-        cx += q.x;
-        cy += q.y;
-    }
-    cx /= 4.;
-    cy /= 4.;
-    let angle = input.map(|q| (q.y - cy).atan2(q.x - cx));
-    let mut order = [0, 1, 2, 3];
-    for i in 1..4 {
-        let k = order[i];
-        let mut j = i;
-        while j > 0 && angle[order[j - 1]] > angle[k] {
-            order[j] = order[j - 1];
-            j -= 1;
-        }
-        order[j] = k;
-    }
-    let mut start = 0;
-    for i in 1..4 {
-        let a = input[order[i]];
-        let b = input[order[start]];
-        let sa = a.x + a.y;
-        let sb = b.x + b.y;
-        if sa < sb || (sa == sb && (a.y < b.y || (a.y == b.y && a.x < b.x))) {
-            start = i;
-        }
-    }
-    for i in 0..4 {
-        p[i] = input[order[(start + i) & 3]];
-    }
+    *points = [tl, tr, br, bl];
 }
 fn build(
     prediction: &[f32],
@@ -594,35 +504,34 @@ fn build(
     h: usize,
     source: DetSourceGeometry,
     o: &DetectorOptions,
+    kind: Contour,
     s: &mut Workspace,
 ) -> ImageResult<Option<DetectionBox>> {
     let count = row_extremes(s, h)?;
-    let Some((r, mini)) = rectangle(&mut s.boundary[..count], &mut s.hull)? else {
+    let Some((short_side, mini)) = rectangle(kind, &mut s.boundary[..count], &mut s.hull)? else {
         return Ok(None);
     };
-    if (r.max_u - r.min_u).min(r.max_v - r.min_v) < 3. {
+    if short_side < 3. {
         return Ok(None);
     }
-    let score = polygon_score(prediction, w, h, &mini);
+    let score = polygon_score(prediction, w, h, &mini, &mut s.row_min, &mut s.row_max)?;
     if !score.is_finite() || score < o.box_threshold.unwrap() {
         return Ok(None);
     }
-    unclip(&mini, o.unclip_ratio, &mut s.expanded)?;
-    let Some((r, _)) = rectangle(&mut s.expanded, &mut s.hull)? else {
+    unclip(&mini, o.offset_ratio(), &mut s.expanded)?;
+    let Some((short_side, mut mapped)) = rectangle(Contour::Offset, &mut s.expanded, &mut s.hull)?
+    else {
         return Ok(None);
     };
-    if (r.max_u - r.min_u).min(r.max_v - r.min_v) < 5. {
+    if short_side < 5. {
         return Ok(None);
     }
-    let mut mapped = rectangle_points(r);
-    order_clockwise(&mut mapped);
     for p in &mut mapped {
         [p.x, p.y] = source.map_point([p.x, p.y], w, h);
     }
-    let Some((_, corners)) = rectangle(&mut mapped, &mut s.hull)? else {
-        return Ok(None);
-    };
-    if distance(corners[0], corners[1]) <= 4. || distance(corners[0], corners[3]) <= 4. {
+    let mut corners = mapped;
+    order_clockwise(&mut corners);
+    if distance(corners[0], corners[1]) < 4. || distance(corners[0], corners[3]) < 4. {
         return Ok(None);
     }
     Ok(Some(DetectionBox {
@@ -630,96 +539,88 @@ fn build(
         score,
     }))
 }
-fn polygon_score(prediction: &[f32], w: usize, h: usize, p: &[Point; 4]) -> f32 {
-    let mut min_x = f32::INFINITY;
-    let mut max_x = f32::NEG_INFINITY;
-    let mut min_y = f32::INFINITY;
-    let mut max_y = f32::NEG_INFINITY;
-    for q in p {
-        min_x = min_x.min(q.x);
-        max_x = max_x.max(q.x);
-        min_y = min_y.min(q.y);
-        max_y = max_y.max(q.y);
-    }
-    let left = (min_x.floor() as i32).max(0);
-    let right = (max_x.ceil() as i32).min(w as i32 - 1);
-    let top = (min_y.floor() as i32).max(0);
-    let bottom = (max_y.ceil() as i32).min(h as i32 - 1);
-    if left > right || top > bottom {
-        return 0.;
-    }
-    let px = p.map(|p| p.x as i32 - left);
-    let py = p.map(|p| p.y as i32 - top);
-    let (mut sum, mut count) = (0f64, 0u64);
-    for y in top..=bottom {
-        let cy = y - top;
-        let mut thresholds = [0f32; 4];
-        let mut hit_low = [0; 4];
-        let mut hit_high = [0; 4];
-        let (mut nt, mut nh) = (0, 0);
-        for i in 0..4 {
-            let j = (i + 3) % 4;
-            let (ax, ay, bx, by) = (px[i], py[i], px[j], py[j]);
-            let dx = bx - ax;
-            let dy = by - ay;
-            if (ay > cy) != (by > cy) {
-                thresholds[nt] = dx as f32 * (cy - ay) as f32 / dy as f32 + ax as f32;
-                nt += 1;
-            }
-            if cy < ay.min(by) || cy > ay.max(by) {
-                continue;
-            }
-            if dy == 0 {
-                hit_low[nh] = ax.min(bx);
-                hit_high[nh] = ax.max(bx);
-                nh += 1;
-            } else {
-                let numerator = (cy - ay) as i64 * dx as i64;
-                if numerator % dy as i64 == 0 {
-                    let hx = ax + (numerator / dy as i64) as i32;
-                    if hx >= ax.min(bx) && hx <= ax.max(bx) {
-                        hit_low[nh] = hx;
-                        hit_high[nh] = hx;
-                        nh += 1;
-                    }
-                }
-            }
+/// The fast DB score uses the filled, integer-rasterized minimum-area quad.
+/// A convex polygon intersects each scanline in one run, including the outer
+/// eight-connected boundary drawn by fillPoly.
+fn polygon_score(
+    prediction: &[f32],
+    w: usize,
+    h: usize,
+    p: &[Point; 4],
+    lo: &mut Vec<i32>,
+    hi: &mut Vec<i32>,
+) -> ImageResult<f32> {
+    let left = p
+        .iter()
+        .map(|p| p.x.floor() as i32)
+        .min()
+        .unwrap()
+        .clamp(0, w as i32 - 1);
+    let top = p
+        .iter()
+        .map(|p| p.y.floor() as i32)
+        .min()
+        .unwrap()
+        .clamp(0, h as i32 - 1);
+    let bottom = p
+        .iter()
+        .map(|p| p.y.ceil() as i32)
+        .max()
+        .unwrap()
+        .clamp(0, h as i32 - 1);
+    let rows = (bottom - top + 1) as usize;
+    resize_vec(lo, rows)?;
+    resize_vec(hi, rows)?;
+    lo[..rows].fill(i32::MAX);
+    hi[..rows].fill(i32::MIN);
+    let pts = p.map(|p| [(p.x - left as f32) as i32 + left, (p.y - top as f32) as i32]);
+    for i in 0..4 {
+        let (mut a, mut b) = (pts[i], pts[(i + 1) % 4]);
+        if a[0] > b[0] {
+            std::mem::swap(&mut a, &mut b);
         }
-        for i in 1..nt {
-            let v = thresholds[i];
-            let mut j = i;
-            while j > 0 && thresholds[j - 1] > v {
-                thresholds[j] = thresholds[j - 1];
-                j -= 1;
+        let dx = b[0] - a[0];
+        let dy = (b[1] - a[1]).abs();
+        let dir = (b[1] - a[1]).signum();
+        let steep = dy > dx;
+        let (major, minor) = if steep { (dy, dx) } else { (dx, dy) };
+        let mut error = major - 2 * minor;
+        for _ in 0..=major {
+            if let Ok(y) = usize::try_from(a[1])
+                && y < rows
+            {
+                lo[y] = lo[y].min(a[0]);
+                hi[y] = hi[y].max(a[0]);
             }
-            thresholds[j] = v;
-        }
-        let mut t = 0;
-        for x in left..=right {
-            let cx = x - left;
-            while t < nt && thresholds[t] <= cx as f32 {
-                t += 1;
+            let diagonal = error < 0;
+            if diagonal {
+                error += 2 * major;
             }
-            let mut inside = (nt - t) & 1 != 0;
-            if !inside {
-                for k in 0..nh {
-                    if cx >= hit_low[k] && cx <= hit_high[k] {
-                        inside = true;
-                        break;
-                    }
-                }
+            error -= 2 * minor;
+            if !steep || diagonal {
+                a[0] += 1;
             }
-            if inside {
-                sum += prediction[y as usize * w + x as usize] as f64;
-                count += 1;
+            if steep || diagonal {
+                a[1] += dir;
             }
         }
     }
-    if count == 0 {
+    let mut sum = 0.;
+    let mut count = 0;
+    for y in 0..rows {
+        let (x0, x1) = (lo[y].max(0), hi[y].min(w as i32 - 1));
+        if x0 <= x1 {
+            let row = (y + top as usize) * w;
+            let run = &prediction[row + x0 as usize..=row + x1 as usize];
+            sum += run.iter().map(|&p| f64::from(p)).sum::<f64>();
+            count += run.len();
+        }
+    }
+    Ok(if count == 0 {
         0.
     } else {
         (sum / count as f64) as f32
-    }
+    })
 }
 fn rounded(out: &mut Vec<Point>, x: f64, y: f64) -> ImageResult<()> {
     let round = |v: f64| {
@@ -731,23 +632,23 @@ fn rounded(out: &mut Vec<Point>, x: f64, y: f64) -> ImageResult<()> {
     };
     push(out, Point::new(round(x), round(y)))
 }
-fn unclip(p: &[Point; 4], ratio: f32, out: &mut Vec<Point>) -> ImageResult<()> {
+fn unclip(p: &[Point; 4], ratio: f64, out: &mut Vec<Point>) -> ImageResult<()> {
     out.clear();
     let (mut area, mut perimeter) = (0f64, 0f64);
     for i in 0..4 {
         let a = p[i];
         let b = p[(i + 1) % 4];
         area += a.x as f64 * b.y as f64 - b.x as f64 * a.y as f64;
-        perimeter += distance(a, b) as f64;
+        perimeter += (f64::from(b.x) - f64::from(a.x)).hypot(f64::from(b.y) - f64::from(a.y));
     }
-    let delta = (area * 0.5).abs() * ratio as f64 / perimeter;
+    let delta = (area * 0.5).abs() * ratio / perimeter;
     if !delta.is_finite() || delta <= 0. {
         return Ok(());
     }
     let mut pts = [[0i64; 2]; 4];
     let mut n = 0;
     for q in p {
-        let q = [q.x.round_ties_even() as i64, q.y.round_ties_even() as i64];
+        let q = [q.x as i64, q.y as i64];
         if n > 0 && pts[n - 1] == q {
             continue;
         }
@@ -781,186 +682,127 @@ fn unclip(p: &[Point; 4], ratio: f32, out: &mut Vec<Point>) -> ImageResult<()> {
         }
         normals[i] = [dy, -dx];
     }
+    // Round joins advance by a fixed angular step for the entire offset path.
+    let tolerance = 0.25_f64.min(delta * 0.25);
+    let steps =
+        (std::f64::consts::PI / (1. - tolerance / delta).acos()).min(delta * std::f64::consts::PI);
+    let angle_step = std::f64::consts::TAU / steps;
+    let (sin, cos) = angle_step.sin_cos();
     let mut prev = n - 1;
     for i in 0..n {
-        let [x, y] = pts[i];
-        let incoming = normals[prev];
-        let outgoing = normals[i];
-        rounded(
-            out,
-            x as f64 + incoming[0] * delta,
-            y as f64 + incoming[1] * delta,
-        )?;
-        if (incoming[0] * outgoing[1] - outgoing[0] * incoming[1]) * delta >= 0. {
-            if outgoing[0] * incoming[0] + outgoing[1] * incoming[1] < 0.985 {
-                let start = incoming[1].atan2(incoming[0]);
-                let mut end = outgoing[1].atan2(outgoing[0]);
-                if end < start {
-                    end += std::f64::consts::PI * 2.;
-                }
-                arc(out, x as f64, y as f64, start, end, delta)?;
-            }
-        } else {
-            rounded(out, x as f64, y as f64)?;
+        let [x, y] = pts[i].map(|v| v as f64);
+        let [mut nx, mut ny] = normals[prev];
+        let [ex, ey] = normals[i];
+        let cross = nx * ey - ny * ex;
+        let dot = nx * ex + ny * ey;
+        if (cross * delta).abs() < 1. && dot > 0. {
+            rounded(out, x + delta * nx, y + delta * ny)?;
+            continue;
         }
-        rounded(
-            out,
-            x as f64 + outgoing[0] * delta,
-            y as f64 + outgoing[1] * delta,
-        )?;
+        if cross < 0. {
+            rounded(out, x + delta * nx, y + delta * ny)?;
+            rounded(out, x, y)?;
+        } else {
+            let count = (cross.atan2(dot).abs() / angle_step).round().max(1.) as usize;
+            for _ in 0..count {
+                rounded(out, x + delta * nx, y + delta * ny)?;
+                (nx, ny) = (nx * cos - ny * sin, nx * sin + ny * cos);
+            }
+        }
+        rounded(out, x + delta * ex, y + delta * ey)?;
         prev = i;
     }
     Ok(())
 }
-fn arc(
-    out: &mut Vec<Point>,
-    cx: f64,
-    cy: f64,
-    start: f64,
-    end: f64,
-    radius: f64,
-) -> ImageResult<()> {
-    let radius_abs = radius.abs();
-    let chord = 0.25f64.min(radius_abs);
-    let fraction = (end - start).abs() / (2. * std::f64::consts::PI);
-    if fraction <= 0. || radius_abs <= 0. {
-        return Ok(());
-    }
-    let mut steps = (fraction * std::f64::consts::PI / (1. - chord / radius_abs).acos()) as usize;
-    steps = steps.max(2);
-    let cap = (222. * fraction) as usize;
-    if steps > cap {
-        steps = cap.max(2);
-    }
-    let (mut x, mut y) = (start.cos(), start.sin());
-    let step = (end - start) / steps as f64;
-    let (cos, sin) = (step.cos(), step.sin());
-    for _ in 0..=steps {
-        rounded(out, cx + x * radius, cy + y * radius)?;
-        let nx = x * cos - y * sin;
-        y = x * sin + y * cos;
-        x = nx;
-    }
-    Ok(())
-}
 pub(crate) fn sort_reading_order(boxes: &mut [DetectionBox]) {
-    dotnet_sort(boxes, |a, b| {
-        a.points[0][1]
-            .partial_cmp(&b.points[0][1])
-            .unwrap()
-            .then_with(|| a.points[0][0].partial_cmp(&b.points[0][0]).unwrap())
-    });
-    for i in 0..boxes.len().saturating_sub(1) {
-        for j in (0..=i).rev() {
-            let a = boxes[j];
-            let b = boxes[j + 1];
-            if (b.points[0][1] - a.points[0][1]).abs() >= 10. || b.points[0][0] >= a.points[0][0] {
-                break;
-            }
-            boxes.swap(j, j + 1);
-        }
+    boxes.sort_by(|a, b| a.points[0][1].partial_cmp(&b.points[0][1]).unwrap());
+    // RapidOCR groups by adjacent y differences before sorting each row by x.
+    for row in boxes.chunk_by_mut(|a, b| b.points[0][1] - a.points[0][1] < 10.) {
+        row.sort_by(|a, b| a.points[0][0].partial_cmp(&b.points[0][0]).unwrap());
     }
-}
-// Adapted from .NET Foundation ArraySortHelper<T> introsort, MIT licensed.
-// https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Collections/Generic/ArraySortHelper.cs
-// Reproduces equal-key permutations of List<T>.Sort used by the reference.
-fn dotnet_sort<T: Copy, F: Fn(&T, &T) -> Ordering>(a: &mut [T], compare: F) {
-    if a.len() > 1 {
-        intro(a, 2 * (a.len().ilog2() + 1), &compare);
-    }
-}
-fn swap_greater<T: Copy, F: Fn(&T, &T) -> Ordering>(a: &mut [T], i: usize, j: usize, c: &F) {
-    if c(&a[i], &a[j]) == Ordering::Greater {
-        a.swap(i, j);
-    }
-}
-fn intro<T: Copy, F: Fn(&T, &T) -> Ordering>(mut a: &mut [T], mut depth: u32, c: &F) {
-    while a.len() > 1 {
-        let n = a.len();
-        if n <= 16 {
-            if n == 2 {
-                swap_greater(a, 0, 1, c);
-            } else if n == 3 {
-                swap_greater(a, 0, 1, c);
-                swap_greater(a, 0, 2, c);
-                swap_greater(a, 1, 2, c);
-            } else {
-                for i in 1..n {
-                    let value = a[i];
-                    let mut j = i;
-                    while j > 0 && c(&value, &a[j - 1]) == Ordering::Less {
-                        a[j] = a[j - 1];
-                        j -= 1;
-                    }
-                    a[j] = value;
-                }
-            }
-            return;
-        }
-        if depth == 0 {
-            heap(a, c);
-            return;
-        }
-        depth -= 1;
-        let hi = n - 1;
-        let middle = hi >> 1;
-        swap_greater(a, 0, middle, c);
-        swap_greater(a, 0, hi, c);
-        swap_greater(a, middle, hi, c);
-        let pivot = a[middle];
-        a.swap(middle, hi - 1);
-        let (mut left, mut right) = (0, hi - 1);
-        loop {
-            left += 1;
-            while c(&a[left], &pivot) == Ordering::Less {
-                left += 1;
-            }
-            right -= 1;
-            while c(&pivot, &a[right]) == Ordering::Less {
-                right -= 1;
-            }
-            if left >= right {
-                break;
-            }
-            a.swap(left, right);
-        }
-        if left != hi - 1 {
-            a.swap(left, hi - 1);
-        }
-        let (lo, rest) = a.split_at_mut(left);
-        intro(&mut rest[1..], depth, c);
-        a = lo;
-    }
-}
-fn heap<T: Copy, F: Fn(&T, &T) -> Ordering>(a: &mut [T], c: &F) {
-    let n = a.len();
-    for i in (1..=n / 2).rev() {
-        down_heap(a, i, n, c);
-    }
-    for i in (2..=n).rev() {
-        a.swap(0, i - 1);
-        down_heap(a, 1, i - 1, c);
-    }
-}
-fn down_heap<T: Copy, F: Fn(&T, &T) -> Ordering>(a: &mut [T], mut i: usize, n: usize, c: &F) {
-    let value = a[i - 1];
-    while i <= n / 2 {
-        let mut child = 2 * i;
-        if child < n && c(&a[child - 1], &a[child]) == Ordering::Less {
-            child += 1;
-        }
-        if c(&value, &a[child - 1]) != Ordering::Less {
-            break;
-        }
-        a[i - 1] = a[child - 1];
-        i = child;
-    }
-    a[i - 1] = value;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn calipers_keep_integer_extents_before_clipper_conversion() {
+        let mut hull = [
+            [1431, 408],
+            [1432, 409],
+            [1432, 422],
+            [1431, 425],
+            [1430, 426],
+            [1388, 428],
+            [1386, 428],
+            [1378, 427],
+            [1377, 426],
+            [1376, 420],
+            [1376, 408],
+        ]
+        .map(|[x, y]| Point::new(x as f32, y as f32));
+        let (_, points) = rectangle(Contour::Outer, &mut hull, &mut Vec::new())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            points.map(|p| [p.x, p.y]),
+            [[1376., 408.], [1432., 408.], [1432., 428.], [1376., 428.]]
+        );
+        let mut expanded = Vec::new();
+        unclip(&points, 1.6, &mut expanded).unwrap();
+        let (_, points) = rectangle(Contour::Offset, &mut expanded, &mut Vec::new())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            points.map(|p| [p.x, p.y]),
+            [[1364., 396.], [1444., 396.], [1444., 440.], [1364., 440.]]
+        );
+    }
+
+    #[test]
+    fn default_offset_preserves_half_pixel_rounding() {
+        let points = [[906., 1091.], [928., 1091.], [928., 1101.], [906., 1101.]]
+            .map(|[x, y]| Point::new(x, y));
+        let mut expanded = Vec::new();
+        unclip(
+            &points,
+            DetectorOptions::default().offset_ratio(),
+            &mut expanded,
+        )
+        .unwrap();
+        let (_, quad) = rectangle(Contour::Offset, &mut expanded, &mut Vec::new())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            quad.map(|p| [p.x, p.y]),
+            [[901., 1086.], [934., 1086.], [934., 1107.], [901., 1107.]]
+        );
+    }
+
+    #[test]
+    fn slanted_quad_score_includes_integer_edge_pixels() {
+        let points = [[1., 2.], [7., 0.], [8., 4.], [2., 6.]].map(|[x, y]| Point::new(x, y));
+        let map: Vec<_> = (0..63).map(|i| (i * i) as f32).collect();
+        let score = polygon_score(&map, 9, 7, &points, &mut Vec::new(), &mut Vec::new()).unwrap();
+        assert_eq!(score, 1190.1351351351352_f64 as f32);
+    }
+
+    #[test]
+    fn chained_rows_sort_by_x_and_preserve_equal_coordinates() {
+        let make = |x, y, score| DetectionBox {
+            points: [[x, y]; 4],
+            score,
+        };
+        let mut boxes = [
+            make(9., 1., 0.),
+            make(0., 6., 1.),
+            make(-0., 12., 2.),
+            make(1., 22., 3.),
+        ];
+        sort_reading_order(&mut boxes);
+        assert_eq!(boxes.map(|b| b.score), [1., 2., 0., 3.]);
+    }
+
     #[test]
     fn default_unclip_preserves_recognition_mask_and_expands_text_coverage() {
         let (width, height) = (160, 64);
@@ -997,6 +839,31 @@ mod tests {
         assert_eq!(a.score, b.score);
         assert!(a.points[0][1] < b.points[0][1]);
         assert!(a.points[3][1] > b.points[3][1]);
+    }
+
+    #[test]
+    fn candidate_limit_counts_rejected_contours_in_reverse_scan_order() {
+        let (w, h) = (40, 48);
+        let mut map = vec![0.; w * h];
+        for top in [3, 25] {
+            for y in top..top + 8 {
+                map[y * w + 5..y * w + 18].fill(0.9);
+            }
+        }
+        map[45 * w + 35] = 0.9;
+        let source = DetSourceGeometry::new(w, h).unwrap();
+        let mut workspace = Workspace::default();
+        let mut options = DetectorOptions {
+            max_candidates: 1,
+            box_threshold: Some(0.5),
+            ..Default::default()
+        };
+        run(&map, w, h, &options, source, &mut workspace).unwrap();
+        assert!(workspace.boxes.is_empty());
+        options.max_candidates = 2;
+        run(&map, w, h, &options, source, &mut workspace).unwrap();
+        assert_eq!(workspace.boxes.len(), 1);
+        assert!(workspace.boxes[0].points[0][1] > 15.);
     }
 
     #[test]

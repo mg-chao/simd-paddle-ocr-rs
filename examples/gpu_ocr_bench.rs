@@ -382,6 +382,7 @@ mod tests {
                 classification_score: 0.95,
                 classification_label: 0,
                 applied_rotation_degrees: 0,
+                vertical_rotation: false,
                 emitted_count: 1,
                 recognition_content_width: 32,
                 recognition_tensor_width: 32,

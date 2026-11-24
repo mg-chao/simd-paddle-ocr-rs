@@ -253,15 +253,9 @@ struct Resident {
       }
       auto yes = is_foreground(i);
       if (p(5u) != 0u) {
-        if (x + 1u < w) {
-          yes = yes || is_foreground(i + 1u);
-        }
-        if (y + 1u < h) {
-          yes = yes || is_foreground(i + w);
-          if (x + 1u < w) {
-            yes = yes || is_foreground(i + w + 1u);
-          }
-        }
+        yes = yes || (x > 0u && is_foreground(i - 1u))
+                  || (y > 0u && is_foreground(i - w))
+                  || (x > 0u && y > 0u && is_foreground(i - w - 1u));
       }
       mask[i] = uint(yes);
       atomic_store_explicit(&parents[i], i, memory_order_relaxed);

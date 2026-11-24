@@ -1,5 +1,7 @@
 #![recursion_limit = "256"]
 //! Decode a JPEG/PNG in application code, then run CPU or native GPU inference.
+#[path = "support/load_image.rs"]
+mod load_image;
 use serde::Serialize;
 use simd_paddle_ocr_rs::{
     ExecutionTarget, ModelPreset, OcrModelSet, OwnedCharacterBox,
@@ -159,14 +161,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         println!("{USAGE}");
         return Ok(());
     };
-    // Guess the format from bytes: some public PaddleOCR JPEG filenames contain PNGs.
-    // Decode without implicit EXIF rotation; callers own image orientation policy.
-    let pixels = image::ImageReader::open(&args.image)
-        .map_err(|e| format!("open {}: {e}", args.image.display()))?
-        .with_guessed_format()?
-        .decode()
-        .map_err(|e| format!("decode {}: {e}", args.image.display()))?
-        .to_rgb8();
+    let pixels = load_image::read(&args.image)?;
     let image = ImageView::new(
         pixels.as_raw(),
         pixels.width() as usize,

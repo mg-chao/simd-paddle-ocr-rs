@@ -735,6 +735,18 @@ pub(super) fn specialize(
             {
                 r.kind = RecipeKind::Compute(ShaderKind::Reduce);
                 r.words[3] = m.reduction as u32;
+                let dims = m.input.dimensions();
+                if cfg!(not(target_os = "macos"))
+                    && full_precision
+                    && dims.len() == 4
+                    && m.output_strides[2..4] == [0, 0]
+                    && dims[2] * dims[3] == m.reduction
+                {
+                    // Ordinary F32 spatial means use the ORT packet order;
+                    // GlobalAveragePool has a separate sequential contract.
+                    r.words[6] = if m.global_pool { 2 } else { 1 };
+                    r.words[7] = u32::MAX;
+                }
                 (r.x, r.y) = dispatch_grid(r.words[0] as usize * 64, limits)?;
                 r.words[1] = r.x;
             }

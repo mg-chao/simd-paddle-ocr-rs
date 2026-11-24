@@ -3,6 +3,8 @@ use crate::{
     detector::DetectionBox,
     image::{ImageError, ImageResult, ImageView},
 };
+mod warp;
+
 const EPSILON: f64 = 1e-12;
 #[derive(Clone, Copy, Debug)]
 pub struct CropTransform {
@@ -17,6 +19,7 @@ pub struct CropTransform {
     width: usize,
     height: usize,
     vertical: bool,
+    warp: [f64; 9],
 }
 impl CropTransform {
     pub fn new(box_: &DetectionBox) -> ImageResult<Self> {
@@ -56,7 +59,7 @@ impl CropTransform {
             g = (dx3 * dy2 - dx2 * dy3) / denominator;
             h = (dx1 * dy3 - dx3 * dy1) / denominator;
         }
-        let t = Self {
+        let mut t = Self {
             a: p[1][0] - p[0][0] + g * p[1][0],
             b: p[3][0] - p[0][0] + h * p[3][0],
             c: p[0][0],
@@ -68,6 +71,32 @@ impl CropTransform {
             width,
             height,
             vertical,
+            warp: [0.; 9],
+        };
+        let (cw, ch) = (width as f64, height as f64);
+        let analytic = [
+            t.a / cw,
+            t.b / ch,
+            t.c,
+            t.d / cw,
+            t.e / ch,
+            t.f,
+            t.g / cw,
+            t.h / ch,
+            1.,
+        ];
+        t.warp = if analytic[0] == 1.
+            && analytic[1] == 0.
+            && analytic[3] == 0.
+            && analytic[4] == 1.
+            && analytic[6] == 0.
+            && analytic[7] == 0.
+            && t.c.fract() == 0.
+            && t.f.fract() == 0.
+        {
+            analytic
+        } else {
+            warp::inverse(box_.points, width, height).unwrap_or(analytic)
         };
         if [t.a, t.b, t.c, t.d, t.e, t.f, t.g, t.h]
             .iter()
@@ -111,8 +140,13 @@ impl CropTransform {
         self.vertical
     }
     /// Map a normalized interval in the oriented crop back onto the source quad.
-    pub(crate) fn map_span(self, left: f64, right: f64) -> ImageResult<[[f32; 2]; 4]> {
-        let coordinates = if self.vertical {
+    pub(crate) fn map_span(
+        self,
+        left: f64,
+        right: f64,
+        vertical: bool,
+    ) -> ImageResult<[[f32; 2]; 4]> {
+        let coordinates = if vertical {
             // Undo the CCW rotation in crop-corner order (TL, TR, BR, BL).
             [[1., left], [1., right], [0., right], [0., left]]
         } else {
@@ -184,10 +218,61 @@ impl CropTransform {
         {
             return Err(ImageError::new("invalid crop output row band"));
         }
-        for (local_y, row) in destination.chunks_exact_mut(row_bytes).enumerate() {
+        self.map_rows(
+            first_row,
+            destination.len() / row_bytes,
+            kernel,
+            |i, sx, sy| {
+                destination[i * 3..i * 3 + 3].copy_from_slice(&sample(image, sx, sy));
+            },
+        )
+    }
+
+    #[cfg(feature = "gpu")]
+    pub(crate) fn is_integer_translation(self) -> bool {
+        let [a, b, c, d, e, f, g, h, i] = self.warp;
+        [a, b, d, e, g, h, i] == [1., 0., 0., 1., 0., 0., 1.] && c.fract() == 0. && f.fract() == 0.
+    }
+
+    #[cfg(feature = "gpu")]
+    pub(crate) fn fixed_coordinates(
+        self,
+        source: [usize; 2],
+        output: &mut [[i32; 2]],
+    ) -> ImageResult<()> {
+        if self.width().checked_mul(self.height()) != Some(output.len()) {
+            return Err(ImageError::new("invalid GPU crop coordinate grid size"));
+        }
+        let max_source = i32::MAX as usize / 32 - 1;
+        if source.into_iter().any(|side| side > max_source) {
+            return Err(ImageError::new("source exceeds GPU crop coordinate range"));
+        }
+        self.map_rows(
+            0,
+            self.height(),
+            crate::pixel_kernels::PixelKernel::selected(),
+            |i, x, y| {
+                // Beyond this range all four taps already replicate an edge.
+                output[i] = [
+                    fixed_coordinate(x.clamp(-2., source[0] as f64 + 1.)) as i32,
+                    fixed_coordinate(y.clamp(-2., source[1] as f64 + 1.)) as i32,
+                ];
+            },
+        )
+    }
+
+    fn map_rows(
+        self,
+        first_row: usize,
+        rows: usize,
+        kernel: crate::pixel_kernels::PixelKernel,
+        mut store: impl FnMut(usize, f64, f64),
+    ) -> ImageResult<()> {
+        let width = self.width();
+        for local_y in 0..rows {
             let dy = first_row + local_y;
-            for first in (0..self.width()).step_by(kernel.map_lanes()) {
-                let count = kernel.map_lanes().min(self.width() - first);
+            for first in (0..width).step_by(kernel.map_lanes()) {
+                let count = kernel.map_lanes().min(width - first);
                 // Inverse of a 90-degree CCW rotation: (dst_x, dst_y) maps
                 // to (unrotated_width - 1 - dst_y, dst_x) before perspective.
                 let x = std::array::from_fn(|lane| {
@@ -206,9 +291,7 @@ impl CropTransform {
                 });
                 let mapped = crate::pixel_kernels::map_coordinates(
                     kernel,
-                    [
-                        self.a, self.b, self.c, self.d, self.e, self.f, self.g, self.h,
-                    ],
+                    self.warp,
                     x,
                     y,
                     self.width,
@@ -216,45 +299,73 @@ impl CropTransform {
                     count,
                 )?;
                 for lane in 0..count {
-                    let (sx, sy) = (mapped[0][lane], mapped[1][lane]);
-                    let pixel = crate::pixel_kernels::sample_interior(kernel, image, sx, sy)
-                        .unwrap_or_else(|| sample_clamped(image, sx, sy));
-                    let offset = (first + lane) * 3;
-                    row[offset..offset + 3].copy_from_slice(&pixel);
+                    store(
+                        local_y * width + first + lane,
+                        mapped[0][lane],
+                        mapped[1][lane],
+                    );
                 }
             }
         }
         Ok(())
     }
 }
-fn sample_clamped(image: ImageView<'_>, sx: f64, sy: f64) -> [u8; 3] {
-    let xb = sx.floor() as i64;
-    let yb = sy.floor() as i64;
-    let wx = std::array::from_fn::<_, 4, _>(|k| cubic(sx - (xb + k as i64 - 1) as f64));
-    let wy = std::array::from_fn::<_, 4, _>(|k| cubic(sy - (yb + k as i64 - 1) as f64));
-    let mut values = [0f64; 3];
-    for (ky, &wy) in wy.iter().enumerate() {
-        let py = (yb + ky as i64 - 1).clamp(0, image.height() as i64 - 1) as usize;
-        for (kx, &wx) in wx.iter().enumerate() {
-            let px = (xb + kx as i64 - 1).clamp(0, image.width() as i64 - 1) as usize;
-            let pixel = image.bgr(px, py);
+// warpPerspective rounds source coordinates to 1/32 pixel before bicubic
+// interpolation. The four-by-four signed coefficient table sums to 2^15.
+fn fixed_coordinate(value: f64) -> i64 {
+    (value * 32.).round_ties_even() as i64
+}
+fn sample(image: ImageView<'_>, x: f64, y: f64) -> [u8; 3] {
+    let fx = fixed_coordinate(x);
+    let fy = fixed_coordinate(y);
+    let (x, y) = (fx >> 5, fy >> 5);
+    let clip_x = |x: i64| x.clamp(0, image.width() as i64 - 1) as usize;
+    let clip_y = |y: i64| y.clamp(0, image.height() as i64 - 1) as usize;
+    let phase = ((fy & 31) * 32 + (fx & 31)) as usize;
+    if phase == 0 {
+        return image.bgr(clip_x(x), clip_y(y));
+    }
+    static WEIGHTS: std::sync::OnceLock<Vec<[i16; 16]>> = std::sync::OnceLock::new();
+    let table = WEIGHTS.get_or_init(|| (0..1024).map(cubic_weights).collect());
+    let weights = &table[phase];
+    let xs = [x - 1, x, x + 1, x + 2].map(clip_x);
+    let mut sum = [1 << 14; 3];
+    for (ky, row) in weights.chunks_exact(4).enumerate() {
+        let sy = clip_y(y + ky as i64 - 1);
+        for (&sx, &w) in xs.iter().zip(row) {
+            let pixel = image.bgr(sx, sy);
             for c in 0..3 {
-                values[c] += pixel[c] as f64 * wx * wy;
+                sum[c] += i32::from(pixel[c]) * i32::from(w);
             }
         }
     }
-    values.map(crate::pixel_kernels::clamp_byte)
+    sum.map(|v| (v >> 15).clamp(0, 255) as u8)
 }
-fn cubic(x: f64) -> f64 {
-    let x = x.abs();
-    let a = -0.75;
-    if x <= 1. {
-        (a + 2.) * x * x * x - (a + 3.) * x * x + 1.
-    } else if x < 2. {
-        a * x * x * x - 5. * a * x * x + 8. * a * x - 4. * a
-    } else {
-        0.
+
+fn cubic_weights(phase: usize) -> [i16; 16] {
+    let axis = |k: usize| {
+        let x = k as f32 / 32.;
+        let y = 1. - x;
+        let a = -0.75;
+        let first = ((a * (x + 1.) - 5. * a) * (x + 1.) + 8. * a) * (x + 1.) - 4. * a;
+        let second = ((a + 2.) * x - (a + 3.)) * x * x + 1.;
+        let third = ((a + 2.) * y - (a + 3.)) * y * y + 1.;
+        [first, second, third, 1. - first - second - third]
+    };
+    let (a, b) = (axis(phase % 32), axis(phase / 32));
+    let mut table: [i16; 16] =
+        std::array::from_fn(|i| (a[i % 4] * b[i / 4] * 32768.).round_ties_even() as i16);
+    let delta = 32768 - table.iter().map(|&v| i32::from(v)).sum::<i32>();
+    if delta != 0 {
+        let mut index = 10;
+        for i in [11, 14, 15] {
+            if (delta > 0 && table[i] > table[index]) || (delta < 0 && table[i] < table[index]) {
+                index = i;
+            }
+        }
+        table[index] = (i32::from(table[index]) + delta) as i16;
     }
+    table
 }
 pub fn rotate180(pixels: &mut [u8], width: usize, height: usize) -> ImageResult<()> {
     let count = width
@@ -276,6 +387,34 @@ pub fn rotate180(pixels: &mut [u8], width: usize, height: usize) -> ImageResult<
 mod tests {
     use super::*;
     use crate::image::PixelFormat;
+    #[test]
+    fn perspective_half_phase_uses_forward_solve_and_inverse() {
+        let transform = CropTransform::new(&DetectionBox {
+            points: [[20., 369.], [340., 370.], [340., 384.], [20., 383.]],
+            score: 1.,
+        })
+        .unwrap();
+        let mapped = crate::pixel_kernels::map_coordinates(
+            crate::pixel_kernels::PixelKernel::Scalar,
+            transform.warp,
+            [45.; 8],
+            [0.; 8],
+            320,
+            14,
+            1,
+        )
+        .unwrap();
+        assert_eq!((mapped[1][0] * 32.).round_ties_even(), 11813.);
+    }
+    #[test]
+    fn cubic_phases_and_replicated_edges_match_fixed_pixel_values() {
+        let pixels: Vec<_> = (0..90).map(|i| (i * 19) as u8).collect();
+        let image = ImageView::new(&pixels, 6, 5, 0, PixelFormat::Bgr24).unwrap();
+        assert_eq!(sample(image, 2.31, 1.78), [35, 54, 97]);
+        assert_eq!(sample(image, -0.4, 2.15), [149, 168, 213]);
+        assert_eq!(sample(image, 4.99, 3.97), [115, 134, 153]);
+    }
+
     #[test]
     fn vector_mapping_and_interior_samples_preserve_scalar_bytes_and_row_bands() {
         let (width, height) = (37, 41);

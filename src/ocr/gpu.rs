@@ -244,11 +244,8 @@ impl Pipeline {
         result.detector_resized_height = detection.size.height;
         result.width_ratio = detection.size.width_ratio;
         result.height_ratio = detection.size.height_ratio;
-        let mut used = count
-            .checked_mul(crate::ocr::line_record_bytes())
-            .and_then(|n| n.checked_add(count.saturating_sub(1)))
-            .filter(|&n| n <= options.max_total_result_bytes)
-            .ok_or_else(|| resource("OCR exceeds max_total_result_bytes"))?;
+        let mut used = 0;
+        let mut kept = 0usize;
         if count == 0 {
             return Ok(());
         }
@@ -257,7 +254,9 @@ impl Pipeline {
             None => Crops::prepare(&detection, line_options)?,
         };
         vision::merge_statistics(&mut self.statistics, crops.statistics.clone());
-        let mut sizes = Vec::with_capacity(count);
+        let sizes = recognizer
+            .page_sizes(&crops.sizes)
+            .map_err(RuntimeError::from)?;
         for &[width, height] in &crops.sizes {
             if width * height > rec_options.max_image_pixels {
                 return Err(resource("crop exceeds recognizer max_image_pixels"));
@@ -267,11 +266,6 @@ impl Pipeline {
             {
                 return Err(resource("crop exceeds classifier max_image_pixels"));
             }
-            sizes.push(
-                recognizer
-                    .select_width(width, height)
-                    .map_err(RuntimeError::from)?,
-            );
         }
         let mut order: Vec<usize> = (0..count).collect();
         order.sort_by_key(|&i| (sizes[i].tensor_width, i));
@@ -319,6 +313,7 @@ impl Pipeline {
                 classification_score: 0.,
                 classification_label: 0,
                 applied_rotation_degrees: 0,
+                vertical_rotation: false,
                 emitted_count: 0,
                 recognition_content_width: 0,
                 recognition_tensor_width: 0,
@@ -374,7 +369,7 @@ impl Pipeline {
                             self.failed_stage = Stage::Detector;
                             let raw = order[next_crop..end]
                                 .iter()
-                                .map(|&i| crops.record(&mut batch, &detection.image, i))
+                                .map(|&i| crops.record(&mut batch, &detection, i))
                                 .collect::<RuntimeResult<Vec<_>>>()?;
                             if let Some(classifier) = &mut self.classifier {
                                 self.failed_stage = Stage::Classifier;
@@ -418,9 +413,7 @@ impl Pipeline {
                         &shapes,
                         rec_options.score_mode == RecognitionScoreMode::Probability,
                         capture,
-                        rec_options
-                            .max_result_bytes
-                            .min(options.max_total_result_bytes - used),
+                        rec_options.max_result_bytes,
                     )?;
                     let bytes = (steps + 1) * indices.len() * 24;
                     let offset = total;
@@ -480,14 +473,41 @@ impl Pipeline {
                     } else {
                         0
                     };
-                    used = used
-                        .checked_add(decoded.text_bytes)
-                        .and_then(|n| n.checked_add(spans_bytes))
-                        .filter(|&n| n <= options.max_total_result_bytes)
-                        .ok_or_else(|| resource("OCR exceeds max_total_result_bytes"))?;
                     let slot = &mut self.results[index];
                     slot.text.clear();
                     slot.runs.clear();
+                    let emitted_count = decoded.tokens.len();
+                    let recognition_score = if recognizer.grouped_width
+                        && rec_options.score_mode == RecognitionScoreMode::Probability
+                        && emitted_count > 0
+                    {
+                        let sum = decoded
+                            .tokens
+                            .iter()
+                            .map(|token| (f64::from(token.score) * 100_000.).round_ties_even())
+                            .sum::<f64>();
+                        ((sum / emitted_count as f64).round_ties_even() / 100_000.) as f32
+                    } else {
+                        decoded.score
+                    };
+                    if !super::keep_line(recognition_score, rec_options.score_mode, || {
+                        decoded.tokens.iter().any(|token| {
+                            recognizer
+                                .dictionary()
+                                .token(token.class)
+                                .is_some_and(|label| !label.trim().is_empty())
+                        })
+                    }) {
+                        continue;
+                    }
+                    used = decoded
+                        .text_bytes
+                        .checked_add(spans_bytes)
+                        .and_then(|bytes| {
+                            super::charge_result_line(used, bytes, options.max_total_result_bytes)
+                        })
+                        .ok_or_else(|| resource("OCR exceeds max_total_result_bytes"))?;
+                    kept += 1;
                     slot.text.try_reserve(decoded.text_bytes).map_err(|e| {
                         RuntimeError::caused_by(
                             crate::error::ErrorKind::Allocation,
@@ -504,7 +524,6 @@ impl Pipeline {
                             )
                         })?;
                     }
-                    let emitted_count = decoded.tokens.len();
                     for token in decoded.tokens.iter() {
                         let label = recognizer
                             .dictionary()
@@ -539,7 +558,7 @@ impl Pipeline {
                         detection: detection.boxes[index],
                         text_start: 0,
                         text_end: 0,
-                        recognition_score: decoded.score,
+                        recognition_score,
                         classification_score: score,
                         classification_label: label,
                         applied_rotation_degrees: if label == 1
@@ -549,6 +568,7 @@ impl Pipeline {
                         } else {
                             0
                         },
+                        vertical_rotation: crops.original[index][2] != 0,
                         emitted_count,
                         recognition_content_width: sizes[index].resized_width,
                         recognition_tensor_width: sizes[index].tensor_width,
@@ -562,7 +582,7 @@ impl Pipeline {
             .iter()
             .map(|s| s.text.len())
             .sum::<usize>()
-            + count.saturating_sub(1);
+            + kept.saturating_sub(1);
         let run_count: usize = self.results[..count].iter().map(|s| s.runs.len()).sum();
         result.text.try_reserve(text_bytes).map_err(|e| {
             RuntimeError::caused_by(
@@ -578,8 +598,16 @@ impl Pipeline {
                 e,
             )
         })?;
-        for (index, (line, slot)) in result.lines.iter_mut().zip(&self.results).enumerate() {
-            if index > 0 {
+        let mut kept = 0;
+        for index in 0..result.lines.len() {
+            let slot = &self.results[index];
+            let mut line = result.lines[index];
+            if !super::keep_line(line.recognition_score, rec_options.score_mode, || {
+                !slot.text.trim().is_empty()
+            }) {
+                continue;
+            }
+            if kept > 0 {
                 result.text.push('\n');
             }
             line.text_start = result.text.len();
@@ -594,7 +622,10 @@ impl Pipeline {
                 }));
                 line.spans = Some((start, result.runs.len()));
             }
+            result.lines[kept] = line;
+            kept += 1;
         }
+        result.lines.truncate(kept);
         Ok(())
     }
 }

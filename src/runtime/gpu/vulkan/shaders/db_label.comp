@@ -92,7 +92,7 @@ uint qualifier(uint i_2) {
         return 0u;
     }
     uint count = atomicOr(_group_0_binding_3_cs[i_2], 0u);
-    if (!((count < 3u))) {
+    if (count != 0u) {
         local_35 = ((count & 2147483648u) != 0u);
     } else {
         local_35 = true;
@@ -367,7 +367,7 @@ void main() {
             uint _e216 = scan_bg[lane];
             uint _e219 = scan_fg[lane];
             uint _e220 = kind;
-            _group_0_binding_4_cs[i_4] = ((_e220 == 1u) ? _e219 : _e216);
+            _group_0_binding_4_cs[i_4] = (_e219 + _e216);
         }
         if ((lane == 63u)) {
             uint _e232 = scan_fg[63];
@@ -481,7 +481,7 @@ void main() {
         }
         uint _e401 = fg_1;
         uint _e403 = p(3u);
-        atomicExchange(_group_0_binding_6_cs[0], min(_e401, _e403));
+        atomicExchange(_group_0_binding_6_cs[0], fg_1 + bg_1);
         uint _e407 = fg_1;
         uint _e408 = bg_1;
         uint _e411 = p(3u);
@@ -559,46 +559,14 @@ void main() {
         if (!(_e499)) {
             uint _e504 = atomicOr(_group_0_binding_6_cs[2], 1u);
         }
-        bool _e505 = is_foreground(i_4);
-        yes = _e505;
-        uint _e508 = p(5u);
-        if ((_e508 != 0u)) {
-            if (((x_2 + 1u) < _e12)) {
-                bool _e514 = yes;
-                if (!(_e514)) {
-                    bool _e520 = is_foreground((i_4 + 1u));
-                    local_9 = _e520;
-                } else {
-                    local_9 = true;
-                }
-                bool _e522 = local_9;
-                yes = _e522;
-            }
-            if (((y_2 + 1u) < _e14)) {
-                bool _e526 = yes;
-                if (!(_e526)) {
-                    bool _e531 = is_foreground((i_4 + _e12));
-                    local_10 = _e531;
-                } else {
-                    local_10 = true;
-                }
-                bool _e533 = local_10;
-                yes = _e533;
-                if (((x_2 + 1u) < _e12)) {
-                    bool _e537 = yes;
-                    if (!(_e537)) {
-                        bool _e544 = is_foreground(((i_4 + _e12) + 1u));
-                        local_11 = _e544;
-                    } else {
-                        local_11 = true;
-                    }
-                    bool _e546 = local_11;
-                    yes = _e546;
-                }
-            }
+        // OpenCV's default anchor for a 2x2 dilation is (1,1).
+        yes = is_foreground(i_4);
+        if (p(5u) != 0u) {
+            yes = yes || (x_2 > 0u && is_foreground(i_4-1u))
+                      || (y_2 > 0u && is_foreground(i_4-_e12))
+                      || (x_2 > 0u && y_2 > 0u && is_foreground(i_4-_e12-1u));
         }
-        bool _e549 = yes;
-        _group_0_binding_1_cs[i_4] = uint(_e549);
+        _group_0_binding_1_cs[i_4] = uint(yes);
         atomicExchange(_group_0_binding_2_cs[i_4], i_4);
         atomicExchange(_group_0_binding_3_cs[i_4], 0u);
         return;
@@ -861,9 +829,9 @@ void main() {
         uint _e909 = atomicOr(_group_0_binding_6_cs[0], 0u);
         uint _e917 = _group_0_binding_5_cs[((block * 4u) + 2u)];
         uint _e922 = _group_0_binding_5_cs[(upper + 2u)];
-        uint offset = ((_e879 == 1u) ? (_e917 + _e922) : ((_e900 + _e905) + _e909));
+        uint offset = (_e917 + _e922 + _e900 + _e905);
         uint _e929 = _group_0_binding_4_cs[i_4];
-        uint rank = ((_e929 + offset) - 1u);
+        uint rank = (_e909 - (_e929 + offset));
         uint _e937 = p(3u);
         _group_0_binding_4_cs[i_4] = ((rank < _e937) ? rank : 4294967295u);
         uint _e941 = p(3u);

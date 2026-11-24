@@ -29,6 +29,8 @@ pub struct DetectorOptions {
     pub unclip_ratio: f32,
     pub max_image_pixels: usize,
 }
+const DEFAULT_UNCLIP_RATIO: f64 = 1.6;
+
 impl Default for DetectorOptions {
     fn default() -> Self {
         Self {
@@ -36,14 +38,24 @@ impl Default for DetectorOptions {
             resize_policy: DetResizePolicy::Max,
             max_candidates: 3000,
             use_dilation: false,
-            bitmap_threshold: 0.2,
+            bitmap_threshold: 0.3,
             box_threshold: None,
-            unclip_ratio: 1.6,
+            unclip_ratio: DEFAULT_UNCLIP_RATIO as f32,
             max_image_pixels: 40_000_000,
         }
     }
 }
 impl DetectorOptions {
+    pub(crate) fn offset_ratio(self) -> f64 {
+        // Preserve the configured decimal default in double-precision polygon
+        // offsets. Widening 1.6f32 moves exact half-pixel joins across a tie.
+        if self.unclip_ratio == DEFAULT_UNCLIP_RATIO as f32 {
+            DEFAULT_UNCLIP_RATIO
+        } else {
+            f64::from(self.unclip_ratio)
+        }
+    }
+
     fn validate(self) -> ImageResult<()> {
         if !(32..=DET_MAX_SIDE).contains(&self.limit_side_length)
             || !(1..=10_000).contains(&self.max_candidates)
@@ -390,8 +402,7 @@ impl Detector {
             };
             if map_width == 0
                 || map_height == 0
-                || map_width > preprocess::DET_MAX_SIDE
-                || map_height > preprocess::DET_MAX_SIDE
+                || !preprocess::valid_map_size(map_width, map_height)
                 || map_width.checked_mul(map_height) != Some(probabilities.len())
             {
                 return Err(ImageError::new("invalid DB probability map size"));

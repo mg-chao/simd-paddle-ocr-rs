@@ -254,7 +254,7 @@ fn gpu_resident_db_crop_merge_matches_standalone_coefficients_and_pixels() {
             let (coefficients, _) = compare.read(&output, bytes * 2, true).unwrap();
             assert_eq!(&coefficients[..bytes], &coefficients[bytes..]);
             let mut crop_batch = batch(&context, false);
-            let crop = new.record(&mut crop_batch, &image, 0).unwrap();
+            let crop = new.record(&mut crop_batch, &standalone, 0).unwrap();
             let (actual, _) = crop_batch
                 .read(&crop.buffer, crop.width * crop.height * 4, false)
                 .unwrap();

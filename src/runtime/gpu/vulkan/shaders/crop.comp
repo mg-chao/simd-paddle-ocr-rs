@@ -400,211 +400,78 @@ float pixel(int x_6, int y_1, uint c_1) {
     return float(((_e38 >> ((offset % 4u) * 8u)) & 255u));
 }
 
-vec2 cubic(vec2 value_1) {
-    vec2 x_7 = vec2(0.0);
-    x_7 = value_1;
-    vec2 _e2 = x_7;
-    float _e3 = dvalue(_e2);
-    if ((_e3 < 0.0)) {
-        vec2 _e6 = x_7;
-        x_7 = -(_e6);
-    }
-    vec2 _e8 = x_7;
-    float _e9 = dvalue(_e8);
-    if ((_e9 <= 1.0)) {
-        vec2 _e13 = ds(1.25);
-        vec2 _e14 = x_7;
-        vec2 _e15 = dm(_e13, _e14);
-        vec2 _e17 = ds(-2.25);
-        vec2 _e18 = da(_e15, _e17);
-        vec2 _e19 = x_7;
-        vec2 _e20 = x_7;
-        vec2 _e21 = dm(_e19, _e20);
-        vec2 _e22 = dm(_e18, _e21);
-        vec2 _e24 = ds(1.0);
-        vec2 _e25 = da(_e22, _e24);
-        return _e25;
-    }
-    vec2 _e26 = x_7;
-    float _e27 = dvalue(_e26);
-    if ((_e27 < 2.0)) {
-        vec2 _e31 = ds(-0.75);
-        vec2 _e32 = x_7;
-        vec2 _e33 = dm(_e31, _e32);
-        vec2 _e35 = ds(3.75);
-        vec2 _e36 = da(_e33, _e35);
-        vec2 _e37 = x_7;
-        vec2 _e38 = dm(_e36, _e37);
-        vec2 _e40 = ds(-6.0);
-        vec2 _e41 = da(_e38, _e40);
-        vec2 _e42 = x_7;
-        vec2 _e43 = dm(_e41, _e42);
-        vec2 _e45 = ds(3.0);
-        vec2 _e46 = da(_e43, _e45);
-        return _e46;
-    }
-    vec2 _e48 = ds(0.0);
-    return _e48;
+vec4 axis_weights(int phase) {
+    float x=float(phase)/32., y=1.-x, a=-0.75;
+    precise float first=((a*(x+1.)-5.*a)*(x+1.)+8.*a)*(x+1.)-4.*a;
+    precise float second=((a+2.)*x-(a+3.))*x*x+1.;
+    precise float third=((a+2.)*y-(a+3.))*y*y+1.;
+    precise float fourth=1.-first-second-third;
+    return vec4(first,second,third,fourth);
 }
-
+ivec3 bgr(ivec2 xy) {
+    return ivec3(pixel(xy.x,xy.y,0u),pixel(xy.x,xy.y,1u),pixel(xy.x,xy.y,2u));
+}
+uint pack_bgr(ivec3 bgr) {
+    uvec3 c=uvec3(clamp(bgr,ivec3(0),ivec3(255)));
+    return 0xff000000u | c.x | (c.y<<8u) | (c.z<<16u);
+}
+#ifdef NATIVE_FLOAT64
+double matrix_entry(uint k) { return packDouble2x32(uvec2(t(8u+2u*k),t(9u+2u*k))); }
+double map_axis(uint k,double tile,double x,double y) {
+    precise double c=matrix_entry(k);
+    precise double value=(c*tile+matrix_entry(k+1u)*y+matrix_entry(k+2u))+c*(x-tile);
+    return value;
+}
+#endif
 void main() {
-    uvec3 id = gl_GlobalInvocationID;
-    uvec3 grid = gl_NumWorkGroups;
-    uint result = 4278190080u;
-    vec2 wx[4] = vec2[4](vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0));
-    vec2 wy[4] = vec2[4](vec2(0.0), vec2(0.0), vec2(0.0), vec2(0.0));
-    int k = 0;
-    uint c = 0u;
-    vec2 sum = vec2(0.0);
-    int ky = 0;
-    int kx = 0;
-    uint index = (id.x + ((id.y * grid.x) * 64u));
-    uint _e10 = t(0u);
-    uint _e12 = t(1u);
-    if ((index >= (_e10 * _e12))) {
-        return;
+    uint i=gl_GlobalInvocationID.x+gl_GlobalInvocationID.y*gl_NumWorkGroups.x*64u;
+    bool from_grid=p(6u)!=0u;
+    uint w=from_grid ? p(7u) : t(0u), h=from_grid ? p(8u) : t(1u);
+    if (i>=w*h) return;
+    uint x=i%w, y=i/w;
+    ivec2 fixed_xy;
+    if (from_grid) {
+        fixed_xy=ivec2(_group_0_binding_1_cs[i*2u],_group_0_binding_1_cs[i*2u+1u]);
+    } else
+#ifdef NATIVE_FLOAT64
+    if (t(6u)!=0u) {
+        uint ux=t(4u)!=0u ? t(2u)-1u-y : x;
+        uint uy=t(4u)!=0u ? x : y;
+        uint width=min(1024u/min(t(3u),16u),t(2u));
+        double tile=double(ux/width*width);
+        precise double scale=1.lf/map_axis(6u,tile,double(ux),double(uy));
+        precise dvec2 source=dvec2(map_axis(0u,tile,double(ux),double(uy)),
+                                   map_axis(3u,tile,double(ux),double(uy)))*scale;
+        fixed_xy=ivec2(roundEven(source*32.lf));
+    } else
+#endif
+    {
+    vec2 u=dd(ds(float(t(4u)!=0u ? t(2u)-1u-y : x)),ds(float(t(2u))));
+    vec2 v=dd(ds(float(t(4u)!=0u ? x : y)),ds(float(t(3u))));
+    vec2 den=da(da(dm(coefficient(6u),u),dm(coefficient(7u),v)),ds(1.));
+    vec2 sx=da(da(dm(coefficient(0u),u),dm(coefficient(1u),v)),coefficient(2u));
+    vec2 sy=da(da(dm(coefficient(3u),u),dm(coefficient(4u),v)),coefficient(5u));
+    fixed_xy=ivec2(dround(dd(dm(sx,ds(32.)),den)),dround(dd(dm(sy,ds(32.)),den)));
     }
-    uint ox = (index % _e10);
-    uint oy = (index / _e10);
-    uint _e18 = t(4u);
-    bool vertical = (_e18 != 0u);
-    uint _e22 = t(2u);
-    uint x_8 = (vertical ? ((_e22 - 1u) - oy) : ox);
-    uint y_2 = (vertical ? ox : oy);
-    vec2 _e29 = ds(float(x_8));
-    uint _e31 = t(2u);
-    vec2 _e33 = ds(float(_e31));
-    vec2 _e34 = dd(_e29, _e33);
-    vec2 _e36 = ds(float(y_2));
-    uint _e38 = t(3u);
-    vec2 _e40 = ds(float(_e38));
-    vec2 _e41 = dd(_e36, _e40);
-    vec2 _e43 = coefficient(6u);
-    vec2 _e44 = dm(_e43, _e34);
-    vec2 _e46 = coefficient(7u);
-    vec2 _e47 = dm(_e46, _e41);
-    vec2 _e48 = da(_e44, _e47);
-    vec2 _e50 = ds(1.0);
-    vec2 _e51 = da(_e48, _e50);
-    vec2 _e53 = coefficient(0u);
-    vec2 _e54 = dm(_e53, _e34);
-    vec2 _e56 = coefficient(1u);
-    vec2 _e57 = dm(_e56, _e41);
-    vec2 _e58 = da(_e54, _e57);
-    vec2 _e60 = coefficient(2u);
-    vec2 _e61 = da(_e58, _e60);
-    vec2 _e62 = dd(_e61, _e51);
-    vec2 _e64 = coefficient(3u);
-    vec2 _e65 = dm(_e64, _e34);
-    vec2 _e67 = coefficient(4u);
-    vec2 _e68 = dm(_e67, _e41);
-    vec2 _e69 = da(_e65, _e68);
-    vec2 _e71 = coefficient(5u);
-    vec2 _e72 = da(_e69, _e71);
-    vec2 _e73 = dd(_e72, _e51);
-    float _e74 = dfloor(_e62);
-    int xb = int(_e74);
-    float _e76 = dfloor(_e73);
-    int yb = int(_e76);
-    bool loop_init_2 = true;
-    while(true) {
-        if (!loop_init_2) {
-            int _e110 = k;
-            k = (_e110 + 1);
-        }
-        loop_init_2 = false;
-        int _e84 = k;
-        if ((_e84 < 4)) {
-        } else {
-            break;
-        }
-        {
-            int _e87 = k;
-            int _e89 = k;
-            vec2 _e95 = ds(-(float(((xb + _e89) - 1))));
-            vec2 _e96 = da(_e62, _e95);
-            vec2 _e97 = cubic(_e96);
-            wx[_e87] = _e97;
-            int _e98 = k;
-            int _e100 = k;
-            vec2 _e106 = ds(-(float(((yb + _e100) - 1))));
-            vec2 _e107 = da(_e73, _e106);
-            vec2 _e108 = cubic(_e107);
-            wy[_e98] = _e108;
-        }
-    }
-    bool loop_init_3 = true;
-    while(true) {
-        if (!loop_init_3) {
-            uint _e173 = c;
-            c = (_e173 + 1u);
-        }
-        loop_init_3 = false;
-        uint _e114 = c;
-        if ((_e114 < 3u)) {
-        } else {
-            break;
-        }
-        {
-            vec2 _e118 = ds(0.0);
-            sum = _e118;
-            ky = 0;
-            bool loop_init_4 = true;
-            while(true) {
-                if (!loop_init_4) {
-                    int _e155 = ky;
-                    ky = (_e155 + 1);
-                }
-                loop_init_4 = false;
-                int _e122 = ky;
-                if ((_e122 < 4)) {
-                } else {
-                    break;
-                }
-                {
-                    kx = 0;
-                    bool loop_init_5 = true;
-                    while(true) {
-                        if (!loop_init_5) {
-                            int _e152 = kx;
-                            kx = (_e152 + 1);
-                        }
-                        loop_init_5 = false;
-                        int _e127 = kx;
-                        if ((_e127 < 4)) {
-                        } else {
-                            break;
-                        }
-                        {
-                            vec2 _e130 = sum;
-                            int _e131 = kx;
-                            int _e135 = ky;
-                            uint _e139 = c;
-                            float _e140 = pixel(((xb + _e131) - 1), ((yb + _e135) - 1), _e139);
-                            vec2 _e141 = ds(_e140);
-                            int _e142 = kx;
-                            vec2 _e144 = wx[_e142];
-                            vec2 _e145 = dm(_e141, _e144);
-                            int _e146 = ky;
-                            vec2 _e148 = wy[_e146];
-                            vec2 _e149 = dm(_e145, _e148);
-                            vec2 _e150 = da(_e130, _e149);
-                            sum = _e150;
-                        }
-                    }
-                }
+    ivec2 base=fixed_xy>>5, phase=fixed_xy & 31;
+    if (phase==ivec2(0)) { _group_0_binding_2_cs[i]=pack_bgr(bgr(base)); return; }
+    vec4 wx=axis_weights(phase.x), wy=axis_weights(phase.y);
+    ivec3 sum=ivec3(1<<14);
+    int total=0, largest=-32769, smallest=32768;
+    ivec2 high=ivec2(0),low=ivec2(0);
+    for (int ky=0;ky<4;++ky) {
+        ivec4 weights=clamp(ivec4(roundEven(wx*wy[ky]*32768.)),ivec4(-32768),ivec4(32767));
+        for (int kx=0;kx<4;++kx) {
+            ivec2 at=base+ivec2(kx-1,ky-1);
+            int weight=weights[kx];
+            sum+=weight*bgr(at); total+=weight;
+            if (kx>=2 && ky>=2) {
+                if (weight>largest) { largest=weight; high=at; }
+                if (weight<smallest) { smallest=weight; low=at; }
             }
-            uint _e157 = result;
-            vec2 _e158 = sum;
-            vec2 _e160 = ds(0.5);
-            vec2 _e161 = da(_e158, _e160);
-            float _e162 = dfloor(_e161);
-            uint _e167 = c;
-            result = (_e157 | (uint(clamp(_e162, 0.0, 255.0)) << (_e167 * 8u)));
         }
     }
-    uint _e177 = result;
-    _group_0_binding_2_cs[index] = _e177;
-    return;
+    int delta=32768-total;
+    if (delta!=0) sum+=delta*bgr(delta>0 ? high : low);
+    _group_0_binding_2_cs[i]=pack_bgr(sum>>15);
 }
-

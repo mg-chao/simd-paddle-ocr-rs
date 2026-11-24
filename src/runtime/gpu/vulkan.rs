@@ -56,6 +56,7 @@ pub(super) struct Device {
     properties: vk::PhysicalDeviceProperties,
     pub(super) limits: GpuLimits,
     pub(super) half: bool,
+    pub(super) float64: bool,
     cooperative_matrix: bool,
     subgroup_reductions: bool,
     timestamp_bits: u32,
@@ -609,7 +610,10 @@ impl Context {
                 };
                 let mut enabled_matrix = vk::PhysicalDeviceCooperativeMatrixFeaturesKHR::default()
                     .cooperative_matrix(cooperative_matrix);
+                let float64 = instance.get_physical_device_features(physical).shader_float64 != 0;
+                let core_features = vk::PhysicalDeviceFeatures::default().shader_float64(float64);
                 let mut device_create = vk::DeviceCreateInfo::default()
+                    .enabled_features(&core_features)
                     .queue_create_infos(&queues)
                     .enabled_extension_names(&enabled_extensions)
                     .push_next(&mut f11)
@@ -654,6 +658,7 @@ impl Context {
                     family,
                     timestamp_bits,
                     half,
+                    float64,
                     cooperative_matrix,
                     subgroup_reductions,
                     info,
@@ -670,6 +675,7 @@ impl Context {
                 family,
                 timestamp_bits,
                 half,
+                float64,
                 cooperative_matrix,
                 subgroup_reductions,
                 info,
@@ -706,6 +712,7 @@ impl Context {
                 properties,
                 limits: limits.clone(),
                 half,
+                float64,
                 cooperative_matrix,
                 subgroup_reductions,
                 timestamp_bits,
