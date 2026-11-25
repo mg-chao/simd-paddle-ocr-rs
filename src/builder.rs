@@ -286,6 +286,12 @@ impl OcrBuilder {
             Some(cpu) => cpu,
             None => CpuContext::shared_default()?,
         };
+        #[cfg(feature = "parallel")]
+        let parallel_compile = self.compiler.is_none()
+            && cpu.capacity() > 1
+            && self.stage_targets[..2]
+                .iter()
+                .all(|target| target.unwrap_or(self.target) == ExecutionTarget::Cpu);
         let compiler = self.compiler.unwrap_or_else(|| {
             Arc::new(crate::runtime::Compiler::new(
                 crate::runtime::CompilerOptions {
@@ -313,8 +319,17 @@ impl OcrBuilder {
                     )
                 })?)
         };
-        let detection = compile(self.models.detection, 0)?;
-        let recognition = compile(self.models.recognition, 1)?;
+        let detector_model = || compile(self.models.detection, 0);
+        let recognizer_model = || compile(self.models.recognition, 1);
+        #[cfg(feature = "parallel")]
+        let (detection, recognition) = if parallel_compile {
+            let (det, rec) = cpu.install(|| rayon::join(detector_model, recognizer_model));
+            (det?, rec?)
+        } else {
+            (detector_model()?, recognizer_model()?)
+        };
+        #[cfg(not(feature = "parallel"))]
+        let (detection, recognition) = (detector_model()?, recognizer_model()?);
         let classification = if self.classification {
             self.models
                 .classification

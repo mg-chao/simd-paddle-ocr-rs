@@ -246,13 +246,19 @@ impl Model {
     pub fn load_path_with_options(path: impl AsRef<Path>, options: &LoadOptions) -> Result<Self> {
         let path = path.as_ref();
         let file = File::open(path).map_err(|e| ImportError::from(e).context(path.display()))?;
-        if file.metadata()?.len() > options.limits.max_input_bytes {
+        let file_bytes = file.metadata()?.len();
+        if file_bytes > options.limits.max_input_bytes {
             return Err(ImportError::with_kind(
                 ErrorKind::ResourceLimit,
                 "model exceeds max_input_bytes",
             ));
         }
-        Self::load_reader_with_options(BufReader::with_capacity(64 * 1024, file), options)
+        let capacity = if file_bytes >= 8 * 1024 * 1024 {
+            1024 * 1024
+        } else {
+            64 * 1024
+        };
+        Self::load_reader_with_options(BufReader::with_capacity(capacity, file), options)
             .map_err(|e| e.context(path.display()))
     }
     pub fn load_bytes_with_options(bytes: &[u8], options: &LoadOptions) -> Result<Self> {
