@@ -394,6 +394,17 @@ impl Detector {
                 "invalid postprocess image or resize ratios",
             ));
         }
+        let mut geometry = DetSourceGeometry::new(source.width(), source.height())?;
+        if self.plan.options.resize_policy == DetResizePolicy::Native {
+            let (planned, size) =
+                geometry.plan(self.plan.options.limit_side_length, DetResizePolicy::Native)?;
+            if (map_width, map_height) != (size.width, size.height) {
+                return Err(ImageError::new(
+                    "native detector map shape differs from planned input",
+                ));
+            }
+            geometry = planned;
+        }
         #[cfg(feature = "gpu")]
         if self.session.is_gpu() {
             use crate::runtime::gpu::{
@@ -421,7 +432,7 @@ impl Detector {
                 batch,
                 &prediction,
                 self.plan.options,
-                DetSourceGeometry::new(source.width(), source.height())?,
+                geometry,
             )?;
             self.db.boxes = boxes;
             self.gpu_statistics = statistics;
@@ -438,7 +449,7 @@ impl Detector {
             map_width,
             map_height,
             &self.plan.options,
-            DetSourceGeometry::new(source.width(), source.height())?,
+            geometry,
             &mut self.db,
         )?;
         Ok(DetectionView {
@@ -536,8 +547,7 @@ impl Detector {
         if image.pixel_count()? > self.plan.options.max_image_pixels {
             return Err(ImageError::new("source image exceeds max_image_pixels"));
         }
-        let geometry = DetSourceGeometry::new(image.width(), image.height())?;
-        let size = geometry.resize(
+        let (geometry, size) = DetSourceGeometry::new(image.width(), image.height())?.plan(
             self.plan.options.limit_side_length,
             self.plan.options.resize_policy,
         )?;
@@ -557,7 +567,7 @@ impl Detector {
                 "detector output spatial shape differs from resized input",
             ));
         }
-        let source = if geometry.requires_padding() {
+        let source = if geometry.native_content.is_none() && geometry.requires_padding() {
             let w = geometry.padded_width;
             let h = geometry.padded_height;
             let bpp = image.format().bytes_per_pixel();
@@ -584,13 +594,17 @@ impl Detector {
         let mut preprocessing_ns = 0;
         let cpu = self.session.cpu_context().clone();
         let threads = self.session.intra_op_threads();
+        let shape = [size.width, size.height];
+        let content = geometry.native_content.unwrap_or(shape);
+        let pad = (content != shape).then(|| preprocess::corner_average(image));
         let mut fill = |input: &mut [f32], nhwc: bool| {
             let timer = Timer::<PROFILE>::start();
             cpu.install(|| {
-                preprocess::det_with_context_layout(
+                preprocess::det_with_padding(
                     source,
-                    size.width,
-                    size.height,
+                    shape,
+                    content,
+                    pad,
                     input,
                     &mut self.resize,
                     &cpu,

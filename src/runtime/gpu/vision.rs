@@ -57,10 +57,9 @@ impl Detector {
         if image.pixel_count().map_err(RuntimeError::from)? > options.max_image_pixels {
             return Err(resource("source image exceeds max_image_pixels"));
         }
-        let geometry =
-            DetSourceGeometry::new(image.width(), image.height()).map_err(RuntimeError::from)?;
-        let size = geometry
-            .resize(options.limit_side_length, options.resize_policy)
+        let (geometry, size) = DetSourceGeometry::new(image.width(), image.height())
+            .map_err(RuntimeError::from)?
+            .plan(options.limit_side_length, options.resize_policy)
             .map_err(RuntimeError::from)?;
         self.session.reshape(&[1, 3, size.height, size.width])?;
         if self.session.output_shape().dimensions() != [1, 1, size.height, size.width] {
@@ -70,15 +69,30 @@ impl Detector {
         }
         let mut batch = Batch::new(self.context.clone())?;
         batch.profiling = profiling;
+        let fill = geometry
+            .native_content
+            .map(|_| crate::preprocess::corner_average(image));
         let image = Image::upload(&mut batch, image)?;
-        preprocess(
-            &mut batch,
-            &image,
-            &self.session.resident_input(),
-            [geometry.padded_width, geometry.padded_height],
-            size.width,
-            true,
-        )?;
+        let input = self.session.resident_input();
+        if let Some(content) = geometry.native_content {
+            preprocess_detector(
+                &mut batch,
+                &image,
+                &input,
+                [geometry.original_width, geometry.original_height],
+                content,
+                fill,
+            )?;
+        } else {
+            preprocess(
+                &mut batch,
+                &image,
+                &input,
+                [geometry.padded_width, geometry.padded_height],
+                size.width,
+                true,
+            )?;
+        }
         let prediction = batch.graph(&mut self.session, "detector")?;
         let (boxes, device_boxes, statistics, crops) = postprocess_with_math(
             batch,
@@ -582,6 +596,7 @@ fn postprocess_with_math(
     }
     let (h, w) = (dims[2], dims[3]);
     let pixels = w * h;
+    let [content_width, content_height] = geometry.native_content.unwrap_or([w, h]);
     let candidates = options.max_candidates;
     let mask = batch.storage("DB bitmap", pixels * 4)?;
     let parents = batch.storage("DB component parents", pixels * 4)?;
@@ -631,6 +646,8 @@ fn postprocess_with_math(
                 mode,
                 u32::from(options.use_dilation),
                 u32::from(tiled),
+                content_width as u32,
+                content_height as u32,
             ],
             groups,
         )?;
@@ -684,6 +701,7 @@ fn postprocess_with_math(
             [x, y, 1],
         )?;
     }
+    let (denominator, numerator) = geometry.mapping(w, h);
     let native_trig = native_trig_eligible(
         matrix,
         precision,
@@ -715,8 +733,11 @@ fn postprocess_with_math(
             options.unclip_ratio.to_bits(),
             geometry.original_width as u32,
             geometry.original_height as u32,
-            geometry.padded_width as u32,
-            geometry.padded_height as u32,
+            numerator[0] as u32,
+            numerator[1] as u32,
+            denominator[0] as u32,
+            denominator[1] as u32,
+            u32::from(geometry.native_content.is_some()),
         ],
         [count as u32, 1, 1],
     )?;
@@ -1148,8 +1169,20 @@ mod tests {
                         // Rounding its reciprocal to one moves an expanded corner a pixel.
                         _ => {
                             const ROWS: [(usize, usize); 14] = [
-                                (6, 12), (6, 14), (6, 15), (6, 20), (6, 24), (6, 26), (6, 26),
-                                (6, 28), (7, 28), (8, 28), (8, 28), (11, 28), (13, 28), (16, 26),
+                                (6, 12),
+                                (6, 14),
+                                (6, 15),
+                                (6, 20),
+                                (6, 24),
+                                (6, 26),
+                                (6, 26),
+                                (6, 28),
+                                (7, 28),
+                                (8, 28),
+                                (8, 28),
+                                (11, 28),
+                                (13, 28),
+                                (16, 26),
                             ];
                             y.checked_sub(309)
                                 .and_then(|row| ROWS.get(row))

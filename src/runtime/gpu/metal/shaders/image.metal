@@ -74,10 +74,19 @@ struct Resident {
     }
     auto y = pixel_index / p(9u);
     auto x = pixel_index % p(9u);
-    if (x >= p(7u)) {
+    auto content_height = p(13u) == 0u ? p(8u) : p(13u);
+    if (x >= p(7u) || y >= content_height) {
       for (auto c = 0u; c < 3u; c++) {
         output[c * plane + pixel_index + p(12u)] =
-            normalize_store(as_type<float>(p(11u)));
+            normalize_store(p(13u) == 0u ? as_type<float>(p(11u))
+                                          : lut[c * 256u + ((p(14u) >> (8u * c)) & 255u)]);
+      }
+      return;
+    }
+    if (p(13u) != 0u && p(5u) == p(7u) && p(6u) == content_height) {
+      for (auto c = 0u; c < 3u; c++) {
+        output[c * plane + pixel_index + p(12u)] =
+            normalize_store(lut[c * 256u + uint(pixel(x, y, c))]);
       }
       return;
     }
@@ -88,7 +97,7 @@ struct Resident {
     if (xc.x >= int(p(5u)) - 1) {
       xc = int2(int(p(5u)) - 1, 0);
     }
-    auto yc = axes ? axes[p(7u) + y] : coefficient(y, p(6u), p(8u));
+    auto yc = axes ? axes[p(7u) + y] : coefficient(y, p(6u), content_height);
     auto x0 = uint(xc.x);
     auto x1 = min(x0 + 1u, p(5u) - 1u);
     auto y0 = uint(clamp(yc.x, 0, int(p(6u)) - 1));

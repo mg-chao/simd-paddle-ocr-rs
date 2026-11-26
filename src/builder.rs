@@ -249,6 +249,11 @@ impl OcrBuilder {
         self.cpu_options = options;
         self
     }
+    /// Select detector sizing while retaining the builder's other detector options.
+    pub fn detector_resize_policy(mut self, policy: crate::detector::DetResizePolicy) -> Self {
+        self.detector.resize_policy = policy;
+        self
+    }
     pub fn detector_options(mut self, options: DetectorOptions) -> Self {
         self.detector = options;
         self

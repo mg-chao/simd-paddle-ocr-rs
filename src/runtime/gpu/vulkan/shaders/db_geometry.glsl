@@ -482,13 +482,23 @@ void main() {
     r = rectangle(base + 512u, n, 3u);
     if (r.valid == 0u || min(r.side.x, r.side.y) < 5.)
         return;
+    uint width = p(8u) == 0u ? p(0u) : p(8u);
+    uint height_limit = p(9u) == 0u ? p(1u) : p(9u);
     for (int i = 0; i < 4; ++i) {
         vec2 mapped =
-            vec2(divide(r.points[i].x, float(p(0u))), divide(r.points[i].y, float(p(1u)))) *
+            vec2(divide(r.points[i].x, float(width)), divide(r.points[i].y, float(height_limit))) *
             vec2(p(6u), p(7u));
         r.points[i] = clamp(roundEven(mapped), vec2(0), vec2(p(4u) - 1u, p(5u) - 1u));
     }
     r.points = ordered(r.points);
+    if (p(10u) != 0u) {
+        for (uint i = 0u; i < 4u; ++i) {
+            vec2 a = r.points[(i + 1u) % 4u] - r.points[i];
+            vec2 b = r.points[(i + 2u) % 4u] - r.points[(i + 1u) % 4u];
+            if (a.x * b.y - a.y * b.x <= 0.)
+                return;
+        }
+    }
     if (distance(r.points[0], r.points[1]) < 4. || distance(r.points[0], r.points[3]) < 4.)
         return;
     for (uint i = 0u; i < 4u; ++i) {

@@ -109,6 +109,14 @@ fn run_with_kernel(
         }
         std::mem::swap(&mut s.bitmap, &mut s.dilated);
     }
+    if let Some([w, h]) = source.native_content
+        && (w != width || h != height)
+    {
+        s.bitmap[h * width..pixels].fill(0);
+        for row in s.bitmap[..h * width].chunks_exact_mut(width) {
+            row[w..].fill(0);
+        }
+    }
     if kernel != crate::pixel_kernels::PixelKernel::Scalar && width >= 3 && height >= 3 {
         resize_vec(&mut s.interior, pixels)?;
         crate::pixel_kernels::interior(
@@ -183,6 +191,50 @@ fn run_with_kernel(
     sort_reading_order(&mut s.boxes);
     Ok(())
 }
+#[cfg(test)]
+#[test]
+fn native_detector_discards_padding_and_keeps_boxes_touching_the_source_edge() {
+    use crate::preprocess::DetResizePolicy;
+
+    let (source, size) = DetSourceGeometry::new(46, 21)
+        .unwrap()
+        .plan(736, DetResizePolicy::Native)
+        .unwrap();
+    let mut probabilities = vec![0.; size.width * size.height];
+    for y in 8..21 {
+        probabilities[y * size.width + 21..y * size.width + 46].fill(0.98);
+    }
+    for y in 23..32 {
+        probabilities[y * size.width + 51..y * size.width + 64].fill(0.99);
+    }
+    let options = DetectorOptions {
+        resize_policy: DetResizePolicy::Native,
+        box_threshold: Some(0.5),
+        use_dilation: true,
+        ..Default::default()
+    };
+    let mut scratch = Workspace::default();
+    run(
+        &probabilities,
+        size.width,
+        size.height,
+        &options,
+        source,
+        &mut scratch,
+    )
+    .unwrap();
+    assert_eq!(scratch.boxes.len(), 1);
+    let points = scratch.boxes[0].points;
+    assert!(points.iter().any(|point| point[0] == 45.));
+    assert!(points.iter().any(|point| point[1] == 20.));
+    assert!(
+        points
+            .iter()
+            .all(|point| point[0] <= 45. && point[1] <= 20.)
+    );
+    crate::crop::CropTransform::new(&scratch.boxes[0]).unwrap();
+}
+
 fn next(a: &[u8], from: usize, to: usize, nonzero: bool) -> usize {
     from + crate::pixel_kernels::scan(
         crate::pixel_kernels::PixelKernel::selected(),
@@ -531,6 +583,16 @@ fn build(
     }
     let mut corners = mapped;
     order_clockwise(&mut corners);
+    if source.native_content.is_some()
+        && !(0..4).all(|i| {
+            let a = corners[i];
+            let b = corners[(i + 1) % 4];
+            let c = corners[(i + 2) % 4];
+            (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x) > 0.
+        })
+    {
+        return Ok(None);
+    }
     if distance(corners[0], corners[1]) < 4. || distance(corners[0], corners[3]) < 4. {
         return Ok(None);
     }

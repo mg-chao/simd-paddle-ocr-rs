@@ -566,7 +566,8 @@ void main() {
                       || (y_2 > 0u && is_foreground(i_4-_e12))
                       || (x_2 > 0u && y_2 > 0u && is_foreground(i_4-_e12-1u));
         }
-        _group_0_binding_1_cs[i_4] = uint(yes);
+        bool in_content = p(7u) == 0u || (x_2 < p(7u) && y_2 < p(8u));
+        _group_0_binding_1_cs[i_4] = uint(yes && in_content);
         atomicExchange(_group_0_binding_2_cs[i_4], i_4);
         atomicExchange(_group_0_binding_3_cs[i_4], 0u);
         return;

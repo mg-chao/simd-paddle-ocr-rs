@@ -903,6 +903,26 @@ pub(crate) fn preprocess(
 ) -> RuntimeResult<()> {
     preprocess_at(batch, image, output, source, content_width, detector, 0)
 }
+
+pub(crate) fn preprocess_detector(
+    batch: &mut Batch,
+    image: &Image,
+    output: &Tensor,
+    source: [usize; 2],
+    content: [usize; 2],
+    corner_fill: Option<[u8; 3]>,
+) -> RuntimeResult<()> {
+    preprocess_inner(
+        batch,
+        image,
+        output,
+        source,
+        content[0],
+        true,
+        0,
+        corner_fill.map(|fill| (content[1], fill)),
+    )
+}
 pub(crate) fn preprocess_at(
     batch: &mut Batch,
     image: &Image,
@@ -911,6 +931,29 @@ pub(crate) fn preprocess_at(
     content_width: usize,
     detector: bool,
     sample: usize,
+) -> RuntimeResult<()> {
+    preprocess_inner(
+        batch,
+        image,
+        output,
+        source,
+        content_width,
+        detector,
+        sample,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn preprocess_inner(
+    batch: &mut Batch,
+    image: &Image,
+    output: &Tensor,
+    source: [usize; 2],
+    content_width: usize,
+    detector: bool,
+    sample: usize,
+    native: Option<(usize, [u8; 3])>,
 ) -> RuntimeResult<()> {
     batch.ensure_context(&image.context)?;
     batch.ensure_context(&output.context)?;
@@ -921,6 +964,7 @@ pub(crate) fn preprocess_at(
         || output.descriptor.layout != GpuLayout::Canonical
         || content_width > shape[3]
         || content_width == 0
+        || native.is_some_and(|(height, _)| height == 0 || height > shape[2])
     {
         return Err(RuntimeError::with_kind(
             ErrorKind::InvalidInput,
@@ -930,6 +974,7 @@ pub(crate) fn preprocess_at(
     let precision = output.descriptor.precision;
     let constants = Normalization::shared(&batch.context)?;
     let lut = &constants.buffers[usize::from(detector)];
+    let (content_height, fill) = native.unwrap_or((0, [0; 3]));
     let words = [
         image.width as u32,
         image.height as u32,
@@ -944,6 +989,8 @@ pub(crate) fn preprocess_at(
         u32::from(detector),
         0, // right padding is normalized zero
         (sample * 3 * shape[2] * shape[3]) as u32,
+        content_height as u32,
+        u32::from_le_bytes([fill[0], fill[1], fill[2], 0]),
     ];
     let (x, y) = dispatch_grid(shape[2] * shape[3], &batch.context.limits)?;
     // Reuse each axis entry across at least a workgroup of detector pixels.
@@ -952,16 +999,22 @@ pub(crate) fn preprocess_at(
     if detector
         && content_width >= WORKGROUP_SIZE
         && shape[2] >= WORKGROUP_SIZE
+        && native.is_none_or(|_| source != [content_width, content_height])
         && batch.context.options.max_device_bytes.is_none()
     {
-        let entries = content_width + shape[2];
+        let resize_height = if content_height == 0 {
+            shape[2]
+        } else {
+            content_height
+        };
+        let entries = content_width + resize_height;
         let axes = batch.storage("detector resize coefficients", entries * 8)?;
         let (ax, ay) = dispatch_grid(entries, &batch.context.limits)?;
         batch.dispatch(
             "image_resize_axes",
             KernelKey::new(KernelId::ResizeAxes),
             &[(&axes, false)],
-            &[words[5], words[6], words[7], words[8]],
+            &[words[5], words[6], words[7], resize_height as u32],
             [ax, ay, 1],
         )?;
         return batch.dispatch(

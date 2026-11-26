@@ -68,6 +68,9 @@ pub enum DetResizePolicy {
     Max,
     /// Enlarge the short side up to the requested limit, subject to the detector map area budget.
     Min,
+    /// Preserve native pixels, padding after any resize needed to fit the shared map limits.
+    /// The configurable side target applies to the legacy policies.
+    Native,
 }
 
 pub fn compute_det_size(width: usize, height: usize, limit: usize) -> ImageResult<DetSize> {
@@ -142,24 +145,69 @@ pub(crate) fn det_with_context_layout(
     budget: usize,
     nhwc: bool,
 ) -> ImageResult<()> {
-    let workers = crate::cpu::cap_stage_threads(budget, cpu.capacity()).min((height / 24).max(1));
-    if workers <= 1 {
-        return resize_with_layout::<true>(
-            image,
-            image.width(),
-            width,
-            height,
-            width,
-            output,
-            workspace,
-            nhwc,
-        );
-    }
+    det_with_padding(
+        image,
+        [width, height],
+        [width, height],
+        None,
+        output,
+        workspace,
+        cpu,
+        budget,
+        nhwc,
+    )
+}
+
+pub(crate) fn corner_average(image: ImageView<'_>) -> [u8; 3] {
+    let (right, bottom) = (image.width() - 1, image.height() - 1);
+    let corners = [
+        image.bgr(0, 0),
+        image.bgr(right, 0),
+        image.bgr(0, bottom),
+        image.bgr(right, bottom),
+    ];
+    std::array::from_fn(|c| ((corners.iter().map(|p| u16::from(p[c])).sum::<u16>() + 2) / 4) as u8)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn det_with_padding(
+    image: ImageView<'_>,
+    [width, height]: [usize; 2],
+    content: [usize; 2],
+    fill: Option<[u8; 3]>,
+    output: &mut [f32],
+    workspace: &mut ResizeWorkspace,
+    cpu: &crate::cpu::CpuContext,
+    budget: usize,
+    nhwc: bool,
+) -> ImageResult<()> {
     let plane = width
         .checked_mul(height)
         .ok_or_else(|| ImageError::new("DET plane size overflow"))?;
-    if width == 0 || height == 0 || plane.checked_mul(3) != Some(output.len()) {
+    if content[0] == 0
+        || content[1] == 0
+        || content[0] > width
+        || content[1] > height
+        || plane.checked_mul(3) != Some(output.len())
+    {
         return Err(ImageError::new("invalid DET output size"));
+    }
+    let (a, tail) = output.split_at_mut(if nhwc { output.len() } else { plane });
+    let (b, c) = tail.split_at_mut(if nhwc { 0 } else { plane });
+    let (mut a, mut b, mut c) = (a, b, c);
+    let workers = crate::cpu::cap_stage_threads(budget, cpu.capacity()).min((height / 24).max(1));
+    if workers <= 1 {
+        return detector_rows(
+            image,
+            content,
+            width,
+            fill,
+            0,
+            height,
+            &mut [a, b, c],
+            workspace,
+            nhwc,
+        );
     }
     workspace
         .workers
@@ -174,9 +222,6 @@ pub(crate) fn det_with_context_layout(
     while workspace.workers.len() < workers {
         workspace.workers.push(ResizeWorkspace::default());
     }
-    let (a, tail) = output.split_at_mut(if nhwc { output.len() } else { plane });
-    let (b, c) = tail.split_at_mut(if nhwc { 0 } else { plane });
-    let (mut a, mut b, mut c) = (a, b, c);
     let mut first = 0;
     let mut jobs = Vec::new();
     jobs.try_reserve_exact(workers).map_err(|e| {
@@ -205,12 +250,11 @@ pub(crate) fn det_with_context_layout(
         first = end;
     }
     cpu.for_each_mut(&mut jobs, workers, |_, job| {
-        job.error = resize_planes::<true>(
+        job.error = detector_rows(
             image,
-            image.width(),
+            content,
             width,
-            height,
-            width,
+            fill,
             job.first,
             job.rows,
             &mut job.planes,
@@ -226,6 +270,52 @@ pub(crate) fn det_with_context_layout(
     }
     Ok(())
 }
+#[allow(clippy::too_many_arguments)]
+fn detector_rows(
+    image: ImageView<'_>,
+    [content_width, content_height]: [usize; 2],
+    width: usize,
+    fill: Option<[u8; 3]>,
+    first: usize,
+    rows: usize,
+    output: &mut [&mut [f32]; 3],
+    workspace: &mut ResizeWorkspace,
+    nhwc: bool,
+) -> ImageResult<()> {
+    let content_rows = rows.min(content_height.saturating_sub(first));
+    if let Some(fill) = fill {
+        let values = normalization_lut(true);
+        let color = fill.map(|byte| values[byte as usize]);
+        for y in 0..rows {
+            let left = if y < content_rows { content_width } else { 0 };
+            let row = y * width;
+            if nhwc {
+                let (pixels, _) = output[0][(row + left) * 3..(row + width) * 3].as_chunks_mut();
+                pixels.fill(color);
+            } else {
+                for (plane, channel) in output.iter_mut().zip(color) {
+                    plane[row + left..row + width].fill(channel);
+                }
+            }
+        }
+    }
+    if content_rows == 0 {
+        return Ok(());
+    }
+    resize_planes::<true>(
+        image,
+        image.width(),
+        content_width,
+        content_height,
+        width,
+        first,
+        content_rows,
+        output,
+        workspace,
+        nhwc,
+    )
+}
+
 struct ResizeJob<'a> {
     planes: [&'a mut [f32]; 3],
     first: usize,
@@ -522,7 +612,11 @@ mod tests {
             (i32::MAX as usize, 1),
         ] {
             for limit in [32, 736, 960, 4096] {
-                for policy in [DetResizePolicy::Max, DetResizePolicy::Min] {
+                for policy in [
+                    DetResizePolicy::Max,
+                    DetResizePolicy::Min,
+                    DetResizePolicy::Native,
+                ] {
                     let size = compute_det_size_with_policy(width, height, limit, policy).unwrap();
                     assert!(
                         size.width >= 32 && valid_map_size(size.width, size.height),
@@ -531,6 +625,86 @@ mod tests {
                     assert!(size.height >= 32, "{width}x{height}/{policy:?}");
                     assert_eq!(size.width % 32, 0);
                     assert_eq!(size.height % 32, 0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn native_detector_aligns_each_axis_and_maximizes_the_bounded_uniform_scale() {
+        for (source, expected_content, expected_shape) in [
+            ([640, 320], [640, 320], [640, 320]),
+            ([950, 136], [950, 136], [960, 160]),
+            ([136, 950], [136, 950], [160, 960]),
+            ([17, 11], [17, 11], [32, 32]),
+            ([32, 1], [32, 1], [32, 32]),
+            ([1920, 1080], [1920, 1080], [1920, 1088]),
+            ([8193, 128], [8192, 128], [8192, 128]),
+            ([128, 8193], [128, 8192], [128, 8192]),
+            ([8180, 2050], [8173, 2048], [8192, 2048]),
+            ([5000, 4000], [4560, 3648], [4576, 3648]),
+        ] {
+            let (geometry, size) = DetSourceGeometry::new(source[0], source[1])
+                .unwrap()
+                .plan(736, DetResizePolicy::Native)
+                .unwrap();
+            assert_eq!(
+                geometry.native_content,
+                Some(expected_content),
+                "{source:?}"
+            );
+            assert_eq!([size.width, size.height], expected_shape, "{source:?}");
+            assert_eq!(
+                geometry.map_point([0., 0.], size.width, size.height),
+                [0., 0.]
+            );
+            assert_eq!(
+                geometry.map_point(
+                    [size.width as f32, size.height as f32],
+                    size.width,
+                    size.height
+                ),
+                [(source[0] - 1) as f32, (source[1] - 1) as f32]
+            );
+        }
+    }
+
+    #[test]
+    fn native_detector_preserves_strided_source_pixels_and_uses_the_corner_average() {
+        let (width, height, stride) = (17, 49, 72);
+        let pixels: Vec<u8> = (0..stride * height).map(|i| (i * 19 % 253) as u8).collect();
+        let image = ImageView::new(&pixels, width, height, stride, PixelFormat::Rgba32).unwrap();
+        let cpu = CpuContext::new(if cfg!(feature = "parallel") { 4 } else { 1 }).unwrap();
+        let fill = corner_average(image);
+        assert_eq!(fill, [145, 126, 107]);
+        for nhwc in [false, true] {
+            let shape = [32, 64];
+            let plane = shape[0] * shape[1];
+            let mut output = vec![f32::NAN; plane * 3];
+            det_with_padding(
+                image,
+                shape,
+                [width, height],
+                Some(fill),
+                &mut output,
+                &mut ResizeWorkspace::default(),
+                &cpu,
+                cpu.capacity(),
+                nhwc,
+            )
+            .unwrap();
+            for y in 0..shape[1] {
+                for x in 0..shape[0] {
+                    let pixel = if x < width && y < height {
+                        image.bgr(x, y)
+                    } else {
+                        fill
+                    };
+                    for (c, byte) in pixel.into_iter().enumerate() {
+                        let i = y * shape[0] + x;
+                        let index = if nhwc { i * 3 + c } else { c * plane + i };
+                        assert_eq!(output[index], normalized_byte(byte as usize, true));
+                    }
                 }
             }
         }

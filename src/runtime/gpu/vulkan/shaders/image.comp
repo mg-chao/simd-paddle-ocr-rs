@@ -171,7 +171,8 @@ void main() {
     uint _e19 = p(9u);
     uint x_1 = (pixel_index % _e19);
     uint _e22 = p(7u);
-    if ((x_1 >= _e22)) {
+    uint content_height = p(13u) == 0u ? p(8u) : p(13u);
+    if (x_1 >= _e22 || y_1 >= content_height) {
         bool loop_init_1 = true;
         while(true) {
             if (!loop_init_1) {
@@ -188,9 +189,21 @@ void main() {
                 uint _e30 = c;
                 uint _e34 = p(12u);
                 uint _e38 = p(11u);
-                float _e40 = normalize_store(uintBitsToFloat(_e38));
+                uint fill_byte = (p(14u) >> (8u * _e30)) & 255u;
+                float fill = p(13u) == 0u ? uintBitsToFloat(_e38)
+                                         : _group_0_binding_1_cs[_e30 * 256u + fill_byte];
+                float _e40 = normalize_store(fill);
                 _group_0_binding_2_cs[(((_e30 * plane) + pixel_index) + _e34)] = STORAGE_2(_e40);
             }
+        }
+        return;
+    }
+    if (p(13u) != 0u && p(5u) == p(7u) && p(6u) == content_height) {
+        for (uint channel = 0u; channel < 3u; ++channel) {
+            uint value = uint(pixel(x_1, y_1, channel));
+            float normalized = _group_0_binding_1_cs[channel * 256u + value];
+            _group_0_binding_2_cs[channel * plane + pixel_index + p(12u)] =
+                STORAGE_2(normalize_store(normalized));
         }
         return;
     }
@@ -209,7 +222,7 @@ void main() {
         xc = ivec2((int(_e66) - 1), 0);
     }
     uint _e73 = p(6u);
-    uint _e75 = p(8u);
+    uint _e75 = content_height;
     ivec2 _e76 = coefficient(y_1, _e73, _e75);
     int _e78 = xc.x;
     uint x0_ = uint(_e78);

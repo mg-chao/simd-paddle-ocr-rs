@@ -257,7 +257,8 @@ struct Resident {
                   || (y > 0u && is_foreground(i - w))
                   || (x > 0u && y > 0u && is_foreground(i - w - 1u));
       }
-      mask[i] = uint(yes);
+      bool in_content = p(7u) == 0u || (x < p(7u) && y < p(8u));
+      mask[i] = uint(yes && in_content);
       atomic_store_explicit(&parents[i], i, memory_order_relaxed);
       atomic_store_explicit(&counts[i], 0u, memory_order_relaxed);
       return;

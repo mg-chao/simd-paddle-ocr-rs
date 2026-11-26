@@ -7,7 +7,6 @@ use crate::{
     image::{ImageView, PixelFormat},
     model::Model,
     ocr::{OcrRequest, OwnedOcr},
-    preprocess,
     recognizer::{Dictionary, RecognitionScoreMode, RecognizerOptions},
     runtime::{
         CpuCompiledModel, ExecutionLimits, ExecutionTarget,
@@ -144,7 +143,11 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
         ExecutionLimits::default(),
     )
     .unwrap();
-    for (width, height) in [(192, 32), (46, 17), (17, 46)] {
+    for ((width, height), expected_size) in [
+        ((192, 32), (4416, 736)),
+        ((46, 17), (1056, 736)),
+        ((17, 46), (736, 1056)),
+    ] {
         let (padded_width, padded_height) = if width + height < 64 {
             (width.max(32), height.max(32))
         } else {
@@ -165,8 +168,8 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
         let mut expected = reference.detect(control).unwrap().try_to_owned().unwrap();
         assert_eq!(expected.boxes.len(), 1);
         for point in &mut expected.boxes[0].points {
-            point[0] = point[0].clamp(0., width as f32);
-            point[1] = point[1].clamp(0., height as f32);
+            point[0] = point[0].clamp(0., (width - 1) as f32);
+            point[1] = point[1].clamp(0., (height - 1) as f32);
         }
         let actual = detector.detect(image).unwrap().try_to_owned().unwrap();
         assert_eq!(actual.boxes.len(), 1, "{width}x{height}");
@@ -179,11 +182,7 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
         );
         assert_eq!(actual.width_ratio, expected.width_ratio);
         assert_eq!(actual.height_ratio, expected.height_ratio);
-        assert!(actual.resized_width <= preprocess::DET_MAX_SIDE);
-        assert!(actual.resized_height <= preprocess::DET_MAX_SIDE);
-        if width == 192 {
-            assert_eq!(actual.resized_width, preprocess::DET_MAX_SIDE);
-        }
+        assert_eq!((actual.resized_width, actual.resized_height), expected_size);
 
         let mut probabilities = Vec::new();
         let traced = detector
@@ -217,6 +216,86 @@ fn gpu_detector_bounded_resize_and_padding_preserve_trace_and_replay() {
             assert!((a.score - b.score).abs() <= 1e-3 + 1e-3 * b.score.abs());
         }
     }
+}
+
+#[test]
+#[ignore = "requires a physical GPU; run explicitly"]
+fn gpu_native_detector_matches_cpu_content_bounds_and_crops() {
+    let (source, _) = crate::ocr::tests::synthetic_sources();
+    let model = Arc::new(Model::load_bytes(&source).unwrap());
+    let options = DetectorOptions {
+        resize_policy: crate::preprocess::DetResizePolicy::Native,
+        // Keep the dark source below the bitmap threshold while the corner fill is above it.
+        bitmap_threshold: 0.35,
+        box_threshold: Some(0.5),
+        use_dilation: true,
+        ..Default::default()
+    };
+    let limits = ExecutionLimits::default();
+    let mut cpu = Detector::new(
+        Arc::new(CpuCompiledModel::new(model.clone()).unwrap()),
+        options,
+        limits,
+    )
+    .unwrap();
+    let mut gpu = Detector::new(
+        Arc::new(GpuCompiledModel::compile(model.clone(), hardware()).unwrap()),
+        options,
+        limits,
+    )
+    .unwrap();
+
+    let (w, h) = (46, 21);
+    let mut pixels = vec![24; w * h * 3];
+    for y in 8..h {
+        pixels[(y * w + 21) * 3..(y + 1) * w * 3].fill(250);
+    }
+    let image = ImageView::new(&pixels, w, h, 0, PixelFormat::Bgr24).unwrap();
+    let expected = cpu.detect(image).unwrap().try_to_owned().unwrap();
+    let actual = gpu.detect(image).unwrap().try_to_owned().unwrap();
+    assert!(gpu.uses_gpu());
+    assert_eq!((actual.resized_width, actual.resized_height), (64, 32));
+    assert_eq!(actual.boxes.len(), 1);
+    assert_eq!(actual.boxes[0].points, expected.boxes[0].points);
+    assert!(
+        actual.boxes[0]
+            .points
+            .iter()
+            .any(|p| p[0] == 45. && p[1] == 20.)
+    );
+    let crop = crate::crop::CropTransform::new(&actual.boxes[0]).unwrap();
+    let mut output = vec![0; crop.byte_count().unwrap()];
+    crop.extract_into(image, &mut output).unwrap();
+    assert!(output.contains(&250));
+
+    let mut map = vec![0.; 64 * 32];
+    for y in 22..32 {
+        map[y * 64 + 48..(y + 1) * 64].fill(0.99);
+    }
+    for detector in [&mut cpu, &mut gpu] {
+        assert!(
+            detector
+                .postprocess(&map, 64, 32, image, 1., 1.)
+                .unwrap()
+                .boxes
+                .is_empty()
+        );
+    }
+    let context = GpuContext::new().unwrap();
+    let compiler = crate::runtime::Compiler::new(crate::runtime::CompilerOptions {
+        gpu: Some(context.clone()),
+        ..Default::default()
+    });
+    let compiled = compiler
+        .compile(model, Default::default(), ExecutionTarget::Auto)
+        .unwrap();
+    let mut fallback = Detector::new(compiled, options, limits).unwrap();
+    assert!(fallback.uses_gpu());
+    context.inject_failure_for_test(crate::error::ErrorKind::DeviceLost);
+    let retried = fallback.detect(image).unwrap().try_to_owned().unwrap();
+    assert!(!fallback.uses_gpu());
+    assert_eq!((retried.resized_width, retried.resized_height), (64, 32));
+    assert_eq!(retried.boxes, expected.boxes);
 }
 
 #[test]
