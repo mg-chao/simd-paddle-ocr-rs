@@ -2,8 +2,8 @@ use super::*;
 use crate::runtime::bound;
 
 #[test]
-fn direct_transpose_selection_keeps_narrow_heads_and_other_backends_on_fallback() {
-    for (cin, cout) in [(16, 16), (24, 24), (63, 64), (64, 63), (64, 64), (65, 65)] {
+fn direct_transpose_selection_requires_neon_and_sixteen_channels() {
+    for (cin, cout) in [(15, 16), (16, 15), (16, 16), (17, 17), (24, 24), (64, 64)] {
         let p = bound::ConvTranspose {
             batch: 1,
             cin,
@@ -24,8 +24,8 @@ fn direct_transpose_selection_keeps_narrow_heads_and_other_backends_on_fallback(
                 neon_direct_eligible(backend, &p),
                 cfg!(all(target_arch = "aarch64", target_os = "macos"))
                     && backend == Backend::NeonFma
-                    && cin >= 64
-                    && cout >= 64
+                    && cin >= 16
+                    && cout >= 16
             );
         }
     }

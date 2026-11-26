@@ -1896,9 +1896,14 @@ fn decode_probability_rows(
         let blank = row[0];
         let (chunks, tail) = row.as_chunks::<8>();
         use std::simd::{Simd, cmp::SimdPartialOrd};
-        let below_blank = chunks
+        let (blocks, last) = chunks.as_chunks::<4>();
+        let limit = Simd::splat(blank);
+        let below_blank = blocks.iter().all(|block| {
+            let [a, b, c, d] = block.map(|lanes| Simd::from_array(lanes).simd_le(limit));
+            (a & b & c & d).all()
+        }) && last
             .iter()
-            .all(|chunk| Simd::from_array(*chunk).simd_le(Simd::splat(blank)).all());
+            .all(|chunk| Simd::from_array(*chunk).simd_le(limit).all());
         if blank.is_finite() && below_blank && tail.iter().all(|&v| v <= blank) {
             *index = 0;
             *score = 0.;
@@ -2050,6 +2055,25 @@ mod tests {
         );
         assert_eq!(ids, [0, 1, 2]);
         assert_eq!(scores, [0., dense[4], dense[8]]);
+    }
+
+    #[test]
+    fn blank_scan_checks_every_vector_and_tail_before_skipping_softmax() {
+        let mut pipeline = crate::ocr::tests::synthetic_ocr(CpuContext::serial());
+        let mut plan = (**pipeline.recognizer_mut().plan()).clone();
+        plan.grouped_width = true;
+        let classes = 43;
+        plan.head.classes = classes;
+        let mut row = vec![1.; classes];
+        let mut scratch = Vec::new();
+        for winner in [0, 7, 8, 17, 24, 31, 32, 39, 42] {
+            row[winner] = 2.;
+            let (mut id, mut score) = ([usize::MAX], [f32::NAN]);
+            decode_probability_rows(&plan, &row, &mut scratch, &mut id, &mut score).unwrap();
+            assert_eq!(id[0], winner);
+            assert_eq!(score[0] == 0., winner == 0);
+            row[winner] = 1.;
+        }
     }
 
     #[test]

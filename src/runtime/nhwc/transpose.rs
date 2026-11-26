@@ -2,13 +2,13 @@
 //! directly to exclusive output-row pairs; single-channel lanes own pixels.
 use super::*;
 
-/// Local macOS graph measurements favor direct stores for the larger ARM64 head.
-/// Narrow heads retain the existing matrix path; their benefit was inconclusive.
+/// On macOS ARM64, direct stores avoid scattering a temporary result tile
+/// when the input and output each span at least sixteen channels.
 pub(super) fn neon_direct_eligible(backend: Backend, p: &bound::ConvTranspose) -> bool {
     cfg!(all(target_arch = "aarch64", target_os = "macos"))
         && backend == Backend::NeonFma
-        && p.cin >= 64
-        && p.cout >= 64
+        && p.cin >= 16
+        && p.cout >= 16
 }
 
 /// Reuse the native four-row GEMM reduction, writing its channel panels

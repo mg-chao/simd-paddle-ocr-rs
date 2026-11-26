@@ -485,6 +485,26 @@ pub(in crate::runtime::nhwc) fn sme_bands(
     workspaces: &mut [Vec<f32>],
     action: impl Fn(&mut [f32], usize, &mut [f32]) + Sync,
 ) {
+    // Long bands can leave faster cores idle. Each worker keeps its own
+    // packing workspace and claims another group of complete SME tiles.
+    if bands.rows >= bands.workers * GROUP * 4 && workspaces.len() >= bands.workers {
+        use rayon::prelude::*;
+        let chunk_rows = bands
+            .rows
+            .div_ceil(bands.workers * 4)
+            .next_multiple_of(GROUP);
+        let chunks = std::sync::Mutex::new(output.chunks_mut(chunk_rows * columns).enumerate());
+        workspaces[..bands.workers]
+            .par_iter_mut()
+            .for_each(|workspace| {
+                loop {
+                    let job = chunks.lock().unwrap().next();
+                    let Some((index, dst)) = job else { break };
+                    action(dst, index * chunk_rows, workspace);
+                }
+            });
+        return;
+    }
     fn visit(
         output: &mut [f32],
         columns: usize,

@@ -251,6 +251,34 @@ fn sme_parallel_bands_reuse_exclusive_scratch_and_preserve_fused_stores() {
     assert_bits(&fallback, &expected, "missing scratch falls back");
 }
 
+#[cfg(feature = "parallel")]
+#[test]
+fn large_sme_bands_cover_the_tail_and_reuse_each_workers_scratch() {
+    let workers = 3;
+    let rows = workers * GROUP * 4 + 5;
+    let columns = 3;
+    let bands = PointwiseBands::new(rows, 256, columns * 16, workers);
+    let cpu = CpuContext::new(workers).unwrap();
+    let mut dst = vec![f32::NAN; rows * columns];
+    let mut scratch = vec![vec![0.]; workers];
+    cpu.install(|| {
+        sme_bands(
+            &mut dst,
+            columns,
+            bands,
+            &mut scratch,
+            |chunk, first, scratch| {
+                scratch[0] += 1.;
+                for (i, value) in chunk.iter_mut().enumerate() {
+                    *value = (first * columns + i) as f32;
+                }
+            },
+        );
+    });
+    assert!(scratch.iter().map(|w| w[0]).sum::<f32>() > workers as f32);
+    assert!(dst.iter().enumerate().all(|(i, &x)| x == i as f32));
+}
+
 #[test]
 fn sme_guard_preserves_za_state_and_nondefault_fpcr() {
     if !available() {
