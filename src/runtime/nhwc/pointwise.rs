@@ -69,6 +69,17 @@ pub(super) fn execute(
         ..start
             .checked_add(length)
             .expect("pointwise input end overflow")];
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    if backend == Backend::Avx2Fma
+        && let Some(active) = &packed.active_columns
+        && !bias.iter().any(|v| v.to_bits() == (-0.0f32).to_bits())
+        && input.iter().all(|x| x.is_finite())
+    {
+        // SAFETY: the selected model backend establishes AVX2 and FMA. The
+        // same worker-local slices and dimension checks apply as to dense.
+        unsafe { sparse_columns(input, bias, active, output, first, inner, columns, store) };
+        return;
+    }
     match backend {
         Backend::Scalar => {
             narrow::<1, false>(input, bias, packed, output, first, inner, columns, store)
@@ -270,7 +281,17 @@ fn wide<const LANES: usize, const FUSED: bool>(
     columns: usize,
     store: &impl StoreTransform,
 ) {
-    wide_grouped::<LANES, FUSED, 0>(input, bias, packed, output, first, inner, columns, store);
+    wide_grouped::<LANES, FUSED, 0>(
+        input,
+        bias,
+        &[],
+        packed,
+        output,
+        first,
+        inner,
+        columns,
+        store,
+    );
 }
 
 /// A zero fixed group selects production's shape policy. Test-only controls
@@ -281,6 +302,7 @@ fn wide<const LANES: usize, const FUSED: bool>(
 fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>(
     input: &[f32],
     bias: &[f32],
+    bias_columns: &[usize],
     packed: &PackedMatrix,
     output: &mut [f32],
     first: usize,
@@ -300,8 +322,17 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>
         let input = &input[group * inner..(group + count) * inner];
         for (block, panel) in packed.data().chunks_exact(inner * 16).enumerate() {
             let column = block * 16;
-            let low = initial::<LANES>(bias, column);
-            let high = initial::<LANES>(bias, column + LANES);
+            let seed = |column| {
+                if bias_columns.is_empty() || bias.is_empty() {
+                    initial::<LANES>(bias, column)
+                } else {
+                    Simd::from_array(std::array::from_fn(|lane| {
+                        bias_columns.get(column + lane).map_or(0., |&c| bias[c])
+                    }))
+                }
+            };
+            let low = seed(column);
+            let high = seed(column + LANES);
             for tile in (0..count).step_by(ROWS) {
                 let [p0, p1, p2, p3, p4, p5] = row_inputs(input, tile, count, inner);
                 // SAFETY: execute's guarded target-feature wrapper selected
@@ -326,6 +357,60 @@ fn wide_grouped<const LANES: usize, const FUSED: bool, const FIXED_GROUP: usize>
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+#[allow(clippy::too_many_arguments)]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn sparse_columns(
+    input: &[f32],
+    bias: &[f32],
+    active: &crate::runtime::packing::ActiveColumns,
+    output: &mut [f32],
+    first: usize,
+    inner: usize,
+    columns: usize,
+    store: &impl StoreTransform,
+) {
+    use std::arch::x86_64::{
+        __m256, __m256i, _mm256_blendv_ps, _mm256_castsi256_ps, _mm256_cmpgt_epi32,
+        _mm256_loadu_ps, _mm256_permutevar8x32_ps, _mm256_set1_epi32,
+    };
+    let rows = output.len() / columns;
+    let kept = active.indices.len();
+    wide_grouped::<8, true, 0>(
+        input,
+        bias,
+        &active.indices,
+        &active.weights,
+        &mut output[..rows * kept],
+        0,
+        inner,
+        kept,
+        &simd::IdentityStore,
+    );
+    // Expand in place from the end. Each live lane moves to the same or a
+    // higher index. Load and permute before writing to handle overlap.
+    let absent = _mm256_set1_epi32(-1);
+    for row in (0..rows).rev() {
+        let source = row * kept;
+        for (block, remap) in active.restore.iter().enumerate().rev() {
+            let channel = block * 8;
+            let seed = initial::<8>(bias, channel);
+            // SAFETY: pack creation bounds the eight-lane load inside the
+            // compact row and masks all absent lanes, including output tails.
+            // Arrays, portable vectors and native registers have matching layouts.
+            let values = unsafe {
+                let indices = std::mem::transmute::<[i32; 8], __m256i>(remap.lanes);
+                let mask = _mm256_castsi256_ps(_mm256_cmpgt_epi32(indices, absent));
+                let seed = std::mem::transmute::<Simd<f32, 8>, __m256>(seed);
+                let packed = _mm256_loadu_ps(output.as_ptr().add(source + remap.start));
+                let mapped = _mm256_permutevar8x32_ps(packed, indices);
+                std::mem::transmute::<__m256, Simd<f32, 8>>(_mm256_blendv_ps(seed, mapped, mask))
+            };
+            store_row(values, output, row, channel, columns, first, store);
         }
     }
 }
@@ -367,6 +452,7 @@ unsafe fn execute_group_control_avx2<const FIXED_GROUP: usize>(
     wide_grouped::<8, true, FIXED_GROUP>(
         input,
         bias,
+        &[],
         packed,
         output,
         0,

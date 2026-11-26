@@ -1,6 +1,68 @@
 use super::super::tests::{assert_bits, oracle, values};
 use super::*;
 
+#[test]
+fn compact_output_restores_tail_lanes_and_falls_back_for_special_inputs() {
+    if !simd::avx2_fma_available() {
+        return;
+    }
+    struct IndexedStore;
+    impl StoreTransform for IndexedStore {
+        fn scalar(&self, value: f32, index: usize) -> f32 {
+            value + (index % 13) as f32
+        }
+
+        fn vector<const LANES: usize>(
+            &self,
+            value: Simd<f32, LANES>,
+            index: usize,
+        ) -> Simd<f32, LANES> {
+            value + Simd::from_array(std::array::from_fn(|lane| ((index + lane) % 13) as f32))
+        }
+    }
+
+    let (rows, inner, columns, first) = (19, 256, 273, 2);
+    let mut input = values(rows * inner, 1);
+    let mut weights = values(inner * columns, 2);
+    for (i, column) in weights.chunks_exact_mut(inner).enumerate() {
+        if i % 3 == 0 || i == columns - 1 {
+            column.fill(-0.0);
+        }
+    }
+    let mut bias = values(columns, 3);
+    let dense = PackedMatrix::from_columns(&weights, inner, columns).unwrap();
+    let compact = PackedMatrix::from_pointwise_columns(&weights, inner, columns).unwrap();
+    assert!(compact.active_columns.is_some());
+    for case in 0..3 {
+        if case == 1 {
+            bias[0] = -0.0;
+        } else if case == 2 {
+            bias[0] = 0.0;
+            input[first * inner] = f32::INFINITY;
+        }
+        let mut outputs = [
+            vec![0.; (rows - first) * columns],
+            vec![0.; (rows - first) * columns],
+        ];
+        for (packed, output) in [&dense, &compact].into_iter().zip(&mut outputs) {
+            super::super::execute(
+                Backend::Avx2Fma,
+                &input,
+                &bias,
+                packed,
+                output,
+                first,
+                inner,
+                columns,
+                &IndexedStore,
+            );
+        }
+        for (&a, &b) in outputs[0].iter().zip(&outputs[1]) {
+            assert!(a.to_bits() == b.to_bits() || a.is_nan() && b.is_nan());
+        }
+    }
+}
+
 struct ResidualRelu<'a>(&'a [f32]);
 impl StoreTransform for ResidualRelu<'_> {
     fn scalar(&self, value: f32, index: usize) -> f32 {
@@ -88,6 +150,7 @@ unsafe fn full_k(
     wide_grouped::<8, true, 0>(
         input,
         bias,
+        &[],
         packed,
         output,
         0,

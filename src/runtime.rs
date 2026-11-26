@@ -485,16 +485,36 @@ impl CpuCompiledModel {
                         && (self.options.cpu.layout == LayoutPolicy::Auto
                             || nchw::pack_eligible(attr, dims)) =>
                 {
-                    let pack = self.packed_cache.matrix::<RuntimeError>(
-                        id,
-                        packing::MatrixPacking::ConvOutputMajor,
-                        || {
+                    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+                    let pack_kind = if self.backend == Backend::Avx2Fma
+                        && self.options.cpu.layout == LayoutPolicy::Auto
+                        && attr.group == 1
+                        && dims[2..] == [1, 1]
+                        && dims[0].min(dims[1]) >= 256
+                    {
+                        packing::MatrixPacking::PointwiseOutputMajor
+                    } else {
+                        packing::MatrixPacking::ConvOutputMajor
+                    };
+                    #[cfg(not(all(target_arch = "x86_64", target_os = "windows")))]
+                    let pack_kind = packing::MatrixPacking::ConvOutputMajor;
+                    let pack = self
+                        .packed_cache
+                        .matrix::<RuntimeError>(id, pack_kind, || {
                             let columns = dims[0];
                             let inner = weight.data().len() / columns;
+                            #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+                            if pack_kind == packing::MatrixPacking::PointwiseOutputMajor {
+                                return PackedMatrix::from_pointwise_columns(
+                                    weight.data(),
+                                    inner,
+                                    columns,
+                                )
+                                .map_err(RuntimeError::new);
+                            }
                             PackedMatrix::from_columns(weight.data(), inner, columns)
                                 .map_err(RuntimeError::new)
-                        },
-                    )?;
+                        })?;
                     self.conv_packed.insert(index, pack);
                     #[cfg(target_arch = "aarch64")]
                     if self.backend == Backend::NeonFma

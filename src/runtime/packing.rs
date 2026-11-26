@@ -16,6 +16,8 @@ use std::{
 pub(crate) enum MatrixPacking {
     RowMajor,
     ConvOutputMajor,
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    PointwiseOutputMajor,
     #[cfg(target_arch = "aarch64")]
     ConvTapMajor,
 }
@@ -110,6 +112,23 @@ pub(crate) struct PackedMatrix {
     values: Box<[f32]>,
     #[cfg(target_arch = "aarch64")]
     pub(super) tap_major: bool,
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    pub(super) active_columns: Option<Box<ActiveColumns>>,
+}
+
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+#[derive(Debug)]
+pub(super) struct ActiveColumns {
+    pub(super) indices: Box<[usize]>,
+    pub(super) restore: Box<[ColumnRestore]>,
+    pub(super) weights: PackedMatrix,
+}
+
+#[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ColumnRestore {
+    pub(super) start: usize,
+    pub(super) lanes: [i32; 8],
 }
 
 impl PackedMatrix {
@@ -149,6 +168,67 @@ impl PackedMatrix {
             return Err("packed matrix coefficient length differs from dimensions");
         }
         Self::from_fn(inner, columns, |k, column| weights[column * inner + k])
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+    pub(super) fn from_pointwise_columns(
+        weights: &[f32],
+        inner: usize,
+        columns: usize,
+    ) -> Result<Self, &'static str> {
+        let mut full = Self::from_columns(weights, inner, columns)?;
+        let mut active = Vec::new();
+        active
+            .try_reserve_exact(columns)
+            .map_err(|_| "packed column allocation failed")?;
+        active.extend(
+            weights
+                .chunks_exact(inner)
+                .enumerate()
+                .filter_map(|(column, weights)| {
+                    weights.iter().any(|&weight| weight != 0.).then_some(column)
+                }),
+        );
+        let blocks = columns.div_ceil(MATRIX_BLOCK_COLUMNS);
+        let kept = active.len().div_ceil(MATRIX_BLOCK_COLUMNS);
+        if active.len() >= 8 && blocks - kept >= blocks.div_ceil(8) && columns <= i32::MAX as usize
+        {
+            let compact = Self::from_fn(inner, active.len(), |k, column| {
+                weights[active[column] * inner + k]
+            })?;
+            let mut restore = Vec::new();
+            let vectors = columns.div_ceil(8);
+            restore
+                .try_reserve_exact(vectors)
+                .map_err(|_| "packed column mapping allocation failed")?;
+            restore.resize(
+                vectors,
+                ColumnRestore {
+                    start: 0,
+                    lanes: [-1; 8],
+                },
+            );
+            for (compact, &column) in active.iter().enumerate() {
+                restore[column / 8].lanes[column % 8] = compact as i32;
+            }
+            for block in &mut restore {
+                // The compact indices within a vector occupy consecutive
+                // positions. Near the row end, move the load back to fit.
+                let first = block.lanes.iter().copied().find(|&i| i >= 0);
+                block.start = first.map_or(0, |i| (i as usize).min(active.len() - 8));
+                for lane in &mut block.lanes {
+                    if *lane >= 0 {
+                        *lane -= block.start as i32;
+                    }
+                }
+            }
+            full.active_columns = Some(Box::new(ActiveColumns {
+                indices: active.into_boxed_slice(),
+                restore: restore.into_boxed_slice(),
+                weights: compact,
+            }));
+        }
+        Ok(full)
     }
 
     /// The ARM direct spatial convolution reduces tap, then input channel.
@@ -248,6 +328,8 @@ impl PackedMatrix {
             values: values.into_boxed_slice(),
             #[cfg(target_arch = "aarch64")]
             tap_major: false,
+            #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+            active_columns: None,
         })
     }
 
@@ -260,7 +342,15 @@ impl PackedMatrix {
     }
 
     pub(crate) fn bytes(&self) -> usize {
-        self.byte_len()
+        let bytes = self.byte_len();
+        #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
+        let bytes = bytes
+            + self.active_columns.as_ref().map_or(0, |active| {
+                size_of_val(active.indices.as_ref())
+                    + size_of_val(active.restore.as_ref())
+                    + active.weights.byte_len()
+            });
+        bytes
     }
 
     pub(crate) fn matches(&self, inner: usize, columns: usize) -> bool {
